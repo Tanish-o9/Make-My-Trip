@@ -1,0 +1,14 @@
+fastapi>=0.100.0
+uvicorn>=0.22.0
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.6
+redis>=4.6.0
+chromadb>=0.4.24
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+python-multipart>=0.0.6
+httpx>=0.24.1
+pydantic[email]>=2.0.0
+langgraph>=0.0.26
+langchain>=0.1.0
+alembic>=1.11.0

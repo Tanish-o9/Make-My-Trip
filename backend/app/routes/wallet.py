@@ -1,0 +1,215 @@
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from decimal import Decimal
+from typing import List
+from pydantic import BaseModel, Field
+import datetime
+
+from app.database import get_db
+from app.auth.dependencies import get_current_user
+from app.models.core import User, SavedTraveler, SavedPaymentMethod, Wishlist, LoyaltyTransaction, WalletTransaction
+from app.services.wallet_loyalty import WalletService, LoyaltyService, CouponService, CouponValidationError
+
+router = APIRouter(prefix="/wallet-loyalty", tags=["wallet-loyalty"])
+
+# Schema definitions
+class WalletResponse(BaseModel):
+    balance: float
+    currency: str
+
+class WalletTopupRequest(BaseModel):
+    amount: float = Field(..., gt=0)
+    payment_token: str  # Simulated stripe card token
+
+class CouponApplyRequest(BaseModel):
+    code: str
+    order_value: float = Field(..., gt=0)
+
+class SavedTravelerRequest(BaseModel):
+    name: str
+    dob: datetime.date
+    passport_no: str = None
+
+class SavedTravelerResponse(BaseModel):
+    id: int
+    name: str
+    dob: datetime.date
+    passport_no: str = None
+    
+    class Config:
+        from_attributes = True
+
+class WishlistRequest(BaseModel):
+    item_type: str
+    item_ref_id: str
+
+# Endpoints
+@router.get("/wallet", response_model=WalletResponse)
+def get_wallet(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    wallet = WalletService.get_or_create_wallet(db, user.id)
+    return {"balance": float(wallet.balance), "currency": wallet.currency}
+
+@router.post("/wallet/topup", response_model=WalletResponse)
+def top_up_wallet(
+    req: WalletTopupRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # Simulated payment processing step (Stripe customer tokenization)
+    payment_ref = f"stripe_txn_{datetime.datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
+    
+    # Write saved payment method reference for later use
+    pm = SavedPaymentMethod(
+        user_id=user.id,
+        provider="stripe",
+        provider_customer_id="cust_stripe_dummy",
+        payment_token=req.payment_token,
+        brand="Visa",
+        last4="4242",
+        exp_month=12,
+        exp_year=2030
+    )
+    db.add(pm)
+    
+    wallet = WalletService.top_up(db, user.id, Decimal(str(req.amount)), payment_ref)
+    return {"balance": float(wallet.balance), "currency": wallet.currency}
+
+@router.get("/loyalty")
+def get_loyalty_summary(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    loy = LoyaltyService.get_or_create_loyalty(db, user.id)
+    txs = db.query(LoyaltyTransaction).filter(LoyaltyTransaction.loyalty_account_id == loy.id).all()
+    return {
+        "points_balance": loy.points_balance,
+        "tier": loy.tier,
+        "history": [
+            {
+                "points_delta": tx.points_delta,
+                "reason": tx.reason,
+                "booking_ref": tx.booking_ref,
+                "timestamp": tx.timestamp
+            }
+            for tx in txs
+        ]
+    }
+
+@router.post("/coupon/validate")
+def validate_coupon(
+    req: CouponApplyRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        coupon = CouponService.validate_coupon(db, req.code, user.id, Decimal(str(req.order_value)))
+        # Calculate expected discount
+        discount_val = Decimal(str(coupon.value))
+        if coupon.discount_type == "percentage":
+            discount = (Decimal(str(req.order_value)) * discount_val) / Decimal("100.00")
+        else:
+            discount = discount_val
+            
+        return {
+            "valid": True,
+            "code": coupon.code,
+            "discount_amount": float(discount),
+            "discount_type": coupon.discount_type
+        }
+    except CouponValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+# Travelers CRUD
+@router.post("/travelers", response_model=SavedTravelerResponse)
+def add_traveler(
+    req: SavedTravelerRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    traveler = SavedTraveler(
+        linked_user_id=user.id,
+        name=req.name,
+        dob=req.dob,
+        passport_no=req.passport_no
+    )
+    db.add(traveler)
+    db.commit()
+    db.refresh(traveler)
+    return traveler
+
+@router.get("/travelers", response_model=List[SavedTravelerResponse])
+def list_travelers(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return db.query(SavedTraveler).filter(SavedTraveler.linked_user_id == user.id).all()
+
+# Wishlist CRUD
+@router.post("/wishlist")
+def add_wishlist(
+    req: WishlistRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    exists = db.query(Wishlist).filter(
+        Wishlist.user_id == user.id,
+        Wishlist.item_type == req.item_type,
+        Wishlist.item_ref_id == req.item_ref_id
+    ).first()
+    if exists:
+        return {"status": "already_added"}
+        
+    item = Wishlist(user_id=user.id, item_type=req.item_type, item_ref_id=req.item_ref_id)
+    db.add(item)
+    db.commit()
+    return {"status": "added"}
+
+@router.get("/wishlist")
+def list_wishlist(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    items = db.query(Wishlist).filter(Wishlist.user_id == user.id).all()
+    return [{"id": item.id, "item_type": item.item_type, "item_ref_id": item.item_ref_id} for item in items]
+
+from fastapi.responses import Response
+from app.ai_agents.cancellation_agent import CancellationAgent
+from app.services.calendar_service import CalendarService
+from app.ai_agents.notification_agent import NotificationAgent
+
+@router.post("/bookings/{booking_ref}/cancel")
+def cancel_booking(
+    booking_ref: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    result = CancellationAgent.process_cancellation(db, booking_ref, user.id)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+        
+    # Dispatch notification alert
+    NotificationAgent.dispatch_cancellation_refund(
+        db=db,
+        user_id=user.id,
+        booking_ref=booking_ref,
+        refund_amount=result["refund_amount"]
+    )
+    return result
+
+@router.get("/calendar/export")
+def export_calendar(
+    summary: str,
+    description: str,
+    location: str,
+    start_date: str, # YYYY-MM-DD
+    user: User = Depends(get_current_user)
+):
+    try:
+        start_time = datetime.datetime.strptime(start_date, "%Y-%m-%d")
+        event = {
+            "summary": summary,
+            "description": description,
+            "location": location,
+            "start_time": start_time,
+            "end_time": start_time + datetime.timedelta(hours=2)
+        }
+        ics_text = CalendarService.generate_ics_content(event)
+        return Response(
+            content=ics_text,
+            media_type="text/calendar",
+            headers={"Content-Disposition": f"attachment; filename=itinerary_{start_date}.ics"}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to generate calendar file: {e}")
+

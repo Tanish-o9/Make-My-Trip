@@ -1,0 +1,108 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: travel_os_postgres
+    environment:
+      POSTGRES_DB: travel_os
+      POSTGRES_USER: travel_user
+      POSTGRES_PASSWORD: travel_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U travel_user -d travel_os"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: travel_os_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  chromadb:
+    image: chromadb/chroma:0.4.24
+    container_name: travel_os_chromadb
+    ports:
+      - "8000:8000"
+    volumes:
+      - chromadata:/chroma/data
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ALLOW_RESET=TRUE
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: travel_os_backend
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql://travel_user:travel_password@postgres:5432/travel_os
+      - REDIS_URL=redis://redis:6379/0
+      - CHROMADB_HOST=chromadb
+      - CHROMADB_PORT=8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      chromadb:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: travel_os_frontend
+    restart: always
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+  admin-console:
+    build:
+      context: ./admin-console
+      dockerfile: Dockerfile
+    container_name: travel_os_admin_console
+    restart: always
+    ports:
+      - "5174:80"
+    depends_on:
+      - backend
+
+  nginx:
+    image: nginx:alpine
+    container_name: travel_os_gateway
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+      - frontend
+      - admin-console
+
+volumes:
+  pgdata:
+  redisdata:
+  chromadata:

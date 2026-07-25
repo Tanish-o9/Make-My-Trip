@@ -1,0 +1,60 @@
+@import url('https://fonts.googleapis.com/css2?family=Bangers&family=Space+Grotesque:wght@400;500;700;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-brand-primary: #7c3aed; /* violet-600 */
+  --color-brand-secondary: #ec4899; /* pink-500 */
+}
+
+@layer base {
+  body {
+    background-color: #faf5ff !important;
+    color: #1e1b4b;
+    font-family: 'Space Grotesque', system-ui, -apple-system, sans-serif !important;
+  }
+}
+
+/* Global Reset to Neobrutalism Style */
+* {
+  border-color: #000000 !important;
+}
+
+/* Premium custom styling for neobrutalist look */
+.neo-btn {
+  background-color: #ffffff;
+  color: #000000;
+  border: 3px solid #000000 !important;
+  box-shadow: 4px 4px 0px 0px #000000;
+  font-weight: 700;
+  transition: all 0.15s ease-in-out;
+}
+
+.neo-btn:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0px 0px #000000;
+}
+
+.neo-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0px 0px #000000;
+}
+
+.neo-card {
+  background-color: #ffffff;
+  color: #000000;
+  border: 3px solid #000000 !important;
+  box-shadow: 5px 5px 0px 0px #000000;
+}
+
+.neo-input {
+  background-color: #ffffff;
+  color: #000000;
+  border: 3px solid #000000 !important;
+  padding: 0.5rem;
+  font-weight: 500;
+  outline: none;
+}
+
+.neo-input:focus {
+  box-shadow: 3px 3px 0px 0px #7c3aed;
+}

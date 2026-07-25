@@ -1,0 +1,13 @@
+{
+  "cities_count": 15,
+  "hotels_per_city": 15,
+  "villas_per_city": 8,
+  "cabs_per_city": 6,
+  "tours_per_city": 10,
+  "flights_per_route": 4,
+  "packages_count": 12,
+  "trains_count": 10,
+  "buses_count": 12,
+  "cruises_count": 6,
+  "insurance_plans_count": 4
+}
