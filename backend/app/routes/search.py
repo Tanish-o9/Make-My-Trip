@@ -143,9 +143,92 @@ def unified_vertical_search(
         finally:
             db.close()
 
+        dest = (destination or "Goa").strip()
         results = [
-            {"name": "Seaview Luxury Villa", "rating": "4.9 ★", "price": 18500, "details": "4 Bedrooms, Private Pool, Beachfront access", "bedrooms": 4, "max_occupancy": 8, "property_type": "Villa"},
-            {"name": "Sunset Cottage Goa", "rating": "4.6 ★", "price": 6000, "details": "2 Bedrooms, Cozy garden sitout", "bedrooms": 2, "max_occupancy": 4, "property_type": "Cottage"}
+            # --- Luxury Villas ---
+            {
+                "name": f"Royal Heritage Villa {dest}",
+                "rating": "4.9 ★",
+                "price": 19500,
+                "details": f"4 Bedrooms, Private Infinity Pool, beachfront and ocean view in {dest}",
+                "bedrooms": 4,
+                "max_occupancy": 8,
+                "property_type": "Villa"
+            },
+            {
+                "name": f"Cloud Nine Chalet {dest}",
+                "rating": "4.8 ★",
+                "price": 14000,
+                "details": f"3 Bedrooms, Private terrace deck & evening bonfire pit in {dest}",
+                "bedrooms": 3,
+                "max_occupancy": 6,
+                "property_type": "Villa"
+            },
+            {
+                "name": f"Signature Elite Estate {dest}",
+                "rating": "4.9 ★",
+                "price": 28000,
+                "details": f"5 Bedrooms, Private Jacuzzi, BBQ facilities, & butler service in {dest}",
+                "bedrooms": 5,
+                "max_occupancy": 10,
+                "property_type": "Villa"
+            },
+            # --- Homestays ---
+            {
+                "name": f"{dest} Village Organic Homestay",
+                "rating": "4.7 ★",
+                "price": 3200,
+                "details": f"2 Bedrooms, Authentic home-cooked local meals & farming experience in {dest}",
+                "bedrooms": 2,
+                "max_occupancy": 4,
+                "property_type": "Homestay"
+            },
+            {
+                "name": f"Nani's Heritage Homestay {dest}",
+                "rating": "4.8 ★",
+                "price": 4500,
+                "details": f"3 Bedrooms, Traditional courtyard, rich hospitality, and local tours in {dest}",
+                "bedrooms": 3,
+                "max_occupancy": 6,
+                "property_type": "Homestay"
+            },
+            {
+                "name": f"Green Canopy Homestay {dest}",
+                "rating": "4.6 ★",
+                "price": 3800,
+                "details": f"2 Bedrooms, Nestled inside spice plantations, peaceful nature trails in {dest}",
+                "bedrooms": 2,
+                "max_occupancy": 5,
+                "property_type": "Homestay"
+            },
+            # --- Cottages ---
+            {
+                "name": f"Whispering Palms Cottage {dest}",
+                "rating": "4.7 ★",
+                "price": 8500,
+                "details": f"3 Bedrooms, Cozy wooden structure with lush garden sitout in {dest}",
+                "bedrooms": 3,
+                "max_occupancy": 6,
+                "property_type": "Cottage"
+            },
+            {
+                "name": f"Serene Meadow Cottage {dest}",
+                "rating": "4.6 ★",
+                "price": 6200,
+                "details": f"2 Bedrooms, Beautiful valley views, private lawn, and fireplace in {dest}",
+                "bedrooms": 2,
+                "max_occupancy": 4,
+                "property_type": "Cottage"
+            },
+            {
+                "name": f"Pine Wood Cottage {dest}",
+                "rating": "4.5 ★",
+                "price": 5500,
+                "details": f"2 Bedrooms, Rustic architecture with attic bedrooms and mountain outlook in {dest}",
+                "bedrooms": 2,
+                "max_occupancy": 4,
+                "property_type": "Cottage"
+            }
         ]
         return {
             "vertical": "villas",
@@ -173,9 +256,43 @@ def unified_vertical_search(
         finally:
             db.close()
 
+        dest = (destination or "Goa").strip()
         results = [
-            {"name": "Premium Goa Beach Escape", "duration": "5 Days / 4 Nights", "price": 24999, "inclusions": "Flights + 4-Star Resort + Sightseeing", "details": "Romantic candle-light dinner included."},
-            {"name": "Goa Backpacking Adventure", "duration": "4 Days / 3 Nights", "price": 9999, "inclusions": "Hostel Stay + Daily Breakfast + Scooters", "details": "Guided beach hopping tour included."}
+            {
+                "name": f"Premium {dest} Luxury Vacation",
+                "duration": "5 Days / 4 Nights",
+                "price": 24999,
+                "inclusions": "Flights + 4-Star Resort + Guided Sightseeing + Private Transfers",
+                "details": f"Experience the absolute best of {dest} with handpicked accommodations, private tour guides, and entry tickets."
+            },
+            {
+                "name": f"{dest} Explorer Budget Adventure",
+                "duration": "4 Days / 3 Nights",
+                "price": 9999,
+                "inclusions": "Cozy Hostel Stay + Daily Breakfast + Unlimited Scooter Rentals",
+                "details": f"An adventure-packed tour of {dest} featuring local heritage trails, beach hopping, and street food tours."
+            },
+            {
+                "name": f"Romantic {dest} Couple's Sanctuary",
+                "duration": "6 Days / 5 Nights",
+                "price": 32999,
+                "inclusions": "Flights + 5-Star Heritage Villa + Candlelight Beach Dinner + Couples Spa",
+                "details": f"A luxury getaway to {dest} curated specifically for couples to enjoy beautiful sunsets, luxury, and tranquility."
+            },
+            {
+                "name": f"Complete {dest} Family Heritage Package",
+                "duration": "7 Days / 6 Nights",
+                "price": 38500,
+                "inclusions": "Comfortable Hotels + All Meals + Private SUV Coach + Guide",
+                "details": f"A comprehensive tour of the historical highlights, scenic hotspots, and child-friendly activities of {dest}."
+            },
+            {
+                "name": f"Thrilling {dest} Outdoors & Trekking Trail",
+                "duration": "5 Days / 4 Nights",
+                "price": 14500,
+                "inclusions": "Alpine Camps/Homestay + All Meals + Professional Trekking Guide + Gears",
+                "details": f"Go completely off-the-beaten-path in {dest} with outdoor camping, local village hikes, bonfires, and adventure sports."
+            }
         ]
         return {
             "vertical": "holidays",
