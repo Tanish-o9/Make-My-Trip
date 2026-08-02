@@ -27,4 +27,5 @@ venv/
 
 # Misc
 *.sqlite3
+*.db
 .pytest_cache/

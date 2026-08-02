@@ -12,17 +12,19 @@ if "pytest" in sys.modules or "pytest" in "".join(sys.argv):
     DATABASE_URL = "sqlite:///./test_travel_os.db"
 elif is_railway:
     if not DATABASE_URL:
-        print("WARNING: DATABASE_URL is missing in Railway production environment! Falling back to in-memory SQLite.", file=sys.stderr)
-        DATABASE_URL = "sqlite:///:memory:"
+        print("WARNING: DATABASE_URL is missing in Railway production environment! Falling back to local SQLite.", file=sys.stderr)
+        DATABASE_URL = "sqlite:///./fallback.db"
     elif "localhost" in DATABASE_URL or "127.0.0.1" in DATABASE_URL:
-        print(f"WARNING: DATABASE_URL points to localhost/127.0.0.1 in production: {DATABASE_URL}. Falling back to in-memory SQLite.", file=sys.stderr)
-        DATABASE_URL = "sqlite:///:memory:"
+        print(f"WARNING: DATABASE_URL points to localhost/127.0.0.1 in production: {DATABASE_URL}. Falling back to local SQLite.", file=sys.stderr)
+        DATABASE_URL = "sqlite:///./fallback.db"
 else:
     # Local development fallback
     if not DATABASE_URL:
         DATABASE_URL = "postgresql://travel_user:travel_password@localhost:5432/travel_os"
 
 engine = None
+fallback_needed = False
+
 try:
     if "postgresql" in DATABASE_URL:
         engine = create_engine(
@@ -43,9 +45,10 @@ try:
     with engine.connect() as conn:
         pass
 except Exception as e:
-    print(f"CRITICAL: Failed to connect to DATABASE_URL: {e}. Falling back to in-memory SQLite to prevent startup crash.", file=sys.stderr)
-    DATABASE_URL = "sqlite:///:memory:"
+    print(f"CRITICAL: Failed to connect to DATABASE_URL: {e}. Falling back to local SQLite to prevent startup crash.", file=sys.stderr)
+    DATABASE_URL = "sqlite:///./fallback.db"
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False}, pool_pre_ping=True)
+    fallback_needed = True
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -59,4 +62,9 @@ def get_db():
 
 # Import all models to ensure they are registered on Base.metadata
 import app.models
+
+# Auto-create all tables for SQLite test/fallback environments
+if fallback_needed or "sqlite" in DATABASE_URL:
+    Base.metadata.create_all(bind=engine)
+
 

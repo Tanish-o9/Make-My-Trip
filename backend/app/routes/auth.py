@@ -67,35 +67,50 @@ def signup(user_data: UserSignUp, db: Session = Depends(get_db)):
 
 @router.post("/token", response_model=TokenResponse)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == form_data.username).first()
-    
-    if not user:
-        # Auto-registration for new clients
-        hashed_pwd = hash_password(form_data.password)
-        user = User(
-            email=form_data.username,
-            password_hash=hashed_pwd,
-            role="user",
-            preferred_language="en",
-            preferred_currency="INR"
-        )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-
-        # Initialize wallet and loyalty accounts for new user
-        wallet = WalletAccount(user_id=user.id, balance=50000.00, currency="INR")
-        loyalty = LoyaltyAccount(user_id=user.id, points_balance=0, tier="Bronze")
-        db.add(wallet)
-        db.add(loyalty)
-        db.commit()
-    else:
-        if not user.password_hash or not verify_password(form_data.password, user.password_hash):
-            raise HTTPException(status_code=400, detail="Incorrect email or password")
+    try:
+        user = db.query(User).filter(User.email == form_data.username).first()
         
-    access_token = create_access_token(data={"sub": user.email, "role": user.role})
-    refresh_token = create_refresh_token(data={"sub": user.email, "role": user.role})
-    return {"access_token": access_token, "refresh_token": refresh_token}
+        if not user:
+            # Auto-registration for new clients
+            hashed_pwd = hash_password(form_data.password)
+            user = User(
+                email=form_data.username,
+                password_hash=hashed_pwd,
+                role="user",
+                preferred_language="en",
+                preferred_currency="INR"
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+
+            # Initialize wallet and loyalty accounts for new user
+            wallet = WalletAccount(user_id=user.id, balance=50000.00, currency="INR")
+            loyalty = LoyaltyAccount(user_id=user.id, points_balance=0, tier="Bronze")
+            db.add(wallet)
+            db.add(loyalty)
+            db.commit()
+        else:
+            if not user.password_hash or not verify_password(form_data.password, user.password_hash):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Incorrect email or password",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            
+        access_token = create_access_token(data={"sub": user.email, "role": user.role})
+        refresh_token = create_refresh_token(data={"sub": user.email, "role": user.role})
+        return {"access_token": access_token, "refresh_token": refresh_token}
+    except HTTPException:
+        raise
+    except Exception as e:
+        import logging
+        logging.error(f"Unhandled login exception: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication failed",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 @router.post("/refresh", response_model=TokenResponse)
 def refresh_token(payload: TokenRefreshRequest, db: Session = Depends(get_db)):

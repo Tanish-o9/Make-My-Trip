@@ -32,7 +32,7 @@ app = FastAPI(
 # CORS Configuration - Strict whitelist loading from environment variable
 allowed_origins_str = os.getenv(
     "ALLOWED_ORIGINS",
-    "http://localhost:3000,http://localhost:5174,http://127.0.0.1:3000,http://127.0.0.1:5174"
+    "http://localhost:3000,http://localhost:5173,http://localhost:5174,http://127.0.0.1:3000,http://127.0.0.1:5173,http://127.0.0.1:5174,https://make-my-trip-delta.vercel.app"
 )
 origins = [o.strip() for o in allowed_origins_str.split(",") if o.strip()]
 
@@ -52,7 +52,7 @@ async def restrict_admin_origin_middleware(request, call_next):
         if origin is not None:
             allowed_origins = os.getenv(
                 "ADMIN_ALLOWED_ORIGINS",
-                "http://localhost:5174,https://admin.travelos.com,http://localhost:3000,http://127.0.0.1:5174"
+                "http://localhost:3000,http://localhost:5173,http://localhost:5174,http://127.0.0.1:3000,http://127.0.0.1:5173,http://127.0.0.1:5174,https://make-my-trip-delta.vercel.app,https://admin.travelos.com"
             ).split(",")
             allowed_origins = [o.strip() for o in allowed_origins]
             if origin not in allowed_origins:
