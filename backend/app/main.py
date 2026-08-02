@@ -193,27 +193,42 @@ def startup_db_seed():
         from app.auth.jwt import hash_password
         admin_email = os.getenv("ADMIN_SEED_EMAIL", "admin_test@travelos.com")
         admin_password = os.getenv("ADMIN_SEED_PASSWORD", "adminpass123")
-        test_user = db.query(User).filter(User.id == 1).first()
+        
+        # Query by email first to avoid unique constraint violations
+        test_user = db.query(User).filter(User.email == admin_email).first()
         if not test_user:
-            test_user = User(
-                id=1,
-                email=admin_email,
-                role="finance_admin",
-                trust_score=Decimal("4.80"),
-                password_hash=hash_password(admin_password)
-            )
+            # Check if id=1 is already taken by some other email
+            id_one_user = db.query(User).filter(User.id == 1).first()
+            if not id_one_user:
+                test_user = User(
+                    id=1,
+                    email=admin_email,
+                    role="finance_admin",
+                    trust_score=Decimal("4.80"),
+                    password_hash=hash_password(admin_password)
+                )
+            else:
+                test_user = User(
+                    email=admin_email,
+                    role="finance_admin",
+                    trust_score=Decimal("4.80"),
+                    password_hash=hash_password(admin_password)
+                )
             db.add(test_user)
             db.commit()
             db.refresh(test_user)
             
-            # Seed wallet
-            wallet = WalletAccount(user_id=test_user.id, balance=Decimal("150000.00"), currency="INR")
-            db.add(wallet)
-            db.commit()
-        elif not test_user.password_hash or test_user.email != admin_email:
-            test_user.email = admin_email
+            # Seed wallet if not exists
+            if not db.query(WalletAccount).filter(WalletAccount.user_id == test_user.id).first():
+                wallet = WalletAccount(user_id=test_user.id, balance=Decimal("150000.00"), currency="INR")
+                db.add(wallet)
+                db.commit()
+        else:
+            # Update password and role if needed
+            test_user.role = "finance_admin"
             test_user.password_hash = hash_password(admin_password)
             db.commit()
+
 
         # Seed approval requests if empty
         if db.query(ApprovalRequest).count() == 0:

@@ -46,3 +46,7 @@ def get_db():
         yield db
     finally:
         db.close()
+
+# Import all models to ensure they are registered on Base.metadata
+import app.models
+
