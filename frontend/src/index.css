@@ -1,305 +1,168 @@
-@import url('https://fonts.googleapis.com/css2?family=Bangers&family=Space+Grotesque:wght@400;500;700;900&display=swap');
+@import "./styles/tokens.css";
 @import "tailwindcss";
-
-@theme {
-  --color-brand-primary: #facc15;
-  --color-brand-secondary: #ef4444;
-}
 
 @layer base {
   body {
-    background-color: #f4efe6 !important;
-    color: #000000;
-    font-family: 'Space Grotesque', system-ui, -apple-system, sans-serif !important;
+    background-color: var(--color-obsidian) !important;
+    color: var(--color-ivory) !important;
+    font-family: var(--font-body) !important;
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Headings typography reset with Fraunces font */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display) !important;
+    color: var(--color-ivory) !important;
+    font-weight: 500 !important;
+    font-style: normal !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Interactive Elements Focus Ring */
+  *:focus-visible {
+    outline: 2px solid var(--color-gold) !important;
+    outline-offset: 2px !important;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--color-obsidian);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-surface-raised);
+    border-radius: var(--radius-card);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-gold-muted);
   }
 }
 
-/* Global Reset to Neobrutalism / Comic Book Styling */
-* {
-  border-color: #000000 !important;
+/* Premium layout utility classes */
+.premium-card {
+  background-color: var(--color-surface);
+  border: 1px solid rgba(243, 239, 230, 0.05);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-md);
+  transition: border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
 }
 
-/* Halftone Grid Backgrounds */
-.hero-shell {
-  background: #ef4444 !important;
-  background-image: radial-gradient(rgba(0, 0, 0, 0.2) 15%, transparent 16%) !important;
-  background-size: 12px 12px !important;
-  border-bottom: 4px solid #000000 !important;
+.premium-card:hover {
+  border-color: rgba(201, 162, 75, 0.4);
 }
 
-/* Sidebar Overrides */
-aside {
-  background-color: #e2e8f0 !important; /* Premium slate-gray instead of plain white */
-  background-image: radial-gradient(rgba(0, 0, 0, 0.15) 15%, transparent 16%) !important;
-  background-size: 10px 10px !important;
-  border-right: 4px solid #000000 !important;
+.premium-btn-primary {
+  background-color: var(--color-gold);
+  color: var(--color-obsidian);
+  font-family: var(--font-body);
+  font-weight: 600;
+  border: none;
+  border-radius: var(--radius-card);
+  padding: 10px 20px;
+  cursor: pointer;
+  transition: transform 0.2s ease, background-color 0.2s ease;
 }
 
-aside * {
-  color: #0f172a !important; /* Force dark navy text inside sidebar for readability */
+.premium-btn-primary:hover {
+  background-color: #d6b35d;
+  transform: scale(1.02);
 }
 
-aside select, aside option {
-  color: #000000 !important;
-  background-color: #ffffff !important;
+.premium-btn-primary:active {
+  transform: scale(0.98);
 }
 
-aside button {
-  background-color: #ffffff !important;
-  color: #000000 !important;
-  border: 3px solid #000000 !important;
-  box-shadow: 3px 3px 0px 0px #000000 !important;
-  border-radius: 8px !important;
-  margin-bottom: 8px !important;
+/* Boarding Pass cutouts and styling details */
+.boarding-pass-cutout {
+  position: relative;
 }
 
-aside button * {
-  color: #000000 !important;
+.boarding-pass-cutout::before,
+.boarding-pass-cutout::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  background-color: var(--color-obsidian);
+  border-radius: 50%;
+  z-index: 10;
 }
 
-aside button:hover {
-  background-color: #facc15 !important; /* Active yellow */
+/* Animation Keyframes */
+@keyframes slideUpFade {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-/* Active buttons in sidebar */
-aside button.bg-blue-600\/10 {
-  background-color: #facc15 !important;
-  box-shadow: 5px 5px 0px 0px #000000 !important;
+@keyframes scaleInFade {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
-/* Main Area Overrides */
-main {
-  background-color: #f4efe6 !important;
+@keyframes pulseGold {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(1.2);
+  }
 }
 
-/* Header Overrides */
-header.h-16 {
-  background-color: #facc15 !important;
-  border-bottom: 4px solid #000000 !important;
+/* Animation Classes */
+.animate-slideup {
+  animation: slideUpFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-header.h-16 * {
-  color: #000000 !important;
+.animate-scalein {
+  animation: scaleInFade 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-h1, h2, h3, 
-.text-xl, .text-2xl, .text-3xl, .text-4xl {
-  font-family: 'Bangers', cursive, 'Impact', sans-serif !important;
-  font-style: italic !important;
-  letter-spacing: 0.03em !important;
-  text-transform: uppercase !important;
+.animate-pulse-gold {
+  animation: pulseGold 2s infinite ease-in-out;
 }
 
-/* Outline Shadows on Large Headers */
-.text-3xl, .text-4xl, h2.text-xl, h3.text-xl, h4.text-xs {
-  color: #ffffff !important;
-  text-shadow: 3px 3px 0px #000000, -1.5px -1.5px 0px #000000, 1.5px -1.5px 0px #000000, -1.5px 1.5px 0px #000000, 1.5px 1.5px 0px #000000 !important;
+/* Stagger Animation Utilities */
+.stagger-delay-1 { animation-delay: 100ms; }
+.stagger-delay-2 { animation-delay: 200ms; }
+.stagger-delay-3 { animation-delay: 300ms; }
+
+/* Accessibility support */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-delay: 0s !important;
+    animation-duration: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0s !important;
+    scroll-behavior: auto !important;
+  }
 }
 
-/* Search Tabs */
-.flex-wrap.justify-center button {
-  background-color: #ffffff !important;
-  color: #000000 !important;
-  border: 3px solid #000000 !important;
-  box-shadow: 3px 3px 0px 0px #000000 !important;
-  border-radius: 9999px !important;
-  padding: 8px 18px !important;
+/* Hide scrollbar utility */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
 }
-
-.flex-wrap.justify-center button:hover {
-  background-color: #ef4444 !important;
-  color: #ffffff !important;
-}
-
-.flex-wrap.justify-center button * {
-  color: inherit !important;
-}
-
-/* Active vertical search tab */
-.flex-wrap.justify-center button.text-blue-400 {
-  background-color: #facc15 !important;
-  color: #000000 !important;
-  box-shadow: 5px 5px 0px 0px #000000 !important;
-}
-
-/* Floating Search Card */
-.max-w-6xl.mx-auto.bg-slate-950\/70 {
-  background-color: #ffffff !important;
-  border: 4px solid #000000 !important;
-  box-shadow: 8px 8px 0px 0px #000000 !important;
-  border-radius: 16px !important;
-}
-
-/* Neobrutalist Cards */
-.glass-card, 
-.bg-\[\#121c33\], 
-.bg-slate-900\/60, 
-.bg-slate-900,
-.bg-slate-950,
-.bg-\[\#111c35\],
-.bg-\[\#0b1222\],
-.bg-\[\#0d1527\],
-.bg-slate-900\/40 {
-  background-color: #ffffff !important;
-  border: 3px solid #000000 !important;
-  box-shadow: 5px 5px 0px 0px #000000 !important;
-  border-radius: 12px !important;
-  color: #1e293b !important;
-}
-
-/* Force dark readable colors on child elements within cards */
-.glass-card *,
-.bg-\[\#121c33\] *, 
-.bg-slate-900\/60 *, 
-.bg-slate-900 *,
-.bg-slate-950 *,
-.bg-\[\#111c35\] *,
-.bg-\[\#0b1222\] *,
-.bg-\[\#0d1527\] *,
-.bg-slate-900\/40 * {
-  color: #1e293b !important;
-}
-
-/* Explicit specificity overrides for Tailwind text classes inside Neobrutalist cards */
-.glass-card .text-slate-100, .bg-\[\#0b1222\] .text-slate-100, .bg-\[\#0d1527\] .text-slate-100, .glass-card .text-white, .bg-\[\#0b1222\] .text-white, .bg-\[\#0d1527\] .text-white { color: #0f172a !important; }
-.glass-card .text-slate-200, .bg-\[\#0b1222\] .text-slate-200, .bg-\[\#0d1527\] .text-slate-200 { color: #1e293b !important; }
-.glass-card .text-slate-300, .bg-\[\#0b1222\] .text-slate-300, .bg-\[\#0d1527\] .text-slate-300 { color: #334155 !important; }
-.glass-card .text-slate-400, .bg-\[\#0b1222\] .text-slate-400, .bg-\[\#0d1527\] .text-slate-400 { color: #475569 !important; }
-.glass-card .text-slate-500, .bg-\[\#0b1222\] .text-slate-500, .bg-\[\#0d1527\] .text-slate-500 { color: #64748b !important; }
-.glass-card .text-blue-400, .bg-\[\#0b1222\] .text-blue-400, .bg-\[\#0d1527\] .text-blue-400 { color: #1d4ed8 !important; }
-.glass-card .text-teal-400, .bg-\[\#0b1222\] .text-teal-400, .bg-\[\#0d1527\] .text-teal-400 { color: #0f766e !important; }
-
-/* Maintain visible high-contrast semantic accent colors */
-.text-rose-400, .text-rose-500, .text-red-400, .text-red-500, .text-rose-400 *, .text-rose-500 *, .text-red-400 *, .text-red-500 * {
-  color: #dc2626 !important; /* Bold red */
-}
-.text-emerald-400, .text-emerald-500, .text-emerald-400 *, .text-emerald-500 * {
-  color: #16a34a !important; /* Bold green */
-}
-.text-blue-400, .text-blue-500, .text-blue-400 *, .text-blue-500 * {
-  color: #2563eb !important; /* Bold blue */
-}
-.text-yellow-400, .text-yellow-500, .text-amber-400, .text-yellow-400 *, .text-yellow-500 *, .text-amber-400 * {
-  color: #d97706 !important; /* Bold amber */
-}
-.text-purple-400, .text-purple-500, .text-purple-400 *, .text-purple-500 * {
-  color: #7c3aed !important; /* Bold purple */
-}
-
-/* Input Fields */
-input[type="text"], 
-input[type="date"], 
-input[type="datetime-local"], 
-input[type="number"], 
-select, 
-textarea,
-.glass-input, 
-.bg-\[\#0e1628\] {
-  background-color: #ffffff !important;
-  border: 3px solid #000000 !important;
-  color: #000000 !important;
-  border-radius: 8px !important;
-  box-shadow: 3px 3px 0px 0px #000000 !important;
-  font-weight: 700 !important;
-}
-
-input:disabled,
-select:disabled,
-textarea:disabled {
-  background-color: #f1f5f9 !important;
-  border: 3.5px solid #000000 !important;
-  color: #475569 !important;
-  border-radius: 8px !important;
-  box-shadow: 3px 3px 0px 0px #000000 !important;
-  cursor: not-allowed !important;
-  opacity: 1 !important;
-}
-
-input:focus, select:focus, textarea:focus {
-  outline: none !important;
-  border-color: #000000 !important;
-  box-shadow: 5px 5px 0px 0px #000000 !important;
-}
-
-/* Buttons */
-.bg-blue-600, 
-.hover\:bg-blue-500, 
-.bg-emerald-600,
-.bg-red-600,
-button {
-  background-color: #facc15 !important; /* Yellow default */
-  color: #000000 !important;
-  border: 3px solid #000000 !important;
-  border-radius: 8px !important;
-  box-shadow: 3px 3px 0px 0px #000000 !important;
-  font-weight: 900 !important;
-  text-transform: uppercase !important;
-}
-
-button:hover {
-  background-color: #eab308 !important;
-  transform: translate(-2px, -2px) !important;
-  box-shadow: 5px 5px 0px 0px #000000 !important;
-}
-
-button:active {
-  transform: translate(1px, 1px) !important;
-  box-shadow: 1px 1px 0px 0px #000000 !important;
-}
-
-/* Special button accent colors */
-.bg-red-600, .bg-red-600\/20 {
-  background-color: #ef4444 !important;
-  color: #ffffff !important;
-}
-.bg-emerald-600 {
-  background-color: #10b981 !important;
-  color: #ffffff !important;
-}
-
-/* Chat bubble styling overrides */
-.space-y-4 .flex.justify-end > div {
-  background-color: #facc15 !important; /* User chat bubble is yellow */
-  border: 3px solid #000000 !important;
-  box-shadow: 4px 4px 0px 0px #000000 !important;
-  color: #000000 !important;
-}
-
-.space-y-4 .flex.justify-start > div {
-  background-color: #ffffff !important; /* Assistant bubble is white */
-  border: 3px solid #000000 !important;
-  box-shadow: 4px 4px 0px 0px #000000 !important;
-  color: #000000 !important;
-}
-
-/* Price labels (emerald text) */
-.text-emerald-400 {
-  color: #ef4444 !important; /* Comic book bold red for price */
-  font-size: 1.25rem !important;
-  font-weight: 900 !important;
-}
-
-/* Scrollbar override */
-::-webkit-scrollbar {
-  width: 10px;
-}
-::-webkit-scrollbar-track {
-  background: #f4efe6;
-  border-left: 3px solid #000000;
-}
-::-webkit-scrollbar-thumb {
-  background: #ef4444;
-  border: 3px solid #000000;
-  border-radius: 0px;
-}
-
-/* Loading Tab Red styling */
-.flex-wrap.justify-center button.loading-tab {
-  background-color: #ff4b4b !important;
-  color: #ffffff !important;
-  border: 3px solid #000000 !important;
-  box-shadow: 3px 3px 0px 0px #000000 !important;
-}
-.flex-wrap.justify-center button.loading-tab * {
-  color: #ffffff !important;
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

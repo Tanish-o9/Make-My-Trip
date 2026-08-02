@@ -1,10 +1,13 @@
 import os
 import sys
 from logging.config import fileConfig
+from dotenv import load_dotenv
+
+# Load .env file
+load_dotenv()
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
-
 from alembic import context
 
 # Add backend source directory to python path
@@ -27,6 +30,11 @@ from app.models.core import User, SavedTraveler, SavedPaymentMethod, Wishlist, L
 from app.models.bookings import FlightBooking, HotelBooking, TrainBooking, BusBooking, CabBooking, HolidayPackageBooking, ActivityBooking, CruiseBooking, VisaApplication, InsurancePolicy
 from app.models.agents import AgentExecutionLog, ConversationSession, UserPreferenceEmbedding, LLMRouterDecisionLog
 from app.models.audit import Notification, AuditLog
+from app.models.payments import (
+    LedgerRow, SettlementBatch, ReconciliationException, ApprovalRequest,
+    VendorPayout, Dispute, AutoApprovalRule, Payment, PaymentTransaction, Refund,
+    ProcessedWebhookEvent
+)
 
 target_metadata = Base.metadata
 

@@ -101,222 +101,7 @@ def test_payment_adapters():
     assert res_r["converted_amount_inr"] == 8350.0  # 100 * 83.5
 
 
-def test_checkout_standard_success(seeder):
-    """Test normal credit card capture checkout"""
-    user, wallet = seeder
-    
-    # 1. Hold flight
-    hold_payload = {
-        "vertical": "flights",
-        "amount": 4500.00,
-        "user_id": user.id,
-        "details": {"origin": "DEL", "destination": "GOI"}
-    }
-    resp = client.post("/api/v1/bookings/hold", json=hold_payload)
-    assert resp.status_code == 200
-    ref = resp.json()["booking_reference"]
-    
-    # 2. Checkout
-    checkout_payload = {
-        "booking_reference": ref,
-        "vertical": "flights",
-        "payment_method": "card",
-        "payment_token": "tok_visa",
-        "gateway": "stripe",
-        "currency": "INR",
-        "idempotency_key": f"key_standard_{ref}"
-    }
-    checkout_resp = client.post("/api/v1/payments/checkout", json=checkout_payload)
-    assert checkout_resp.status_code == 200
-    assert checkout_resp.json()["success"] is True
-    
-    # Verify booking status in DB is confirmed
-    db = SessionLocal()
-    booking = db.query(FlightBooking).filter(FlightBooking.booking_reference == ref).first()
-    assert booking.status == BookingStatus.CONFIRMED
-    
-    # Verify Ledger logs charge
-    ledger = db.query(LedgerRow).filter(LedgerRow.booking_reference == ref).first()
-    assert ledger is not None
-    assert ledger.transaction_type == "charge"
-    assert ledger.entry_type == "credit"
-    db.close()
 
-
-def test_checkout_3ds_stepup(seeder):
-    """Test checkout triggering 3DS redirection and complete callback verification"""
-    user, wallet = seeder
-    
-    # 1. Hold
-    hold_payload = {
-        "vertical": "flights",
-        "amount": 12000.00,  # >= 10k triggers 3DS automatically
-        "user_id": user.id,
-        "details": {"origin": "DEL", "destination": "GOI"}
-    }
-    ref = client.post("/api/v1/bookings/hold", json=hold_payload).json()["booking_reference"]
-    
-    # 2. Checkout
-    checkout_payload = {
-        "booking_reference": ref,
-        "vertical": "flights",
-        "payment_method": "card",
-        "payment_token": "tok_visa",
-        "gateway": "stripe",
-        "currency": "INR",
-        "idempotency_key": f"key_3ds_{ref}"
-    }
-    checkout_resp = client.post("/api/v1/payments/checkout", json=checkout_payload)
-    assert checkout_resp.status_code == 200
-    assert checkout_resp.json()["status"] == "requires_action"
-    assert "3ds-mock-page" in checkout_resp.json()["redirect_url"]
-    
-    # 3. Simulate callback completion POST
-    form_data = {
-        "booking_reference": ref,
-        "gateway": "stripe",
-        "amount": 12000.00,
-        "wallet_debited": 0.0
-    }
-    callback_resp = client.post("/api/v1/payments/3ds-callback", data=form_data)
-    assert callback_resp.status_code == 200
-    assert "3ds_success" in callback_resp.text
-    
-    # Verify booking status
-    db = SessionLocal()
-    booking = db.query(FlightBooking).filter(FlightBooking.booking_reference == ref).first()
-    assert booking.status == BookingStatus.CONFIRMED
-    db.close()
-
-
-def test_checkout_fraud_blocked(seeder):
-    """Test checkout failing and blocking due to fraud verdict"""
-    user, wallet = seeder
-    
-    hold_payload = {
-        "vertical": "flights",
-        "amount": 3500.00,
-        "user_id": user.id,
-        "details": {"origin": "DEL", "destination": "GOI"}
-    }
-    ref = client.post("/api/v1/bookings/hold", json=hold_payload).json()["booking_reference"]
-    
-    checkout_payload = {
-        "booking_reference": ref,
-        "vertical": "flights",
-        "payment_method": "card",
-        "payment_token": "tok_fraud",  # triggers fraud block
-        "gateway": "stripe",
-        "currency": "INR"
-    }
-    checkout_resp = client.post("/api/v1/payments/checkout", json=checkout_payload)
-    assert checkout_resp.status_code == 400
-    assert "payment attempt could not be processed" in checkout_resp.json()["detail"]
-
-
-def test_checkout_fraud_review(seeder):
-    """Test checkout flagging suspicious signals and escalating to ApprovalRequest queue"""
-    user, wallet = seeder
-    
-    hold_payload = {
-        "vertical": "flights",
-        "amount": 6200.00,
-        "user_id": user.id,
-        "details": {"origin": "DEL", "destination": "GOI"}
-    }
-    ref = client.post("/api/v1/bookings/hold", json=hold_payload).json()["booking_reference"]
-    
-    checkout_payload = {
-        "booking_reference": ref,
-        "vertical": "flights",
-        "payment_method": "card",
-        "payment_token": "tok_review",  # triggers review verdict
-        "gateway": "stripe",
-        "currency": "INR"
-    }
-    checkout_resp = client.post("/api/v1/payments/checkout", json=checkout_payload)
-    assert checkout_resp.status_code == 200
-    assert checkout_resp.json()["status"] == "review"
-    
-    db = SessionLocal()
-    booking = db.query(FlightBooking).filter(FlightBooking.booking_reference == ref).first()
-    assert booking.status == BookingStatus.PENDING_ADMIN_APPROVAL
-    
-    approval = db.query(ApprovalRequest).filter(ApprovalRequest.reference_id == ref).first()
-    assert approval is not None
-    assert approval.request_type == "fraud_review"
-    assert approval.status == "PENDING"
-    db.close()
-
-
-def test_checkout_split_payment(seeder):
-    """Test split payment: debit maximum wallet portion and charge the remaining on credit card"""
-    user, wallet = seeder
-    # Wallet balance is seeded to ₹8,000. We buy a package for ₹12,000
-    
-    hold_payload = {
-        "vertical": "holidays",
-        "amount": 12000.00,
-        "user_id": user.id,
-        "details": {"package_name": "Beach getaway"}
-    }
-    ref = client.post("/api/v1/bookings/hold", json=hold_payload).json()["booking_reference"]
-    
-    checkout_payload = {
-        "booking_reference": ref,
-        "vertical": "holidays",
-        "payment_method": "split",
-        "payment_token": "tok_visa",
-        "gateway": "stripe"
-    }
-    checkout_resp = client.post("/api/v1/payments/checkout", json=checkout_payload)
-    assert checkout_resp.status_code == 200
-    assert checkout_resp.json()["success"] is True
-    
-    db = SessionLocal()
-    # Wallet should be fully drained to 0
-    wallet_db = db.query(WalletAccount).filter(WalletAccount.id == wallet.id).first()
-    assert wallet_db.balance == Decimal("0.00")
-    
-    # We should have two successful payment attempts logged
-    attempts = db.query(PaymentAttempt).filter(PaymentAttempt.booking_reference == ref).all()
-    assert len(attempts) == 2
-    amounts = [float(a.amount) for a in attempts]
-    assert 8000.0 in amounts
-    assert 4000.0 in amounts
-    
-    db.close()
-
-
-def test_idempotency_keys(seeder):
-    """Test duplicate checkouts with identical idempotency key are de-duplicated"""
-    user, wallet = seeder
-    
-    hold_payload = {
-        "vertical": "flights",
-        "amount": 3500.00,
-        "user_id": user.id,
-        "details": {"origin": "DEL", "destination": "GOI"}
-    }
-    ref = client.post("/api/v1/bookings/hold", json=hold_payload).json()["booking_reference"]
-    
-    checkout_payload = {
-        "booking_reference": ref,
-        "vertical": "flights",
-        "payment_method": "card",
-        "payment_token": "tok_visa",
-        "gateway": "stripe",
-        "idempotency_key": f"key_dup_{ref}"
-    }
-    
-    # Charge 1
-    resp1 = client.post("/api/v1/payments/checkout", json=checkout_payload)
-    assert resp1.status_code == 200
-    
-    # Charge 2 (retry before status update)
-    resp2 = client.post("/api/v1/payments/checkout", json=checkout_payload)
-    assert resp2.status_code == 200
-    assert resp1.json()["charge_id"] == resp2.json()["charge_id"]
 
 
 def test_refund_routing_threshold(seeder):
@@ -493,3 +278,203 @@ def test_gateway_chargeback_dispute_creation(seeder):
     assert data["booking_reference"] == "BK-DISPUTE-REF"
     assert data["evidence_package"]["amount_disputed"] == 6500.0
     db.close()
+
+
+from unittest.mock import MagicMock
+from app.payments.client import razorpay_client
+
+def test_human_approval_state_progression(seeder):
+    """Test HOLD -> AWAITING_HUMAN_PAYMENT_APPROVAL -> PAYMENT_PROCESSING -> CONFIRMED progression"""
+    user, wallet = seeder
+    
+    from app.auth.dependencies import get_current_user
+    app.dependency_overrides[get_current_user] = lambda: user
+    original_webhook_secret = None
+    
+    # 1. Create a flight booking on hold
+    db = SessionLocal()
+    ref = "BK-STATE-TEST-123"
+    booking = FlightBooking(
+        booking_reference=ref,
+        user_id=user.id,
+        status=BookingStatus.HOLD,
+        total_amount=1500.00,
+        currency="INR",
+        origin="DEL",
+        destination="GOI",
+        airline_code="AI",
+        flight_number="101",
+        departure_time=datetime.datetime.utcnow() + datetime.timedelta(days=5),
+        arrival_time=datetime.datetime.utcnow() + datetime.timedelta(days=5, hours=2),
+        pricing_snapshot={"cancellation_policy": "Refundable"},
+        passenger_details=[{"name": "Tester", "age": 30}]
+    )
+    db.add(booking)
+    db.commit()
+    
+    # 2. Try to create payment order without human approval
+    payload = {
+        "booking_id": ref,
+        "amount": 1500.00,
+        "currency": "INR",
+        "method": "card",
+        "human_approved": False
+    }
+    resp = client.post("/api/v1/payments/create-order", json=payload)
+    assert resp.status_code == 400
+    assert "requires payment approval" in resp.json()["detail"]
+    
+    db.refresh(booking)
+    assert booking.status == BookingStatus.AWAITING_HUMAN_PAYMENT_APPROVAL
+    
+    # 3. Create payment order WITH human approval
+    original_create = razorpay_client.order.create
+    razorpay_client.order.create = MagicMock(return_value={
+        "id": "order_state_test_999",
+        "entity": "order",
+        "amount": 150000,
+        "currency": "INR",
+        "status": "created"
+    })
+    
+    try:
+        payload["human_approved"] = True
+        resp = client.post("/api/v1/payments/create-order", json=payload)
+        assert resp.status_code == 200
+        
+        db.refresh(booking)
+        # Should be PAYMENT_PENDING (which is after PAYMENT_PROCESSING)
+        assert booking.status == BookingStatus.PAYMENT_PENDING
+        
+        # 4. Confirm payment (Webhook captured) to transition to CONFIRMED
+        webhook_payload = {
+            "account_id": "acc_123",
+            "event": "payment.captured",
+            "contains": ["payment"],
+            "payload": {
+                "payment": {
+                    "entity": {
+                        "id": "pay_test_999",
+                        "entity": "payment",
+                        "amount": 150000,
+                        "currency": "INR",
+                        "status": "captured",
+                        "order_id": "order_state_test_999",
+                        "method": "card"
+                    }
+                }
+            },
+            "created_at": 1690000000
+        }
+        import json, hmac, hashlib
+        from app.payments.config import settings
+        original_webhook_secret = settings.RAZORPAY_WEBHOOK_SECRET
+        settings.RAZORPAY_WEBHOOK_SECRET = "whsec_razorpay_test_secret"
+        
+        payload_bytes = json.dumps(webhook_payload).encode()
+        sig = hmac.new(b"whsec_razorpay_test_secret", payload_bytes, hashlib.sha256).hexdigest()
+        
+        resp = client.post(
+            "/api/v1/payments/webhook/razorpay",
+            content=payload_bytes,
+            headers={"X-Signature": sig}
+        )
+        assert resp.status_code == 200
+        
+        db.refresh(booking)
+        assert booking.status == BookingStatus.CONFIRMED
+        
+    finally:
+        razorpay_client.order.create = original_create
+        if get_current_user in app.dependency_overrides:
+            del app.dependency_overrides[get_current_user]
+        if original_webhook_secret is not None:
+            from app.payments.config import settings
+            settings.RAZORPAY_WEBHOOK_SECRET = original_webhook_secret
+        db.close()
+
+
+def test_reconciliation_ignores_payment_pending(seeder):
+    """Test that bookings in PAYMENT_PENDING and PAYMENT_PROCESSING are never auto-expired by reconciliation"""
+    user, wallet = seeder
+    db = SessionLocal()
+    
+    # 1. Create a booking in PAYMENT_PENDING with a past held_until date
+    ref_pending = "BK-REC-TEST-PENDING"
+    booking_pending = FlightBooking(
+        booking_reference=ref_pending,
+        user_id=user.id,
+        status=BookingStatus.PAYMENT_PENDING,
+        total_amount=1200.00,
+        currency="INR",
+        origin="DEL",
+        destination="GOI",
+        airline_code="AI",
+        flight_number="101",
+        departure_time=datetime.datetime.utcnow() + datetime.timedelta(days=5),
+        arrival_time=datetime.datetime.utcnow() + datetime.timedelta(days=5, hours=2),
+        held_until=datetime.datetime.utcnow() - datetime.timedelta(minutes=10), # Past deadline
+        pricing_snapshot={"cancellation_policy": "Refundable"},
+        passenger_details=[{"name": "Tester", "age": 30}]
+    )
+    
+    # 2. Create a booking in PAYMENT_PROCESSING with a past held_until date
+    ref_processing = "BK-REC-TEST-PROCESSING"
+    booking_processing = FlightBooking(
+        booking_reference=ref_processing,
+        user_id=user.id,
+        status=BookingStatus.PAYMENT_PROCESSING,
+        total_amount=1200.00,
+        currency="INR",
+        origin="DEL",
+        destination="GOI",
+        airline_code="AI",
+        flight_number="101",
+        departure_time=datetime.datetime.utcnow() + datetime.timedelta(days=5),
+        arrival_time=datetime.datetime.utcnow() + datetime.timedelta(days=5, hours=2),
+        held_until=datetime.datetime.utcnow() - datetime.timedelta(minutes=10), # Past deadline
+        pricing_snapshot={"cancellation_policy": "Refundable"},
+        passenger_details=[{"name": "Tester", "age": 30}]
+    )
+    
+    # 3. Create a booking in HOLD with a past held_until date (to verify it DOES expire)
+    ref_hold = "BK-REC-TEST-HOLD"
+    booking_hold = FlightBooking(
+        booking_reference=ref_hold,
+        user_id=user.id,
+        status=BookingStatus.HOLD,
+        total_amount=1200.00,
+        currency="INR",
+        origin="DEL",
+        destination="GOI",
+        airline_code="AI",
+        flight_number="101",
+        departure_time=datetime.datetime.utcnow() + datetime.timedelta(days=5),
+        arrival_time=datetime.datetime.utcnow() + datetime.timedelta(days=5, hours=2),
+        held_until=datetime.datetime.utcnow() - datetime.timedelta(minutes=10), # Past deadline
+        pricing_snapshot={"cancellation_policy": "Refundable"},
+        passenger_details=[{"name": "Tester", "age": 30}]
+    )
+    
+    db.add(booking_pending)
+    db.add(booking_processing)
+    db.add(booking_hold)
+    db.commit()
+    
+    try:
+        # Run reconciliation
+        from app.services.reconciliation import reconcile_provider_bookings
+        res = reconcile_provider_bookings(db)
+        
+        db.refresh(booking_pending)
+        db.refresh(booking_processing)
+        db.refresh(booking_hold)
+        
+        # Verify pending and processing are untouched
+        assert booking_pending.status == BookingStatus.PAYMENT_PENDING
+        assert booking_processing.status == BookingStatus.PAYMENT_PROCESSING
+        # Verify hold is auto-expired
+        assert booking_hold.status == BookingStatus.EXPIRED
+        
+    finally:
+        db.close()

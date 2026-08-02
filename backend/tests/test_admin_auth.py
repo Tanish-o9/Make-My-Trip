@@ -12,12 +12,22 @@ client = TestClient(app)
 def run_around_tests():
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
-    # Ensure test users are cleared
+    from app.models.bookings import FlightBooking
+    from app.models.payments import ApprovalRequest, LedgerRow
+    from app.models.core import WalletAccount
+    db.query(ApprovalRequest).delete()
+    db.query(LedgerRow).delete()
+    db.query(FlightBooking).delete()
+    db.query(WalletAccount).delete()
     db.query(User).delete()
     db.commit()
     db.close()
     yield
     db = SessionLocal()
+    db.query(ApprovalRequest).delete()
+    db.query(LedgerRow).delete()
+    db.query(FlightBooking).delete()
+    db.query(WalletAccount).delete()
     db.query(User).delete()
     db.commit()
     db.close()
@@ -222,3 +232,112 @@ def test_admin_refund_exception_processing():
     assert ledger_db.amount == 6500.00
     
     db.close()
+
+def test_jwt_roles_in_login_token_and_guards():
+    db = SessionLocal()
+    from app.auth.jwt import hash_password, decode_token
+    db.query(User).delete()
+    admin = User(
+        email="admin_role_test@travelos.com",
+        password_hash=hash_password("adminpass123"),
+        role="admin"
+    )
+    customer = User(
+        email="customer_role_test@travelos.com",
+        password_hash=hash_password("custpass123"),
+        role="user"
+    )
+    db.add(admin)
+    db.add(customer)
+    db.commit()
+    db.close()
+
+    # 1. Customer login through main token route
+    login_resp = client.post("/api/v1/auth/token", data={
+        "username": "customer_role_test@travelos.com",
+        "password": "custpass123"
+    })
+    assert login_resp.status_code == 200
+    customer_token = login_resp.json()["access_token"]
+    decoded_customer = decode_token(customer_token)
+    assert decoded_customer.get("role") == "user"
+
+    # 2. Admin login through main token route
+    admin_login_resp = client.post("/api/v1/auth/token", data={
+        "username": "admin_role_test@travelos.com",
+        "password": "adminpass123"
+    })
+    assert admin_login_resp.status_code == 200
+    admin_token = admin_login_resp.json()["access_token"]
+    decoded_admin = decode_token(admin_token)
+    assert decoded_admin.get("role") == "admin"
+
+    # 3. Customer token access to admin routes -> should reject 403 Forbidden
+    headers = {"Authorization": f"Bearer {customer_token}"}
+    claims_resp = client.get("/api/admin/claims", headers=headers)
+    assert claims_resp.status_code == 403
+
+    # 4. Admin token access to admin routes -> should allow 200 OK
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    claims_resp = client.get("/api/admin/claims", headers=admin_headers)
+    assert claims_resp.status_code == 200
+
+def test_admin_token_exchange_code_flow():
+    db = SessionLocal()
+    from app.auth.jwt import hash_password
+    db.query(User).delete()
+    admin = User(
+        email="admin_exchange_test@travelos.com",
+        password_hash=hash_password("adminpass123"),
+        role="admin"
+    )
+    customer = User(
+        email="customer_exchange_test@travelos.com",
+        password_hash=hash_password("custpass123"),
+        role="user"
+    )
+    db.add(admin)
+    db.add(customer)
+    db.commit()
+    db.close()
+
+    # Get admin token
+    admin_login_resp = client.post("/api/v1/auth/token", data={
+        "username": "admin_exchange_test@travelos.com",
+        "password": "adminpass123"
+    })
+    assert admin_login_resp.status_code == 200
+    admin_token = admin_login_resp.json()["access_token"]
+
+    # Get customer token
+    cust_login_resp = client.post("/api/v1/auth/token", data={
+        "username": "customer_exchange_test@travelos.com",
+        "password": "custpass123"
+    })
+    assert cust_login_resp.status_code == 200
+    customer_token = cust_login_resp.json()["access_token"]
+
+    # 1. Customer token tries to generate exchange code -> must reject 403 Forbidden
+    cust_headers = {"Authorization": f"Bearer {customer_token}"}
+    code_resp = client.post("/api/v1/auth/exchange-code", headers=cust_headers)
+    assert code_resp.status_code == 403
+
+    # 2. Admin token generates exchange code -> must succeed 200 OK
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    code_resp = client.post("/api/v1/auth/exchange-code", headers=admin_headers)
+    assert code_resp.status_code == 200
+    exchange_code = code_resp.json()["exchange_code"]
+    assert exchange_code.startswith("exch_")
+
+    # 3. Exchange the code once -> must succeed 200 OK and return session payload
+    exchange_resp = client.post("/api/v1/auth/exchange", json={"exchange_code": exchange_code})
+    assert exchange_resp.status_code == 200
+    exchange_data = exchange_resp.json()
+    assert exchange_data["token"] == admin_token
+    assert exchange_data["role"] == "admin"
+    assert exchange_data["email"] == "admin_exchange_test@travelos.com"
+
+    # 4. Exchange the code a second time (single-use constraint) -> must fail 400 Bad Request
+    exchange_resp2 = client.post("/api/v1/auth/exchange", json={"exchange_code": exchange_code})
+    assert exchange_resp2.status_code == 400
+

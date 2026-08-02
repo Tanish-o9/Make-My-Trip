@@ -13,6 +13,10 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    from app.utils.token_blacklist import is_token_blacklisted
+    if is_token_blacklisted(token):
+        raise credentials_exception
+        
     payload = decode_token(token)
     if not payload or not verify_token_type(payload, "access"):
         raise credentials_exception
@@ -25,12 +29,31 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if user is None:
         raise credentials_exception
         
+    from app.utils.logging_config import user_id_ctx_var
+    user_id_ctx_var.set(str(user.id))
+    
     return user
 
 
 def get_current_admin(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
-    user = get_current_user(token, db)
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    payload = decode_token(token)
+    if not payload or not verify_token_type(payload, "access"):
+        raise credentials_exception
+    
+    token_role = payload.get("role")
     allowed_roles = ["admin", "super_admin", "finance_admin", "approver"]
+    if token_role not in allowed_roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: User does not have administrative privileges."
+        )
+        
+    user = get_current_user(token, db)
     if user.role not in allowed_roles:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

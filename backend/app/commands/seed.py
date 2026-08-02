@@ -23,7 +23,8 @@ from app.models.search_entities import (
     City, Airport, TrainStation, BusTerminal, CurrencyExchange,
     CountryVisaRequirement, TollPlaza, FlightRoute, HotelProperty,
     HotelRoom, VillaProperty, HolidayPackage, TrainRoute, BusRoute,
-    CabVehicle, TourActivity, CruiseItinerary, InsurancePlan
+    CabVehicle, TourActivity, CruiseItinerary, InsurancePlan, RentalVehicle,
+    State, District, Locality, VehicleAvailability
 )
 
 # Set random seeds for reproducibility
@@ -72,7 +73,8 @@ def run_reset():
         InsurancePolicy, VillaBooking, ForexOrder, City, Airport, TrainStation,
         BusTerminal, CurrencyExchange, CountryVisaRequirement, TollPlaza,
         FlightRoute, HotelProperty, HotelRoom, VillaProperty, HolidayPackage,
-        TrainRoute, BusRoute, CabVehicle, TourActivity, CruiseItinerary, InsurancePlan
+        TrainRoute, BusRoute, CabVehicle, TourActivity, CruiseItinerary, InsurancePlan, RentalVehicle,
+        State, District, Locality
     ]
     for table in tables:
         try:
@@ -371,6 +373,30 @@ def run_villas():
         "Orchard Homestay", "Emerald Heritage Estate", "Pine Wood Chalet", "Serene Oasis Villa"
     ]
 
+    villa_photo_pool = [
+        "https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=800",
+        "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=800",
+        "https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800",
+        "https://images.unsplash.com/photo-1613977257363-707ba9348227?w=800",
+        "https://images.unsplash.com/photo-1499793983690-e29da59ef1c2?w=800"
+    ]
+
+    cottage_photo_pool = [
+        "https://images.unsplash.com/photo-1542718610-a1d656d1884c?w=800",
+        "https://images.unsplash.com/photo-1587061949409-02df41d5e562?w=800",
+        "https://images.unsplash.com/photo-1464146072230-91cabc968266?w=800",
+        "https://images.unsplash.com/photo-1510798831971-661eb04b3739?w=800",
+        "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?w=800"
+    ]
+
+    homestay_photo_pool = [
+        "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800",
+        "https://images.unsplash.com/photo-1518780664697-55e3ad937233?w=800",
+        "https://images.unsplash.com/photo-1600585154526-990dced4db0d?w=800",
+        "https://images.unsplash.com/photo-1505873242700-f289a29e1e0f?w=800",
+        "https://images.unsplash.com/photo-1522338242992-e1a54906a8da?w=800"
+    ]
+
     for city in cities:
         available_names = list(villa_names)
         random.shuffle(available_names)
@@ -385,15 +411,28 @@ def run_villas():
                 bedrooms = 2 + (idx % 3)
                 max_occ = bedrooms * 2
                 
+                if idx % 3 == 0:
+                    prop_type = "Villa"
+                    details_str = f"{bedrooms} Bedrooms, Private Pool, Lawn garden garden spaces. Superhost managed."
+                    url = villa_photo_pool[(idx + city.id) % len(villa_photo_pool)]
+                elif idx % 3 == 1:
+                    prop_type = "Homestay"
+                    details_str = f"{bedrooms} Bedrooms, Local homemade breakfast included, rich hospitality, and city tours."
+                    url = homestay_photo_pool[(idx + city.id) % len(homestay_photo_pool)]
+                else:
+                    prop_type = "Cottage"
+                    details_str = f"{bedrooms} Bedrooms, Cozy wooden structure with private lawn sitting area and fireplace."
+                    url = cottage_photo_pool[(idx + city.id) % len(cottage_photo_pool)]
+                
                 villa = VillaProperty(
                     city_id=city.id,
                     name=name,
                     rating=rating,
                     price=price,
-                    details=f"{bedrooms} Bedrooms, Private Pool, Lawn garden garden spaces. Superhost managed.",
+                    details=details_str,
                     bedrooms=bedrooms,
                     max_occupancy=max_occ,
-                    property_type="Villa" if idx % 2 == 0 else "Cottage",
+                    property_type=prop_type,
                     host_name=fake.name(),
                     house_rules="No parties allowed. Pets permitted with prior notice. Quiet hours: 10 PM - 8 AM.",
                     seed_batch_id=SEED_BATCH_ID
@@ -404,9 +443,9 @@ def run_villas():
 
                 # Seed Media row for villa
                 db.add(Media(
-                    owner_type="hotel", # frontend maps villas via hotel photo owners
+                    owner_type="villa",
                     owner_id=name,
-                    url="https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800",
+                    url=url,
                     alt_text=f"Photo of {name}",
                     is_primary=True,
                     blur_hash_base64="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
@@ -527,6 +566,191 @@ def run_cabs():
     db.commit()
     db.close()
     print("Cabs seeded successfully.")
+
+
+def run_rental_vehicles():
+    db = SessionLocal()
+    print("Seeding Rental Vehicles...")
+    
+    # 1. Clear existing rental vehicles and availabilities
+    db.query(VehicleAvailability).filter(VehicleAvailability.seed_batch_id == SEED_BATCH_ID).delete()
+    db.query(RentalVehicle).filter(RentalVehicle.seed_batch_id == SEED_BATCH_ID).delete()
+    db.commit()
+
+    # Get all hubs
+    hubs = db.query(Locality).filter(Locality.has_rental_hub == True).all()
+    if not hubs:
+        print("No rental hubs found in locality table! Seeding aborted.")
+        db.close()
+        return
+
+    # Define vehicle templates by category
+    hatchbacks = [
+        {"brand": "Maruti", "model": "Swift", "price_range": (1200, 1800), "fuels": ["Petrol", "CNG"], "transmissions": ["Manual", "Automatic"]},
+        {"brand": "Hyundai", "model": "i20", "price_range": (1400, 2000), "fuels": ["Petrol"], "transmissions": ["Manual", "Automatic"]},
+        {"brand": "Tata", "model": "Altroz", "price_range": (1300, 1800), "fuels": ["Petrol", "Diesel"], "transmissions": ["Manual"]}
+    ]
+    sedans = [
+        {"brand": "Honda", "model": "City", "price_range": (2200, 3000), "fuels": ["Petrol"], "transmissions": ["Automatic"]},
+        {"brand": "Hyundai", "model": "Verna", "price_range": (2000, 2800), "fuels": ["Petrol", "Diesel"], "transmissions": ["Automatic"]},
+        {"brand": "Skoda", "model": "Slavia", "price_range": (2200, 3000), "fuels": ["Petrol"], "transmissions": ["Manual", "Automatic"]}
+    ]
+    suvs = [
+        {"brand": "Mahindra", "model": "Thar", "price_range": (3500, 4800), "fuels": ["Diesel"], "transmissions": ["Manual", "Automatic"]},
+        {"brand": "Toyota", "model": "Fortuner", "price_range": (4500, 5500), "fuels": ["Diesel"], "transmissions": ["Automatic"]},
+        {"brand": "Hyundai", "model": "Creta", "price_range": (3000, 4200), "fuels": ["Petrol", "Diesel"], "transmissions": ["Automatic"]}
+    ]
+    bikes = [
+        {"brand": "Royal Enfield", "model": "Classic 350", "price_range": (700, 900), "fuels": ["Petrol"], "transmissions": ["Manual"]},
+        {"brand": "KTM", "model": "Duke 390", "price_range": (800, 950), "fuels": ["Petrol"], "transmissions": ["Manual"]},
+        {"brand": "Honda", "model": "Activa", "price_range": (400, 600), "fuels": ["Petrol"], "transmissions": ["Automatic"]}
+    ]
+    evs = [
+        {"brand": "Tata", "model": "Nexon EV", "price_range": (2500, 3800), "fuels": ["EV"], "transmissions": ["Automatic"]},
+        {"brand": "Ola", "model": "S1 Pro", "price_range": (500, 800), "fuels": ["EV"], "transmissions": ["Automatic"]},
+        {"brand": "Ather", "model": "450X", "price_range": (600, 850), "fuels": ["EV"], "transmissions": ["Automatic"]}
+    ]
+
+    images = {
+        "Hatchback": "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800",
+        "Sedan": "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=800",
+        "SUV": "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=800",
+        "Bike": "https://images.unsplash.com/photo-1558981806-ec527fa84c39?w=800",
+        "EV": "https://images.unsplash.com/photo-1563720223185-11003d516935?w=800"
+    }
+
+    # Count categories for reporting
+    tourist_count = 0
+    metro_count = 0
+    small_count = 0
+    total_vehicles = 0
+
+    for hub in hubs:
+        hub_name_lower = hub.name.lower()
+        district = db.query(District).filter(District.id == hub.district_id).first()
+        state = db.query(State).filter(State.id == district.state_id).first() if district else None
+        district_name_lower = district.name.lower() if district else ""
+        state_name_lower = state.name.lower() if state else ""
+        
+        # Categorize hub tier
+        is_tourist = any(x in hub_name_lower or x in district_name_lower or x in state_name_lower for x in ["goa", "jaipur", "udaipur", "shimla", "srinagar", "leh", "manali"])
+        is_metro = any(x in hub_name_lower or x in district_name_lower for x in ["connaught", "chanakyapuri", "saket", "preet", "mayur", "bandra", "juhu", "andheri", "borivali", "colaba", "nariman", "bengaluru", "mumbai"])
+        
+        if is_tourist:
+            num_vehicles = random.randint(12, 18)
+            weights = {"SUV": 0.35, "Bike": 0.25, "Hatchback": 0.20, "EV": 0.10, "Sedan": 0.10}
+            tourist_count += 1
+        elif is_metro:
+            num_vehicles = random.randint(10, 14)
+            weights = {"Sedan": 0.35, "SUV": 0.25, "Hatchback": 0.20, "EV": 0.20, "Bike": 0.00}
+            metro_count += 1
+        else:
+            num_vehicles = random.randint(4, 6)
+            weights = {"Hatchback": 0.45, "Sedan": 0.35, "SUV": 0.10, "EV": 0.10, "Bike": 0.00}
+            small_count += 1
+
+        # Resolve city_id
+        city_obj = db.query(City).filter(City.name.like(f"%{hub.name}%")).first()
+        if not city_obj and state:
+            city_obj = db.query(City).filter(City.name.like(f"%{state.name}%")).first()
+        if not city_obj:
+            city_obj = db.query(City).first()
+
+        for _ in range(num_vehicles):
+            # Select vehicle type based on weights
+            v_types = list(weights.keys())
+            v_weights = list(weights.values())
+            v_type = random.choices(v_types, weights=v_weights, k=1)[0]
+            
+            # Select template
+            if v_type == "Hatchback":
+                tmpl = random.choice(hatchbacks)
+                seats = 5
+            elif v_type == "Sedan":
+                tmpl = random.choice(sedans)
+                seats = 5
+            elif v_type == "SUV":
+                tmpl = random.choice(suvs)
+                seats = 7 if tmpl["model"] == "Fortuner" else (4 if tmpl["model"] == "Thar" else 5)
+            elif v_type == "Bike":
+                tmpl = random.choice(bikes)
+                seats = 2
+            else: # EV
+                tmpl = random.choice(evs)
+                seats = 2 if tmpl["model"] in ["S1 Pro", "450X"] else 5
+
+            brand = tmpl["brand"]
+            model = tmpl["model"]
+            fuel = random.choice(tmpl["fuels"])
+            trans = random.choice(tmpl["transmissions"])
+            
+            # Price range calculation
+            min_p, max_p = tmpl["price_range"]
+            price = random.uniform(min_p, max_p)
+            price = round(price / 50) * 50  # round to clean multiple of 50
+            
+            # Determine rental modes
+            if v_type == "Bike":
+                rental_mode = "self_drive"
+                self_drive = True
+                with_driver = False
+            else:
+                rental_mode = random.choice(["self_drive", "with_driver", "both"])
+                self_drive = (rental_mode in ["self_drive", "both"])
+                with_driver = (rental_mode in ["with_driver", "both"])
+
+            veh = RentalVehicle(
+                city_id=city_obj.id,
+                hub_locality_id=hub.id,
+                name=f"{brand} {model}",
+                brand=brand,
+                model=model,
+                type=v_type,
+                vehicle_type=v_type,
+                price_per_day=price,
+                fuel_type=fuel,
+                transmission=trans,
+                seating_capacity=seats,
+                self_drive_available=self_drive,
+                with_driver_available=with_driver,
+                rental_mode=rental_mode,
+                distance_km=round(random.uniform(0.1, 5.0), 1),
+                instant_confirm=random.choice([True, True, False]), # 66% instant confirm
+                rating=round(random.uniform(4.0, 5.0), 1),
+                image_url=images[v_type],
+                is_active=True,
+                seed_batch_id=SEED_BATCH_ID
+            )
+            db.add(veh)
+            db.flush()
+            total_vehicles += 1
+
+            # Seed 1-2 overlapping bookings for some vehicles (30% probability)
+            # Ensure none of these bookings overlap with our target test dates: 2026-12-15 to 2026-12-18
+            if random.random() < 0.3:
+                # Booking 1: Past booking
+                db.add(VehicleAvailability(
+                    vehicle_id=veh.id,
+                    start_date=datetime.date(2026, 12, 5),
+                    end_date=datetime.date(2026, 12, 12),
+                    booking_id=random.randint(1000, 9999),
+                    seed_batch_id=SEED_BATCH_ID
+                ))
+                # Booking 2: Future booking
+                db.add(VehicleAvailability(
+                    vehicle_id=veh.id,
+                    start_date=datetime.date(2026, 12, 22),
+                    end_date=datetime.date(2026, 12, 27),
+                    booking_id=random.randint(1000, 9999),
+                    seed_batch_id=SEED_BATCH_ID
+                ))
+
+    db.commit()
+    db.close()
+    print(f"Successfully seeded {total_vehicles} vehicles across {len(hubs)} hub localities:")
+    print(f"  - Tourist hubs: {tourist_count}")
+    print(f"  - Metro hubs: {metro_count}")
+    print(f"  - Small town hubs: {small_count}")
 
 def run_tours():
     db = SessionLocal()
@@ -770,6 +994,7 @@ def run_content():
 def run_users():
     db = SessionLocal()
     print("Seeding Demo Users and booking history...")
+    from app.auth.jwt import hash_password
 
     # 1. Add demo users
     user_profiles = [
@@ -779,12 +1004,15 @@ def run_users():
     ]
 
     users = []
+    default_user_pwd = hash_password("userpass123")
     for email, phone, wallet_bal, points, tier in user_profiles:
         user = db.query(User).filter(User.email == email).first()
         if not user:
             user = User(
                 email=email,
                 phone=phone,
+                password_hash=default_user_pwd,
+                role="user",
                 preferred_language="en",
                 preferred_currency="INR",
                 seed_batch_id=SEED_BATCH_ID
@@ -803,7 +1031,39 @@ def run_users():
             # Wallet Account
             db.add(WalletAccount(user_id=user.id, balance=wallet_bal, currency="INR", seed_batch_id=SEED_BATCH_ID))
             db.commit()
+        else:
+            user.password_hash = default_user_pwd
+            user.role = "user"
+            db.commit()
         users.append(user)
+
+    # Seed Admin User
+    admin_email = os.getenv("ADMIN_SEED_EMAIL", "admin_test@travelos.com")
+    admin_password = os.getenv("ADMIN_SEED_PASSWORD", "adminpass123")
+    admin_user = db.query(User).filter(User.email == admin_email).first()
+    if not admin_user:
+        admin_user = User(
+            email=admin_email,
+            phone="9900990099",
+            password_hash=hash_password(admin_password),
+            role="admin",
+            preferred_language="en",
+            preferred_currency="INR",
+            seed_batch_id=SEED_BATCH_ID
+        )
+        db.add(admin_user)
+        db.commit()
+        db.refresh(admin_user)
+        
+        # Loyalty & Wallet
+        db.add(LoyaltyAccount(user_id=admin_user.id, points_balance=1000, tier="Platinum", seed_batch_id=SEED_BATCH_ID))
+        db.add(WalletAccount(user_id=admin_user.id, balance=50000.0, currency="INR", seed_batch_id=SEED_BATCH_ID))
+        db.commit()
+        print(f"Admin user seeded successfully: {admin_email}")
+    else:
+        admin_user.password_hash = hash_password(admin_password)
+        admin_user.role = "admin"
+        db.commit()
 
     # 2. Add dynamic historic bookings
     # Let's seed bookings for the first user (ankit@example.com) so there is booking history on dashboard
@@ -871,11 +1131,228 @@ def run_users():
     db.close()
     print("Demo Users and booking history seeded successfully.")
 
+
+def run_locations():
+    import urllib.request
+    import json
+    import math
+
+    db = SessionLocal()
+    print("Seeding administrative location master data for India...")
+
+    # Helper for Haversine distance
+    def haversine(lat1, lon1, lat2, lon2):
+        R = 6371.0
+        phi1 = math.radians(lat1)
+        phi2 = math.radians(lat2)
+        delta_phi = math.radians(lat2 - lat1)
+        delta_lambda = math.radians(lon2 - lon1)
+        a = math.sin(delta_phi / 2.0)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2.0)**2
+        c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
+        return R * c
+
+    # Catalog fallback dataset
+    locations_catalog = [
+        ("Goa", "GA", [
+            ("North Goa", "NG", [
+                ("Panaji", "city", 15.4909, 73.8278, 1, True, 25.0, 100.0),
+                ("Mapusa", "town", 15.5937, 73.8142, 2, True, 15.0, 150.0),
+                ("Calangute", "town", 15.5442, 73.7553, 2, True, 15.0, 150.0),
+                ("Anjuna", "village", 15.5782, 73.7431, 3, False, 15.0, 250.0),
+                ("Assagao", "village", 15.5971, 73.7712, 3, False, 15.0, 250.0),
+                ("Siolim", "village", 15.6215, 73.7788, 3, False, 15.0, 250.0),
+                ("Arambol", "village", 15.6869, 73.7042, 3, False, 15.0, 250.0),
+                ("Morjim", "village", 15.6322, 73.7291, 3, False, 15.0, 250.0),
+                ("Aldona", "village", 15.5922, 73.8741, 3, False, 15.0, 250.0),
+                ("Saligao", "village", 15.5512, 73.7745, 3, False, 15.0, 250.0)
+            ]),
+            ("South Goa", "SG", [
+                ("Margao", "city", 15.2736, 73.9582, 1, True, 25.0, 100.0),
+                ("Vasco da Gama", "city", 15.3995, 73.8123, 1, True, 25.0, 100.0),
+                ("Ponda", "town", 15.3998, 74.0125, 2, True, 15.0, 150.0),
+                ("Colva", "village", 15.2750, 73.9110, 3, False, 15.0, 250.0),
+                ("Palolem", "village", 15.0100, 74.0200, 3, False, 15.0, 250.0),
+                ("Agonda", "village", 15.0450, 73.9900, 3, False, 15.0, 250.0),
+                ("Mobor", "village", 15.1585, 73.9422, 3, False, 15.0, 250.0),
+                ("Benaulim", "village", 15.2530, 73.9210, 3, False, 15.0, 250.0)
+            ])
+        ]),
+        ("Delhi", "DL", [
+            ("New Delhi", "ND", [
+                ("Connaught Place", "city", 28.6304, 77.2177, 1, True, 30.0, 100.0),
+                ("Chanakyapuri", "city", 28.5983, 77.1896, 1, True, 30.0, 100.0),
+                ("Saket", "city", 28.5244, 77.2066, 1, True, 30.0, 100.0)
+            ]),
+            ("East Delhi", "ED", [
+                ("Preet Vihar", "city", 28.6400, 77.2900, 2, True, 20.0, 150.0),
+                ("Mayur Vihar", "city", 28.6100, 77.3000, 2, True, 20.0, 150.0)
+            ])
+        ]),
+        ("Rajasthan", "RJ", [
+            ("Jaipur", "JP", [
+                ("Jaipur City", "city", 26.9124, 75.7873, 1, True, 30.0, 100.0),
+                ("Amer", "town", 26.9855, 75.8513, 2, False, 15.0, 200.0),
+                ("Sanganer", "town", 26.8496, 75.7873, 2, False, 15.0, 200.0)
+            ]),
+            ("Alwar", "AL", [
+                ("Alwar City", "city", 27.5530, 76.6089, 2, True, 20.0, 150.0),
+                ("Ramgarh", "village", 27.5833, 76.8167, 3, False, 15.0, 250.0),
+                ("Behror", "town", 27.8800, 76.2800, 2, False, 15.0, 250.0)
+            ]),
+            ("Udaipur", "UD", [
+                ("Udaipur City", "city", 24.5854, 73.7125, 2, True, 20.0, 150.0),
+                ("Sukher", "town", 24.6200, 73.7200, 2, False, 15.0, 200.0)
+            ])
+        ]),
+        ("Karnataka", "KA", [
+            ("Bangalore Urban", "BU", [
+                ("Bengaluru City", "city", 12.9716, 77.5946, 1, True, 30.0, 100.0),
+                ("Kengeri", "town", 12.8997, 77.4827, 2, False, 15.0, 200.0),
+                ("Yelahanka", "town", 13.1007, 77.5963, 2, False, 15.0, 200.0),
+                ("Whitefield", "town", 12.9698, 77.7500, 2, False, 15.0, 200.0)
+            ])
+        ]),
+        ("Maharashtra", "MH", [
+            ("Mumbai Suburban", "MS", [
+                ("Bandra", "city", 19.0596, 72.8295, 1, True, 30.0, 100.0),
+                ("Juhu", "city", 19.1025, 72.8270, 1, True, 30.0, 100.0),
+                ("Andheri", "city", 19.1136, 72.8697, 1, True, 30.0, 100.0),
+                ("Borivali", "city", 19.2307, 72.8567, 1, True, 30.0, 100.0)
+            ]),
+            ("Mumbai City", "MC", [
+                ("Colaba", "city", 18.9067, 72.8147, 1, True, 30.0, 100.0),
+                ("Nariman Point", "city", 18.9270, 72.8200, 1, True, 30.0, 100.0)
+            ])
+        ]),
+        ("Himachal Pradesh", "HP", [
+            ("Shimla", "SM", [
+                ("Shimla Town", "city", 31.1048, 77.1734, 2, True, 20.0, 150.0),
+                ("Kufri", "village", 31.1004, 77.2657, 3, False, 15.0, 250.0),
+                ("Mashobra", "village", 31.1340, 77.2030, 3, False, 15.0, 250.0)
+            ])
+        ]),
+        ("Jammu & Kashmir", "JK", [
+            ("Srinagar", "SR", [
+                ("Srinagar City", "city", 34.0837, 74.7973, 2, True, 20.0, 150.0),
+                ("Harwan", "village", 34.1620, 74.8960, 3, False, 15.0, 250.0)
+            ])
+        ]),
+        ("Ladakh", "LA", [
+            ("Leh", "LE", [
+                ("Leh Town", "city", 34.1526, 77.5771, 2, True, 20.0, 150.0),
+                ("Shey", "village", 34.0720, 77.6330, 3, False, 15.0, 250.0),
+                ("Thiksey", "village", 34.0560, 77.6670, 3, False, 15.0, 250.0)
+            ])
+        ])
+    ]
+
+    try:
+        req = urllib.request.Request(
+            "https://raw.githubusercontent.com/sab99r/Indian-States-And-Districts/master/states-and-districts.json",
+            headers={'User-Agent': 'Mozilla/5.0'}
+        )
+        with urllib.request.urlopen(req, timeout=5) as response:
+            external_data = json.loads(response.read().decode())
+            print("Successfully fetched live state-district mappings from GitHub!")
+    except Exception as e:
+        print(f"Network fetch skipped/failed (offline fallback mode activated): {e}")
+
+    # Clear old records
+    db.query(Locality).filter(Locality.seed_batch_id == SEED_BATCH_ID).delete(synchronize_session=False)
+    db.query(District).filter(District.seed_batch_id == SEED_BATCH_ID).delete(synchronize_session=False)
+    db.query(State).filter(State.seed_batch_id == SEED_BATCH_ID).delete(synchronize_session=False)
+    db.commit()
+
+    created_states = {}
+    created_districts = {}
+    localities_to_process = []
+
+    # Insert States, Districts, and Localities from Catalog
+    for s_name, s_code, districts_list in locations_catalog:
+        state = State(name=s_name, code=s_code, seed_batch_id=SEED_BATCH_ID)
+        db.add(state)
+        db.flush()
+        created_states[s_name] = state.id
+
+        for d_name, d_code, localities_list in districts_list:
+            district = District(state_id=state.id, name=d_name, code=d_code, seed_batch_id=SEED_BATCH_ID)
+            db.add(district)
+            db.flush()
+            created_districts[f"{s_name}:{d_name}"] = district.id
+
+            for l_name, l_type, l_lat, l_lng, pop_tier, has_hub, rad, fee in localities_list:
+                loc = Locality(
+                    district_id=district.id,
+                    name=l_name,
+                    type=l_type,
+                    latitude=l_lat,
+                    longitude=l_lng,
+                    population_tier=pop_tier,
+                    has_rental_hub=has_hub,
+                    delivery_radius_km=rad,
+                    delivery_fee_beyond_radius=fee,
+                    seed_batch_id=SEED_BATCH_ID
+                )
+                db.add(loc)
+                db.flush()
+                localities_to_process.append(loc)
+
+    db.commit()
+
+    # Nearest-Hub Assignment Logic
+    print("Calculating nearest hubs for non-hub localities using Haversine distance...")
+    hubs = [l for l in localities_to_process if l.has_rental_hub]
+    
+    for loc in localities_to_process:
+        if loc.has_rental_hub:
+            loc.nearest_hub_locality_id = loc.id
+        else:
+            closest_hub = None
+            min_dist = float('inf')
+            for hub in hubs:
+                dist = haversine(loc.latitude, loc.longitude, hub.latitude, hub.longitude)
+                if dist < min_dist:
+                    min_dist = dist
+                    closest_hub = hub
+            if closest_hub:
+                loc.nearest_hub_locality_id = closest_hub.id
+                print(f"Assigned '{loc.name}' to closest hub '{closest_hub.name}' ({min_dist:.2f} km)")
+    
+    db.commit()
+
+    states_count = db.query(State).filter(State.seed_batch_id == SEED_BATCH_ID).count()
+    districts_count = db.query(District).filter(District.seed_batch_id == SEED_BATCH_ID).count()
+    cities_count = db.query(Locality).filter(Locality.seed_batch_id == SEED_BATCH_ID, Locality.type == 'city').count()
+    towns_count = db.query(Locality).filter(Locality.seed_batch_id == SEED_BATCH_ID, Locality.type == 'town').count()
+    villages_count = db.query(Locality).filter(Locality.seed_batch_id == SEED_BATCH_ID, Locality.type == 'village').count()
+    
+    print("\n----- SEEDING REPORT: LOCATION MASTER DATA -----")
+    print(f"States seeded: {states_count}")
+    print(f"Districts seeded: {districts_count}")
+    print(f"Localities seeded: {cities_count + towns_count + villages_count}")
+    print(f"  - Cities: {cities_count}")
+    print(f"  - Towns: {towns_count}")
+    print(f"  - Villages: {villages_count}")
+    
+    print("\n--- SAMPLE OF 5 VILLAGES WITH NEAREST HUBS ---")
+    sample_villages = db.query(Locality).filter(
+        Locality.seed_batch_id == SEED_BATCH_ID, 
+        Locality.type == 'village'
+    ).limit(5).all()
+    for sv in sample_villages:
+        hub_loc = db.query(Locality).filter(Locality.id == sv.nearest_hub_locality_id).first()
+        dist = haversine(sv.latitude, sv.longitude, hub_loc.latitude, hub_loc.longitude)
+        print(f"Locality: {sv.name} (Village) -> Nearest Hub: {hub_loc.name} (Distance: {dist:.2f} km)")
+    print("------------------------------------------------\n")
+    
+    db.close()
+
+
 def main():
     parser = argparse.ArgumentParser(description="Travel OS idmepotent DB Seeding CLI framework.")
     parser.add_argument(
         "subcommand",
-        choices=["reference", "flights", "hotels", "villas", "packages", "trains", "buses", "cabs", "tours", "cruises", "insurance", "content", "users", "reset", "all"],
+        choices=["reference", "flights", "hotels", "villas", "packages", "trains", "buses", "cabs", "rentals", "tours", "cruises", "insurance", "content", "users", "locations", "reset", "all"],
         help="Seed category command"
     )
     args = parser.parse_args()
@@ -901,6 +1378,8 @@ def main():
         run_buses()
     elif args.subcommand == "cabs":
         run_cabs()
+    elif args.subcommand == "rentals":
+        run_rental_vehicles()
     elif args.subcommand == "tours":
         run_tours()
     elif args.subcommand == "cruises":
@@ -911,10 +1390,13 @@ def main():
         run_content()
     elif args.subcommand == "users":
         run_users()
+    elif args.subcommand == "locations":
+        run_locations()
     elif args.subcommand == "all":
         print("Starting complete database seeding sequence...")
         run_reset()
         run_reference()
+        run_locations()
         run_flights()
         run_hotels()
         run_villas()
@@ -922,6 +1404,7 @@ def main():
         run_trains()
         run_buses()
         run_cabs()
+        run_rental_vehicles()
         run_tours()
         run_cruises()
         run_insurance()

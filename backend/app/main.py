@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.database import engine, Base, get_db
 from app.models import search_entities, payments
-from app.routes import auth, wallet, agents, voice, showcase, bookings, search, tracker, mybiz, wishlist, admin_panel, media, payments as payments_routes
+from app.routes import auth, wallet, agents, voice, showcase, bookings, search, tracker, mybiz, wishlist, admin_panel, media, rent_a_ride, localities, payments as payments_routes, webhooks
 from fastapi.staticfiles import StaticFiles
 import os
 from app.ml import fraud_model
@@ -13,12 +13,11 @@ from app.rag.retriever import rag_system
 from app.utils.websocket_gateway import ws_gateway
 import asyncio
 
-# Configure structured logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='{"timestamp": "%(asctime)s", "level": "%(levelname)s", "name": "%(name)s", "message": "%(message)s"}'
-)
+from app.utils.logging_config import setup_structured_logging, request_id_ctx_var, user_id_ctx_var
+import uuid
 
+# Configure structured logging
+setup_structured_logging()
 logger = logging.getLogger("travel_os")
 
 app = FastAPI(
@@ -30,10 +29,16 @@ app = FastAPI(
     openapi_url="/api/openapi.json"
 )
 
-# CORS Configuration
+# CORS Configuration - Strict whitelist loading from environment variable
+allowed_origins_str = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://localhost:3000,http://localhost:5174,http://127.0.0.1:3000,http://127.0.0.1:5174"
+)
+origins = [o.strip() for o in allowed_origins_str.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify front-end hosting domain
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -58,6 +63,78 @@ async def restrict_admin_origin_middleware(request, call_next):
                 )
     return await call_next(request)
 
+# Request ID, Context and Metrics Middleware
+@app.middleware("http")
+async def request_id_middleware(request, call_next):
+    from app.utils.metrics import API_RESPONSE_TIMES
+    import time
+    
+    start_time = time.time()
+    request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+    request_id_token = request_id_ctx_var.set(request_id)
+    user_id_token = user_id_ctx_var.set("anonymous")
+    
+    try:
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        
+        # Observe response times excluding /metrics endpoint to avoid noise
+        if request.url.path != "/metrics":
+            latency = time.time() - start_time
+            API_RESPONSE_TIMES.labels(endpoint=request.url.path, method=request.method).observe(latency)
+            
+        return response
+    finally:
+        request_id_ctx_var.reset(request_id_token)
+        user_id_ctx_var.reset(user_id_token)
+
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    request_id = request_id_ctx_var.get() or "system"
+    logger.error(f"Validation error: {exc.errors()}. Request ID: {request_id}")
+    return JSONResponse(
+        status_code=422,
+        content={
+            "error_code": "VALIDATION_ERROR",
+            "message": "Invalid request payload or query parameters.",
+            "detail": exc.errors(),
+            "details": exc.errors(),
+            "request_id": request_id
+        }
+    )
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request, exc):
+    request_id = request_id_ctx_var.get() or "system"
+    logger.warning(f"HTTP error {exc.status_code}: {exc.detail}. Request ID: {request_id}")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error_code": f"HTTP_{exc.status_code}",
+            "message": exc.detail,
+            "detail": exc.detail,
+            "request_id": request_id
+        }
+    )
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request, exc):
+    request_id = request_id_ctx_var.get() or "system"
+    logger.error(f"[ERROR_TRACKING_OUTAGE] Unhandled exception occurred: {exc}. Request ID: {request_id}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error_code": "INTERNAL_SERVER_ERROR",
+            "message": "An unexpected error occurred. Please contact support and reference the Request ID.",
+            "detail": "An unexpected error occurred. Please contact support and reference the Request ID.",
+            "request_id": request_id
+        }
+    )
+
 # Include Route subtrees
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(wallet.router, prefix="/api/v1")
@@ -74,6 +151,9 @@ app.include_router(admin_panel.router, prefix="/api")
 app.include_router(admin_panel.admin_auth_router, prefix="/api")
 app.include_router(media.router, prefix="/api/v1")
 app.include_router(payments_routes.router, prefix="/api/v1")
+app.include_router(rent_a_ride.router, prefix="/api/v1")
+app.include_router(localities.router, prefix="/api/v1")
+app.include_router(webhooks.router, prefix="/api/v1")
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
 os.makedirs(STATIC_DIR, exist_ok=True)
@@ -111,14 +191,16 @@ def startup_db_seed():
 
         # Seed test user if not exist
         from app.auth.jwt import hash_password
+        admin_email = os.getenv("ADMIN_SEED_EMAIL", "admin_test@travelos.com")
+        admin_password = os.getenv("ADMIN_SEED_PASSWORD", "adminpass123")
         test_user = db.query(User).filter(User.id == 1).first()
         if not test_user:
             test_user = User(
                 id=1,
-                email="admin_test@travelos.com",
+                email=admin_email,
                 role="finance_admin",
                 trust_score=Decimal("4.80"),
-                password_hash=hash_password("adminpass123")
+                password_hash=hash_password(admin_password)
             )
             db.add(test_user)
             db.commit()
@@ -128,8 +210,9 @@ def startup_db_seed():
             wallet = WalletAccount(user_id=test_user.id, balance=Decimal("150000.00"), currency="INR")
             db.add(wallet)
             db.commit()
-        elif not test_user.password_hash:
-            test_user.password_hash = hash_password("adminpass123")
+        elif not test_user.password_hash or test_user.email != admin_email:
+            test_user.email = admin_email
+            test_user.password_hash = hash_password(admin_password)
             db.commit()
 
         # Seed approval requests if empty
@@ -233,15 +316,54 @@ def startup_db_seed():
     except Exception as e:
         logger.warning(f"Could not pre-seed RAG database on startup: {e}")
 
+@app.on_event("shutdown")
+def shutdown_event():
+    logger.info("SIGTERM/SIGINT received. Initiating graceful shutdown sequence...")
+    logger.info("Graceful shutdown completed successfully.")
+
 @app.get("/healthz", tags=["monitoring"])
 def health_check(db: Session = Depends(get_db)):
-    """Liveness probe validating API health and DB connectivity"""
+    """Liveness probe validating API health and DB/Redis/Provider connectivity"""
+    from app.utils.redis_client import redis_client
+    from app.providers.flights.amadeus import _has_real_credentials
+    
+    db_status = "connected"
     try:
-        # Trivial DB execution check
         db.execute(text("SELECT 1"))
-        return {"status": "healthy", "database": "connected"}
     except Exception as e:
-        return {"status": "unhealthy", "error": str(e)}
+        db_status = f"unhealthy: {e}"
+
+    redis_status = "not_configured"
+    if redis_client:
+        try:
+            redis_client.ping()
+            redis_status = "connected"
+        except Exception as e:
+            redis_status = f"unhealthy: {e}"
+            
+    amadeus_status = "configured" if _has_real_credentials() else "simulated_mode"
+
+    status_code = 200
+    if "unhealthy" in db_status or "unhealthy" in redis_status:
+        status_code = 503
+
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "status": "healthy" if status_code == 200 else "unhealthy",
+            "database": db_status,
+            "redis": redis_status,
+            "amadeus_api": amadeus_status
+        }
+    )
+
+@app.get("/metrics", tags=["monitoring"])
+def get_metrics():
+    """Prometheus metrics endpoint"""
+    from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+    from fastapi import Response
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 # Helper import inside function or use standard text
 from sqlalchemy import text

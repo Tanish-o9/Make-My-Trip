@@ -14,6 +14,9 @@ from decimal import Decimal
 from app.services.wallet_loyalty import WalletService
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(get_current_admin)])
+
+from app.utils.rate_limiter import RateLimiter
+admin_write_limiter = RateLimiter(max_requests=30, window_seconds=60, scope="admin_write")
 admin_auth_router = APIRouter(prefix="/admin/auth", tags=["admin-auth"])
 
 # Aggressive rate limiting dict for admin login attempts
@@ -104,7 +107,7 @@ def list_claims_queue(
     return query.all()
 
 
-@router.post("/claims/{claim_id}/resolve")
+@router.post("/claims/{claim_id}/resolve", dependencies=[Depends(admin_write_limiter)])
 def resolve_claim(
     claim_id: int,
     action: str, # approve, reject
@@ -128,7 +131,7 @@ def resolve_claim(
 
 
 # 2. Offer Management CRUD
-@router.post("/offers")
+@router.post("/offers", dependencies=[Depends(admin_write_limiter)])
 def create_offer(
     offer_data: Dict[str, Any],
     db: Session = Depends(get_db)
@@ -149,7 +152,7 @@ def create_offer(
     return offer
 
 
-@router.delete("/offers/{offer_id}")
+@router.delete("/offers/{offer_id}", dependencies=[Depends(admin_write_limiter)])
 def delete_offer(
     offer_id: int,
     db: Session = Depends(get_db)
@@ -164,7 +167,7 @@ def delete_offer(
 
 
 # 3. Airline Partners CRUD
-@router.post("/airlines")
+@router.post("/airlines", dependencies=[Depends(admin_write_limiter)])
 def create_airline_partner(
     name: str,
     logo_url: str,
@@ -184,7 +187,7 @@ def create_airline_partner(
     return partner
 
 
-@router.delete("/airlines/{partner_id}")
+@router.delete("/airlines/{partner_id}", dependencies=[Depends(admin_write_limiter)])
 def delete_airline_partner(
     partner_id: int,
     db: Session = Depends(get_db)
@@ -284,7 +287,7 @@ def get_reconciliation_exceptions(db: Session = Depends(get_db)):
     return db.query(ReconciliationException).filter(ReconciliationException.status == "pending").all()
 
 
-@router.post("/payments/exceptions/{id}/resolve")
+@router.post("/payments/exceptions/{id}/resolve", dependencies=[Depends(admin_write_limiter)])
 def resolve_reconciliation_exception(id: int, notes: str = "Resolved manually", db: Session = Depends(get_db)):
     """Admins manually reconcile mismatches"""
     exc = db.query(ReconciliationException).filter(ReconciliationException.id == id).first()
@@ -329,7 +332,7 @@ def list_approvals(status: str = None, db: Session = Depends(get_db)):
     return query.order_by(ApprovalRequest.created_at.desc()).all()
 
 
-@router.post("/approvals/{id}/resolve")
+@router.post("/approvals/{id}/resolve", dependencies=[Depends(admin_write_limiter)])
 def resolve_approval(
     id: int,
     action: str,  # APPROVED or REJECTED
@@ -518,7 +521,7 @@ def resolve_approval(
     }
 
 
-@router.post("/payouts/trigger-run")
+@router.post("/payouts/trigger-run", dependencies=[Depends(admin_write_limiter)])
 def trigger_payout_run(vendor_id: str, period: str, db: Session = Depends(get_db)):
     """Triggers automated Weekly Payout aggregator runner"""
     res = PayoutManager.calculate_weekly_vendor_payouts(db, vendor_id, period)
@@ -584,7 +587,7 @@ class AutoApprovalRuleSchema(BaseModel):
 def list_rules(db: Session = Depends(get_db)):
     return db.query(AutoApprovalRule).all()
 
-@router.post("/rules")
+@router.post("/rules", dependencies=[Depends(admin_write_limiter)])
 def create_rule(schema: AutoApprovalRuleSchema, db: Session = Depends(get_db)):
     rule = AutoApprovalRule(
         applies_to=schema.applies_to,
@@ -598,7 +601,7 @@ def create_rule(schema: AutoApprovalRuleSchema, db: Session = Depends(get_db)):
     db.refresh(rule)
     return rule
 
-@router.put("/rules/{id}")
+@router.put("/rules/{id}", dependencies=[Depends(admin_write_limiter)])
 def update_rule(id: int, schema: AutoApprovalRuleSchema, db: Session = Depends(get_db)):
     rule = db.query(AutoApprovalRule).filter(AutoApprovalRule.id == id).first()
     if not rule:
@@ -612,7 +615,7 @@ def update_rule(id: int, schema: AutoApprovalRuleSchema, db: Session = Depends(g
     db.refresh(rule)
     return rule
 
-@router.delete("/rules/{id}")
+@router.delete("/rules/{id}", dependencies=[Depends(admin_write_limiter)])
 def delete_rule(id: int, db: Session = Depends(get_db)):
     rule = db.query(AutoApprovalRule).filter(AutoApprovalRule.id == id).first()
     if not rule:
@@ -633,25 +636,43 @@ def list_refunds_queue(db: Session = Depends(get_db)):
         ApprovalRequest.request_type == "refund_exception"
     ).all()
     
-    enriched = []
+    # 1. Batch fetch bookings across all 12 tables to eliminate N+1 queries
+    ref_ids = [r.reference_id for r in refunds]
+    bookings_by_ref = {}
     tables = [FlightBooking, HotelBooking, TrainBooking, BusBooking, CabBooking, HolidayPackageBooking, ActivityBooking, VisaApplication, CruiseBooking, InsurancePolicy, VillaBooking, ForexOrder]
-    for r in refunds:
-        booking = None
+    if ref_ids:
         for table in tables:
-            booking = db.query(table).filter(table.booking_reference == r.reference_id).first()
-            if booking:
-                break
+            found_bookings = db.query(table).filter(table.booking_reference.in_(ref_ids)).all()
+            for b in found_bookings:
+                bookings_by_ref[b.booking_reference] = b
+                
+    # 2. Batch fetch approved refund counts for users to eliminate nested N+1 loop count query
+    counts_by_user = {}
+    user_keys = []
+    for r in refunds:
+        booking = bookings_by_ref.get(r.reference_id)
+        u_id = booking.user_id if booking and hasattr(booking, "user_id") else 1
+        user_keys.append(f"user_{u_id}")
         
-        user_id = 1
-        if booking:
-            # Safely handle user_id extraction
-            user_id = booking.user_id if hasattr(booking, "user_id") else 1
-            
-        refund_count = db.query(ApprovalRequest).filter(
-            ApprovalRequest.requested_by == f"user_{user_id}",
+    if user_keys:
+        from sqlalchemy import func
+        count_results = db.query(
+            ApprovalRequest.requested_by,
+            func.count(ApprovalRequest.id)
+        ).filter(
+            ApprovalRequest.requested_by.in_(user_keys),
             ApprovalRequest.request_type == "refund_exception",
             ApprovalRequest.status == "APPROVED"
-        ).count()
+        ).group_by(ApprovalRequest.requested_by).all()
+        for req_by, cnt in count_results:
+            counts_by_user[req_by] = cnt
+            
+    enriched = []
+    for r in refunds:
+        booking = bookings_by_ref.get(r.reference_id)
+        u_id = booking.user_id if booking and hasattr(booking, "user_id") else 1
+        user_key = f"user_{u_id}"
+        refund_count = counts_by_user.get(user_key, 0)
         
         enriched.append({
             "id": r.id,
@@ -669,7 +690,7 @@ def list_refunds_queue(db: Session = Depends(get_db)):
         })
     return enriched
 
-@router.post("/refunds/{request_id}/resolve")
+@router.post("/refunds/{request_id}/resolve", dependencies=[Depends(admin_write_limiter)])
 def resolve_refund_request(
     request_id: int,
     req_body: ResolveRefundRequest,

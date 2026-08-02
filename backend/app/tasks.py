@@ -143,6 +143,91 @@ def check_pending_approvals_sla(db: Session):
                 db.add(audit)
                 db.commit()
 
+def check_stuck_payments(db: Session):
+    import datetime
+    from app.models.payments import Payment, PaymentStatus, PaymentTransaction, TransactionEventType
+    from app.payments.client import razorpay_client
+    
+    # Fetch all payments older than 30 minutes in status 'created'
+    thirty_minutes_ago = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
+    stuck_payments = db.query(Payment).filter(
+        Payment.status == PaymentStatus.CREATED,
+        Payment.created_at < thirty_minutes_ago
+    ).all()
+    
+    for payment in stuck_payments:
+        logger.info(f"Checking status of stuck payment {payment.id} (Razorpay order {payment.razorpay_order_id})")
+        try:
+            order_data = razorpay_client.order.fetch(payment.razorpay_order_id)
+            payments_response = razorpay_client.order.payments(payment.razorpay_order_id)
+            items = payments_response.get("items", [])
+            
+            if items:
+                captured_payment = None
+                for p in items:
+                    if p.get("status") in ["captured", "authorized"]:
+                        captured_payment = p
+                        break
+                        
+                if captured_payment:
+                    logger.warning(f"Reconciliation: Found captured payment {captured_payment['id']} for order {payment.razorpay_order_id} on Razorpay. Auto-reconciling...")
+                    payment.status = PaymentStatus.CAPTURED
+                    payment.razorpay_payment_id = captured_payment['id']
+                    db.commit()
+                    
+                    tx = PaymentTransaction(
+                        payment_id=payment.id,
+                        event_type=TransactionEventType.WEBHOOK_RECEIVED,
+                        raw_payload={"reconciled_via": "cron_job", "payment_data": captured_payment}
+                    )
+                    db.add(tx)
+                    db.commit()
+                    
+                    from app.routes.payments import find_booking_by_reference
+                    from app.services.booking_core import BookingStateMachine
+                    booking = find_booking_by_reference(db, payment.booking_id)
+                    if booking and booking.status != BookingStatus.CONFIRMED:
+                        BookingStateMachine.transition_to(booking, BookingStatus.CONFIRMED)
+                        db.commit()
+                        emit_event("booking_confirmed", {
+                            "user_id": booking.user_id,
+                            "booking_reference": booking.booking_reference,
+                            "vertical": getattr(booking, "__tablename__", "").replace("_bookings", "")
+                        })
+                    continue
+            
+            # If no captured payment on Razorpay, mark local payment status as FAILED
+            logger.warning(f"Reconciliation Alert: Order {payment.razorpay_order_id} is stuck with no capture. Flagging payment status as FAILED.")
+            payment.status = PaymentStatus.FAILED
+            db.commit()
+            
+            tx = PaymentTransaction(
+                payment_id=payment.id,
+                event_type=TransactionEventType.PAYMENT_FAILED,
+                raw_payload={"reconciled_via": "cron_job", "status": "stuck_unpaid"}
+            )
+            db.add(tx)
+            db.commit()
+            
+        except Exception as e:
+            logger.error(f"Error reconciling payment {payment.id}: {e}")
+
+def run_payment_reconciliation():
+    logger.info("Starting background Payment Reconciliation daemon loop...")
+    while True:
+        try:
+            db = SessionLocal()
+            try:
+                check_stuck_payments(db)
+            finally:
+                db.close()
+        except Exception as e:
+            logger.error(f"Error in background Payment Reconciliation daemon loop: {e}")
+        time.sleep(900) # Check every 15 minutes (900 seconds)
+
 def start_sla_daemon():
-    thread = threading.Thread(target=run_sla_cleanup, daemon=True)
-    thread.start()
+    thread1 = threading.Thread(target=run_sla_cleanup, daemon=True)
+    thread1.start()
+    
+    thread2 = threading.Thread(target=run_payment_reconciliation, daemon=True)
+    thread2.start()

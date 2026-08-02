@@ -4,12 +4,15 @@ import {
   MicOff, Search, Plane, Hotel, Calendar, Users, CheckCircle, RefreshCw,
   TrendingUp, AlertTriangle, ArrowRight, Plus, Check, CreditCard, Tag, Globe, User,
   Heart, ArrowUpDown, ShieldCheck, HelpCircle, MapPin, FileText, ChevronRight, Info,
-  Bus, Ship, Coins, Activity, Anchor, Home, Gift, Briefcase, Clock, Trash2
+  Bus, Ship, Coins, Activity, Anchor, Home, Gift, Briefcase, Clock, Trash2,
+  Car, Key
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { CheckoutPage } from './CheckoutPage';
+import { ConfirmationPage } from './ConfirmationPage';
+import { DesignTokensPage } from './DesignTokensPage';
 
 const API_URL = "http://localhost:8000/api/v1";
-
 let globalTabLoadingListeners: ((loadingVerticals: Record<string, boolean>) => void)[] = [];
 let globalLoadingVerticals: Record<string, boolean> = {};
 
@@ -44,17 +47,25 @@ function useTabLoading(verticalId: string, initialValue: boolean = false) {
   return [loading, setLoading] as const;
 }
 
+const decodeJwt = (t: string) => {
+  try {
+    const base64Url = t.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    return null;
+  }
+};
+
 export default function App() {
+  const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
+  const [userRole, setUserRole] = useState<string | null>(localStorage.getItem('user_role'));
   const [activeTab, setActiveTab] = useState<'explore' | 'chat' | 'wallet' | 'trips'>('explore');
   const [loadingVerticals, setLoadingVerticals] = useState<Record<string, boolean>>({});
-  
-  useEffect(() => {
-    const listener = (vals: Record<string, boolean>) => setLoadingVerticals(vals);
-    globalTabLoadingListeners.push(listener);
-    return () => {
-      globalTabLoadingListeners = globalTabLoadingListeners.filter(l => l !== listener);
-    };
-  }, []);
+  const [currentPath, setCurrentPath] = useState(window.location.pathname);
 
   const [currency, setCurrency] = useState<'INR' | 'USD' | 'EUR'>('INR');
   const [locale, setLocale] = useState<'en' | 'es' | 'hi'>('en');
@@ -64,6 +75,168 @@ export default function App() {
     points: 450,
     walletBalance: 24500.00
   });
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentPath(window.location.pathname);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const navigate = (path: string) => {
+    window.history.pushState(null, '', path);
+    setCurrentPath(path);
+  };
+  useEffect(() => {
+    const listener = (vals: Record<string, boolean>) => setLoadingVerticals(vals);
+    globalTabLoadingListeners.push(listener);
+    return () => {
+      globalTabLoadingListeners = globalTabLoadingListeners.filter(l => l !== listener);
+    };
+  }, []);
+
+  // Token parsing and session sync using single-use exchange code
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const exchangeCode = params.get('exchange_code');
+    const logout = params.get('logout');
+
+    if (logout === 'true') {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user_role');
+      setToken(null);
+      setUserRole(null);
+      setUserProfile({
+        email: "traveler@travelos.com",
+        tier: "Gold",
+        points: 450,
+        walletBalance: 24500.00
+      });
+      params.delete('logout');
+      const newSearch = params.toString();
+      const newPath = window.location.pathname + (newSearch ? `?${newSearch}` : '');
+      window.history.replaceState({}, '', newPath);
+      return;
+    }
+
+    if (exchangeCode) {
+      // Clean up URL search parameters immediately
+      params.delete('exchange_code');
+      const newSearch = params.toString();
+      const newPath = window.location.pathname + (newSearch ? `?${newSearch}` : '');
+      window.history.replaceState({}, '', newPath);
+
+      fetch("http://localhost:8000/api/v1/auth/exchange", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ exchange_code: exchangeCode })
+      })
+      .then(resp => {
+        if (!resp.ok) {
+          throw new Error("Invalid or expired exchange session.");
+        }
+        return resp.json();
+      })
+      .then(data => {
+        const qToken = data.token;
+        const qRole = data.role;
+        const qEmail = data.email;
+
+        localStorage.setItem('token', qToken);
+        localStorage.setItem('user_role', qRole);
+        setToken(qToken);
+        setUserRole(qRole);
+        setUserProfile((prev: any) => ({
+          ...prev,
+          email: qEmail
+        }));
+      })
+      .catch(err => {
+        console.error(err.message || "Failed to exchange code.");
+      });
+    } else if (token) {
+      const decoded = decodeJwt(token);
+      if (decoded && decoded.role) {
+        setUserRole(decoded.role);
+        localStorage.setItem('user_role', decoded.role);
+        setUserProfile((prev: any) => ({
+          ...prev,
+          email: decoded.sub || prev.email
+        }));
+      }
+    }
+  }, [token]);
+
+  const redirectToAdmin = async (authToken: string) => {
+    try {
+      const resp = await fetch("http://localhost:8000/api/v1/auth/exchange-code", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${authToken}`
+        }
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        const code = data.exchange_code;
+        window.location.href = `http://localhost:5174/?exchange_code=${code}`;
+      } else {
+        window.location.href = "http://localhost:5174/";
+      }
+    } catch (err) {
+      window.location.href = "http://localhost:5174/";
+    }
+  };
+
+  // Path Interception and Guards
+  useEffect(() => {
+    if (currentPath === '/admin') {
+      if (!token) {
+        navigate('/');
+      } else {
+        const decoded = decodeJwt(token);
+        const role = decoded?.role || userRole;
+        if (role === 'admin' || role === 'super_admin' || role === 'finance_admin' || role === 'booking_approver') {
+          redirectToAdmin(token);
+        } else {
+          alert("Access denied: You do not have administrative privileges to access the admin panel.");
+          navigate('/');
+        }
+      }
+    }
+  }, [currentPath, token, userRole, userProfile.email]);
+
+  const handleLogin = (accessToken: string, role: string, email: string) => {
+    localStorage.setItem('token', accessToken);
+    localStorage.setItem('user_role', role);
+    setToken(accessToken);
+    setUserRole(role);
+    setUserProfile((prev: any) => ({
+      ...prev,
+      email: email
+    }));
+
+    if (role === 'admin' || role === 'super_admin' || role === 'finance_admin' || role === 'booking_approver') {
+      redirectToAdmin(accessToken);
+    } else {
+      navigate('/');
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user_role');
+    setToken(null);
+    setUserRole(null);
+    setUserProfile({
+      email: "traveler@travelos.com",
+      tier: "Gold",
+      points: 450,
+      walletBalance: 24500.00
+    });
+    navigate('/');
+  };
+
 
   const [prefilledMessage, setPrefilledMessage] = useState("");
   const [checkoutData, setCheckoutData] = useState<any | null>(null);
@@ -136,19 +309,83 @@ export default function App() {
       });
   };
 
+  if (!token) {
+    return <LoginScreen onLogin={handleLogin} />;
+  }
+
+  const checkoutMatch = currentPath.match(/^\/checkout\/([^/]+)$/);
+  const confirmationMatch = currentPath.match(/^\/bookings\/([^/]+)\/confirmation$/);
+  
+  if (checkoutMatch) {
+    const bookingId = checkoutMatch[1];
+    return <CheckoutPage bookingId={bookingId} onNavigate={navigate} />;
+  }
+  
+  if (confirmationMatch) {
+    const bookingId = confirmationMatch[1];
+    return <ConfirmationPage bookingId={bookingId} onNavigate={navigate} />;
+  }
+
+  const rentARideMatch = currentPath.match(/^\/rent-a-ride\/([^?#]+)/);
+  if (rentARideMatch) {
+    const city = decodeURIComponent(rentARideMatch[1]);
+    const params = new URLSearchParams(window.location.search);
+    const pickup = params.get("pickup") || "";
+    const drop = params.get("drop") || "";
+    const type = params.get("type") || "SUV";
+    const selfDrive = params.get("selfDrive") !== "false";
+    const linkedRef = params.get("linked_booking_reference") || "";
+    
+    return (
+      <RentARidePage 
+        city={city}
+        pickup={pickup}
+        drop={drop}
+        initialType={type}
+        initialSelfDrive={selfDrive}
+        linkedBookingReference={linkedRef}
+        onNavigate={navigate}
+        onBook={setCheckoutData}
+        currency={currency}
+      />
+    );
+  }
+
+  if (currentPath === '/design-tokens') {
+    return <DesignTokensPage onNavigate={navigate} />;
+  }
+
+  const isAdmin = userRole === 'admin' || userRole === 'super_admin' || userRole === 'finance_admin' || userRole === 'booking_approver';
+
   return (
-    <div className="flex h-screen bg-[#090d16] text-slate-100 overflow-hidden font-sans relative">
+    <div className="flex flex-col h-screen overflow-hidden">
+      {isAdmin && (
+        <div className="bg-yellow-300 text-black px-4 py-2.5 text-xs font-black uppercase flex items-center justify-between border-b-3 border-black shadow-[0_2px_4px_rgba(0,0,0,0.15)] z-50">
+          <div className="flex items-center gap-2">
+            <span className="animate-pulse w-2.5 h-2.5 rounded-full bg-red-600 border border-black inline-block"></span>
+            <span>SYSTEM CONTROL ACTIVE: LOGGED IN AS ADMINISTRATOR ({userProfile.email})</span>
+          </div>
+          <button 
+            onClick={() => {
+              redirectToAdmin(token || "");
+            }}
+            className="bg-black hover:bg-slate-900 text-white font-black px-4 py-1.5 border-3 border-black rounded-lg shadow-[2px_2px_0px_0px_rgba(255,255,255,1)] text-[10px] cursor-pointer transition-all uppercase tracking-wider"
+          >
+            RETURN TO ADMIN CONSOLE ➔
+          </button>
+        </div>
+      )}
+      
+      <div className="flex flex-1 overflow-hidden font-sans relative text-[var(--color-ivory)] bg-[var(--color-obsidian)]">
       {/* SIDEBAR NAVIGATION */}
-      <aside className="w-64 bg-[#0d1527] border-r border-slate-800 flex flex-col justify-between p-4 z-20">
+      <aside className="w-64 bg-[var(--color-obsidian)] border-r border-slate-800/80 flex flex-col justify-between p-4 z-20">
         <div>
-          <div className="flex items-center gap-2 mb-8 px-2">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/20">
-              T
-            </div>
-            <div>
-              <h1 className="font-bold text-lg leading-none">Travel OS</h1>
-              <span className="text-xs text-slate-500 font-medium">AI Operating System</span>
-            </div>
+          <div className="flex items-center gap-2 mb-8 px-2 py-1">
+            <span className="font-serif italic font-bold text-2xl text-[var(--color-gold)]">T</span>
+            <span className="font-serif italic font-black text-sm tracking-wider text-[var(--color-ivory)] flex items-center gap-1">
+              TRAVEL OS
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-gold)] animate-pulse-gold inline-block" />
+            </span>
           </div>
 
           <nav className="space-y-1">
@@ -202,25 +439,60 @@ export default function App() {
 
       {/* MAIN VIEW AREA */}
       <main className="flex-1 flex flex-col h-full overflow-hidden bg-[#0a0f1d]">
-        <header className="h-16 border-b border-slate-900 flex items-center justify-between px-8 bg-[#090d16]/50 backdrop-blur-md z-10">
-          <h2 className="text-xl font-bold capitalize flex items-center gap-2">
-            {activeTab === 'explore' && <><Compass className="text-blue-500" /> Discover Destinations</>}
-            {activeTab === 'chat' && <><MessageSquare className="text-blue-500" /> Travel OS Assistant</>}
-            {activeTab === 'trips' && <><FileText className="text-blue-500" /> Bookings & Trip History</>}
-            {activeTab === 'wallet' && <><Wallet className="text-blue-500" /> Personal Account Balance</>}
-            
-          </h2>
-          <div className="flex items-center gap-4">
+        <header className="h-16 border-b border-slate-800/80 flex items-center justify-between px-8 bg-[var(--color-obsidian)] z-10">
+          {/* Left Logo */}
+          <div className="flex items-center gap-2">
+            <span className="font-serif italic font-bold text-2xl text-[var(--color-gold)]">T</span>
+            <span className="font-serif italic font-black text-sm tracking-wider text-[var(--color-ivory)] flex items-center gap-1">
+              TRAVEL OS
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-gold)] animate-pulse-gold inline-block" />
+            </span>
+          </div>
+
+          {/* Nav Tabs */}
+          <nav className="hidden md:flex items-center gap-6 h-full relative">
+            {[
+              { id: 'explore', label: 'Explore & Book' },
+              { id: 'chat', label: 'AI Travel Assistant' },
+              { id: 'trips', label: 'My Trips' },
+              { id: 'wallet', label: 'Wallet & Loyalty' }
+            ].map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`h-full px-1 flex items-center justify-center text-xs font-semibold tracking-wide uppercase transition-all relative cursor-pointer ${
+                    isActive ? 'text-[var(--color-gold)] font-bold' : 'text-[var(--color-ivory-dim)] hover:text-[var(--color-gold)]'
+                  }`}
+                >
+                  {tab.label}
+                  {isActive && (
+                    <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-[var(--color-gold)] transition-all" />
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* Right Side */}
+          <div className="flex items-center gap-6">
             <div className="text-right text-xs">
-              <div className="text-slate-400">Wallet balance</div>
-              <div className="font-bold text-emerald-400 text-sm">
+              <span className="text-[var(--color-ivory-dim)] text-[10px] uppercase tracking-wider block">Wallet Balance</span>
+              <span className="font-mono text-sm font-medium text-[var(--color-gold)] mt-0.5 block">
                 {currency === 'INR' ? '₹' : currency === 'USD' ? '$' : '€'}
                 {currency === 'INR' ? userProfile.walletBalance.toLocaleString() : (userProfile.walletBalance * 0.012).toFixed(2)}
-              </div>
+              </span>
             </div>
+            
+            {/* Notification Bell */}
+            <button className="text-[var(--color-ivory-dim)] hover:text-[var(--color-gold)] relative p-1 cursor-pointer transition-colors bg-transparent border-none">
+              <span className="relative">🔔</span>
+            </button>
+
             <button 
               onClick={() => setShowProfile(true)}
-              className="h-8 w-8 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center font-bold text-sm text-white hover:scale-105 hover:shadow-lg hover:shadow-blue-500/30 transition-all cursor-pointer border border-blue-400/20"
+              className="h-8 w-8 rounded-full border border-slate-700/60 bg-[var(--color-surface)] flex items-center justify-center font-bold text-xs text-[var(--color-ivory)] hover:border-[var(--color-gold)] hover:scale-105 transition-all cursor-pointer"
               title="View User Profile"
             >
               TR
@@ -244,6 +516,7 @@ export default function App() {
                 onShowMyBiz={() => setShowMyBizAdmin(true)}
                 onShowWishlist={() => setShowWishlist(true)}
                 onShowProfile={() => setShowProfile(true)}
+                onNavigate={navigate}
               />
             )}
             {activeTab === 'chat' && (
@@ -360,6 +633,7 @@ export default function App() {
           userProfile={userProfile}
           setUserProfile={setUserProfile}
           onClose={() => setShowProfile(false)}
+          onLogout={handleLogout}
         />
       )}
 
@@ -370,6 +644,7 @@ export default function App() {
         />
       )}
     </div>
+  </div>
   );
 }
 
@@ -377,13 +652,15 @@ function SidebarBtn({ active, icon, label, onClick }: { active: boolean, icon: a
   return (
     <button 
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[var(--radius-card)] text-sm font-medium transition-all cursor-pointer ${
         active 
-          ? 'bg-blue-600/10 text-blue-400 border-l-2 border-blue-500 pl-2.5' 
-          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+          ? 'bg-transparent text-[var(--color-gold)] border-l-2 border-[var(--color-gold)] pl-2.5' 
+          : 'text-[var(--color-ivory-dim)] hover:text-[var(--color-ivory)] hover:bg-[var(--color-surface)]'
       }`}
     >
-      {icon}
+      <span className={active ? 'text-[var(--color-gold)]' : 'text-[var(--color-ivory-dim)]'}>
+        {icon}
+      </span>
       {label}
     </button>
   );
@@ -396,7 +673,7 @@ function ExploreView({
   currency, onBook, setActiveTab, 
   onDetailClick, onOfferClick, onPartnerClick, 
   onDestinationClick, onTrackFlight, onShowMyBiz,
-  onShowWishlist, onShowProfile
+  onShowWishlist, onShowProfile, onNavigate
 }: { 
   currency: string, onBook: (data: any) => void, setActiveTab: any,
   onDetailClick: (vert: string, item: any) => void,
@@ -406,10 +683,15 @@ function ExploreView({
   onTrackFlight: (fnum: string) => void,
   onShowMyBiz: () => void,
   onShowWishlist: () => void,
-  onShowProfile: () => void
+  onShowProfile: () => void,
+  onNavigate: (path: string) => void
 }) {
-  const [activeVertical, setActiveVertical] = useState<string>('flights');
+  const [activeVertical, setActiveVertical] = useState<string>(() => sessionStorage.getItem("active_vertical") || 'flights');
   const [loadingVerticals, setLoadingVerticals] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    sessionStorage.setItem("active_vertical", activeVertical);
+  }, [activeVertical]);
   
   useEffect(() => {
     const listener = (vals: Record<string, boolean>) => setLoadingVerticals(vals);
@@ -437,33 +719,49 @@ function ExploreView({
       </div>
 
       {/* 2. HERO SHELL */}
-      <div className="hero-shell relative bg-gradient-to-b from-[#111c35] to-[#0a0f1d] py-4 px-8 border-b border-slate-900">
-        <div className="max-w-6xl mx-auto text-center mb-3">
-          <h2 className="text-3xl md:text-4xl font-black text-white tracking-tight">Where would you like to travel?</h2>
-          <p className="text-sm text-slate-400 mt-2">Discover curated itineraries, premium flight search, and instant wallet bookings.</p>
+      <div className="relative bg-[var(--color-obsidian)] py-10 px-6 border-b border-slate-800/80 overflow-hidden">
+        {/* Ambient Flight Paths Pattern */}
+        <div className="absolute inset-0 opacity-[0.08] pointer-events-none">
+          <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 100 250 Q 450 50 800 250" fill="none" stroke="#F3EFE6" strokeWidth="2" strokeDasharray="6,6" className="animate-pulse" />
+            <path d="M 200 300 Q 600 100 1000 300" fill="none" stroke="#F3EFE6" strokeWidth="2" strokeDasharray="6,6" className="animate-pulse" style={{ animationDelay: '1s' }} />
+            <path d="M -50 150 Q 300 0 700 200" fill="none" stroke="#F3EFE6" strokeWidth="1.5" strokeDasharray="4,4" />
+            <path d="M 50 400 Q 500 200 950 400" fill="none" stroke="#F3EFE6" strokeWidth="1" strokeDasharray="5,5" className="animate-pulse" style={{ animationDelay: '0.5s' }} />
+          </svg>
         </div>
 
-        {/* Floating Translucent Search Card */}
-        <div className="max-w-6xl mx-auto bg-slate-950/70 backdrop-blur-xl border border-slate-800/80 rounded-3xl p-6 shadow-2xl relative z-10">
-          
-          {/* Animated Tab Selector */}
-          <div className="flex flex-wrap gap-2 border-b border-slate-800/80 pb-4 mb-6 justify-center">
-            <VerticalTab id="flights" label="Flights" icon={<Plane size={16} />} active={activeVertical} onClick={setActiveVertical} isLoading={loadingVerticals['flights']} />
-            <VerticalTab id="hotels" label="Hotels" icon={<Hotel size={16} />} active={activeVertical} onClick={setActiveVertical} isLoading={loadingVerticals['hotels']} />
-            <VerticalTab id="villas" label="Villas" icon={<Home size={16} />} active={activeVertical} onClick={setActiveVertical} isLoading={loadingVerticals['villas']} />
-            <VerticalTab id="holidays" label="Holidays" icon={<Gift size={16} />} active={activeVertical} onClick={setActiveVertical} isLoading={loadingVerticals['holidays']} />
-            <VerticalTab id="trains" label="Trains" icon={<TrendingUp size={16} />} active={activeVertical} onClick={setActiveVertical} isLoading={loadingVerticals['trains']} />
-            <VerticalTab id="buses" label="Buses" icon={<Bus size={16} />} active={activeVertical} onClick={setActiveVertical} isLoading={loadingVerticals['buses']} />
-            <VerticalTab id="cabs" label="Cabs" icon={<Users size={16} />} active={activeVertical} onClick={setActiveVertical} isLoading={loadingVerticals['cabs']} />
-            <VerticalTab id="tours" label="Tours" icon={<Activity size={16} />} active={activeVertical} onClick={setActiveVertical} isLoading={loadingVerticals['tours']} />
-            <VerticalTab id="visa" label="Visa" icon={<FileText size={16} />} active={activeVertical} onClick={setActiveVertical} isLoading={loadingVerticals['visa']} />
-            <VerticalTab id="cruises" label="Cruises" icon={<Ship size={16} />} active={activeVertical} onClick={setActiveVertical} isLoading={loadingVerticals['cruises']} />
-            <VerticalTab id="forex" label="Forex" icon={<Coins size={16} />} active={activeVertical} onClick={setActiveVertical} isLoading={loadingVerticals['forex']} />
-            <VerticalTab id="insurance" label="Insurance" icon={<ShieldCheck size={16} />} active={activeVertical} onClick={setActiveVertical} isLoading={loadingVerticals['insurance']} />
-          </div>
+        <div className="max-w-7xl mx-auto text-center mb-6 relative z-10 animate-slideup">
+          <h2 className="text-3xl md:text-4xl lg:text-5xl font-serif text-[var(--color-ivory)] tracking-tight leading-tight uppercase">
+            WHERE WOULD YOU LIKE TO <span className="font-serif italic text-[var(--color-gold)]">TRAVEL</span>?
+          </h2>
+          <p className="text-[10px] font-mono uppercase tracking-widest text-[var(--color-ivory-dim)] mt-2">
+            Discover curated itineraries, premium flight search, and instant wallet bookings
+          </p>
+        </div>
 
-          {/* Form Registry Swap */}
-          <div className="pt-2">
+        {/* Boarding Pass Ticket Layout Container */}
+        <div className="max-w-7xl mx-auto bg-[var(--color-surface)] border border-slate-800 rounded-[var(--radius-card)] shadow-2xl relative z-10 animate-scalein flex flex-col md:flex-row overflow-hidden">
+          
+          {/* Main Ticket Stub (Left Form Section - 75% width) */}
+          <div className="flex-1 p-8 md:p-10">
+            {/* Animated Tab Selector */}
+            <div className="flex flex-wrap gap-2 gap-y-3 border-b border-slate-800/80 pb-4 mb-6 justify-start">
+              <VerticalTab id="flights" label="Flights" icon={<Plane size={16} />} active={activeVertical} onClick={setActiveVertical} isLoading={loadingVerticals['flights']} />
+              <VerticalTab id="hotels" label="Hotels" icon={<Hotel size={16} />} active={activeVertical} onClick={setActiveVertical} isLoading={loadingVerticals['hotels']} />
+              <VerticalTab id="villas" label="Villas" icon={<Home size={16} />} active={activeVertical} onClick={setActiveVertical} isLoading={loadingVerticals['villas']} />
+              <VerticalTab id="holidays" label="Holidays" icon={<Gift size={16} />} active={activeVertical} onClick={setActiveVertical} isLoading={loadingVerticals['holidays']} />
+              <VerticalTab id="trains" label="Trains" icon={<TrendingUp size={16} />} active={activeVertical} onClick={setActiveVertical} isLoading={loadingVerticals['trains']} />
+              <VerticalTab id="buses" label="Buses" icon={<Bus size={16} />} active={activeVertical} onClick={setActiveVertical} isLoading={loadingVerticals['buses']} />
+              <VerticalTab id="cabs" label="Cabs" icon={<Users size={16} />} active={activeVertical} onClick={setActiveVertical} isLoading={loadingVerticals['cabs']} />
+              <VerticalTab id="rent-a-ride" label="Rent a Ride" icon={<Car size={16} />} active={activeVertical} onClick={setActiveVertical} isLoading={loadingVerticals['rent-a-ride']} />
+              <VerticalTab id="tours" label="Tours" icon={<Activity size={16} />} active={activeVertical} onClick={setActiveVertical} isLoading={loadingVerticals['tours']} />
+              <VerticalTab id="visa" label="Visa" icon={<FileText size={16} />} active={activeVertical} onClick={setActiveVertical} isLoading={loadingVerticals['visa']} />
+              <VerticalTab id="cruises" label="Cruises" icon={<Ship size={16} />} active={activeVertical} onClick={setActiveVertical} isLoading={loadingVerticals['cruises']} />
+              <VerticalTab id="forex" label="Forex" icon={<Coins size={16} />} active={activeVertical} onClick={setActiveVertical} isLoading={loadingVerticals['forex']} />
+              <VerticalTab id="insurance" label="Insurance" icon={<ShieldCheck size={16} />} active={activeVertical} onClick={setActiveVertical} isLoading={loadingVerticals['insurance']} />
+            </div>
+            
+            <div className="pt-1">
             {activeVertical === 'flights' && <FlightsSearchForm currency={currency} onBook={onBook} onDetailClick={onDetailClick} onTrackFlight={onTrackFlight} />}
             {activeVertical === 'hotels' && <HotelsSearchForm onBook={onBook} onDetailClick={onDetailClick} />}
             {activeVertical === 'villas' && <VillasSearchForm onBook={onBook} onDetailClick={onDetailClick} />}
@@ -471,6 +769,7 @@ function ExploreView({
             {activeVertical === 'trains' && <TrainsSearchForm onBook={onBook} onDetailClick={onDetailClick} />}
             {activeVertical === 'buses' && <BusesSearchForm onBook={onBook} onDetailClick={onDetailClick} />}
             {activeVertical === 'cabs' && <CabsSearchForm onBook={onBook} onDetailClick={onDetailClick} />}
+            {activeVertical === 'rent-a-ride' && <RentARideSearchForm onBook={onBook} onDetailClick={onDetailClick} onNavigate={onNavigate} />}
             {activeVertical === 'tours' && <ToursSearchForm onBook={onBook} onDetailClick={onDetailClick} />}
             {activeVertical === 'visa' && <VisaSearchForm onBook={onBook} onDetailClick={onDetailClick} />}
             {activeVertical === 'cruises' && <CruisesSearchForm onBook={onBook} onDetailClick={onDetailClick} />}
@@ -478,7 +777,41 @@ function ExploreView({
             {activeVertical === 'insurance' && <InsuranceSearchForm onBook={onBook} onDetailClick={onDetailClick} />}
           </div>
         </div>
+
+        {/* Perforation Divider Line */}
+        <div className="hidden md:flex flex-col justify-between items-center py-2 relative w-[2px]">
+          <div className="absolute -top-2 w-4 h-4 rounded-full bg-[var(--color-obsidian)] border border-slate-800 -left-[7px]" />
+          <div className="w-[1px] h-full border-l border-dashed border-slate-700/60" />
+          <div className="absolute -bottom-2 w-4 h-4 rounded-full bg-[var(--color-obsidian)] border border-slate-800 -left-[7px]" />
+        </div>
+
+        {/* Ticket Stub (Right Section - wider and taller) */}
+        <div className="w-full md:w-80 bg-[var(--color-surface-raised)] p-8 md:p-10 flex flex-col justify-between border-t md:border-t-0 md:border-l border-slate-800/80">
+          <div className="space-y-6">
+            <div>
+              <span className="text-[10px] font-mono text-[var(--color-ivory-dim)] uppercase block">PASSENGER TICKET</span>
+              <span className="text-xs font-bold text-[var(--color-ivory)] uppercase mt-0.5 block">GUEST TRAVELER</span>
+            </div>
+            
+            <div>
+              <span className="text-[10px] font-mono text-[var(--color-ivory-dim)] uppercase block">CLASS / GROUP</span>
+              <span className="font-mono text-xs text-[var(--color-gold)] uppercase mt-0.5 block">FIRST CLASS / G1</span>
+            </div>
+
+            <div>
+              <span className="text-[10px] font-mono text-[var(--color-ivory-dim)] uppercase block">SYSTEM STATUS</span>
+              <span className="font-mono text-xs text-[var(--color-teal)] uppercase mt-0.5 block">READY TO BOARD</span>
+            </div>
+          </div>
+
+          <div className="space-y-3 pt-8 border-t border-dashed border-slate-800/80 mt-8">
+            <div className="w-full h-10 bg-transparent opacity-50" style={{ backgroundImage: 'repeating-linear-gradient(90deg, var(--color-ivory), var(--color-ivory) 2px, transparent 2px, transparent 5px, var(--color-ivory) 5px, var(--color-ivory) 7px, transparent 7px, transparent 10px)' }} />
+            <span className="text-[9px] font-mono text-[var(--color-ivory-dim)] text-center block tracking-widest">TRV-OS #49918-B</span>
+          </div>
+        </div>
+
       </div>
+    </div>
 
       {/* 3. EXPLORE MORE PILLS ROW */}
       <div className="max-w-6xl mx-auto px-8 py-10">
@@ -535,10 +868,10 @@ function ExploreView({
         if (path === '/mybiz') {
           onShowMyBiz();
         } else if (path === '/admin') {
-          window.open("http://localhost:5174", "_blank");
+          navigate('/admin');
         } else {
           const vert = path.replace('/', '');
-          const validVerticals = ['flights', 'hotels', 'trains', 'cabs', 'visa', 'forex', 'insurance', 'tours', 'cruises', 'villas', 'holidays'];
+          const validVerticals = ['flights', 'hotels', 'trains', 'cabs', 'visa', 'forex', 'insurance', 'tours', 'cruises', 'villas', 'holidays', 'rent-a-ride'];
           if (validVerticals.includes(vert)) {
             let mapped = vert;
             if (mapped === 'holidays') mapped = 'holiday-packages';
@@ -653,11 +986,11 @@ function LocationSwapField({
   toLabel,
   fromValue,
   toValue,
+  onSwap,
   onFromChange,
   onToChange,
-  onSwap,
-  fromSuggestions = [],
-  toSuggestions = [],
+  fromSuggestions = [] as string[],
+  toSuggestions = [] as string[],
   onSelectFromSuggestion,
   onSelectToSuggestion,
   showFromSuggestions = false,
@@ -685,27 +1018,69 @@ function LocationSwapField({
   placeholderFrom?: string;
   placeholderTo?: string;
 }) {
+  const [isEditingFrom, setIsEditingFrom] = useState(false);
+  const [isEditingTo, setIsEditingTo] = useState(false);
+
+  const getAirportCode = (val: string, fallback: string) => {
+    if (!val) return fallback;
+    const match = val.match(/\(([^)]+)\)/);
+    return match ? match[1].toUpperCase() : val.substring(0, 3).toUpperCase();
+  };
+
+  const getCityName = (val: string, fallback: string) => {
+    if (!val) return fallback;
+    const match = val.match(/^([^(]+)/);
+    return match ? match[1].trim() : val;
+  };
+
+  const fromCode = getAirportCode(fromValue, "DEL");
+  const fromCityName = getCityName(fromValue, "Delhi");
+  const toCode = getAirportCode(toValue, "BOM");
+  const toCityName = getCityName(toValue, "Select");
+
   return (
-    <div className="relative grid grid-cols-2 gap-2">
-      <div className="space-y-1.5 relative">
-        <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider block">{fromLabel}</span>
-        <input 
-          type="text" 
-          value={fromValue} 
-          placeholder={placeholderFrom}
-          onChange={(e) => onFromChange?.(e.target.value)}
-          onFocus={() => setShowFromSuggestions?.(true)}
-          onBlur={() => setTimeout(() => setShowFromSuggestions?.(false), 200)}
-          className="w-full bg-white border-3 border-black text-slate-900 font-black text-sm px-3 py-2.5 outline-none focus:bg-yellow-50/50"
-        />
+    <div className="relative grid grid-cols-2 gap-2 bg-[var(--color-surface)] border border-slate-800 rounded-[var(--radius-card)] p-4 shadow-sm h-[74px]">
+      
+      {/* From Field */}
+      <div 
+        onClick={() => setIsEditingFrom(true)}
+        className="space-y-0.5 relative cursor-pointer h-full flex flex-col justify-center text-left"
+      >
+        <span className="text-[9px] text-[var(--color-ivory-dim)] font-mono uppercase tracking-wider block">{fromLabel}</span>
+        {isEditingFrom ? (
+          <input 
+            type="text" 
+            autoFocus
+            value={fromValue} 
+            placeholder={placeholderFrom}
+            onChange={(e) => onFromChange?.(e.target.value)}
+            onFocus={() => setShowFromSuggestions?.(true)}
+            onBlur={() => {
+              setTimeout(() => {
+                setShowFromSuggestions?.(false);
+                setIsEditingFrom(false);
+              }, 200);
+            }}
+            className="w-full bg-[var(--color-surface-raised)] border-none text-[var(--color-ivory)] font-bold text-sm px-2 py-1 outline-none rounded"
+          />
+        ) : (
+          <div className="flex flex-col">
+            <span className="font-mono text-2xl font-bold text-[var(--color-gold)] leading-none">{fromCode}</span>
+            <span className="text-[10px] text-[var(--color-ivory-dim)] truncate mt-0.5">{fromCityName}</span>
+          </div>
+        )}
+
         {showFromSuggestions && fromSuggestions.length > 0 && (
-          <div className="absolute left-0 right-0 top-[68px] bg-white border-3 border-black shadow-[4px_4px_0px_0px_#000000] z-50 overflow-y-auto max-h-48 text-black font-sans">
+          <div className="absolute left-0 right-0 top-[60px] bg-[var(--color-surface-raised)] border border-slate-800 rounded shadow-xl z-50 overflow-y-auto max-h-48 text-[var(--color-ivory)]">
             {fromSuggestions.map((item, idx) => (
               <button
                 key={idx}
                 type="button"
-                onMouseDown={() => onSelectFromSuggestion?.(item)}
-                className="w-full text-left px-3 py-2 hover:bg-yellow-300 transition-colors font-bold text-xs border-b-2 border-black last:border-0 cursor-pointer"
+                onMouseDown={() => {
+                  onSelectFromSuggestion?.(item);
+                  setIsEditingFrom(false);
+                }}
+                className="w-full text-left px-3 py-2 hover:bg-[var(--color-surface)] text-xs font-semibold border-b border-slate-800 last:border-0 cursor-pointer"
               >
                 {item}
               </button>
@@ -714,34 +1089,58 @@ function LocationSwapField({
         )}
       </div>
       
+      {/* Swap Button with Plane Animation */}
       <button 
         type="button"
         onClick={onSwap}
-        className="absolute left-1/2 top-[34px] -translate-x-1/2 p-1.5 bg-yellow-400 hover:bg-yellow-300 text-black border-2 border-black rounded-full z-10 shadow active:translate-y-px cursor-pointer"
+        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 p-2 bg-[var(--color-surface-raised)] hover:bg-[var(--color-surface)] text-[var(--color-gold)] border border-slate-800 rounded-full z-10 shadow cursor-pointer group transition-transform duration-300"
         title="Swap locations"
       >
-        <ArrowUpDown size={14} />
+        <span className="inline-block transform group-hover:rotate-45 group-hover:translate-x-0.5 transition-transform duration-300">
+          ✈️
+        </span>
       </button>
 
-      <div className="space-y-1.5 relative">
-        <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider block">{toLabel}</span>
-        <input 
-          type="text" 
-          value={toValue} 
-          placeholder={placeholderTo}
-          onChange={(e) => onToChange?.(e.target.value)}
-          onFocus={() => setShowToSuggestions?.(true)}
-          onBlur={() => setTimeout(() => setShowToSuggestions?.(false), 200)}
-          className="w-full bg-white border-3 border-black text-slate-900 font-black text-sm px-3 py-2.5 outline-none focus:bg-yellow-50/50"
-        />
+      {/* To Field */}
+      <div 
+        onClick={() => setIsEditingTo(true)}
+        className="space-y-0.5 relative cursor-pointer h-full flex flex-col justify-center pl-4 text-right"
+      >
+        <span className="text-[9px] text-[var(--color-ivory-dim)] font-mono uppercase tracking-wider block">{toLabel}</span>
+        {isEditingTo ? (
+          <input 
+            type="text" 
+            autoFocus
+            value={toValue} 
+            placeholder={placeholderTo}
+            onChange={(e) => onToChange?.(e.target.value)}
+            onFocus={() => setShowToSuggestions?.(true)}
+            onBlur={() => {
+              setTimeout(() => {
+                setShowToSuggestions?.(false);
+                setIsEditingTo(false);
+              }, 200);
+            }}
+            className="w-full bg-[var(--color-surface-raised)] border-none text-[var(--color-ivory)] font-bold text-sm px-2 py-1 outline-none rounded text-right"
+          />
+        ) : (
+          <div className="flex flex-col items-end">
+            <span className="font-mono text-2xl font-bold text-[var(--color-gold)] leading-none">{toCode || "---"}</span>
+            <span className="text-[10px] text-[var(--color-ivory-dim)] truncate mt-0.5">{toCityName || "Select Destination"}</span>
+          </div>
+        )}
+
         {showToSuggestions && toSuggestions.length > 0 && (
-          <div className="absolute left-0 right-0 top-[68px] bg-white border-3 border-black shadow-[4px_4px_0px_0px_#000000] z-50 overflow-y-auto max-h-48 text-black font-sans">
+          <div className="absolute left-0 right-0 top-[60px] bg-[var(--color-surface-raised)] border border-slate-800 rounded shadow-xl z-50 overflow-y-auto max-h-48 text-[var(--color-ivory)] text-left">
             {toSuggestions.map((item, idx) => (
               <button
                 key={idx}
                 type="button"
-                onMouseDown={() => onSelectToSuggestion?.(item)}
-                className="w-full text-left px-3 py-2 hover:bg-yellow-300 transition-colors font-bold text-xs border-b-2 border-black last:border-0 cursor-pointer"
+                onMouseDown={() => {
+                  onSelectToSuggestion?.(item);
+                  setIsEditingTo(false);
+                }}
+                className="w-full text-left px-3 py-2 hover:bg-[var(--color-surface)] text-xs font-semibold border-b border-slate-800 last:border-0 cursor-pointer"
               >
                 {item}
               </button>
@@ -749,6 +1148,7 @@ function LocationSwapField({
           </div>
         )}
       </div>
+
     </div>
   );
 }
@@ -791,7 +1191,7 @@ function DateRangeField({
           disabled={disabledEnd}
           placeholder={placeholderEnd}
           onChange={(e) => onEndChange(e.target.value)}
-          className="w-full bg-white disabled:bg-slate-100 disabled:opacity-40 border-3 border-black text-slate-900 font-black text-xs px-2 py-2.5 outline-none focus:bg-yellow-50/50"
+          className="w-full bg-white disabled:bg-slate-200 disabled:text-slate-500 border-3 border-black text-slate-900 font-black text-xs px-2 py-2.5 outline-none focus:bg-yellow-50/50"
         />
       </div>
     </div>
@@ -841,16 +1241,19 @@ function VerticalTab({ id, label, icon, active, onClick, isLoading }: { id: stri
   return (
     <button
       onClick={() => onClick(id)}
-      className={`px-4 py-2.5 rounded-full font-black text-xs border-2 border-black flex items-center gap-2 transition-all cursor-pointer ${
-        isLoading
-          ? 'loading-tab'
-          : isActive 
-            ? 'bg-yellow-400 text-black shadow-[2px_2px_0px_0px_#000000]' 
-            : 'bg-white text-slate-800 hover:bg-slate-50'
+      className={`px-4 py-2.5 relative font-semibold text-xs flex items-center gap-2 transition-all cursor-pointer bg-[var(--color-surface)] border-none rounded-[var(--radius-card)] shrink-0 snap-start ${
+        isActive 
+          ? 'text-[var(--color-gold)] font-bold shadow-sm' 
+          : 'text-[var(--color-ivory-dim)] hover:text-[var(--color-ivory)]'
       }`}
     >
-      {icon}
-      <span className="uppercase tracking-wider font-extrabold">{label}</span>
+      <span className={isActive ? 'text-[var(--color-gold)]' : 'text-[var(--color-ivory-dim)]'}>
+        {icon}
+      </span>
+      <span className="uppercase tracking-wider">{label}</span>
+      {isActive && (
+        <span className="absolute bottom-0 left-2 right-2 h-[2px] bg-[var(--color-gold)]" />
+      )}
     </button>
   );
 }
@@ -892,16 +1295,36 @@ const POPULAR_AIRPORTS = [
   "Gangtok (IXG) - Sikkim"
 ];
 
+const FLIGHT_TIMES = Array.from({ length: 48 }, (_, i) => {
+  const totalMinutes = i * 30;
+  const rawHours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  const ampm = rawHours >= 12 ? 'PM' : 'AM';
+  const hours = rawHours % 12 === 0 ? 12 : rawHours % 12;
+  const formattedHours = hours < 10 ? `0${hours}` : hours;
+  const formattedMinutes = minutes === 0 ? '00' : '30';
+  return `${formattedHours}:${formattedMinutes} ${ampm}`;
+});
+
 function FlightsSearchForm({ currency, onBook, onDetailClick, onTrackFlight }: { currency: string, onBook: (data: any) => void, onDetailClick: (vert: string, item: any) => void, onTrackFlight: (fnum: string) => void }) {
-  const [tripType, setTripType] = useState<'one' | 'round'>('one');
-  const [fromCity, setFromCity] = useState("Delhi (DEL)");
-  const [toCity, setToCity] = useState("");
+  const [fromCity, setFromCity] = useState(() => sessionStorage.getItem("fl_fromCity") || "");
+  const [toCity, setToCity] = useState(() => sessionStorage.getItem("fl_toCity") || "");
   const [showFromSuggestions, setShowFromSuggestions] = useState(false);
   const [showToSuggestions, setShowToSuggestions] = useState(false);
-  const [depDate, setDepDate] = useState("2026-12-15");
-  const [retDate, setRetDate] = useState("");
-  const [passengers, setPassengers] = useState(1);
-  const [cabin, setCabin] = useState("Economy");
+  const [depDate, setDepDate] = useState(() => sessionStorage.getItem("fl_depDate") || "");
+  const [depTime, setDepTime] = useState(() => sessionStorage.getItem("fl_depTime") || "");
+  const [passengers, setPassengers] = useState(() => {
+    const val = sessionStorage.getItem("fl_passengers");
+    return val ? parseInt(val) : 1;
+  });
+  const [cabin, setCabin] = useState(() => sessionStorage.getItem("fl_cabin") || "Economy");
+
+  useEffect(() => { sessionStorage.setItem("fl_fromCity", fromCity); }, [fromCity]);
+  useEffect(() => { sessionStorage.setItem("fl_toCity", toCity); }, [toCity]);
+  useEffect(() => { sessionStorage.setItem("fl_depDate", depDate); }, [depDate]);
+  useEffect(() => { sessionStorage.setItem("fl_depTime", depTime); }, [depTime]);
+  useEffect(() => { sessionStorage.setItem("fl_passengers", String(passengers)); }, [passengers]);
+  useEffect(() => { sessionStorage.setItem("fl_cabin", cabin); }, [cabin]);
   
   const [specialFare, setSpecialFare] = useState("Regular");
   const [gstInvoice, setGstInvoice] = useState(false);
@@ -930,10 +1353,6 @@ function FlightsSearchForm({ currency, onBook, onDetailClick, onTrackFlight }: {
       alert("Please select a departure date.");
       return;
     }
-    if (tripType === 'round' && !retDate) {
-      alert("Please select a return date for your round trip.");
-      return;
-    }
     if (fromCity.trim().toLowerCase() === toCity.trim().toLowerCase()) {
       alert("Source and Destination airports cannot be identical.");
       return;
@@ -941,33 +1360,26 @@ function FlightsSearchForm({ currency, onBook, onDetailClick, onTrackFlight }: {
     setLoading(true);
     setResults([]);
     
-    // Simulate flight search execution
-    setTimeout(() => {
-      setLoading(false);
-      setResults([
-        { flight_ref: "6E-502", airline: "IndiGo", dep: "08:15 AM", arr: "10:45 AM", duration: "2h 30m", price: 4800 },
-        { flight_ref: "UK-811", airline: "Vistara", dep: "11:30 AM", arr: "02:05 PM", duration: "2h 35m", price: 6200 },
-        { flight_ref: "AI-312", airline: "Air India", dep: "04:45 PM", arr: "07:25 PM", duration: "2h 40m", price: 5400 }
-      ]);
-    }, 1500);
+    fetch(`http://localhost:8000/api/v1/search?vertical=flights&origin=${encodeURIComponent(fromCity)}&destination=${encodeURIComponent(toCity)}&date=${encodeURIComponent(depDate)}&passengers=${passengers}`)
+      .then(res => {
+        if (!res.ok) throw new Error("Flight search failed");
+        return res.json();
+      })
+      .then(data => {
+        setResults(data.results);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error(err);
+        setResults([]);
+        setLoading(false);
+      });
   };
 
   return (
     <div className="space-y-6">
-      {/* Trip type selector */}
-      <div className="flex gap-4 items-center">
-        <label className="flex items-center gap-1.5 text-xs text-slate-900 font-extrabold cursor-pointer bg-white px-3 py-1.5 border-2 border-black shadow-[2px_2px_0px_0px_#000000] active:translate-y-px">
-          <input type="radio" checked={tripType === 'one'} onChange={() => { setTripType('one'); setRetDate(""); }} className="accent-yellow-400" />
-          ONE WAY
-        </label>
-        <label className="flex items-center gap-1.5 text-xs text-slate-900 font-extrabold cursor-pointer bg-white px-3 py-1.5 border-2 border-black shadow-[2px_2px_0px_0px_#000000] active:translate-y-px">
-          <input type="radio" checked={tripType === 'round'} onChange={() => { setTripType('round'); setRetDate("2026-12-22"); }} className="accent-yellow-400" />
-          ROUND TRIP
-        </label>
-      </div>
-
       {/* Input Core Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-950/20 p-6 border-3 border-black shadow-[6px_6px_0px_0px_#000000]">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 bg-slate-950/20 p-6 border-3 border-black shadow-[6px_6px_0px_0px_#000000]">
         
         {/* From-To Swap Block */}
         <div className="md:col-span-2">
@@ -976,13 +1388,13 @@ function FlightsSearchForm({ currency, onBook, onDetailClick, onTrackFlight }: {
             toLabel="To"
             fromValue={fromCity}
             toValue={toCity}
-            onFromChange={(val) => { setFromCity(val); setShowFromSuggestions(true); }}
-            onToChange={(val) => { setToCity(val); setShowToSuggestions(true); }}
+            onFromChange={(val: string) => { setFromCity(val); setShowFromSuggestions(true); }}
+            onToChange={(val: string) => { setToCity(val); setShowToSuggestions(true); }}
             onSwap={swapCities}
             fromSuggestions={POPULAR_AIRPORTS.filter(airport => airport.toLowerCase().includes(fromCity.toLowerCase()))}
             toSuggestions={POPULAR_AIRPORTS.filter(airport => airport.toLowerCase().includes(toCity.toLowerCase()))}
-            onSelectFromSuggestion={(val) => { setFromCity(val); setShowFromSuggestions(false); }}
-            onSelectToSuggestion={(val) => { setToCity(val); setShowToSuggestions(false); }}
+            onSelectFromSuggestion={(val: string) => { setFromCity(val); setShowFromSuggestions(false); }}
+            onSelectToSuggestion={(val: string) => { setToCity(val); setShowToSuggestions(false); }}
             showFromSuggestions={showFromSuggestions}
             showToSuggestions={showToSuggestions}
             setShowFromSuggestions={setShowFromSuggestions}
@@ -990,16 +1402,32 @@ function FlightsSearchForm({ currency, onBook, onDetailClick, onTrackFlight }: {
           />
         </div>
 
-        {/* Date Pickers */}
-        <DateRangeField 
-          startLabel="Depart"
-          endLabel="Return"
-          startDate={depDate}
-          endDate={retDate}
-          onStartChange={setDepDate}
-          onEndChange={setRetDate}
-          disabledEnd={tripType === 'one'}
-        />
+        {/* Departure Date */}
+        <div className="space-y-1.5">
+          <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider block">Depart Date</span>
+          <input 
+            type="date" 
+            value={depDate} 
+            onChange={(e) => setDepDate(e.target.value)}
+            className="w-full bg-white border-3 border-black text-slate-900 font-black text-xs px-2 py-2.5 outline-none focus:bg-yellow-50/50"
+          />
+        </div>
+
+        {/* Flight Time (Departure Time) */}
+        <div className="space-y-1.5">
+          <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider block">Flight Time</span>
+          <select 
+            value={depTime} 
+            onChange={(e) => setDepTime(e.target.value)}
+            className="w-full bg-white border-3 border-black text-slate-900 font-black text-xs px-2 py-2.5 outline-none focus:bg-yellow-50/50 cursor-pointer h-[46px]"
+          >
+            {FLIGHT_TIMES.map((time, idx) => (
+              <option key={idx} value={time} className="text-slate-900 bg-white">
+                {time}
+              </option>
+            ))}
+          </select>
+        </div>
 
         {/* Travellers and Cabin class */}
         <div className="space-y-1.5">
@@ -1024,12 +1452,12 @@ function FlightsSearchForm({ currency, onBook, onDetailClick, onTrackFlight }: {
               <select 
                 value={cabin} 
                 onChange={(e) => setCabin(e.target.value)} 
-                className="ml-2 bg-white border border-black text-[10px] font-bold p-0.5 outline-none rounded"
+                className="ml-2 bg-white text-slate-900 border border-black text-[10px] font-bold p-0.5 outline-none rounded"
               >
-                <option value="Economy">Economy</option>
-                <option value="Premium Economy">Premium</option>
-                <option value="Business">Business</option>
-                <option value="First Class">First</option>
+                <option value="Economy" className="text-slate-900 bg-white">Economy</option>
+                <option value="Premium Economy" className="text-slate-900 bg-white">Premium</option>
+                <option value="Business" className="text-slate-900 bg-white">Business</option>
+                <option value="First Class" className="text-slate-900 bg-white">First</option>
               </select>
             </div>
           </div>
@@ -1070,9 +1498,12 @@ function FlightsSearchForm({ currency, onBook, onDetailClick, onTrackFlight }: {
           </label>
         </div>
 
-        <StickerButton onClick={handleSearch} className="bg-yellow-400 text-black font-black">
+        <button 
+          onClick={handleSearch} 
+          className="w-full bg-[var(--color-gold)] hover:bg-[#d6b35d] text-[var(--color-obsidian)] font-bold text-sm py-3 rounded-[var(--radius-card)] transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider border-none"
+        >
           Search Flights
-        </StickerButton>
+        </button>
       </div>
 
       <div className="flex justify-between items-center text-xs px-2 border-t border-slate-900 pt-3">
@@ -1107,35 +1538,64 @@ function FlightsSearchForm({ currency, onBook, onDetailClick, onTrackFlight }: {
 
         {!loading && results.length > 0 && (
           <div className="space-y-3 mt-6">
-            <h4 className="text-xs text-slate-400 font-bold uppercase tracking-wider px-1">Available Search Results (Live Agents):</h4>
+            <VehicleRentalCrossSell destinationCity={toCity} dateRange={{ start: depDate }} />
+            <h4 className="text-xs text-slate-400 font-bold uppercase tracking-wider px-1 flex items-center justify-between">
+              <span>Available Search Results (Live Agents):</span>
+              <span className="text-[10px] text-yellow-500 normal-case font-semibold">
+                {results.some(r => r.provider_name === "Amadeus" && !r.is_simulated)
+                  ? "Comparing Amadeus live API (TBO simulated)"
+                  : "Comparing simulated inventory (Amadeus & TBO sandbox)"}
+              </span>
+            </h4>
             {results.map((res, index) => (
-              <div key={index} className="bg-[#121c33] p-5 rounded-2xl flex justify-between items-center border border-slate-800 hover:border-slate-700 transition-all">
+              <div key={index} className="bg-[#121c33] p-5 rounded-2xl flex justify-between items-center border border-slate-800 hover:border-slate-700 transition-all relative">
+                {index === 0 && (
+                  <div className="absolute -top-2 left-4 bg-gradient-to-r from-emerald-500 to-teal-400 text-[9px] text-white font-black px-2.5 py-0.5 rounded-full shadow-lg shadow-emerald-500/20 animate-pulse">🏆 BEST PRICE</div>
+                )}
                 <div onClick={() => onDetailClick("flights", { ...res, fromCity, toCity, cabin, passengers, depDate })} className="cursor-pointer flex-1 text-left">
                   <div className="flex items-center gap-2">
                     <Plane size={14} className="text-blue-500" />
                     <span className="font-bold text-sm">{res.airline}</span>
-                    <span className="text-[10px] bg-blue-900/40 text-blue-300 px-1.5 py-0.5 rounded">{res.flight_ref}</span>
+                    <span className="text-[10px] bg-blue-900/40 text-blue-300 px-1.5 py-0.5 rounded">{res.flight_ref || res.raw_provider_ref}</span>
+                    {res.provider_name && !res.is_simulated && (
+                      <span className="text-[9px] bg-purple-900/40 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/20">via {res.provider_name}</span>
+                    )}
                   </div>
                   <div className="text-xs text-slate-300 mt-2">
                     {res.dep} ➔ {res.arr} <span className="text-slate-500 font-normal">({res.duration})</span>
                   </div>
+                  {res.alternatives && res.alternatives.filter((alt: any) => !alt.is_simulated).length > 0 && (
+                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                      <span className="text-[9px] text-slate-500">Also on:</span>
+                      {res.alternatives.filter((alt: any) => !alt.is_simulated).map((alt: any, ai: number) => (
+                        <span key={ai} className="text-[9px] bg-slate-800/80 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700">
+                          {alt.provider_name} ₹{Number(alt.price).toLocaleString()}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   <span className="text-[10px] text-blue-400 font-bold block mt-2 hover:underline">View details & seat selection ➔</span>
                 </div>
                 <div className="text-right">
-                  <div className="font-black text-emerald-400 text-base">₹{res.price.toLocaleString()}</div>
+                  <div className="font-black text-emerald-400 text-base">₹{(res.price_per_passenger || res.price || 0).toLocaleString()}</div>
+                  {res.price_per_passenger && passengers > 1 && (
+                    <div className="text-[9px] text-slate-500">Total: ₹{(res.total_price || res.price_per_passenger * passengers).toLocaleString()}</div>
+                  )}
                   <button 
                     onClick={() => onBook({
                       vertical: "flights",
-                      amount: res.price,
+                      amount: res.total_price || res.price,
                       details: {
                         origin: fromCity.split(" ")[0],
                         destination: toCity.split(" ")[0],
-                        airline_code: res.flight_ref.split("-")[0],
-                        flight_number: res.flight_ref.split("-")[1],
+                        airline_code: (res.flight_ref || res.raw_provider_ref || "6E-502").split("-")[0],
+                        flight_number: (res.flight_ref || res.raw_provider_ref || "6E-502").split("-")[1],
                         cabin_class: cabin.toUpperCase(),
-                        passengers: [{ name: "Traveler Guest", age: 32 }]
+                        passengers: [{ name: "Traveler Guest", age: 32 }],
+                        provider_name: res.provider_name,
+                        offer_id: res.offer_id
                       },
-                      title: `${res.airline} ${res.flight_ref}`,
+                      title: `${res.airline} ${res.flight_ref || res.raw_provider_ref}`,
                       subtitle: `${fromCity} ➔ ${toCity}`
                     })}
                     className="mt-2 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black px-3.5 py-1.5 rounded-lg flex items-center gap-1 shadow-md shadow-blue-500/10 cursor-pointer"
@@ -1246,14 +1706,22 @@ function HotelsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
   const [loading, setLoading] = useTabLoading('hotels');
   const [selectedHotel, setSelectedHotel] = useState<any | null>(null);
 
-  const [checkIn, setCheckIn] = useState("2026-12-15");
-  const [checkOut, setCheckOut] = useState("2026-12-20");
+  const [checkIn, setCheckIn] = useState("");
+  const [checkOut, setCheckOut] = useState("");
   const [guests, setGuests] = useState(2);
   const [starRating, setStarRating] = useState("all");
 
   const handleSearch = () => {
     if (!city.trim()) {
       alert("Please enter a city or property name.");
+      return;
+    }
+    if (!checkIn) {
+      alert("Please select a check-in date.");
+      return;
+    }
+    if (!checkOut) {
+      alert("Please select a check-out date.");
       return;
     }
     setLoading(true);
@@ -1346,9 +1814,12 @@ function HotelsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
 
       {/* Search Button */}
       <div className="flex justify-end pt-2 border-t border-slate-800/80">
-        <StickerButton onClick={handleSearch} className="bg-yellow-400 text-black font-black">
+        <button 
+          onClick={handleSearch} 
+          className="w-full bg-[var(--color-gold)] hover:bg-[#d6b35d] text-[var(--color-obsidian)] font-bold text-sm py-3 rounded-[var(--radius-card)] transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider border-none"
+        >
           Search Hotels
-        </StickerButton>
+        </button>
       </div>
 
       {/* Hotel Results Grid */}
@@ -1366,9 +1837,20 @@ function HotelsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
         )}
 
         {!loading && results.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="w-full">
+            <VehicleRentalCrossSell destinationCity={city} dateRange={{ start: checkIn }} />
+            <div className="flex justify-between items-center mb-3 px-1">
+              <h4 className="text-xs text-slate-400 font-bold uppercase tracking-wider">Available Hotels:</h4>
+              <span className="text-[10px] text-yellow-500 font-semibold">
+                {"Comparing simulated inventory (HotelBeds & Expedia sandbox)"}
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {results.map((res, index) => (
-              <div key={index} className="bg-[#121c33] p-4 rounded-2xl border border-slate-800 hover:border-slate-700 transition-all flex flex-col justify-between gap-4">
+              <div key={index} className="bg-[#121c33] p-4 rounded-2xl border border-slate-800 hover:border-slate-700 transition-all flex flex-col justify-between gap-4 relative">
+                {index === 0 && (
+                  <div className="absolute -top-2 left-4 bg-gradient-to-r from-emerald-500 to-teal-400 text-[9px] text-white font-black px-2.5 py-0.5 rounded-full shadow-lg shadow-emerald-500/20 animate-pulse z-10">🏆 BEST PRICE</div>
+                )}
                 <div onClick={() => onDetailClick("hotels", res)} className="cursor-pointer">
                   <CardThumbnail ownerType="hotel" ownerId={res.name} blurHash={res.blur_hash_base64} defaultUrl={res.primary_photo_url} />
                   <div className="flex flex-col gap-1.5 mt-3 text-left">
@@ -1377,13 +1859,26 @@ function HotelsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
                       <span className="text-xs text-blue-400 font-black">{res.rating}</span>
                     </div>
                     <p className="text-xs text-slate-400">{res.details}</p>
+                    {res.provider_name && !res.is_simulated && (
+                      <span className="text-[9px] bg-purple-900/40 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/20 w-fit">via {res.provider_name}</span>
+                    )}
+                    {res.alternatives && res.alternatives.filter((alt: any) => !alt.is_simulated).length > 0 && (
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[9px] text-slate-500">Also on:</span>
+                        {res.alternatives.filter((alt: any) => !alt.is_simulated).map((alt: any, ai: number) => (
+                          <span key={ai} className="text-[9px] bg-slate-800/80 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700">
+                            {alt.provider_name} ₹{Number(alt.price).toLocaleString()}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     <span className="text-[10px] text-blue-400 font-bold block mt-1 hover:underline">View details, reviews & cancellation policies ➔</span>
                   </div>
                 </div>
                 <div className="flex justify-between items-center pt-2 border-t border-slate-800/80">
                   <div>
                     <span className="text-[9px] text-slate-500 uppercase block font-bold">Price per night</span>
-                    <span className="font-black text-emerald-400 text-base">₹{res.price.toLocaleString()}</span>
+                    <span className="font-black text-emerald-400 text-base">₹{(res.price || 0).toLocaleString()}</span>
                   </div>
                   <div className="flex gap-2">
                     <button 
@@ -1400,7 +1895,9 @@ function HotelsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
                           hotel_name: res.name,
                           hotel_id: "H101",
                           room_type: res.details,
-                          guests: [{ name: "Traveler Guest", age: 32 }]
+                          guests: [{ name: "Traveler Guest", age: 32 }],
+                          provider_name: res.provider_name,
+                          offer_id: res.offer_id
                         },
                         title: res.name,
                         subtitle: res.details
@@ -1413,6 +1910,7 @@ function HotelsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
                 </div>
               </div>
             ))}
+          </div>
           </div>
         )}
       </div>
@@ -1427,21 +1925,16 @@ function HotelsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
     </div>
   );
 }
-
-
 /* ---------------------------------------------------- */
-/* 4. ALL NEW VERTICAL SEARCH FORMS (3 TO 12)           */
-/* ---------------------------------------------------- */
-
 function VillasSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void, onDetailClick: (vert: string, item: any) => void }) {
   const [destination, setDestination] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [propertyType, setPropertyType] = useState("Villa");
-  const [results, setResults] = useState<any[]>([]);
+  const [rawResults, setRawResults] = useState<any[]>([]);
   const [loading, setLoading] = useTabLoading('villas');
 
-  const [checkIn, setCheckIn] = useState("2026-12-15");
-  const [checkOut, setCheckOut] = useState("2026-12-20");
+  const [checkIn, setCheckIn] = useState("");
+  const [checkOut, setCheckOut] = useState("");
   const [guests, setGuests] = useState(2);
 
   const handleSearch = () => {
@@ -1449,18 +1942,28 @@ function VillasSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
       alert("Please enter a destination.");
       return;
     }
+    if (!checkIn) {
+      alert("Please select a check-in date.");
+      return;
+    }
+    if (!checkOut) {
+      alert("Please select a check-out date.");
+      return;
+    }
     setLoading(true);
-    setResults([]);
+    setRawResults([]);
     fetch(`http://localhost:8000/api/v1/search?vertical=villas&destination=${encodeURIComponent(destination)}`)
       .then(res => res.json())
       .then(data => {
         setLoading(false);
         if (data && Array.isArray(data.results)) {
-          setResults(data.results.filter((v: any) => v.property_type === propertyType));
+          setRawResults(data.results);
         }
       })
       .catch(() => setLoading(false));
   };
+
+  const results = rawResults.filter((v: any) => v.property_type === propertyType);
 
   return (
     <div className="space-y-6 text-black font-sans">
@@ -1536,57 +2039,66 @@ function VillasSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
 
       {/* Search Button */}
       <div className="flex justify-end pt-2 border-t border-slate-800/80">
-        <StickerButton onClick={handleSearch} className="bg-yellow-400 text-black font-black">
+        <button 
+          onClick={handleSearch} 
+          className="w-full bg-[var(--color-gold)] hover:bg-[#d6b35d] text-[var(--color-obsidian)] font-bold text-sm py-3 rounded-[var(--radius-card)] transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider border-none"
+        >
           Search Villas
-        </StickerButton>
+        </button>
       </div>
 
       {loading ? (
         <div className="text-center py-6 text-slate-400 text-xs">Searching homestays...</div>
-      ) : results.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {results.map((v, i) => (
-            <div key={i} className="bg-white border-3 border-black p-4 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col justify-between gap-3 text-left">
-              <div onClick={() => onDetailClick("villas", v)} className="cursor-pointer">
-                <CardThumbnail ownerType="villa" ownerId={v.name} blurHash={v.blur_hash_base64} defaultUrl={v.primary_photo_url} />
-                <div className="mt-2">
-                  <span className="text-[8px] bg-red-100 text-red-600 font-black px-1.5 py-0.5 rounded border border-red-200 uppercase">Requires Host Confirmation</span>
-                  <h4 className="font-extrabold text-base mt-1 text-black">{v.name}</h4>
-                  <p className="text-xs text-slate-500 mt-1">{v.details}</p>
-                  <div className="flex gap-4 mt-2 text-[10px] text-slate-600 font-bold">
-                    <span>🛏️ {v.bedrooms} Bedrooms</span>
-                    <span>👥 Max Pax: {v.max_occupancy}</span>
+      ) : rawResults.length > 0 ? (
+        results.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {results.map((v, i) => (
+              <div key={i} className="bg-white border-3 border-black p-4 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col justify-between gap-3 text-left">
+                <div onClick={() => onDetailClick("villas", v)} className="cursor-pointer">
+                  <CardThumbnail ownerType="villa" ownerId={v.name} blurHash={v.blur_hash_base64} defaultUrl={v.primary_photo_url} />
+                  <div className="mt-2">
+                    <span className="text-[8px] bg-red-100 text-red-600 font-black px-1.5 py-0.5 rounded border border-red-200 uppercase">Requires Host Confirmation</span>
+                    <h4 className="font-extrabold text-base mt-1 text-black">{v.name}</h4>
+                    <p className="text-xs text-slate-500 mt-1">{v.details}</p>
+                    <div className="flex gap-4 mt-2 text-[10px] text-slate-600 font-bold">
+                      <span>🛏️ {v.bedrooms} Bedrooms</span>
+                      <span>👥 Max Pax: {v.max_occupancy}</span>
+                    </div>
                   </div>
+                  <span className="text-[10px] text-blue-600 font-bold block mt-2 hover:underline">View details, rules & calendar ➔</span>
                 </div>
-                <span className="text-[10px] text-blue-600 font-bold block mt-2 hover:underline">View details, rules & calendar ➔</span>
-              </div>
-              <div className="flex justify-between items-center pt-2 border-t border-slate-100">
-                <div>
-                  <span className="text-[8px] text-slate-400 block uppercase font-bold">Per Night</span>
-                  <span className="font-black text-red-500 text-sm">₹{v.price.toLocaleString()}</span>
+                <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+                  <div>
+                    <span className="text-[8px] text-slate-400 block uppercase font-bold">Per Night</span>
+                    <span className="font-black text-red-500 text-sm">₹{v.price.toLocaleString()}</span>
+                  </div>
+                  <button 
+                    onClick={() => onBook({
+                      vertical: "villas",
+                      amount: v.price,
+                      details: {
+                        villa_name: v.name,
+                        bedrooms: v.bedrooms,
+                        max_occupancy: v.max_occupancy,
+                        requires_host_approval: true
+                      },
+                      title: v.name,
+                      subtitle: `${v.bedrooms} Bedrooms Villa Rental`
+                    })}
+                    className="bg-yellow-300 text-xs font-black px-4 py-2 border-2 border-black rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:bg-yellow-400 transition-all uppercase"
+                  >
+                    Book Stay
+                  </button>
                 </div>
-                <button 
-                  onClick={() => onBook({
-                    vertical: "villas",
-                    amount: v.price,
-                    details: {
-                      villa_name: v.name,
-                      bedrooms: v.bedrooms,
-                      max_occupancy: v.max_occupancy,
-                      requires_host_approval: true
-                    },
-                    title: v.name,
-                    subtitle: `${v.bedrooms} Bedrooms Villa Rental`
-                  })}
-                  className="bg-yellow-300 text-xs font-black px-4 py-2 border-2 border-black rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:bg-yellow-400 transition-all uppercase"
-                >
-                  Book Stay
-                </button>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12 bg-slate-950/5 border-3 border-black p-6 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-slate-600 font-bold">
+            No properties of type "{propertyType}" available for this destination.
+          </div>
+        )
+      ) : null}
     </div>
   );
 }
@@ -1724,9 +2236,12 @@ function HolidayPackagesSearchForm({ onBook, onDetailClick }: { onBook: (data: a
 
       {/* Search Button */}
       <div className="flex justify-end pt-2 border-t border-slate-800/80">
-        <StickerButton onClick={handleSearch} className="bg-yellow-400 text-black font-black">
+        <button 
+          onClick={handleSearch} 
+          className="w-full bg-[var(--color-gold)] hover:bg-[#d6b35d] text-[var(--color-obsidian)] font-bold text-sm py-3 rounded-[var(--radius-card)] transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider border-none"
+        >
           Search Packages
-        </StickerButton>
+        </button>
       </div>
 
       {loading ? (
@@ -1777,7 +2292,7 @@ function HolidayPackagesSearchForm({ onBook, onDetailClick }: { onBook: (data: a
 }
 
 function TrainsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void, onDetailClick: (vert: string, item: any) => void }) {
-  const [fromStn, setFromStn] = useState("Delhi (NDLS)");
+  const [fromStn, setFromStn] = useState("");
   const [toStn, setToStn] = useState("");
   const [showFromSuggestions, setShowFromSuggestions] = useState(false);
   const [showToSuggestions, setShowToSuggestions] = useState(false);
@@ -1786,6 +2301,14 @@ function TrainsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
   const [loading, setLoading] = useTabLoading('trains');
 
   const handleSearch = () => {
+    if (!fromStn.trim()) {
+      alert("Please enter an origin station.");
+      return;
+    }
+    if (!toStn.trim()) {
+      alert("Please enter a destination station.");
+      return;
+    }
     setLoading(true);
     setResults([]);
     fetch(`http://localhost:8000/api/v1/search?vertical=trains&origin=${encodeURIComponent(fromStn)}&destination=${encodeURIComponent(toStn)}`)
@@ -1878,7 +2401,10 @@ function TrainsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
           </select>
         </div>
         <div className="flex items-end">
-          <button onClick={handleSearch} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-sm py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+          <button 
+            onClick={handleSearch} 
+            className="w-full bg-[var(--color-gold)] hover:bg-[#d6b35d] text-[var(--color-obsidian)] font-bold text-sm py-3 rounded-[var(--radius-card)] transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider border-none"
+          >
             <Search size={14} /> Search Trains
           </button>
         </div>
@@ -1932,8 +2458,8 @@ function TrainsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
 }
 
 function BusesSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void, onDetailClick: (vert: string, item: any) => void }) {
-  const [fromCity, setFromCity] = useState("Delhi");
-  const [toCity, setToCity] = useState("Manali");
+  const [fromCity, setFromCity] = useState("");
+  const [toCity, setToCity] = useState("");
   const [showFromSuggestions, setShowFromSuggestions] = useState(false);
   const [showToSuggestions, setShowToSuggestions] = useState(false);
   const [results, setResults] = useState<any[]>([]);
@@ -1942,6 +2468,14 @@ function BusesSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => voi
   const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
 
   const handleSearch = () => {
+    if (!fromCity.trim()) {
+      alert("Please enter an origin city.");
+      return;
+    }
+    if (!toCity.trim()) {
+      alert("Please enter a destination city.");
+      return;
+    }
     setLoading(true);
     setResults([]);
     fetch(`http://localhost:8000/api/v1/search?vertical=buses&origin=${encodeURIComponent(fromCity)}&destination=${encodeURIComponent(toCity)}`)
@@ -2067,7 +2601,10 @@ function BusesSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => voi
           </select>
         </div>
         <div className="flex items-end">
-          <button onClick={handleSearch} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-sm py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+          <button 
+            onClick={handleSearch} 
+            className="w-full bg-[var(--color-gold)] hover:bg-[#d6b35d] text-[var(--color-obsidian)] font-bold text-sm py-3 rounded-[var(--radius-card)] transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider border-none"
+          >
             <Search size={14} /> Search Buses
           </button>
         </div>
@@ -2145,7 +2682,7 @@ function BusesSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => voi
 }
 
 function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void, onDetailClick: (vert: string, item: any) => void }) {
-  const [pickup, setPickup] = useState("Airport Terminal");
+  const [pickup, setPickup] = useState("");
   const [drop, setDrop] = useState("");
   const [showPickupSuggestions, setShowPickupSuggestions] = useState(false);
   const [showDropSuggestions, setShowDropSuggestions] = useState(false);
@@ -2153,6 +2690,14 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
   const [loading, setLoading] = useTabLoading('cabs');
 
   const handleSearch = () => {
+    if (!pickup.trim()) {
+      alert("Please enter a pickup address.");
+      return;
+    }
+    if (!drop.trim()) {
+      alert("Please enter a drop-off address.");
+      return;
+    }
     setLoading(true);
     setResults([]);
     fetch(`http://localhost:8000/api/v1/search?vertical=cabs&origin=${encodeURIComponent(pickup)}&destination=${encodeURIComponent(drop)}`)
@@ -2240,7 +2785,10 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
           <input type="datetime-local" defaultValue="2026-12-15T10:00" className="w-full bg-[#0e1628] border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white font-bold outline-none" />
         </div>
         <div className="flex items-end">
-          <button onClick={handleSearch} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-sm py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+          <button 
+            onClick={handleSearch} 
+            className="w-full bg-[var(--color-gold)] hover:bg-[#d6b35d] text-[var(--color-obsidian)] font-bold text-sm py-3 rounded-[var(--radius-card)] transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider border-none"
+          >
             <Search size={14} /> Estimate Cab
           </button>
         </div>
@@ -2300,6 +2848,10 @@ function ToursSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => voi
   const [loading, setLoading] = useTabLoading('tours');
 
   const handleSearch = () => {
+    if (!destination.trim()) {
+      alert("Please enter a destination city.");
+      return;
+    }
     setLoading(true);
     setResults([]);
     fetch(`http://localhost:8000/api/v1/search?vertical=tours&destination=${encodeURIComponent(destination)}`)
@@ -2358,7 +2910,10 @@ function ToursSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => voi
           </select>
         </div>
         <div className="flex items-end">
-          <button onClick={handleSearch} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-sm py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+          <button 
+            onClick={handleSearch} 
+            className="w-full bg-[var(--color-gold)] hover:bg-[#d6b35d] text-[var(--color-obsidian)] font-bold text-sm py-3 rounded-[var(--radius-card)] transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider border-none"
+          >
             <Search size={14} /> Search Activities
           </button>
         </div>
@@ -2414,12 +2969,16 @@ function ToursSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => voi
 }
 
 function VisaSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void, onDetailClick: (vert: string, item: any) => void }) {
-  const [country, setCountry] = useState("France");
+  const [country, setCountry] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [loading, setLoading] = useTabLoading('visa');
   const [rules, setRules] = useState<any | null>(null);
 
   const handleQueryVisa = () => {
+    if (!country.trim()) {
+      alert("Please enter a destination country.");
+      return;
+    }
     setLoading(true);
     setRules(null);
     fetch(`http://localhost:8000/api/v1/search?vertical=visa&destination=${encodeURIComponent(country)}`)
@@ -2474,7 +3033,10 @@ function VisaSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
           <input type="text" defaultValue="Indian" disabled className="w-full bg-[#0e1628] disabled:opacity-40 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white font-bold outline-none" />
         </div>
         <div className="flex items-end">
-          <button onClick={handleQueryVisa} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-sm py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+          <button 
+            onClick={handleQueryVisa} 
+            className="w-full bg-[var(--color-gold)] hover:bg-[#d6b35d] text-[var(--color-obsidian)] font-bold text-sm py-3 rounded-[var(--radius-card)] transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider border-none"
+          >
             <Search size={14} /> Query RAG Guidelines
           </button>
         </div>
@@ -2535,12 +3097,16 @@ function VisaSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
 }
 
 function CruisesSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void, onDetailClick: (vert: string, item: any) => void }) {
-  const [port, setPort] = useState("Singapore");
+  const [port, setPort] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useTabLoading('cruises');
 
   const handleSearch = () => {
+    if (!port.trim()) {
+      alert("Please enter a departure port.");
+      return;
+    }
     setLoading(true);
     setResults([]);
     fetch(`http://localhost:8000/api/v1/search?vertical=cruises&origin=${encodeURIComponent(port)}`)
@@ -2598,7 +3164,10 @@ function CruisesSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => v
           </select>
         </div>
         <div className="flex items-end">
-          <button onClick={handleSearch} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-sm py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+          <button 
+            onClick={handleSearch} 
+            className="w-full bg-[var(--color-gold)] hover:bg-[#d6b35d] text-[var(--color-obsidian)] font-bold text-sm py-3 rounded-[var(--radius-card)] transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider border-none"
+          >
             <Search size={14} /> Search Cruises
           </button>
         </div>
@@ -2654,15 +3223,24 @@ function CruisesSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => v
 }
 
 function ForexSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void, onDetailClick: (vert: string, item: any) => void }) {
-  const [currencyPair, setCurrencyPair] = useState("USD_INR");
+  const [currencyPair, setCurrencyPair] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [amount, setAmount] = useState("1000");
+  const [amount, setAmount] = useState("");
   const [mode, setMode] = useState("Home Delivery");
   const [rateInfo, setRateInfo] = useState<any | null>(null);
   const [kycUploaded, setKycUploaded] = useState(false);
   const [uploadingKyc, setUploadingKyc] = useState(false);
 
   const handleRateLookup = () => {
+    if (!currencyPair.trim()) {
+      alert("Please select a currency pair.");
+      return;
+    }
+    const amt = parseFloat(amount);
+    if (isNaN(amt) || amt <= 0) {
+      alert("Please enter a valid amount to convert.");
+      return;
+    }
     fetch(`http://localhost:8000/api/v1/search?vertical=forex`)
       .then(res => res.json())
       .then(data => {
@@ -2671,7 +3249,9 @@ function ForexSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => voi
   };
 
   useEffect(() => {
-    handleRateLookup();
+    if (currencyPair.trim()) {
+      handleRateLookup();
+    }
   }, [currencyPair]);
 
   const handleUploadKyc = () => {
@@ -2733,7 +3313,10 @@ function ForexSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => voi
           </select>
         </div>
         <div className="flex items-end">
-          <button onClick={handleRateLookup} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-sm py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+          <button 
+            onClick={handleRateLookup} 
+            className="w-full bg-[var(--color-gold)] hover:bg-[#d6b35d] text-[var(--color-obsidian)] font-bold text-sm py-3 rounded-[var(--radius-card)] transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider border-none"
+          >
             <Search size={14} /> Search Rates
           </button>
         </div>
@@ -2816,6 +3399,10 @@ function InsuranceSearchForm({ onBook, onDetailClick }: { onBook: (data: any) =>
   const [loading, setLoading] = useTabLoading('forex');
 
   const handleSearch = () => {
+    if (!destination.trim()) {
+      alert("Please enter a destination.");
+      return;
+    }
     setLoading(true);
     setResults([]);
     fetch(`http://localhost:8000/api/v1/search?vertical=insurance&destination=${encodeURIComponent(destination)}`)
@@ -2869,7 +3456,10 @@ function InsuranceSearchForm({ onBook, onDetailClick }: { onBook: (data: any) =>
           <input type="number" defaultValue="30" className="w-full bg-[#0e1628] border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white font-bold outline-none" />
         </div>
         <div className="flex items-end">
-          <button onClick={handleSearch} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-sm py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+          <button 
+            onClick={handleSearch} 
+            className="w-full bg-[var(--color-gold)] hover:bg-[#d6b35d] text-[var(--color-obsidian)] font-bold text-sm py-3 rounded-[var(--radius-card)] transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider border-none"
+          >
             <Search size={14} /> Compare Plans
           </button>
         </div>
@@ -3017,71 +3607,7 @@ function CheckoutModal({ data, onClose, userProfile, onConfirm }: { data: any, o
     }
   };
 
-  const executeCheckout = (holdReference: string, finalPayVal: number) => {
-    // Generate simulated payment token
-    let token = "tok_visa";
-    if (simulateFraudBlock) token = "tok_fraud";
-    else if (simulateFraudReview) token = "tok_review";
-    else if (simulate3DS || finalPayVal >= 10000) token = "tok_3ds"; // Autotrigger 3DS for >= 10k or flag
-    
-    // If raw credentials override enabled, send actual raw card number (to trigger PCI reject tests)
-    if (bypassTokenization) {
-      token = cardNumber || "4242-invalid-raw";
-    }
 
-    fetch(`http://localhost:8000/api/v1/payments/checkout`, {
-      method: "POST",
-      headers: { 
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        booking_reference: holdReference,
-        vertical: data.vertical,
-        payment_method: payMethod,
-        payment_token: token,
-        gateway: gateway,
-        currency: "INR",
-        idempotency_key: `ik_${holdReference}`,
-        cardholder_name: cardHolderName,
-        issuing_bank: cardIssuingBank,
-        email: travelerEmail,
-        phone: travelerPhone
-      })
-    })
-      .then(res => res.json())
-      .then(checkoutRes => {
-        if (checkoutRes.status === "requires_action" && checkoutRes.action_type === "3ds_redirect") {
-          // Open 3DS challenge frame
-          setBookingRef(holdReference);
-          setRedirectUrl(checkoutRes.redirect_url);
-          setLoading(false);
-        } else if (checkoutRes.status === "review") {
-          setLoading(false);
-          onClose();
-          setTimeout(() => {
-            alert(checkoutRes.message || "Hold authorized. Security check clearance pending review.");
-          }, 100);
-        } else if (checkoutRes.success) {
-          setBookingRef(holdReference);
-          setStep(3);
-          onConfirm(payMethod);
-          fetch(`http://localhost:8000/api/v1/bookings/${holdReference}/invoice?vertical=${data.vertical}`)
-            .then(r => r.json())
-            .then(inv => {
-              setInvoiceText(inv.invoice_text);
-              setLoading(false);
-            })
-            .catch(() => setLoading(false));
-        } else {
-          setError(checkoutRes.detail || "Transaction failed. Please try again.");
-          setLoading(false);
-        }
-      })
-      .catch(() => {
-        setError("Checkout connection error.");
-        setLoading(false);
-      });
-  };
 
   const executeBooking = () => {
     setLoading(true);
@@ -3138,8 +3664,10 @@ function CheckoutModal({ data, onClose, userProfile, onConfirm }: { data: any, o
           return;
         }
 
-        // 2. Clear payment
-        executeCheckout(holdRes.booking_reference, finalPayVal);
+        // 2. Redirect to Checkout Page
+        window.history.pushState(null, '', `/checkout/${holdRes.booking_reference}`);
+        window.dispatchEvent(new Event('popstate'));
+        onClose();
       })
       .catch(() => {
         setError("Hold connection error.");
@@ -3695,6 +4223,95 @@ function MyTripsView({ userProfile, setActiveTab, setPrefilledMessage }: { userP
               </div>
             </div>
 
+            {/* Rent a Ride Handover boarding pass cutout */}
+            {(selectedTrip.vertical === "rent-a-ride" || selectedTrip.vertical === "vehicle_rental") && 
+             (selectedTrip.status === "confirmed" || selectedTrip.status === "vehicle_handed_over") && (
+              <div className="border-3 border-black p-4 rounded-xl bg-orange-50 text-slate-900 space-y-4 text-left relative overflow-hidden shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                <div className="flex justify-between items-center border-b-2 border-dashed border-slate-400 pb-2">
+                  <div>
+                    <span className="text-[8px] bg-slate-900 text-white px-1.5 py-0.5 rounded font-black uppercase">Handover Pass</span>
+                    <h4 className="font-extrabold text-sm text-slate-800 mt-1">VEHICLE HANDOVER PASS</h4>
+                  </div>
+                  <span className="text-xs font-mono font-black text-slate-600">
+                    {selectedTrip.qr_handover_code || "QR-RE9A1B"}
+                  </span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+                  <div className="space-y-1.5 flex-1">
+                    <p className="text-xs"><strong>Vehicle:</strong> {selectedTrip.title}</p>
+                    <p className="text-xs"><strong>Details:</strong> {selectedTrip.subtitle}</p>
+                    <p className="text-xs"><strong>Depot:</strong> Panaji Downtown Premium Center</p>
+                    <p className="text-[10px] text-slate-500 font-semibold italic">
+                      Show this pass to the executive at the depot parking lot to collect keys.
+                    </p>
+                  </div>
+
+                  <div className="border-l-0 sm:border-l-2 border-dashed border-slate-300 pl-0 sm:pl-4 flex flex-col items-center shrink-0">
+                    <div className="w-20 h-20 bg-white border-2 border-black flex items-center justify-center p-1 rounded-lg">
+                      <svg className="w-full h-full text-black" viewBox="0 0 100 100">
+                        <rect x="10" y="10" width="20" height="20" fill="currentColor"/>
+                        <rect x="70" y="10" width="20" height="20" fill="currentColor"/>
+                        <rect x="10" y="70" width="20" height="20" fill="currentColor"/>
+                        <rect x="40" y="40" width="20" height="20" fill="currentColor"/>
+                        <rect x="15" y="15" width="10" height="10" fill="white"/>
+                        <rect x="75" y="15" width="10" height="10" fill="white"/>
+                        <rect x="15" y="75" width="10" height="10" fill="white"/>
+                        <rect x="35" y="10" width="5" height="5" fill="currentColor"/>
+                        <rect x="50" y="25" width="5" height="5" fill="currentColor"/>
+                        <rect x="60" y="45" width="5" height="5" fill="currentColor"/>
+                        <rect x="10" y="50" width="5" height="5" fill="currentColor"/>
+                        <rect x="85" y="80" width="5" height="5" fill="currentColor"/>
+                      </svg>
+                    </div>
+                    <span className="text-[9px] font-bold text-slate-500 mt-1 uppercase font-mono">SCAN TO UNLOCK</span>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 border-t border-slate-200 pt-3">
+                  {selectedTrip.status === "confirmed" ? (
+                    <button
+                      onClick={() => {
+                        fetch(`http://localhost:8000/api/v1/rent-a-ride/transition?booking_reference=${selectedTrip.booking_reference}&status=vehicle_handed_over`, { method: "POST" })
+                          .then(res => res.json())
+                          .then(data => {
+                            setSelectedTrip({ ...selectedTrip, status: "vehicle_handed_over" });
+                            fetchTrips();
+                          });
+                      }}
+                      className="flex-1 bg-yellow-300 hover:bg-yellow-400 border-2 border-black font-black py-1.5 rounded-lg text-xs uppercase cursor-pointer text-slate-900 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-1 border-none"
+                    >
+                      🔑 Claim Keys & Handover
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        fetch(`http://localhost:8000/api/v1/rent-a-ride/transition?booking_reference=${selectedTrip.booking_reference}&status=trip_active`, { method: "POST" })
+                          .then(res => res.json())
+                          .then(data => {
+                            setSelectedTrip({ ...selectedTrip, status: "trip_active" });
+                            fetchTrips();
+                          });
+                      }}
+                      className="flex-1 bg-emerald-400 hover:bg-emerald-500 border-2 border-black font-black py-1.5 rounded-lg text-xs uppercase cursor-pointer text-emerald-950 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-1 border-none"
+                    >
+                      🏎️ Start Active Ride
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Rent a Ride Active Telemetry dashboard */}
+            {(selectedTrip.vertical === "rent-a-ride" || selectedTrip.vertical === "vehicle_rental") && 
+             selectedTrip.status === "trip_active" && (
+              <ActiveRentalManager 
+                bookingReference={selectedTrip.booking_reference} 
+                fetchTrips={fetchTrips} 
+                setSelectedTrip={setSelectedTrip} 
+              />
+            )}
+
             {/* Live Vehicle Tracking Widget */}
             {(selectedTrip.vertical === "cabs" || selectedTrip.vertical === "buses") && selectedTrip.status === "confirmed" && (
               <div className="border-3 border-black p-3 rounded-xl bg-slate-900 text-white space-y-2 text-left relative overflow-hidden">
@@ -3836,7 +4453,7 @@ function OffersCarousel({ onOfferClick }: { onOfferClick: (off: any) => void }) 
   return (
     <div className="space-y-4">
       {/* Sub-tabs row */}
-      <div className="flex gap-2 overflow-x-auto pb-2 border-b border-slate-900/60 text-xs">
+      <div className="flex gap-4 overflow-x-auto pb-2 border-b border-slate-800/80 text-xs">
         <SubTabBtn label="All Offers" id="all" active={activeSubTab} onClick={setActiveSubTab} />
         <SubTabBtn label="Bank Offers" id="bank" active={activeSubTab} onClick={setActiveSubTab} />
         <SubTabBtn label="Flights" id="flights" active={activeSubTab} onClick={setActiveSubTab} />
@@ -3851,19 +4468,19 @@ function OffersCarousel({ onOfferClick }: { onOfferClick: (off: any) => void }) 
       {/* Snap Scroll Carousel Cards */}
       <div className="flex gap-4 overflow-x-auto py-2 snap-x snap-mandatory scroll-smooth scrollbar-thin">
         {filtered.map((off, idx) => (
-          <div key={idx} className="flex-none w-80 snap-start bg-[#11192e]/80 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between hover:border-slate-700 transition-all">
+          <div key={idx} className={`flex-none w-80 snap-start bg-[var(--color-surface)] border border-slate-800/80 rounded-[var(--radius-card)] p-5 flex flex-col justify-between hover:border-[var(--color-gold)] hover:-translate-y-1 hover:shadow-xl transition-all duration-300 animate-slideup stagger-delay-${(idx % 3) + 1}`}>
             <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <span className="text-[8px] bg-blue-900/40 text-blue-300 border border-blue-500/20 px-1.5 py-0.5 rounded font-black">{off.tags}</span>
-                <span className="text-[8px] text-slate-400">T&Cs Apply</span>
+                <span className="text-[9px] font-mono uppercase bg-[var(--color-surface-raised)] text-[var(--color-gold)] px-2 py-0.5 rounded-[var(--radius-inner)] font-semibold">{off.tags}</span>
+                <span className="text-[9px] text-[var(--color-ivory-dim)] font-mono">T&Cs Apply</span>
               </div>
-              <h4 className="font-extrabold text-xs text-slate-200 leading-snug">{off.title}</h4>
-              <p className="text-[10px] text-slate-200 leading-normal font-semibold">{off.description}</p>
+              <h4 className="font-serif text-sm text-[var(--color-ivory)] leading-snug">{off.title}</h4>
+              <p className="text-[11px] text-[var(--color-ivory-dim)] leading-normal font-medium">{off.description}</p>
             </div>
             
-            <div className="flex justify-between items-center pt-4 border-t border-slate-900 mt-4">
-              <span className="text-[9px] bg-slate-900 text-yellow-400 font-black border border-slate-800 px-2 py-0.5 rounded border-dashed">{off.promo_code}</span>
-              <button onClick={() => onOfferClick(off)} className="text-[10px] text-yellow-400 font-black hover:underline flex items-center gap-0.5 cursor-pointer">
+            <div className="flex justify-between items-center pt-4 border-t border-slate-800/80 mt-4">
+              <span className="text-[9px] font-mono bg-[var(--color-obsidian)] text-[var(--color-gold)] border border-dashed border-[var(--color-gold-muted)] px-2 py-0.5 rounded-[var(--radius-inner)]">{off.promo_code}</span>
+              <button onClick={() => onOfferClick(off)} className="text-[10px] text-[var(--color-gold)] font-bold hover:underline flex items-center gap-0.5 cursor-pointer bg-transparent border-none">
                 BOOK NOW <ChevronRight size={12} />
               </button>
             </div>
@@ -3879,11 +4496,14 @@ function SubTabBtn({ label, id, active, onClick }: { label: string, id: string, 
   return (
     <button 
       onClick={() => onClick(id)}
-      className={`px-3 py-1 rounded-full font-semibold transition-all ${
-        isActive ? 'bg-blue-600 text-white' : 'bg-[#0d1527] text-slate-400 hover:text-slate-300 border border-slate-800/40'
+      className={`px-3 py-1 relative font-semibold text-xs transition-all cursor-pointer bg-transparent border-none ${
+        isActive ? 'text-[var(--color-gold)] font-bold' : 'text-[var(--color-ivory-dim)] hover:text-[var(--color-ivory)]'
       }`}
     >
       {off_label(label)}
+      {isActive && (
+        <span className="absolute bottom-0 left-1 right-1 h-[2px] bg-[var(--color-gold)]" />
+      )}
     </button>
   );
 }
@@ -4887,14 +5507,14 @@ function PartnerLogoTile({ name, grad, onClick }: { name: string, grad: string, 
   if (logoUrl) {
     const fullLogoUrl = logoUrl.startsWith("http") ? logoUrl : `http://localhost:8000${logoUrl}`;
     return (
-      <div onClick={onClick} className="relative w-full h-24 rounded-xl border border-slate-800 bg-slate-900/40 cursor-pointer hover:scale-[1.02] transition-all overflow-hidden group shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+      <div onClick={onClick} className="relative w-full h-24 rounded-[var(--radius-card)] border border-slate-800 bg-[var(--color-surface-raised)] cursor-pointer hover:border-[var(--color-gold)] transition-all overflow-hidden group shadow-sm">
         <img 
           src={fullLogoUrl} 
           alt={name} 
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          className="w-full h-full object-cover transition-all duration-300 filter grayscale opacity-60 group-hover:grayscale-0 group-hover:opacity-100"
         />
-        <div className="absolute inset-0 bg-black/40 flex items-end p-2 opacity-100 transition-opacity">
-          <span className="text-[10px] font-black text-white tracking-wider uppercase bg-black/80 px-2 py-0.5 rounded border border-white/10">
+        <div className="absolute inset-0 bg-black/50 group-hover:bg-transparent transition-colors duration-300 flex items-end p-2">
+          <span className="text-[9px] font-mono text-[var(--color-gold)] uppercase tracking-wider bg-[var(--color-surface)] px-2 py-0.5 rounded-[var(--radius-inner)] border border-slate-800">
             {name}
           </span>
         </div>
@@ -4903,9 +5523,9 @@ function PartnerLogoTile({ name, grad, onClick }: { name: string, grad: string, 
   }
 
   return (
-    <div onClick={onClick} className={`p-4 rounded-xl border flex flex-col justify-between min-h-[96px] bg-gradient-to-tr ${grad} cursor-pointer hover:scale-[1.02] transition-all`}>
-      <span className="font-black text-xs text-slate-100">{name}</span>
-      <span className="text-[8px] text-slate-400 underline">Show partner info</span>
+    <div onClick={onClick} className="p-4 rounded-[var(--radius-card)] border border-slate-800 bg-[var(--color-surface-raised)] hover:border-[var(--color-gold)] cursor-pointer transition-all min-h-[96px] flex flex-col justify-between group shadow-sm">
+      <span className="font-serif italic text-xs text-[var(--color-ivory)] group-hover:text-[var(--color-gold)] transition-colors">{name}</span>
+      <span className="text-[9px] font-mono text-[var(--color-ivory-dim)] underline">Show partner details</span>
     </div>
   );
 }
@@ -5009,21 +5629,21 @@ function CollectionCarousel({ slug, onDestinationClick }: { slug: string, onDest
     <div className="space-y-4 relative group text-black font-sans">
       <div className="flex justify-between items-end pr-2">
         <div className="text-left">
-          <h3 className="text-xl font-extrabold text-slate-200">{collection.title}</h3>
-          <p className="text-xs text-slate-400 font-bold">{collection.subtitle}</p>
+          <h3 className="text-xl font-serif text-[var(--color-ivory)]">{collection.title}</h3>
+          <p className="text-xs text-[var(--color-ivory-dim)] font-medium mt-1">{collection.subtitle}</p>
         </div>
         <div className="flex gap-2">
           <button 
             type="button"
             onClick={() => scroll('left')}
-            className="w-8 h-8 rounded-full bg-slate-900 border-2 border-black flex items-center justify-center text-slate-200 hover:bg-slate-800 shadow cursor-pointer"
+            className="w-8 h-8 rounded-full border border-[var(--color-gold)] text-[var(--color-gold)] bg-transparent hover:bg-[var(--color-gold)]/10 flex items-center justify-center shadow cursor-pointer transition-colors"
           >
             ←
           </button>
           <button 
             type="button"
             onClick={() => scroll('right')}
-            className="w-8 h-8 rounded-full bg-slate-900 border-2 border-black flex items-center justify-center text-slate-200 hover:bg-slate-800 shadow cursor-pointer"
+            className="w-8 h-8 rounded-full border border-[var(--color-gold)] text-[var(--color-gold)] bg-transparent hover:bg-[var(--color-gold)]/10 flex items-center justify-center shadow cursor-pointer transition-colors"
           >
             →
           </button>
@@ -5038,19 +5658,20 @@ function CollectionCarousel({ slug, onDestinationClick }: { slug: string, onDest
           <div 
             key={item.id}
             onClick={() => onDestinationClick(item.ref_id, item.tag_text, item.image_url)}
-            className="flex-none w-72 snap-start bg-white border-3 border-black p-3 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:scale-[1.01] transition-transform text-black flex flex-col gap-3 cursor-pointer"
+            className="flex-none w-72 snap-start bg-[var(--color-surface)] border border-slate-800/80 rounded-[var(--radius-card)] shadow-md hover:shadow-xl hover:-translate-y-1 hover:border-[var(--color-gold)] transition-all duration-300 flex flex-col gap-3 cursor-pointer overflow-hidden group/card"
           >
-            <div className="relative w-full h-40 rounded-xl overflow-hidden border-2 border-black">
-              <img src={item.image_url} alt={item.tag_text} className="w-full h-full object-cover" />
+            <div className="relative w-full h-40 overflow-hidden">
+              <img src={item.image_url} alt={item.tag_text} className="w-full h-full object-cover transition-transform duration-500 group-hover/card:scale-103" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[var(--color-obsidian)] via-transparent to-transparent opacity-80" />
               {item.label && (
-                <span className="absolute top-2 left-2 text-[8px] bg-yellow-300 text-black font-black border-2 border-black px-1.5 py-0.5 rounded">
+                <span className="absolute top-2 left-2 text-[8px] font-mono bg-[var(--color-surface)] text-[var(--color-gold)] border border-slate-700/60 px-1.5 py-0.5 rounded-[var(--radius-inner)] font-bold">
                   {item.label}
                 </span>
               )}
             </div>
-            <div className="space-y-1.5 text-left py-1">
-              <h4 className="font-bold text-xs leading-snug text-slate-900 line-clamp-2 min-h-[32px]">{item.tag_text}</h4>
-              <p className="text-[9px] text-slate-500 font-bold uppercase">{item.ref_type}: {item.ref_id}</p>
+            <div className="space-y-1 py-2 px-3 text-left">
+              <span className="text-[9px] font-mono text-[var(--color-gold)] uppercase tracking-widest">{item.ref_type}: {item.ref_id}</span>
+              <h4 className="font-serif italic text-xs leading-snug text-[var(--color-ivory)] line-clamp-2 min-h-[32px] mt-1">{item.tag_text}</h4>
             </div>
           </div>
         ))}
@@ -5087,14 +5708,14 @@ function InfoHighlightRow({ onNavigate }: { onNavigate?: (path: string) => void 
 
   const getIcon = (name: string) => {
     switch (name) {
-      case "Globe": return <Globe size={24} className="text-blue-500" />;
-      case "Clock": return <Clock size={24} className="text-yellow-500" />;
-      default: return <Compass size={24} className="text-red-500" />;
+      case "Globe": return <Globe size={20} className="text-[var(--color-gold)]" />;
+      case "Clock": return <Clock size={20} className="text-[var(--color-gold)]" />;
+      default: return <Compass size={20} className="text-[var(--color-gold)]" />;
     }
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 py-8 border-t border-slate-900/60 font-sans">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 py-8 border-t border-slate-800/80 font-sans">
       {highlights.map((h) => (
         <a 
           href={h.cta_url}
@@ -5105,14 +5726,14 @@ function InfoHighlightRow({ onNavigate }: { onNavigate?: (path: string) => void 
               onNavigate(h.cta_url);
             }
           }}
-          className="bg-white border-3 border-black p-4 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:scale-[1.01] transition-transform text-black flex items-start gap-3"
+          className="bg-[var(--color-surface)] border border-slate-800/80 p-5 rounded-[var(--radius-card)] shadow-sm hover:border-[var(--color-gold)] transition-all flex items-start gap-4 cursor-pointer"
         >
-          <div className="p-2 border-2 border-black rounded-xl bg-slate-50 flex items-center justify-center">
+          <div className="p-2 border border-[var(--color-gold)] rounded-full flex items-center justify-center shrink-0">
             {getIcon(h.icon_name)}
           </div>
           <div className="space-y-1 text-left">
-            <h4 className="font-extrabold text-sm">{h.title}</h4>
-            <p className="text-[10px] text-slate-500 leading-normal font-bold">{h.body_text}</p>
+            <h4 className="font-semibold text-sm text-[var(--color-ivory)]">{h.title}</h4>
+            <p className="text-xs text-[var(--color-ivory-dim)] leading-normal font-medium mt-1">{h.body_text}</p>
           </div>
         </a>
       ))}
@@ -5156,16 +5777,19 @@ function PromoBannerStrip({ onNavigate }: { onNavigate?: (path: string) => void 
 
   return (
     <div 
-      style={{ background: banner.background_color }}
-      className="w-full border-4 border-black p-6 rounded-3xl shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] flex flex-col md:flex-row justify-between items-center gap-4 text-black my-8 font-sans"
+      className="w-full border border-slate-800 p-6 rounded-[var(--radius-card)] shadow-md flex flex-col md:flex-row justify-between items-center gap-6 text-[var(--color-ivory)] my-8 font-sans bg-gradient-to-r from-[var(--color-teal)] to-[var(--color-obsidian)]"
     >
       <div className="flex items-center gap-4 text-left">
-        {banner.logo_url && (
-          <img src={banner.logo_url} alt="Logo" className="w-12 h-12 object-contain bg-white p-1 rounded-xl border-2 border-black" />
-        )}
-        <h3 className="font-black text-lg md:text-xl italic text-white text-shadow-sm uppercase">
-          {banner.headline}
-        </h3>
+        {/* QR code styled with a thin gold frame */}
+        <div className="w-14 h-14 bg-white p-0.5 rounded-[var(--radius-inner)] border border-[var(--color-gold)] flex items-center justify-center shrink-0">
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://travelos.com" alt="QR" className="w-full h-full object-cover" />
+        </div>
+        <div>
+          <h3 className="font-serif italic text-lg md:text-xl text-[var(--color-ivory)] uppercase leading-snug">
+            Southeast Asia's Go-To App for Direct Wallet Bookings
+          </h3>
+          <p className="text-[10px] font-mono text-[var(--color-gold)] uppercase tracking-wider mt-1">Scan QR or Click below to get Travel OS App</p>
+        </div>
       </div>
       <a 
         href={banner.cta_url}
@@ -5174,12 +5798,12 @@ function PromoBannerStrip({ onNavigate }: { onNavigate?: (path: string) => void 
           if (onNavigate) {
             onNavigate(banner.cta_url);
           } else {
-            alert("Travel OS Direct App Downloader Code: SMS 'TRAVEL' to 56161 to get direct Google Play link!");
+            alert("Travel OS Direct App Downloader: SMS 'TRAVEL' to 56161 to get direct Google Play link!");
           }
         }}
-        className="bg-white hover:bg-slate-100 border-3 border-black text-black font-black px-6 py-2.5 rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-none transition-all uppercase text-xs whitespace-nowrap cursor-pointer"
+        className="bg-[var(--color-gold)] hover:bg-[#d6b35d] text-[var(--color-obsidian)] font-bold px-6 py-2.5 rounded-[var(--radius-card)] transition-all uppercase text-xs whitespace-nowrap cursor-pointer text-center"
       >
-        {banner.cta_text}
+        GET THE APP
       </a>
     </div>
   );
@@ -5240,14 +5864,14 @@ function SEOMegaFooter({ onNavigate }: { onNavigate?: (path: string) => void }) 
   };
 
   return (
-    <footer className="border-t-4 border-black mt-12 pt-12 px-8 bg-[#090d16] text-slate-300 font-sans">
+    <footer className="border-t border-slate-800/80 mt-12 pt-12 px-8 bg-[var(--color-obsidian)] text-[var(--color-ivory-dim)] font-sans">
       <div className="max-w-6xl mx-auto pb-10">
         
         {/* Desktop View: Grid */}
         <div className="hidden md:grid grid-cols-4 gap-8">
           {footerData.map((section, idx) => (
             <div key={idx} className="space-y-4">
-              <h5 className="font-extrabold text-sm text-slate-200 border-b-2 border-black pb-2 text-left">{section.title}</h5>
+              <h5 className="font-semibold text-xs text-[var(--color-ivory)] border-b border-slate-800/80 pb-2 text-left uppercase tracking-wider">{section.title}</h5>
               <nav>
                 <ul className="space-y-2 text-left">
                   {section.links.map((link, lIdx) => (
@@ -5260,7 +5884,7 @@ function SEOMegaFooter({ onNavigate }: { onNavigate?: (path: string) => void }) 
                             onNavigate(link.url);
                           }
                         }}
-                        className="text-slate-400 hover:text-white font-bold hover:underline transition-all text-xs"
+                        className="text-[var(--color-ivory-dim)] hover:text-[var(--color-gold)] font-medium hover:underline transition-all text-xs"
                       >
                         {link.label}
                       </a>
@@ -5277,16 +5901,16 @@ function SEOMegaFooter({ onNavigate }: { onNavigate?: (path: string) => void }) 
           {footerData.map((section, idx) => {
             const isExpanded = expandedSection === idx;
             return (
-              <div key={idx} className="border-3 border-black rounded-xl bg-slate-900 overflow-hidden">
+              <div key={idx} className="border border-slate-800/80 rounded-[var(--radius-card)] bg-[var(--color-surface)] overflow-hidden">
                 <button 
                   onClick={() => toggleSection(idx)}
-                  className="w-full p-4 flex justify-between items-center font-black text-xs uppercase text-white bg-slate-800"
+                  className="w-full p-4 flex justify-between items-center font-bold text-xs uppercase text-[var(--color-ivory)] bg-[var(--color-surface-raised)] border-none"
                 >
                   <span>{section.title}</span>
-                  <span className="font-black text-sm">{isExpanded ? "−" : "+"}</span>
+                  <span className="font-bold text-sm">{isExpanded ? "−" : "+"}</span>
                 </button>
                 {isExpanded && (
-                  <nav className="p-4 bg-slate-900 border-t-2 border-black">
+                  <nav className="p-4 bg-[var(--color-surface)] border-t border-slate-800/80">
                     <ul className="space-y-2 text-left">
                       {section.links.map((link, lIdx) => (
                         <li key={lIdx}>
@@ -5294,11 +5918,11 @@ function SEOMegaFooter({ onNavigate }: { onNavigate?: (path: string) => void }) 
                             href={link.url} 
                             onClick={(e) => {
                               if (onNavigate) {
-                                e.preventDefault();
-                                onNavigate(link.url);
+                                  e.preventDefault();
+                                  onNavigate(link.url);
                               }
                             }}
-                            className="text-slate-400 hover:text-white font-bold text-xs block py-1"
+                            className="text-[var(--color-ivory-dim)] hover:text-[var(--color-gold)] font-semibold text-xs block py-1"
                           >
                             {link.label}
                           </a>
@@ -5313,18 +5937,18 @@ function SEOMegaFooter({ onNavigate }: { onNavigate?: (path: string) => void }) 
         </div>
 
         {/* Play Store Download and copyright */}
-        <div className="border-t-3 border-black mt-10 pt-8 flex flex-col md:flex-row justify-between items-center gap-6">
+        <div className="border-t border-slate-800/80 mt-10 pt-8 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="text-left space-y-1">
-            <h5 className="font-extrabold text-xs text-slate-200">DOWNLOAD TRAVEL OS APP</h5>
-            <div className="bg-white border-2 border-black p-2.5 rounded-xl flex items-center gap-2 cursor-pointer text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 transition-transform">
-              <Compass size={20} className="text-blue-500" />
+            <h5 className="font-mono text-[9px] text-[var(--color-ivory-dim)] uppercase tracking-wider">DOWNLOAD TRAVEL OS APP</h5>
+            <div className="bg-[var(--color-surface)] border border-slate-800 p-2.5 rounded-[var(--radius-card)] flex items-center gap-2.5 cursor-pointer text-[var(--color-ivory)] hover:border-[var(--color-gold)] transition-colors shadow-sm">
+              <Compass size={18} className="text-[var(--color-gold)]" />
               <div>
-                <div className="text-[8px] text-slate-500 font-bold uppercase">GET IT ON</div>
-                <div className="font-black text-xs text-black">Google Play Store</div>
+                <div className="text-[8px] text-[var(--color-ivory-dim)] font-mono uppercase tracking-wider">GET IT ON</div>
+                <div className="font-bold text-[10px] leading-none mt-0.5">Google Play Store</div>
               </div>
             </div>
           </div>
-          <div className="text-center md:text-right text-[10px] text-slate-500 font-bold max-w-md leading-relaxed">
+          <div className="text-center md:text-right text-[10px] text-[var(--color-ivory-dim)] font-medium max-w-md leading-relaxed">
             © 2026 Travel OS Monolith Operating System. Built with React, FastAPI, LangGraph, and Tailwind v4. All rights reserved.
           </div>
         </div>
@@ -5986,7 +6610,7 @@ function WishlistModal({ items, setItems, onBook, onClose }: { items: any[], set
 }
 
 /* Account Profile Modal */
-function AccountProfileModal({ userProfile, setUserProfile, onClose }: { userProfile: any, setUserProfile: any, onClose: () => void }) {
+function AccountProfileModal({ userProfile, setUserProfile, onClose, onLogout }: { userProfile: any, setUserProfile: any, onClose: () => void, onLogout: () => void }) {
   const [email, setEmail] = useState(userProfile.email);
   const [savedTravelers, setSavedTravelers] = useState<string[]>(["Vikram Singh (32)", "Ananya Sen (29)"]);
   const [newTraveler, setNewTraveler] = useState("");
@@ -6027,7 +6651,10 @@ function AccountProfileModal({ userProfile, setUserProfile, onClose }: { userPro
             <label className="text-[10px] uppercase font-black text-slate-500">Email Address</label>
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-white border-2 border-black rounded px-3 py-1.5 text-xs font-bold" />
           </div>
-          <button onClick={handleSave} className="bg-slate-900 text-white text-[10px] font-black border-2 border-black px-4 py-2 rounded-lg cursor-pointer uppercase">Save Profile</button>
+          <div className="flex gap-2">
+            <button onClick={handleSave} className="bg-slate-900 text-white text-[10px] font-black border-2 border-black px-4 py-2 rounded-lg cursor-pointer uppercase">Save Profile</button>
+            <button onClick={onLogout} className="bg-red-600 text-white hover:bg-red-700 text-[10px] font-black border-2 border-black px-4 py-2 rounded-lg cursor-pointer uppercase ml-auto">Log Out</button>
+          </div>
         </div>
 
         {/* Saved Travelers CRUD */}
@@ -6122,3 +6749,1237 @@ function MyBizDashboardModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+
+/* ---------------------------------------------------- */
+/* RENT A RIDE SYSTEM COMPONENTS                        */
+/* ---------------------------------------------------- */
+
+function RentARideSearchForm({ onBook, onDetailClick, onNavigate }: { onBook: (data: any) => void, onDetailClick: (vert: string, item: any) => void, onNavigate: (path: string) => void }) {
+  const [destination, setDestination] = useState(() => sessionStorage.getItem("rar_destination") || "");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [selectedLocality, setSelectedLocality] = useState<any | null>(null);
+  const [pickupDate, setPickupDate] = useState(() => sessionStorage.getItem("rar_pickupDate") || "");
+  const [pickupTime, setPickupTime] = useState(() => sessionStorage.getItem("rar_pickupTime") || "");
+  const [dropDate, setDropDate] = useState("");
+  const [dropTime, setDropTime] = useState("");
+  const [vehicleType, setVehicleType] = useState(() => sessionStorage.getItem("rar_vehicleType") || "SUV");
+  const [selfDrive, setSelfDrive] = useState(() => {
+    const val = sessionStorage.getItem("rar_selfDrive");
+    return val === null ? true : val === "true";
+  });
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => { sessionStorage.setItem("rar_destination", destination); }, [destination]);
+  useEffect(() => { sessionStorage.setItem("rar_pickupDate", pickupDate); }, [pickupDate]);
+  useEffect(() => { sessionStorage.setItem("rar_pickupTime", pickupTime); }, [pickupTime]);
+  useEffect(() => { sessionStorage.setItem("rar_vehicleType", vehicleType); }, [vehicleType]);
+  useEffect(() => { sessionStorage.setItem("rar_selfDrive", String(selfDrive)); }, [selfDrive]);
+
+  // Autocomplete fetch with 150ms debouncing
+  useEffect(() => {
+    if (!destination || destination.trim().length < 1) {
+      setSuggestions([]);
+      return;
+    }
+    if (selectedLocality && selectedLocality.name.toLowerCase() === destination.toLowerCase()) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      fetch(`http://localhost:8000/api/v1/localities/autocomplete?q=${encodeURIComponent(destination)}`)
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) {
+            setSuggestions(data);
+          }
+        })
+        .catch(() => {});
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [destination, selectedLocality]);
+
+  const handleSearch = () => {
+    if (!destination.trim()) {
+      alert("Please enter a destination city.");
+      return;
+    }
+    if (!pickupDate) {
+      alert("Please select a pickup date.");
+      return;
+    }
+    if (!pickupTime) {
+      alert("Please select a pickup time.");
+      return;
+    }
+    setLoading(true);
+    
+    // Dynamically calculate dropDate as 3 days after pickupDate
+    const pDate = new Date(pickupDate);
+    const dDate = new Date(pDate.getTime() + 3 * 24 * 60 * 60 * 1000);
+    const year = dDate.getFullYear();
+    const month = String(dDate.getMonth() + 1).padStart(2, '0');
+    const dateVal = String(dDate.getDate()).padStart(2, '0');
+    const computedDropDate = `${year}-${month}-${dateVal}`;
+
+    setTimeout(() => {
+      setLoading(false);
+      onNavigate(`/rent-a-ride/${encodeURIComponent(destination)}?pickup=${pickupDate}T${pickupTime}&drop=${computedDropDate}T${pickupTime}&type=${vehicleType}&selfDrive=${selfDrive}${selectedLocality ? `&locality_id=${selectedLocality.id}` : ""}`);
+    }, 1000);
+  };
+
+  return (
+    <div className="space-y-6 text-black font-sans">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-900/60 p-4 rounded-2xl border border-slate-800/80">
+        
+        {/* Destination City */}
+        <div className="space-y-1.5 relative">
+          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Destination City</span>
+          <input 
+            type="text" 
+            value={destination}
+            placeholder="Enter destination city"
+            onChange={(e) => {
+              setDestination(e.target.value);
+              setShowSuggestions(true);
+              if (selectedLocality && selectedLocality.name !== e.target.value) {
+                setSelectedLocality(null);
+              }
+            }}
+            onFocus={() => setShowSuggestions(true)}
+            onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+            className="w-full bg-[#0e1628] border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white font-bold outline-none"
+          />
+          {showSuggestions && suggestions.length > 0 && (
+            <div className="absolute left-0 right-0 top-[65px] bg-white border-3 border-black rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] z-50 overflow-y-auto max-h-48 text-black font-sans">
+              {suggestions.map((loc, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onMouseDown={() => {
+                    setDestination(loc.name);
+                    setSelectedLocality(loc);
+                    setShowSuggestions(false);
+                  }}
+                  className="w-full text-left px-3 py-2 hover:bg-yellow-300 transition-colors font-bold text-xs border-b-2 border-black last:border-0 cursor-pointer"
+                >
+                  <span className="font-extrabold text-[12px]">{loc.name}</span>
+                  <span className="text-[8px] bg-slate-900 text-white px-1.5 py-0.5 rounded ml-2 uppercase font-black">{loc.type}</span>
+                  <div className="text-[9px] text-slate-500 font-bold mt-0.5">
+                    {loc.district} District, {loc.state}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Pickup Date & Time */}
+        <div className="space-y-1.5">
+          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Pickup Date & Time</span>
+          <div className="flex flex-col gap-1.5">
+            <input 
+              type="date" 
+              value={pickupDate}
+              onChange={(e) => setPickupDate(e.target.value)}
+              className="w-full bg-[#0e1628] border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-bold outline-none font-mono"
+            />
+            <input 
+              type="time" 
+              value={pickupTime}
+              onChange={(e) => setPickupTime(e.target.value)}
+              className="w-full bg-[#0e1628] border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-bold outline-none font-mono"
+            />
+          </div>
+        </div>
+
+        {/* Vehicle Type */}
+        <div className="space-y-1.5">
+          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Vehicle Type</span>
+          <select 
+            value={vehicleType}
+            onChange={(e) => setVehicleType(e.target.value)}
+            className="w-full bg-[#0e1628] border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white font-bold outline-none"
+          >
+            <option value="Hatchback">Hatchback</option>
+            <option value="Sedan">Sedan</option>
+            <option value="SUV">SUV</option>
+            <option value="Bike">Bike</option>
+            <option value="EV">EV</option>
+          </select>
+        </div>
+
+        {/* Self Drive vs With Driver Toggle */}
+        <div className="space-y-1.5 flex flex-col justify-center">
+          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Rental Mode</span>
+          <div className="flex bg-[#0e1628] border border-slate-800 rounded-xl p-1">
+            <button
+              type="button"
+              onClick={() => setSelfDrive(true)}
+              className={`flex-1 text-center py-1.5 text-[10px] font-bold rounded-lg cursor-pointer transition-all border-none ${selfDrive ? 'bg-[var(--color-gold)] text-black' : 'text-slate-400 hover:text-white'}`}
+            >
+              Self Drive
+            </button>
+            <button
+              type="button"
+              disabled={vehicleType === "Bike"}
+              onClick={() => setSelfDrive(false)}
+              className={`flex-1 text-center py-1.5 text-[10px] font-bold rounded-lg cursor-pointer transition-all border-none ${!selfDrive ? 'bg-[var(--color-gold)] text-black' : 'text-slate-400 hover:text-white'} ${vehicleType === "Bike" ? "opacity-30 cursor-not-allowed" : ""}`}
+            >
+              Chauffeur
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Doorstep Delivery Warning Banner for Non-Hub Localities */}
+      {selectedLocality && !selectedLocality.has_rental_hub && (
+        <div className="bg-amber-50 border-3 border-black p-4 rounded-xl flex items-start gap-3 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-slate-900 animate-scalein">
+          <span className="text-xl">🚚</span>
+          <div className="space-y-1 text-left">
+            <h4 className="font-extrabold text-xs uppercase tracking-wider text-amber-800">Doorstep Delivery Zone</h4>
+            <p className="text-xs font-bold leading-normal text-slate-800">
+              Note: Vehicles will be delivered to <strong className="font-extrabold">{selectedLocality.name}</strong> from our closest hub in <strong className="font-extrabold">{selectedLocality.nearest_hub_name}</strong> (approx. {selectedLocality.nearest_hub_distance} km away).
+            </p>
+            <div className="text-[10px] text-slate-600 font-bold space-y-0.5">
+              <div>• Doorstep delivery & pickup surcharge: <span className="font-mono font-black text-slate-900">₹{selectedLocality.delivery_fee_beyond_radius}</span>.</div>
+              <div>• Lead time: will arrive in approx. <span className="font-black text-slate-900">{Math.ceil(selectedLocality.nearest_hub_distance / 15)} hours</span> from booking confirmation.</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex justify-end pt-2 border-t border-slate-800/80">
+        <button 
+          onClick={handleSearch} 
+          className="w-full bg-[var(--color-gold)] hover:bg-[#d6b35d] text-[var(--color-obsidian)] font-bold text-sm py-3 rounded-[var(--radius-card)] transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider border-none"
+        >
+          {loading ? "Searching Available Rides..." : "Search Rental Rides"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function VehicleRentalCrossSell({ destinationCity, dateRange, tripId }: { destinationCity: string, dateRange?: { start?: string, end?: string }, tripId?: string }) {
+  const [lowestPrice, setLowestPrice] = useState<number | null>(null);
+  const [vehicleCount, setVehicleCount] = useState<number>(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!destinationCity) return;
+    setLoading(true);
+    fetch(`http://localhost:8000/api/v1/search?vertical=rent-a-ride&destination=${encodeURIComponent(destinationCity)}`)
+      .then(res => res.json())
+      .then(data => {
+        setLoading(false);
+        if (data && Array.isArray(data.results) && data.results.length > 0) {
+          setVehicleCount(data.results.length);
+          const prices = data.results.map((v: any) => v.price_per_day);
+          setLowestPrice(Math.min(...prices));
+        }
+      })
+      .catch(() => setLoading(false));
+  }, [destinationCity]);
+
+  if (loading || vehicleCount === 0 || !lowestPrice) return null;
+
+  const handleAdd = () => {
+    const start = dateRange?.start || "2026-12-15";
+    const end = dateRange?.end || "2026-12-18";
+    const linkStr = tripId ? `&linked_booking_reference=${tripId}` : "";
+    const path = `/rent-a-ride/${encodeURIComponent(destinationCity)}?pickup=${start}T10:00&drop=${end}T10:00${linkStr}`;
+    window.history.pushState(null, '', path);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  };
+
+  return (
+    <div className="bg-[var(--color-surface)] border border-slate-800 rounded-[var(--radius-card)] p-4 shadow-lg flex flex-col md:flex-row justify-between items-center gap-4 text-left my-4 w-full">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 bg-slate-900 border border-slate-800 rounded-lg flex items-center justify-center text-lg">
+          🔑
+        </div>
+        <div>
+          <h4 className="font-extrabold text-sm text-[var(--color-ivory)]">
+            Renting a ride in {destinationCity}?
+          </h4>
+          <p className="text-xs text-[var(--color-ivory-dim)] font-medium mt-0.5">
+            {vehicleCount} vehicles available from <span className="font-mono text-[var(--color-gold)] font-bold">₹{lowestPrice.toLocaleString()}</span>/day
+          </p>
+        </div>
+      </div>
+      <button
+        onClick={handleAdd}
+        className="w-full md:w-auto bg-[var(--color-gold)] hover:bg-[#d6b35d] text-[var(--color-obsidian)] font-bold text-xs px-4 py-2 rounded-lg cursor-pointer uppercase transition-all shadow hover:scale-105 border-none"
+      >
+        Add to trip
+      </button>
+    </div>
+  );
+}
+
+interface RentARidePageProps {
+  city: string;
+  pickup: string;
+  drop: string;
+  initialType: string;
+  initialSelfDrive: boolean;
+  linkedBookingReference?: string;
+  onNavigate: (path: string) => void;
+  onBook: (data: any) => void;
+  currency: string;
+}
+
+function RentARidePage({ city, pickup, drop, initialType, initialSelfDrive, linkedBookingReference, onNavigate, onBook, currency }: RentARidePageProps) {
+  const [vehicles, setVehicles] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [deliveryInfo, setDeliveryInfo] = useState<any | null>(null);
+  const [notDeliverable, setNotDeliverable] = useState<any | null>(null);
+
+  // Filters state
+  const [selectedType, setSelectedType] = useState(initialType || "all");
+  const [priceRange, setPriceRange] = useState(10000);
+  const [transmission, setTransmission] = useState("all");
+  const [fuelType, setFuelType] = useState("all");
+  const [selfDrive, setSelfDrive] = useState(initialSelfDrive);
+  const [instantConfirmOnly, setInstantConfirmOnly] = useState(false);
+  const [sortBy, setSortBy] = useState("price_low_high");
+
+  // Booking details popup modal
+  const [selectedVehicle, setSelectedVehicle] = useState<any | null>(null);
+  const [bookingStep, setBookingStep] = useState<"none" | "confirm" | "kyc" | "pickup">("none");
+  const [kycDL, setKycDL] = useState("");
+  const [kycID, setKycID] = useState("");
+  const [deliveryMode, setDeliveryMode] = useState<"depot" | "doorstep">("depot");
+  const [pickupAddress, setPickupAddress] = useState("Goa Airport Terminal");
+  const [nearestHub, setNearestHub] = useState<any>(null);
+  const [routingLoading, setRoutingLoading] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    const params = new URLSearchParams(window.location.search);
+    const localityId = params.get("locality_id") || "";
+    fetch(`http://localhost:8000/api/v1/search?vertical=rent-a-ride&destination=${encodeURIComponent(city)}&locality_id=${localityId}&pickup=${encodeURIComponent(pickup)}&drop=${encodeURIComponent(drop)}`)
+      .then(res => res.json())
+      .then(data => {
+        setLoading(false);
+        if (data) {
+          if (data.not_deliverable) {
+            setNotDeliverable(data);
+            setVehicles([]);
+            setDeliveryInfo(null);
+          } else {
+            setNotDeliverable(null);
+            setVehicles(data.results || []);
+            setDeliveryInfo(data.delivery_info || null);
+            if (data.delivery_info && data.delivery_info.delivery_required) {
+              setDeliveryMode("doorstep");
+              setPickupAddress(`${city} Doorstep Address`);
+            }
+          }
+        }
+      })
+      .catch(() => setLoading(false));
+  }, [city]);
+
+  // Fetch routing hub details on address / mode change
+  useEffect(() => {
+    if (deliveryMode === "depot" && pickupAddress) {
+      setRoutingLoading(true);
+      fetch(`http://localhost:8000/api/v1/rent-a-ride/routing?location=${encodeURIComponent(pickupAddress)}`)
+        .then(res => res.json())
+        .then(data => {
+          setRoutingLoading(false);
+          setNearestHub(data);
+        })
+        .catch(() => setRoutingLoading(false));
+    } else {
+      setNearestHub(null);
+    }
+  }, [deliveryMode, pickupAddress]);
+
+  // Handle filter & sorting logic
+  const filteredVehicles = vehicles
+    .filter(v => {
+      if (selectedType !== "all" && v.type.toLowerCase() !== selectedType.toLowerCase()) return false;
+      if (v.price_per_day > priceRange) return false;
+      if (transmission !== "all" && v.transmission.toLowerCase() !== transmission.toLowerCase()) return false;
+      if (fuelType !== "all" && v.fuel_type.toLowerCase() !== fuelType.toLowerCase()) return false;
+      if (selfDrive && !v.self_drive_available) return false;
+      if (!selfDrive && !v.with_driver_available) return false;
+      if (instantConfirmOnly && !v.instant_confirm) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortBy === "price_low_high") return a.price_per_day - b.price_per_day;
+      if (sortBy === "distance") return a.distance_km - b.distance_km;
+      if (sortBy === "rating") return b.rating - a.rating;
+      return 0;
+    });
+
+  // Days count calculation
+  const pDate = new Date(pickup.split("T")[0] || "2026-12-15");
+  const dDate = new Date(drop.split("T")[0] || "2026-12-18");
+  const daysDiff = Math.max(1, Math.ceil((dDate.getTime() - pDate.getTime()) / (1000 * 3600 * 24)));
+
+  const handleStartBooking = (v: any) => {
+    setSelectedVehicle(v);
+    setBookingStep("confirm");
+  };
+
+  const handleConfirmStep = () => {
+    if (selfDrive) {
+      setBookingStep("kyc");
+    } else {
+      setBookingStep("pickup");
+    }
+  };
+
+  const handleKycStep = () => {
+    if (!kycDL || !kycID) {
+      alert("Please upload your Driving License and National ID card numbers.");
+      return;
+    }
+    setBookingStep("pickup");
+  };
+
+  const handleProceedToPayment = () => {
+    if (!selectedVehicle) return;
+    const isDelivery = deliveryMode === "doorstep";
+    const deliveryFee = selectedVehicle.delivery_required ? selectedVehicle.delivery_fee : 0.0;
+    const finalPrice = (selectedVehicle.price_per_day * daysDiff) + (isDelivery ? deliveryFee : 0.0);
+    
+    // Trigger hold order
+    onBook({
+      vertical: "rent-a-ride",
+      amount: finalPrice,
+      details: {
+        city: city,
+        pickup_time: pickup,
+        drop_time: drop,
+        vehicle_name: selectedVehicle.name,
+        vehicle_type: selectedVehicle.type,
+        self_drive: selfDrive,
+        fuel_type: selectedVehicle.fuel_type,
+        transmission: selectedVehicle.transmission,
+        kyc_ref: selfDrive ? `${kycDL} | ${kycID}` : null,
+        pickup_lat: isDelivery ? 15.4989 : (nearestHub ? nearestHub.latitude || 15.4989 : 15.4989),
+        pickup_lng: isDelivery ? 73.8278 : (nearestHub ? nearestHub.longitude || 73.8278 : 73.8278),
+        linked_booking_reference: linkedBookingReference || null,
+        delivery_mode: isDelivery ? "Doorstep Delivery" : "Hub Depot Pickup",
+        pickup_address: pickupAddress,
+        delivery_fee: isDelivery ? deliveryFee : 0.0
+      }
+    });
+  };
+
+  return (
+    <div className="flex-1 flex flex-col h-screen bg-[#070b19] overflow-hidden text-white font-sans">
+      
+      {/* HEADERBAR */}
+      <header className="px-6 py-4 bg-[#0c1226] border-b border-slate-800 flex justify-between items-center z-10 shrink-0">
+        <div className="flex items-center gap-3">
+          <button onClick={() => onNavigate("/")} className="bg-transparent border-none text-slate-400 hover:text-white cursor-pointer text-lg font-bold">
+            ← Back
+          </button>
+          <div>
+            <h1 className="text-lg font-black tracking-wider uppercase">
+              Rent a Ride: <span className="text-[var(--color-gold)]">{city}</span>
+            </h1>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Pickup: {pickup.replace("T", " ")} | Drop: {drop.replace("T", " ")} ({daysDiff} Days)
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {linkedBookingReference && (
+            <span className="text-[10px] bg-indigo-955 border border-indigo-700 text-indigo-200 px-2 py-0.5 rounded font-bold uppercase">
+              Bundled with Trip #{linkedBookingReference}
+            </span>
+          )}
+        </div>
+      </header>
+
+      {/* CORE WORKSPACE */}
+      <div className="flex flex-1 overflow-hidden">
+        
+        {/* SIDEBAR FILTERS */}
+        <aside className="w-80 border-r border-slate-800 bg-[#0a0f22] p-6 space-y-6 overflow-y-auto hidden md:block">
+          <div className="flex justify-between items-center pb-2 border-b border-slate-800">
+            <h3 className="font-extrabold text-xs uppercase tracking-wider">Filters</h3>
+            <button 
+              onClick={() => {
+                setSelectedType("all");
+                setPriceRange(10000);
+                setTransmission("all");
+                setFuelType("all");
+                setSelfDrive(true);
+                setInstantConfirmOnly(false);
+              }}
+              className="text-[10px] text-slate-400 hover:text-white font-bold bg-transparent border-none cursor-pointer hover:underline"
+            >
+              Reset All
+            </button>
+          </div>
+
+          {/* Rental Mode */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Rental Mode</label>
+            <div className="flex bg-[#070b19] border border-slate-800 rounded-lg p-0.5">
+              <button onClick={() => setSelfDrive(true)} className={`flex-1 text-center py-1.5 text-xs font-bold rounded-md border-none cursor-pointer transition-all ${selfDrive ? "bg-[var(--color-gold)] text-black" : "text-slate-400 hover:text-white"}`}>Self Drive</button>
+              <button onClick={() => setSelfDrive(false)} className={`flex-1 text-center py-1.5 text-xs font-bold rounded-md border-none cursor-pointer transition-all ${!selfDrive ? "bg-[var(--color-gold)] text-black" : "text-slate-400 hover:text-white"}`}>With Driver</button>
+            </div>
+          </div>
+
+          {/* Vehicle Type */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Vehicle Type</label>
+            <select value={selectedType} onChange={(e) => setSelectedType(e.target.value)} className="w-full bg-[#070b19] border border-slate-800 rounded-lg p-2 text-xs font-bold text-white outline-none">
+              <option value="all">All Vehicle Types</option>
+              <option value="Hatchback">Hatchback</option>
+              <option value="Sedan">Sedan</option>
+              <option value="SUV">SUV</option>
+              <option value="Bike">Bike</option>
+              <option value="EV">EV (Electric)</option>
+            </select>
+          </div>
+
+          {/* Price Cap */}
+          <div className="space-y-2">
+            <div className="flex justify-between items-center text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+              <span>Max Price Per Day</span>
+              <span className="font-mono text-white">₹{priceRange.toLocaleString()}</span>
+            </div>
+            <input type="range" min="500" max="10000" step="500" value={priceRange} onChange={(e) => setPriceRange(Number(e.target.value))} className="w-full accent-[var(--color-gold)] cursor-pointer" />
+          </div>
+
+          {/* Transmission */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Transmission</label>
+            <div className="flex gap-2">
+              {["all", "automatic", "manual"].map((trans) => (
+                <button key={trans} onClick={() => setTransmission(trans)} className={`flex-1 py-1.5 text-center text-xs font-extrabold border-2 rounded-lg cursor-pointer transition-all ${transmission === trans ? "bg-white text-black border-white" : "border-slate-800 text-slate-400 hover:border-slate-700 hover:text-white bg-transparent"}`}>
+                  {trans.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Fuel Type */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Fuel Type</label>
+            <select value={fuelType} onChange={(e) => setFuelType(e.target.value)} className="w-full bg-[#070b19] border border-slate-800 rounded-lg p-2 text-xs font-bold text-white outline-none">
+              <option value="all">All Fuels</option>
+              <option value="Petrol">Petrol</option>
+              <option value="Diesel">Diesel</option>
+              <option value="EV">Electric (EV)</option>
+            </select>
+          </div>
+
+          {/* Instant Confirm Toggle */}
+          <div className="flex items-center justify-between py-2 border-t border-slate-800">
+            <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider cursor-pointer" htmlFor="instant_confirm">Instant Confirmation</label>
+            <input type="checkbox" id="instant_confirm" checked={instantConfirmOnly} onChange={(e) => setInstantConfirmOnly(e.target.checked)} className="accent-[var(--color-gold)] cursor-pointer w-4 h-4" />
+          </div>
+        </aside>
+
+        {/* LISTING SECTION */}
+        <main className="flex-1 p-6 overflow-y-auto space-y-4">
+          <div className="flex justify-between items-center pb-4 border-b border-slate-800/80">
+            <span className="text-xs text-slate-400 font-bold">{filteredVehicles.length} rides found in {city}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] uppercase font-bold text-slate-400">Sort By:</span>
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="bg-slate-900 border border-slate-800 text-xs font-bold text-slate-200 p-1.5 rounded outline-none">
+                <option value="price_low_high">Price: Low to High</option>
+                <option value="distance">Nearest Depot</option>
+                <option value="rating">Top Rated</option>
+              </select>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="space-y-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-slate-900/40 border border-slate-800 p-5 rounded-2xl h-48 animate-pulse flex justify-between">
+                  <div className="w-1/3 bg-slate-800 rounded-xl"></div>
+                  <div className="w-1/2 bg-slate-800/50 rounded-xl"></div>
+                </div>
+              ))}
+            </div>
+          ) : notDeliverable ? (
+            <div className="text-center py-20 bg-slate-900/20 border border-slate-800 rounded-3xl p-8 space-y-4 max-w-xl mx-auto mt-6">
+              <span className="text-5xl block mb-2">📍</span>
+              <h3 className="font-extrabold text-red-400 uppercase text-sm tracking-wider">Not Deliverable to Location</h3>
+              <p className="text-xs text-slate-300 font-bold leading-relaxed">
+                We're sorry! The locality <strong className="text-white font-extrabold">{city}</strong> is currently outside our maximum doorstep delivery range of {notDeliverable.max_radius_km} km.
+              </p>
+              <div className="bg-[#121c33] p-4 rounded-xl border border-slate-800 text-left space-y-1.5 max-w-md mx-auto text-xs font-semibold">
+                <p className="text-[var(--color-gold)] font-extrabold uppercase tracking-wide text-[10px]">Nearest Available Pickup Hub</p>
+                <p className="text-white font-extrabold text-sm">🏬 {notDeliverable.nearest_hub_name} Hub</p>
+                <p className="text-slate-400 font-bold">Distance from requested location: <span className="text-white font-black">{notDeliverable.distance_km} km</span></p>
+                <p className="text-slate-500 font-medium italic mt-2 text-[10px] leading-relaxed">
+                  * You can proceed by searching directly for '{notDeliverable.nearest_hub_name}' in the category bar to arrange self-pickup.
+                </p>
+              </div>
+            </div>
+          ) : filteredVehicles.length === 0 ? (
+            <div className="text-center py-20 bg-slate-900/20 border border-slate-800 rounded-3xl">
+              <span className="text-4xl block mb-2">🚗</span>
+              <h3 className="font-extrabold text-slate-400 uppercase text-sm tracking-wider">No Matching Rides Available</h3>
+              <p className="text-xs text-slate-500 mt-1">Try resetting filters or changing dates.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              {filteredVehicles.map((vh, vhIdx) => (
+                <div key={vh.id || vhIdx} className="bg-[#0f152b] border border-slate-800 hover:border-slate-700 p-5 rounded-3xl transition-all flex flex-col md:flex-row justify-between gap-6 shadow-md relative">
+                  {vhIdx === 0 && (
+                    <div className="absolute -top-2 left-4 bg-gradient-to-r from-emerald-500 to-teal-400 text-[9px] text-white font-black px-2.5 py-0.5 rounded-full shadow-lg shadow-emerald-500/20 animate-pulse z-10">🏆 BEST PRICE</div>
+                  )}
+                  
+                  {/* Left: Thumbnail & Badges */}
+                  <div className="flex gap-5 flex-1 items-start text-left">
+                    <img src={vh.image_url} alt={vh.name} className="w-36 h-24 object-cover rounded-2xl border border-slate-800 shadow-inner bg-slate-900 shrink-0" />
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] bg-slate-800 text-white font-extrabold px-1.5 py-0.5 rounded tracking-wide uppercase border border-slate-700">
+                          {vh.type}
+                        </span>
+                        {vh.instant_confirm && (
+                          <span className="text-[8px] bg-emerald-950 text-emerald-300 font-extrabold px-1.5 py-0.5 rounded border border-emerald-800 uppercase">
+                            ⚡ Instant
+                          </span>
+                        )}
+                        {vh.surge_active && (
+                          <span className="text-[8px] bg-amber-950 text-amber-300 font-extrabold px-1.5 py-0.5 rounded border border-amber-800 uppercase animate-pulse">
+                            ⚠️ Surge
+                          </span>
+                        )}
+                        {vh.provider_name && (
+                          <span className="text-[9px] bg-purple-900/40 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/20">
+                            via {vh.provider_name}
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="font-black text-lg text-slate-200">{vh.name}</h3>
+                      <div className="flex gap-4 text-xs text-slate-400 font-semibold">
+                        <span>⛽ {vh.fuel_type}</span>
+                        <span>⚙️ {vh.transmission}</span>
+                        <span>👥 {vh.seating_capacity} Seats</span>
+                        <span>📍 {vh.distance_km} km away</span>
+                      </div>
+                      {vh.delivery_required ? (
+                        <p className="text-[10px] text-amber-400 font-extrabold flex items-center gap-1">
+                          <span>🚚 Doorstep delivery in approx. {vh.delivery_eta_hours} hours from nearest hub ({vh.nearest_hub_name})</span>
+                        </p>
+                      ) : (
+                        vh.surge_badge && (
+                          <p className="text-[10px] text-amber-400 font-bold flex items-center gap-1">
+                            ✨ {vh.surge_badge}
+                          </p>
+                        )
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right: Pricing & CTA */}
+                  <div className="flex flex-col justify-between items-end text-right shrink-0">
+                    <div className="space-y-1">
+                      <div className="text-2xl font-black text-slate-100 font-mono">
+                        ₹{vh.price_per_day.toLocaleString()}
+                        <span className="text-xs text-slate-500 font-normal"> /day</span>
+                      </div>
+                      {vh.delivery_required ? (
+                        <div className="text-[10px] text-slate-400 font-bold space-y-0.5 mt-1 text-right">
+                          <p>Vehicle: ₹{(vh.price_per_day * daysDiff).toLocaleString()} ({daysDiff} days)</p>
+                          <p>Delivery: +₹{vh.delivery_fee.toLocaleString()}</p>
+                          <p className="text-emerald-400 font-black text-xs mt-0.5">
+                            Total: ₹{(vh.price_per_day * daysDiff + vh.delivery_fee).toLocaleString()}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-1">
+                          Total: ₹{(vh.price_per_day * daysDiff).toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+
+                    <button 
+                      onClick={() => handleStartBooking(vh)}
+                      className="w-full md:w-40 bg-[var(--color-gold)] hover:bg-[#d6b35d] text-[var(--color-obsidian)] font-black text-xs py-2.5 rounded-xl uppercase tracking-wider cursor-pointer border-none transition-all shadow hover:scale-105 active:scale-95"
+                    >
+                      Reserve Ride
+                    </button>
+                  </div>
+
+                </div>
+              ))}
+            </div>
+          )}
+        </main>
+      </div>
+
+      {/* POPUP MODAL CHECKOUT FLOW */}
+      {bookingStep !== "none" && selectedVehicle && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="max-w-md w-full bg-[#0c1226] border-3 border-black p-6 rounded-3xl shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] text-black font-sans relative">
+            
+            {/* Close Button */}
+            <button 
+              onClick={() => setBookingStep("none")} 
+              className="absolute top-4 right-4 bg-transparent border-none text-slate-400 hover:text-white cursor-pointer font-bold text-sm"
+            >
+              ✕
+            </button>
+
+            {/* Modal Title */}
+            <div className="pb-3 border-b border-slate-800 mb-4 text-left">
+              <span className="text-[9px] bg-[var(--color-gold)] text-black px-1.5 py-0.5 rounded font-black uppercase inline-block mb-1.5">
+                Rental Checkout
+              </span>
+              <h3 className="font-black text-base text-white">
+                {bookingStep === "confirm" && "1. Confirm Reservation Details"}
+                {bookingStep === "kyc" && "2. Identity Verification (KYC)"}
+                {bookingStep === "pickup" && "3. Depot Selection"}
+              </h3>
+            </div>
+
+            {/* Step Content */}
+            <div className="space-y-4 text-left text-white">
+              {bookingStep === "confirm" && (
+                <div className="space-y-3">
+                  <div className="bg-[#121c33] p-3 rounded-xl border border-slate-800 space-y-1">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Vehicle Selected</p>
+                    <h4 className="font-extrabold text-sm text-slate-200">{selectedVehicle.name}</h4>
+                    <p className="text-xs text-slate-400">
+                      {selectedVehicle.type} • {selectedVehicle.fuel_type} • {selectedVehicle.transmission}
+                    </p>
+                  </div>
+                  <div className="bg-[#121c33] p-3 rounded-xl border border-slate-800 space-y-2 text-left">
+                    <div className="flex justify-between text-xs font-semibold">
+                      <span>Daily Rental Rate:</span>
+                      <span className="font-mono text-[var(--color-gold)]">₹{selectedVehicle.price_per_day.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-xs font-semibold">
+                      <span>Duration:</span>
+                      <span>{daysDiff} Days</span>
+                    </div>
+                    {selectedVehicle.delivery_required && (
+                      <div className="flex justify-between text-xs font-semibold text-amber-400">
+                        <span>Doorstep Delivery Fee:</span>
+                        <span className="font-mono">+₹{selectedVehicle.delivery_fee.toLocaleString()}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-xs font-extrabold border-t border-slate-800 pt-2 text-slate-200">
+                      <span>Grand Total:</span>
+                      <span className="font-mono text-emerald-400 text-sm">
+                        ₹{(selectedVehicle.price_per_day * daysDiff + (selectedVehicle.delivery_required ? selectedVehicle.delivery_fee : 0.0)).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={handleConfirmStep}
+                    className="w-full bg-[var(--color-gold)] text-slate-900 border-none font-black py-2.5 rounded-xl uppercase text-xs tracking-wider cursor-pointer mt-2"
+                  >
+                    Proceed to {selfDrive ? "KYC Verification" : "Depot Selector"} →
+                  </button>
+                </div>
+              )}
+
+              {bookingStep === "kyc" && (
+                <div className="space-y-3 text-left">
+                  <p className="text-xs text-slate-300 font-semibold text-left">
+                    Self-drive rentals require valid driving license credentials to unlock confirmation.
+                  </p>
+                  <div className="space-y-1.5 text-left">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block text-left">Driving License Number</span>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. DL-1420110012345"
+                      value={kycDL}
+                      onChange={(e) => setKycDL(e.target.value)}
+                      className="w-full bg-[#121c33] border border-slate-800 rounded-xl px-3 py-2 text-sm text-white outline-none font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1.5 text-left">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block text-left">National Identification ID</span>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Aadhaar / PAN Number"
+                      value={kycID}
+                      onChange={(e) => setKycID(e.target.value)}
+                      className="w-full bg-[#121c33] border border-slate-800 rounded-xl px-3 py-2 text-sm text-white outline-none font-mono"
+                    />
+                  </div>
+                  <button 
+                    onClick={handleKycStep}
+                    className="w-full bg-[var(--color-gold)] text-slate-900 border-none font-black py-2.5 rounded-xl uppercase text-xs tracking-wider cursor-pointer mt-2"
+                  >
+                    Validate & Proceed →
+                  </button>
+                </div>
+              )}
+
+              {bookingStep === "pickup" && (
+                <div className="space-y-3 text-left">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block text-left">Pickup Type</label>
+                  <div className="flex bg-slate-900 border border-slate-800 rounded-lg p-0.5">
+                    <button 
+                      type="button"
+                      disabled={selectedVehicle.delivery_required}
+                      onClick={() => setDeliveryMode("depot")} 
+                      className={`flex-1 py-1.5 text-xs font-bold rounded border-none cursor-pointer ${deliveryMode === "depot" ? "bg-[var(--color-gold)] text-black" : "text-slate-400"} ${selectedVehicle.delivery_required ? "opacity-35 cursor-not-allowed" : ""}`}
+                    >
+                      Depot pickup
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setDeliveryMode("doorstep")} 
+                      className={`flex-1 py-1.5 text-xs font-bold rounded border-none cursor-pointer ${deliveryMode === "doorstep" ? "bg-[var(--color-gold)] text-black" : "text-slate-400"}`}
+                    >
+                      Doorstep delivery
+                    </button>
+                  </div>
+
+                  {selectedVehicle.delivery_required && (
+                    <div className="bg-amber-955/40 border border-amber-800/80 p-2.5 rounded-xl text-[10px] text-amber-300 font-bold leading-normal text-left">
+                      ℹ️ Direct depot self-pickup is unavailable for this location. Doorstep delivery is required from our nearest hub in <span className="underline font-black">{selectedVehicle.nearest_hub_name}</span>.
+                    </div>
+                  )}
+
+                  {deliveryMode === "depot" ? (
+                    <div className="space-y-2 text-left">
+                      <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block text-left">Select Hub Depot</label>
+                      <select value={pickupAddress} onChange={(e) => setPickupAddress(e.target.value)} className="w-full bg-[#121c33] border border-slate-800 rounded-xl p-2 text-xs font-bold text-white outline-none">
+                        <option value="Goa Airport Terminal">Airport Arrival Terminal Depot</option>
+                        <option value="Madgaon Station Junction">Madgaon Railway Station Outlet</option>
+                        <option value="Panaji Downtown Hub">Panaji Downtown Premium Center</option>
+                      </select>
+                      
+                      {routingLoading ? (
+                        <p className="text-[10px] text-slate-400 animate-pulse font-semibold">Computing route to depot...</p>
+                      ) : nearestHub ? (
+                        <div className="bg-[#121c33] p-3 rounded-xl border border-slate-800 text-[11px] text-slate-300 space-y-1 text-left">
+                          <p className="font-extrabold text-[var(--color-gold)]">📍 Hub: {nearestHub.hub_name}</p>
+                          <p className="font-medium">Distance from arrival center: {nearestHub.distance_km} km</p>
+                          <p className="text-slate-400">Address: {nearestHub.address}</p>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="space-y-2 text-left">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block text-left">Doorstep Address</span>
+                      <input 
+                        type="text" 
+                        placeholder="Enter your hotel / homestay / delivery address"
+                        value={pickupAddress === "Goa Airport Terminal" ? "" : pickupAddress}
+                        onChange={(e) => setPickupAddress(e.target.value)}
+                        className="w-full bg-[#121c33] border border-slate-800 rounded-xl px-3 py-2 text-sm text-white outline-none font-bold"
+                      />
+                      <div className="bg-[#0b1021] border border-slate-800 rounded-xl p-2.5 text-[10px] space-y-1 text-left">
+                        <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wide block text-left">📍 Geolocation Coordinates</span>
+                        <div className="flex gap-4 font-mono text-slate-300 font-bold">
+                          <span>Lat: 15.4989° N</span>
+                          <span>Lng: 73.8278° E</span>
+                        </div>
+                        <span className="text-[9px] text-emerald-400 font-extrabold block text-left">✓ Pin dropped successfully at delivery location</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <button 
+                    onClick={handleProceedToPayment}
+                    className="w-full bg-emerald-500 hover:bg-emerald-600 text-white border-none font-black py-3 rounded-xl uppercase text-xs tracking-wider cursor-pointer mt-2 shadow"
+                  >
+                    Proceed to Payment (Razorpay) →
+                  </button>
+                </div>
+              )}
+            </div>
+
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
+
+function ActiveRentalManager({ bookingReference, fetchTrips, setSelectedTrip }: { bookingReference: string, fetchTrips: () => void, setSelectedTrip: (trip: any) => void }) {
+  const [telemetry, setTelemetry] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Chatbot support states
+  const [chatMessage, setChatMessage] = useState("");
+  const [chatResponses, setChatResponses] = useState<string[]>([]);
+  const [chatLoading, setChatLoading] = useState(false);
+
+  // Extension states
+  const [extendDays, setExtendDays] = useState(1);
+  const [extending, setExtending] = useState(false);
+
+  // Emergency states
+  const [emergencyIssue, setEmergencyIssue] = useState("");
+  const [emergencyReported, setEmergencyReported] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`http://localhost:8000/api/v1/rent-a-ride/telemetry/${bookingReference}`)
+      .then(res => res.json())
+      .then(data => {
+        setTelemetry(data);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [bookingReference]);
+
+  const handleSendChat = () => {
+    if (!chatMessage.trim()) return;
+    setChatLoading(true);
+    fetch(`http://localhost:8000/api/v1/rent-a-ride/support-chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ booking_reference: bookingReference, message: chatMessage })
+    })
+      .then(res => res.json())
+      .then(data => {
+        setChatLoading(false);
+        setChatResponses([...chatResponses, `You: ${chatMessage}`, `Support RAG: ${data.response}`]);
+        setChatMessage("");
+      })
+      .catch(() => setChatLoading(false));
+  };
+
+  const handleExtendRental = () => {
+    setExtending(true);
+    fetch(`http://localhost:8000/api/v1/rent-a-ride/extend`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ booking_reference: bookingReference, additional_days: extendDays })
+    })
+      .then(res => res.json())
+      .then(data => {
+        setExtending(false);
+        alert(data.message || `Rental extended successfully!`);
+        fetchTrips();
+        setSelectedTrip(null);
+      })
+      .catch(() => setExtending(false));
+  };
+
+  const handleEmergency = () => {
+    if (!emergencyIssue.trim()) {
+      alert("Please state the nature of emergency.");
+      return;
+    }
+    fetch(`http://localhost:8000/api/v1/rent-a-ride/emergency`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ booking_reference: bookingReference, issue_type: "Breakdown/Accident", details: emergencyIssue })
+    })
+      .then(res => res.json())
+      .then(data => {
+        setEmergencyReported(true);
+        alert(data.message || `Priority emergency ticket raised!`);
+      })
+      .catch(() => {});
+  };
+
+  const handleSimulateReturn = () => {
+    fetch(`http://localhost:8000/api/v1/rent-a-ride/transition?booking_reference=${bookingReference}&status=returned`, { method: "POST" })
+      .then(res => res.json())
+      .then(data => {
+        alert("Vehicle returned successfully! Thank you for using Rent a Ride.");
+        fetchTrips();
+        setSelectedTrip(null);
+      });
+  };
+
+  if (loading) return <div className="text-center py-4 text-xs animate-pulse text-white">Loading telemetry data...</div>;
+
+  return (
+    <div className="border-3 border-black p-4 rounded-2xl bg-[#090f22] text-white space-y-4 text-left shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] max-h-[500px] overflow-y-auto">
+      
+      {/* Telemetry Indicator */}
+      {telemetry && (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-[#121c33] p-3 rounded-xl border border-slate-800">
+            <span className="text-[9px] text-slate-400 font-bold uppercase block">Vehicle Power</span>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-xl">🔋</span>
+              <span className="text-sm font-black font-mono">{telemetry.level}%</span>
+            </div>
+            <p className="text-[9px] text-slate-400 mt-1 font-semibold">{telemetry.type === "EV" ? "Electric Battery" : "Petrol Fuel"}</p>
+          </div>
+          <div className="bg-[#121c33] p-3 rounded-xl border border-slate-800">
+            <span className="text-[9px] text-slate-400 font-bold uppercase block">Nearest Station</span>
+            <p className="text-[11px] font-extrabold mt-1 text-[var(--color-gold)] leading-tight">{telemetry.nearest_point}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Obsidian Dark Map Vector Theme */}
+      <div className="border-2 border-black rounded-xl h-36 bg-[#070b19] overflow-hidden relative shadow-inner">
+        <span className="absolute top-2 left-2 text-[9px] bg-slate-900/80 border border-slate-700 text-slate-300 font-black px-1.5 py-0.5 rounded uppercase">
+          GPS Route Map
+        </span>
+        {/* Obsidian dark style map vectors */}
+        <div className="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:16px_16px] opacity-40"></div>
+        
+        {/* Draw path & car icon */}
+        <svg className="absolute inset-0 w-full h-full text-slate-700" xmlns="http://www.w3.org/2000/svg">
+          <path d="M 30,100 C 60,60 120,80 180,40 C 230,20 280,60 330,20" fill="none" stroke="currentColor" strokeWidth="4" strokeDasharray="6" />
+          <path d="M 30,100 C 60,60 120,80 180,40 C 230,20 280,60 330,20" fill="none" stroke="#e0af43" strokeWidth="2" />
+        </svg>
+
+        {/* Live moving dots */}
+        <div className="absolute left-[30px] top-[95px] w-2 h-2 rounded-full bg-red-500 border border-black flex items-center justify-center"><span className="text-[5px]">A</span></div>
+        <div className="absolute left-[180px] top-[35px] w-4 h-4 rounded-full bg-yellow-400 border border-black flex items-center justify-center text-[10px] animate-bounce">🚗</div>
+        <div className="absolute left-[325px] top-[15px] w-2 h-2 rounded-full bg-emerald-500 border border-black flex items-center justify-center"><span className="text-[5px]">B</span></div>
+
+        <div className="absolute bottom-2 right-2 text-[8px] bg-black/60 text-slate-300 font-mono px-1 rounded">
+          ACTIVE SPEED: 65 km/h (Limit: 80)
+        </div>
+      </div>
+
+      {/* Quick Action: Extend Rental */}
+      <div className="bg-[#121c33] p-3 rounded-xl border border-slate-800 space-y-2">
+        <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Quick Extend Rental</label>
+        <div className="flex gap-2">
+          <input 
+            type="number" 
+            min="1" 
+            max="7" 
+            value={extendDays} 
+            onChange={(e) => setExtendDays(Number(e.target.value))}
+            className="w-16 bg-[#070b19] border border-slate-800 rounded px-2 text-xs text-white outline-none font-bold"
+          />
+          <button 
+            onClick={handleExtendRental}
+            disabled={extending}
+            className="flex-1 bg-[var(--color-gold)] text-black border-none font-black py-1.5 rounded text-xs uppercase cursor-pointer transition-all"
+          >
+            {extending ? "Processing..." : "Extend Booking"}
+          </button>
+        </div>
+      </div>
+
+      {/* Support Chat bot */}
+      <div className="bg-[#121c33] p-3 rounded-xl border border-slate-800 space-y-2">
+        <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Ask Vehicle AI Support Bot</label>
+        <div className="max-h-24 overflow-y-auto space-y-1.5 text-[10px] bg-slate-950 p-2 rounded border border-slate-900">
+          {chatResponses.length === 0 ? (
+            <p className="text-slate-500 italic">How can I assist you with deposit, license, fuel or comprehensive insurance policies?</p>
+          ) : (
+            chatResponses.map((r, i) => (
+              <p key={i} className={r.startsWith("You:") ? "text-yellow-400" : "text-slate-200"}>{r}</p>
+            ))
+          )}
+        </div>
+        <div className="flex gap-2">
+          <input 
+            type="text" 
+            placeholder="Type support question..."
+            value={chatMessage} 
+            onChange={(e) => setChatMessage(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleSendChat(); }}
+            className="flex-1 bg-[#070b19] border border-slate-800 rounded px-2.5 py-1 text-xs text-white outline-none"
+          />
+          <button 
+            onClick={handleSendChat}
+            disabled={chatLoading}
+            className="bg-blue-600 hover:bg-blue-500 border-none text-white font-black px-3 py-1 rounded text-xs uppercase cursor-pointer"
+          >
+            Send
+          </button>
+        </div>
+      </div>
+
+      {/* Emergency Response Panel */}
+      <div className="bg-red-955/40 p-3 rounded-xl border border-red-900 space-y-2">
+        <label className="text-[10px] text-red-400 font-bold uppercase tracking-wider block">⚠️ Emergency Roadside Assistance</label>
+        {emergencyReported ? (
+          <p className="text-xs text-green-400 font-bold">Priority emergency ticket raised. Support dispatch team is calling you now.</p>
+        ) : (
+          <div className="flex gap-2">
+            <input 
+              type="text" 
+              placeholder="State breakdown / accident details..."
+              value={emergencyIssue}
+              onChange={(e) => setEmergencyIssue(e.target.value)}
+              className="flex-1 bg-red-955/60 border border-red-800 rounded px-2 py-1 text-xs text-white outline-none placeholder:text-red-400"
+            />
+            <button 
+              onClick={handleEmergency}
+              className="bg-red-600 hover:bg-red-700 border-none text-white font-black px-3 py-1 rounded text-xs uppercase cursor-pointer"
+            >
+              Raise SOS
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* End Trip button */}
+      <button 
+        onClick={handleSimulateReturn}
+        className="w-full bg-slate-100 hover:bg-white text-slate-900 border-2 border-black font-black py-2.5 rounded-xl uppercase text-xs tracking-wider cursor-pointer"
+      >
+        🏁 Complete & Return Ride
+      </button>
+
+    </div>
+  );
+}
+
+
+function LoginScreen({ onLogin }: { onLogin: (token: string, role: string, email: string) => void }) {
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) {
+      setErrorMsg("Please fill in all fields.");
+      return;
+    }
+    setErrorMsg("");
+    setLoading(true);
+
+    try {
+      if (isSignUp) {
+        // Sign Up
+        const signupResp = await fetch("http://localhost:8000/api/v1/auth/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password, phone: phone || undefined })
+        });
+        const signupData = await signupResp.json();
+        if (!signupResp.ok) {
+          throw new Error(signupData.detail || "Sign up failed");
+        }
+      }
+
+      // Login
+      const details = {
+        'username': email,
+        'password': password
+      };
+      
+      const formBody = Object.keys(details)
+        .map(key => encodeURIComponent(key) + '=' + encodeURIComponent((details as any)[key]))
+        .join('&');
+
+      const loginResp = await fetch("http://localhost:8000/api/v1/auth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: formBody
+      });
+      const loginData = await loginResp.json();
+      if (!loginResp.ok) {
+        throw new Error(loginData.detail || "Login failed");
+      }
+
+      const accessToken = loginData.access_token;
+      const decoded = decodeJwt(accessToken);
+      if (!decoded) {
+        throw new Error("Could not parse login token.");
+      }
+
+      onLogin(accessToken, decoded.role || "user", decoded.sub || email);
+    } catch (err: any) {
+      setErrorMsg(err.message || "Something went wrong.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-[var(--color-obsidian)] p-4 z-50 overflow-y-auto">
+      <div className="absolute inset-0 bg-[radial-gradient(#d4af37_1px,transparent_1px)] [background-size:24px_24px] opacity-10" />
+      
+      <div className="bg-white text-black border-4 border-black p-8 max-w-md w-full relative z-10 shadow-[8px_8px_0px_0px_#000000] rounded-[24px]">
+        <div className="text-center mb-6">
+          <span className="font-serif italic font-black text-2xl text-[var(--color-gold)] bg-black px-4 py-1.5 inline-block text-white shadow-[4px_4px_0px_0px_rgba(212,175,55,1)]">
+            TRAVEL OS
+          </span>
+          <h2 className="text-xl font-extrabold uppercase mt-6 tracking-wide">
+            {isSignUp ? "Create Secure Account" : "Secure System Initialize"}
+          </h2>
+          <p className="text-xs text-slate-500 font-bold uppercase mt-1">
+            {isSignUp ? "Join the premium travel network" : "Enter credentials to access travel desk"}
+          </p>
+        </div>
+
+        {errorMsg && (
+          <div className="bg-red-50 border-2 border-red-600 p-3 text-red-600 font-black text-xs uppercase text-left rounded-lg shadow-[2px_2px_0px_0px_#000000] mb-4">
+            ⚠️ {errorMsg}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4 text-left">
+          <div>
+            <label className="text-[10px] uppercase font-black text-slate-600 block mb-1">Email Desk Authority</label>
+            <input 
+              type="email" 
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="user@example.com"
+              className="w-full bg-slate-50 border-3 border-black p-2.5 text-xs font-black placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-0 rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+            />
+          </div>
+
+          <div>
+            <label className="text-[10px] uppercase font-black text-slate-600 block mb-1">Access Password</label>
+            <input 
+              type="password" 
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full bg-slate-50 border-3 border-black p-2.5 text-xs font-black placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-0 rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+            />
+          </div>
+
+          {isSignUp && (
+            <div>
+              <label className="text-[10px] uppercase font-black text-slate-600 block mb-1">Phone Contact</label>
+              <input 
+                type="tel" 
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+91 98765 43210"
+                className="w-full bg-slate-50 border-3 border-black p-2.5 text-xs font-black placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-0 rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+              />
+            </div>
+          )}
+
+          <button 
+            type="submit" 
+            disabled={loading}
+            className="w-full bg-yellow-300 hover:bg-yellow-400 text-black font-black uppercase text-xs p-3.5 border-3 border-black rounded-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all flex items-center justify-center gap-2 cursor-pointer mt-4"
+          >
+            {loading ? "PROCESSING KEY EXCHANGE..." : isSignUp ? "PROCEED SIGNUP" : "INITIALIZE SESSION"}
+          </button>
+        </form>
+
+        <div className="text-center mt-6 pt-4 border-t-2 border-black/10">
+          <button 
+            type="button"
+            onClick={() => {
+              setIsSignUp(!isSignUp);
+              setErrorMsg("");
+            }} 
+            className="text-[10px] uppercase font-extrabold text-blue-600 hover:underline cursor-pointer"
+          >
+            {isSignUp ? "Already registered? Login here ➔" : "Need credentials? Register here ➔"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

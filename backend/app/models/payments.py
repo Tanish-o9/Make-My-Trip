@@ -106,3 +106,132 @@ class AutoApprovalRule(Base):
     requires_clean_fraud_check: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
+
+
+import enum
+
+class PaymentStatus(str, enum.Enum):
+    CREATED = "created"
+    PENDING = "pending"
+    AUTHORIZED = "authorized"
+    CAPTURED = "captured"
+    FAILED = "failed"
+    REFUNDED = "refunded"
+    PARTIALLY_REFUNDED = "partially_refunded"
+
+class PaymentMethod(str, enum.Enum):
+    CARD = "card"
+    UPI = "upi"
+    NETBANKING = "netbanking"
+    WALLET = "wallet"
+    EMI = "emi"
+
+class TransactionEventType(str, enum.Enum):
+    ORDER_CREATED = "order_created"
+    PAYMENT_AUTHORIZED = "payment_authorized"
+    PAYMENT_CAPTURED = "payment_captured"
+    PAYMENT_FAILED = "payment_failed"
+    WEBHOOK_RECEIVED = "webhook_received"
+
+class RefundStatus(str, enum.Enum):
+    PENDING = "pending"
+    PROCESSED = "processed"
+    FAILED = "failed"
+
+
+class Payment(Base):
+    __tablename__ = "payments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    booking_id: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True, nullable=False)
+    amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(10), default="INR", nullable=False)
+    status: Mapped[PaymentStatus] = mapped_column(Enum(PaymentStatus), default=PaymentStatus.CREATED, index=True, nullable=False)
+    payment_method: Mapped[Optional[PaymentMethod]] = mapped_column(Enum(PaymentMethod), nullable=True)
+    razorpay_order_id: Mapped[Optional[str]] = mapped_column(String(100), index=True, nullable=True)
+    razorpay_payment_id: Mapped[Optional[str]] = mapped_column(String(100), index=True, nullable=True)
+    razorpay_signature: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    qr_code_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    qr_code_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow
+    )
+
+    # Relationships
+    transactions = relationship("PaymentTransaction", back_populates="payment", cascade="all, delete-orphan")
+    refunds = relationship("Refund", back_populates="payment", cascade="all, delete-orphan")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "booking_id": self.booking_id,
+            "user_id": self.user_id,
+            "amount": float(self.amount) if self.amount is not None else None,
+            "currency": self.currency,
+            "status": self.status.value if isinstance(self.status, enum.Enum) else self.status,
+            "payment_method": self.payment_method.value if isinstance(self.payment_method, enum.Enum) else self.payment_method,
+            "razorpay_order_id": self.razorpay_order_id,
+            "razorpay_payment_id": self.razorpay_payment_id,
+            "razorpay_signature": self.razorpay_signature,
+            "qr_code_url": self.qr_code_url,
+            "qr_code_id": self.qr_code_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+class PaymentTransaction(Base):
+    __tablename__ = "payment_transactions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    payment_id: Mapped[int] = mapped_column(Integer, ForeignKey("payments.id", ondelete="CASCADE"), index=True, nullable=False)
+    event_type: Mapped[TransactionEventType] = mapped_column(Enum(TransactionEventType), nullable=False)
+    raw_payload: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
+
+    # Relationships
+    payment = relationship("Payment", back_populates="transactions")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "payment_id": self.payment_id,
+            "event_type": self.event_type.value if isinstance(self.event_type, enum.Enum) else self.event_type,
+            "raw_payload": self.raw_payload,
+            "created_at": self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class Refund(Base):
+    __tablename__ = "refunds"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    payment_id: Mapped[int] = mapped_column(Integer, ForeignKey("payments.id", ondelete="CASCADE"), index=True, nullable=False)
+    razorpay_refund_id: Mapped[Optional[str]] = mapped_column(String(100), index=True, nullable=True)
+    amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    status: Mapped[RefundStatus] = mapped_column(Enum(RefundStatus), default=RefundStatus.PENDING, nullable=False)
+    reason: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
+
+    # Relationships
+    payment = relationship("Payment", back_populates="refunds")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "payment_id": self.payment_id,
+            "razorpay_refund_id": self.razorpay_refund_id,
+            "amount": float(self.amount) if self.amount is not None else None,
+            "status": self.status.value if isinstance(self.status, enum.Enum) else self.status,
+            "reason": self.reason,
+            "created_at": self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class ProcessedWebhookEvent(Base):
+    __tablename__ = "processed_webhook_events"
+
+    event_id: Mapped[str] = mapped_column(String(100), primary_key=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)

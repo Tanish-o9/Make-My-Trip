@@ -14,7 +14,7 @@ if os.path.exists("./test_travel_os.db"):
 from app.database import engine, Base
 
 # Import all models to register them on Base.metadata
-from app.models import core, bookings, showcase, mybiz, wishlist, agents
+from app.models import core, bookings, showcase, mybiz, wishlist, agents, payments, audit
 
 Base.metadata.create_all(bind=engine)
 

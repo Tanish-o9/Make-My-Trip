@@ -1,5 +1,6 @@
 import datetime
 import uuid
+import asyncio
 from typing import Dict, Any, List
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException
@@ -8,12 +9,14 @@ from app.database import get_db
 from app.models.bookings import (
     BookingStatus, FlightBooking, HotelBooking, TrainBooking, BusBooking,
     CabBooking, HolidayPackageBooking, ActivityBooking, VisaApplication,
-    CruiseBooking, InsurancePolicy, VillaBooking, ForexOrder, PaymentAttempt
+    CruiseBooking, InsurancePolicy, VillaBooking, ForexOrder, PaymentAttempt,
+    VehicleRentalBooking, BookingEvent
 )
 from app.services.booking_core import BookingStateMachine, CancellationPolicyEngine, InvoiceGenerator
 from app.services.wallet_loyalty import WalletService
 from app.utils.event_bus import emit_event
 from app.models.mybiz import EmployeeLink, Organization
+from app.providers.registry import provider_registry
 
 from pydantic import BaseModel
 
@@ -26,7 +29,7 @@ class BookingHoldRequest(BaseModel):
 router = APIRouter(prefix="/bookings", tags=["bookings"])
 
 @router.post("/hold")
-def create_booking_hold(
+async def create_booking_hold(
     req: BookingHoldRequest,
     db: Session = Depends(get_db)
 ):
@@ -38,13 +41,31 @@ def create_booking_hold(
 
     booking_ref = f"BK-{uuid.uuid4().hex[:8].upper()}"
     
-    # Configure hold timers (Redis TTL simulation)
-    if vertical in ["cabs", "trains", "forex"]:
-        hold_ttl_minutes = 10
-    elif vertical in ["villas", "cruises", "holidays"]:
-        hold_ttl_minutes = 120  # High consideration
-    else:
-        hold_ttl_minutes = 60
+    # Check if a provider is configured and place hold first
+    provider_name = details.get("provider_name")
+    provider = provider_registry.get_provider(vertical, provider_name) if provider_name else None
+    
+    hold_id = None
+    hold_ttl_minutes = 60
+    if provider:
+        hold_ttl_minutes = 5
+        try:
+            passengers = details.get("passengers", details.get("guests", [{"name": "Guest User", "age": 30}]))
+            hold_res = await provider.hold(details.get("offer_id", ""), passengers)
+            if not hold_res.get("success"):
+                raise HTTPException(status_code=400, detail=f"Failed to place hold with {provider_name}: {hold_res.get('message', 'Unknown error')}")
+            hold_id = hold_res.get("hold_id")
+            details["provider_hold_id"] = hold_id
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Provider hold execution error: {str(e)}")
+    
+    if not provider:
+        if vertical in ["cabs", "trains", "forex"]:
+            hold_ttl_minutes = 10
+        elif vertical in ["villas", "cruises", "holidays"]:
+            hold_ttl_minutes = 120  # High consideration
+        else:
+            hold_ttl_minutes = 60
         
     held_until = datetime.datetime.utcnow() + datetime.timedelta(minutes=hold_ttl_minutes)
 
@@ -163,11 +184,39 @@ def create_booking_hold(
             start_date=datetime.datetime.utcnow() + datetime.timedelta(days=2),
             end_date=datetime.datetime.utcnow() + datetime.timedelta(days=12)
         )
+    elif vertical in ["rent-a-ride", "vehicle_rental"]:
+        booking = VehicleRentalBooking(
+            booking_reference=booking_ref, user_id=user_id, status=BookingStatus.HOLD,
+            total_amount=amount, currency="INR", pricing_snapshot=pricing_snapshot, held_until=held_until,
+            city=details.get("city", details.get("destination", "Goa")),
+            pickup_time=datetime.datetime.fromisoformat(details.get("pickup_time").replace("Z", "")) if isinstance(details.get("pickup_time"), str) else datetime.datetime.utcnow() + datetime.timedelta(days=3),
+            drop_time=datetime.datetime.fromisoformat(details.get("drop_time").replace("Z", "")) if isinstance(details.get("drop_time"), str) else datetime.datetime.utcnow() + datetime.timedelta(days=5),
+            vehicle_name=details.get("vehicle_name", "Honda City"),
+            vehicle_type=details.get("vehicle_type", "Sedan"),
+            self_drive=details.get("self_drive", True),
+            fuel_type=details.get("fuel_type", "Petrol"),
+            transmission=details.get("transmission", "Automatic"),
+            kyc_ref=details.get("kyc_ref"),
+            pickup_lat=details.get("pickup_lat", 15.4989),
+            pickup_lng=details.get("pickup_lng", 73.8278),
+            qr_handover_code=f"QR-{uuid.uuid4().hex[:6].upper()}",
+            linked_booking_reference=details.get("linked_booking_reference")
+        )
     else:
         raise HTTPException(status_code=400, detail="Invalid booking vertical specified.")
 
     db.add(booking)
     db.commit()
+    
+    if provider_name:
+        event = BookingEvent(
+            booking_reference=booking.booking_reference,
+            event_type="hold",
+            description=f"Autonomous hold placed successfully with provider {provider_name}. Hold ID: {details.get('provider_hold_id')}."
+        )
+        db.add(event)
+        db.commit()
+
     db.refresh(booking)
 
     return {
@@ -191,7 +240,8 @@ def confirm_booking(
         "flights": FlightBooking, "hotels": HotelBooking, "trains": TrainBooking,
         "cabs": CabBooking, "visa": VisaApplication, "holidays": HolidayPackageBooking,
         "buses": BusBooking, "tours": ActivityBooking, "cruises": CruiseBooking,
-        "insurance": InsurancePolicy, "villas": VillaBooking, "forex": ForexOrder
+        "insurance": InsurancePolicy, "villas": VillaBooking, "forex": ForexOrder,
+        "rent-a-ride": VehicleRentalBooking, "vehicle_rental": VehicleRentalBooking
     }
     
     model_cls = models_mapping.get(vertical.lower())
@@ -416,7 +466,8 @@ def get_booking_invoice(
         "flights": FlightBooking, "hotels": HotelBooking, "trains": TrainBooking,
         "cabs": CabBooking, "visa": VisaApplication, "holidays": HolidayPackageBooking,
         "buses": BusBooking, "tours": ActivityBooking, "cruises": CruiseBooking,
-        "insurance": InsurancePolicy, "villas": VillaBooking, "forex": ForexOrder
+        "insurance": InsurancePolicy, "villas": VillaBooking, "forex": ForexOrder,
+        "rent-a-ride": VehicleRentalBooking, "vehicle_rental": VehicleRentalBooking
     }
     
     model_cls = models_mapping.get(vertical.lower())
@@ -452,6 +503,8 @@ def get_booking_invoice(
         desc = f"Villa Rental: {booking.villa_name}"
     elif vertical == "forex":
         desc = f"Forex exchange currency order ({booking.currency_pair})"
+    elif vertical in ["rent-a-ride", "vehicle_rental"]:
+        desc = f"Vehicle Rental: {booking.vehicle_name} ({booking.vehicle_type})"
 
     items = [
         {"name": desc, "price": float(booking.total_amount) * 0.85},
@@ -479,7 +532,9 @@ def get_user_bookings(user_id: int, db: Session = Depends(get_db)):
         "cruises": CruiseBooking,
         "insurance": InsurancePolicy,
         "villas": VillaBooking,
-        "forex": ForexOrder
+        "forex": ForexOrder,
+        "rent-a-ride": VehicleRentalBooking,
+        "vehicle_rental": VehicleRentalBooking
     }
     
     for vertical, model_cls in models_mapping.items():
@@ -566,7 +621,226 @@ def get_user_bookings(user_id: int, db: Session = Depends(get_db)):
                     "subtitle": f"Lock Rate: {b.rate_locked_at_order} | Mode: {b.delivery_mode}",
                     "date": b.created_at.strftime("%Y-%m-%d") if b.created_at else None
                 })
+            elif vertical in ["rent-a-ride", "vehicle_rental"]:
+                details.update({
+                    "title": f"Vehicle Rental: {b.vehicle_name}",
+                    "subtitle": f"{b.vehicle_type} | {'Self Drive' if b.self_drive else 'With Chauffeur'} | City: {b.city}",
+                    "date": b.pickup_time.strftime("%Y-%m-%d") if b.pickup_time else None,
+                    "self_drive": b.self_drive,
+                    "pickup_time": b.pickup_time.isoformat() if b.pickup_time else None,
+                    "drop_time": b.drop_time.isoformat() if b.drop_time else None,
+                    "qr_handover_code": b.qr_handover_code,
+                    "fuel_type": b.fuel_type,
+                    "transmission": b.transmission,
+                    "kyc_ref": b.kyc_ref,
+                    "pickup_lat": b.pickup_lat,
+                    "pickup_lng": b.pickup_lng,
+                    "linked_booking_reference": b.linked_booking_reference
+                })
             results.append(details)
             
     results.sort(key=lambda x: x["created_at"] or "", reverse=True)
     return results
+
+
+@router.get("/details/{booking_reference}")
+def get_booking_details(booking_reference: str, db: Session = Depends(get_db)):
+    """Retrieves full details of a specific booking across all 13 verticals"""
+    models_mapping = {
+        "flights": FlightBooking, "hotels": HotelBooking, "trains": TrainBooking,
+        "cabs": CabBooking, "visa": VisaApplication, "holidays": HolidayPackageBooking,
+        "buses": BusBooking, "tours": ActivityBooking, "cruises": CruiseBooking,
+        "insurance": InsurancePolicy, "villas": VillaBooking, "forex": ForexOrder,
+        "rent-a-ride": VehicleRentalBooking, "vehicle_rental": VehicleRentalBooking
+    }
+    
+    booking = None
+    vertical_name = None
+    for name, model_cls in models_mapping.items():
+        booking = db.query(model_cls).filter(model_cls.booking_reference == booking_reference).first()
+        if booking:
+            vertical_name = name
+            break
+            
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking reference not found.")
+        
+    details = {
+        "booking_reference": booking.booking_reference,
+        "vertical": vertical_name,
+        "status": booking.status.value if hasattr(booking.status, "value") else booking.status,
+        "total_amount": float(booking.total_amount),
+        "currency": booking.currency,
+        "created_at": booking.created_at.isoformat() if booking.created_at else None,
+    }
+    
+    # Extract destination/city and travel dates
+    if vertical_name == "flights":
+        details.update({
+            "destination": booking.destination,
+            "origin": booking.origin,
+            "start_date": booking.departure_time.date().isoformat() if booking.departure_time else None,
+            "end_date": booking.arrival_time.date().isoformat() if booking.arrival_time else None
+        })
+    elif vertical_name == "hotels":
+        details.update({
+            "destination": booking.hotel_name,
+            "start_date": booking.check_in.date().isoformat() if booking.check_in else None,
+            "end_date": booking.check_out.date().isoformat() if booking.check_out else None
+        })
+    elif vertical_name == "villas":
+        details.update({
+            "destination": booking.villa_name,
+            "start_date": booking.check_in.date().isoformat() if booking.check_in else None,
+            "end_date": booking.check_out.date().isoformat() if booking.check_out else None
+        })
+    elif vertical_name == "holidays":
+        details.update({
+            "destination": booking.destination,
+            "start_date": booking.start_date.isoformat() if booking.start_date else None,
+            "end_date": booking.end_date.isoformat() if booking.end_date else None
+        })
+    elif vertical_name == "trains":
+        details.update({
+            "destination": booking.destination_station,
+            "start_date": booking.departure_time.date().isoformat() if booking.departure_time else None
+        })
+    elif vertical_name == "buses":
+        details.update({
+            "destination": booking.destination,
+            "start_date": booking.departure_time.date().isoformat() if booking.departure_time else None
+        })
+    elif vertical_name in ["rent-a-ride", "vehicle_rental"]:
+        details.update({
+            "destination": booking.city,
+            "start_date": booking.pickup_time.date().isoformat() if booking.pickup_time else None,
+            "end_date": booking.drop_time.date().isoformat() if booking.drop_time else None
+        })
+        
+    return details
+
+
+class PaymentApprovalCheckRequest(BaseModel):
+    booking_reference: str
+    vertical: str
+
+@router.post("/payment-approval-check")
+async def check_payment_approval(
+    req: PaymentApprovalCheckRequest,
+    db: Session = Depends(get_db)
+):
+    """Checks if a price hold is expired. If expired and provider exists, it auto-refreshes the quote."""
+    models_mapping = {
+        "flights": FlightBooking, "hotels": HotelBooking, "trains": TrainBooking,
+        "cabs": CabBooking, "visa": VisaApplication, "holidays": HolidayPackageBooking,
+        "buses": BusBooking, "tours": ActivityBooking, "cruises": CruiseBooking,
+        "insurance": InsurancePolicy, "villas": VillaBooking, "forex": ForexOrder,
+        "rent-a-ride": VehicleRentalBooking, "vehicle_rental": VehicleRentalBooking
+    }
+    
+    model_cls = models_mapping.get(req.vertical.lower())
+    if not model_cls:
+        raise HTTPException(status_code=400, detail="Invalid vertical.")
+
+    booking = db.query(model_cls).filter(model_cls.booking_reference == req.booking_reference).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking reference not found.")
+
+    now = datetime.datetime.utcnow()
+    
+    # Check if booking is in hold states
+    if booking.status not in [BookingStatus.HOLD, BookingStatus.AWAITING_HUMAN_PAYMENT_APPROVAL]:
+        return {
+            "expired": False,
+            "price_changed": False,
+            "held_until": booking.held_until.isoformat() if booking.held_until else None,
+            "message": f"Booking is not in hold/awaiting state (current: {booking.status.value})."
+        }
+
+    is_expired = booking.held_until is not None and now > booking.held_until
+    
+    # Try to find provider name
+    provider_name = None
+    if hasattr(booking, "pricing_snapshot") and booking.pricing_snapshot:
+        provider_name = booking.pricing_snapshot.get("provider_name")
+    
+    # If not in pricing_snapshot directly, search through other models
+    if not provider_name:
+        # Check flight airline or hotel name prefix
+        if req.vertical.lower() == "flights":
+            provider_name = "Amadeus" # default
+        elif req.vertical.lower() == "hotels":
+            provider_name = "HotelBeds" # default
+        elif req.vertical.lower() in ["rent-a-ride", "vehicle_rental"]:
+            provider_name = "FirstPartyFleet"
+
+    provider = provider_registry.get_provider(req.vertical, provider_name) if provider_name else None
+    
+    if is_expired and provider:
+        try:
+            old_price = float(booking.total_amount)
+            import random
+            # Simulate price change (60% probability of 100-300 INR difference, 40% unchanged)
+            price_delta = random.choice([0, 0, 150, -100, 200])
+            if price_delta != 0:
+                new_price = max(100.0, old_price + price_delta)
+                booking.total_amount = new_price
+                
+                # Update snapshot
+                snapshot_copy = dict(booking.pricing_snapshot or {})
+                snapshot_copy["base_fare"] = new_price * 0.85
+                snapshot_copy["tax"] = new_price * 0.15
+                booking.pricing_snapshot = snapshot_copy
+                
+                booking.held_until = now + datetime.timedelta(minutes=5)
+                db.commit()
+                
+                event = BookingEvent(
+                    booking_reference=booking.booking_reference,
+                    event_type="quote_refresh",
+                    description=f"Hold expired. Price refreshed from ₹{old_price} to ₹{new_price}."
+                )
+                db.add(event)
+                db.commit()
+                
+                return {
+                    "expired": True,
+                    "price_changed": True,
+                    "old_price": old_price,
+                    "new_price": new_price,
+                    "held_until": booking.held_until.isoformat()
+                }
+            else:
+                booking.held_until = now + datetime.timedelta(minutes=5)
+                db.commit()
+                
+                event = BookingEvent(
+                    booking_reference=booking.booking_reference,
+                    event_type="quote_refresh",
+                    description=f"Hold expired. Price unchanged at ₹{old_price}. Extended hold."
+                )
+                db.add(event)
+                db.commit()
+                
+                return {
+                    "expired": True,
+                    "price_changed": False,
+                    "held_until": booking.held_until.isoformat()
+                }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to refresh hold quote: {str(e)}")
+            
+    elif is_expired:
+        booking.held_until = now + datetime.timedelta(minutes=10)
+        db.commit()
+        return {
+            "expired": True,
+            "price_changed": False,
+            "held_until": booking.held_until.isoformat()
+        }
+
+    return {
+        "expired": False,
+        "price_changed": False,
+        "held_until": booking.held_until.isoformat() if booking.held_until else None
+    }

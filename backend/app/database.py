@@ -12,14 +12,28 @@ if "pytest" in sys.modules or "pytest" in "".join(sys.argv):
 
 engine = None
 try:
-    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+    if "postgresql" in DATABASE_URL:
+        engine = create_engine(
+            DATABASE_URL,
+            pool_size=int(os.getenv("DATABASE_POOL_SIZE", "15")),
+            max_overflow=int(os.getenv("DATABASE_MAX_OVERFLOW", "25")),
+            pool_recycle=int(os.getenv("DATABASE_POOL_RECYCLE", "1800")),
+            pool_timeout=int(os.getenv("DATABASE_POOL_TIMEOUT", "30")),
+            pool_pre_ping=True
+        )
+    else:
+        engine = create_engine(
+            DATABASE_URL,
+            connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {},
+            pool_pre_ping=True
+        )
     # Test connection
     with engine.connect() as conn:
         pass
 except Exception as e:
     if "postgresql" in DATABASE_URL:
         DATABASE_URL = "sqlite:///./travel_os.db"
-        engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+        engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False}, pool_pre_ping=True)
     else:
         raise e
 

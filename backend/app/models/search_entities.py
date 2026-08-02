@@ -1,6 +1,6 @@
 import datetime
 from typing import List, Dict, Any, Optional
-from sqlalchemy import String, Integer, Numeric, DateTime, ForeignKey, Boolean, Text, JSON
+from sqlalchemy import String, Integer, Numeric, DateTime, ForeignKey, Boolean, Text, JSON, Float, Date
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
@@ -224,3 +224,79 @@ class InsurancePlan(Base):
     coverage_amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     details: Mapped[str] = mapped_column(Text, nullable=True)
     seed_batch_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+
+
+class RentalVehicle(Base):
+    __tablename__ = "rental_vehicles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    city_id: Mapped[int] = mapped_column(Integer, ForeignKey("cities.id"), nullable=False)
+    hub_locality_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("localities.id"), nullable=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    brand: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    model: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    type: Mapped[str] = mapped_column(String(50), nullable=False) # Hatchback, Sedan, SUV, Bike, EV
+    vehicle_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True) # Hatchback, Sedan, SUV, Bike, EV
+    price_per_day: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    fuel_type: Mapped[str] = mapped_column(String(50), nullable=False) # Petrol, Diesel, EV, CNG
+    transmission: Mapped[str] = mapped_column(String(50), nullable=False) # Manual, Automatic
+    seating_capacity: Mapped[int] = mapped_column(Integer, default=5)
+    self_drive_available: Mapped[bool] = mapped_column(Boolean, default=True)
+    with_driver_available: Mapped[bool] = mapped_column(Boolean, default=True)
+    rental_mode: Mapped[Optional[str]] = mapped_column(String(50), default="both") # self_drive, with_driver, both
+    distance_km: Mapped[float] = mapped_column(Numeric(5, 2), default=2.5) # distance from station
+    instant_confirm: Mapped[bool] = mapped_column(Boolean, default=True)
+    rating: Mapped[float] = mapped_column(Numeric(3, 1), default=4.8)
+    image_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    seed_batch_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+
+
+class VehicleAvailability(Base):
+    __tablename__ = "vehicle_availabilities"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    vehicle_id: Mapped[int] = mapped_column(Integer, ForeignKey("rental_vehicles.id"), nullable=False, index=True)
+    start_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
+    end_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
+    booking_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    seed_batch_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+
+
+class State(Base):
+    __tablename__ = "states"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
+    code: Mapped[str] = mapped_column(String(10), unique=True, index=True, nullable=False)
+    seed_batch_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+
+
+class District(Base):
+    __tablename__ = "districts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    state_id: Mapped[int] = mapped_column(Integer, ForeignKey("states.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
+    code: Mapped[str] = mapped_column(String(10), index=True, nullable=False)
+    seed_batch_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+
+
+class Locality(Base):
+    __tablename__ = "localities"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    district_id: Mapped[int] = mapped_column(Integer, ForeignKey("districts.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
+    type: Mapped[str] = mapped_column(String(20), default="village")  # city | town | village
+    latitude: Mapped[float] = mapped_column(Float, nullable=False)
+    longitude: Mapped[float] = mapped_column(Float, nullable=False)
+    population_tier: Mapped[int] = mapped_column(Integer, default=3)
+    seed_batch_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+
+    # Hub / Logistics columns
+    has_rental_hub: Mapped[bool] = mapped_column(Boolean, default=False)
+    nearest_hub_locality_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("localities.id"), nullable=True)
+    delivery_radius_km: Mapped[float] = mapped_column(Float, default=15.0)
+    delivery_fee_beyond_radius: Mapped[float] = mapped_column(Float, default=250.0)
+

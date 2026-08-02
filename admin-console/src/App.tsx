@@ -53,6 +53,65 @@ export default function App() {
   // Global search query
   const [searchQuery, setSearchQuery] = useState('')
 
+  // 1. Absorb session from query parameters (cross-origin transfer) using single-use exchange code
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const exchangeCode = params.get('exchange_code');
+
+    if (exchangeCode) {
+      // Immediately clean up URL search parameters to strip exchange_code
+      params.delete('exchange_code');
+      const newSearch = params.toString();
+      const newPath = window.location.pathname + (newSearch ? `?${newSearch}` : '');
+      window.history.replaceState({}, '', newPath);
+
+      // Exchange code for actual admin token
+      fetch("http://localhost:8000/api/v1/auth/exchange", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ exchange_code: exchangeCode })
+      })
+      .then(resp => {
+        if (!resp.ok) {
+          throw new Error("Invalid or expired exchange session.");
+        }
+        return resp.json();
+      })
+      .then(data => {
+        const qToken = data.token;
+        const qRole = data.role as Role;
+        const qEmail = data.email;
+
+        localStorage.setItem('admin_token', qToken);
+        localStorage.setItem('admin_role', qRole);
+        localStorage.setItem('admin_email', qEmail);
+        setToken(qToken);
+        setAdminRole(qRole);
+        setAdminEmail(qEmail);
+      })
+      .catch(err => {
+        alert(err.message || "Failed to initialize secure admin session.");
+        window.location.href = "http://localhost:3000/?logout=true";
+      });
+    }
+  }, []);
+
+  // 2. Route Guard for non-admin roles
+  useEffect(() => {
+    if (token && adminRole) {
+      const allowed_roles = ["admin", "super_admin", "finance_admin", "booking_approver"];
+      if (!allowed_roles.includes(adminRole)) {
+        localStorage.removeItem('admin_token');
+        localStorage.removeItem('admin_role');
+        localStorage.removeItem('admin_email');
+        setToken(null);
+        setAdminRole(null);
+        setAdminEmail(null);
+        window.location.href = "http://localhost:3000/?logout=true";
+      }
+    }
+  }, [token, adminRole]);
+
   useEffect(() => {
     if (token) {
       localStorage.setItem('admin_token', token)
@@ -69,6 +128,14 @@ export default function App() {
     }
   }, [adminRole])
 
+  useEffect(() => {
+    if (adminEmail) {
+      localStorage.setItem('admin_email', adminEmail)
+    } else {
+      localStorage.removeItem('admin_email')
+    }
+  }, [adminEmail])
+
   // Auto-logout helper
   const handleLogout = () => {
     setToken(null)
@@ -77,6 +144,7 @@ export default function App() {
     localStorage.removeItem('admin_token')
     localStorage.removeItem('admin_role')
     localStorage.removeItem('admin_email')
+    window.location.href = "http://localhost:3000/?logout=true";
   }
 
   // Auto tab selection based on role constraints
@@ -255,6 +323,31 @@ export default function App() {
               <span className="text-xs font-semibold uppercase text-purple-600 bg-purple-100 px-2 py-0.5 border border-purple-300">{adminRole?.replace('_', ' ')}</span>
             </div>
             <button
+              onClick={async () => {
+                try {
+                  const resp = await fetch(`${API_BASE}/v1/auth/exchange-code`, {
+                    method: "POST",
+                    headers: {
+                      "Authorization": `Bearer ${token}`
+                    }
+                  });
+                  if (resp.ok) {
+                    const data = await resp.json();
+                    const code = data.exchange_code;
+                    window.location.href = `http://localhost:3000/?exchange_code=${code}`;
+                  } else {
+                    window.location.href = "http://localhost:3000/";
+                  }
+                } catch (err) {
+                  window.location.href = "http://localhost:3000/";
+                }
+              }}
+              className="px-3 py-1.5 bg-yellow-300 hover:bg-yellow-400 border-2 border-black shadow-[2px_2px_0px_0px_#000000] text-xs font-black uppercase flex items-center gap-1 cursor-pointer"
+              title="View consumer site"
+            >
+              View Site ➔
+            </button>
+            <button
               onClick={handleLogout}
               className="p-2 bg-red-100 hover:bg-red-200 border-2 border-black shadow-[2px_2px_0px_0px_#000000] text-red-700"
               title="Logout session"
@@ -336,6 +429,16 @@ export default function App() {
 
           {(adminRole === 'super_admin' || adminRole === 'admin') && (
             <button
+              onClick={() => setActiveTab('coverage')}
+              className={`w-full flex items-center gap-3 p-3 border-2 font-bold text-left ${activeTab === 'coverage' ? 'bg-[#7c3aed] text-white border-black shadow-[3px_3px_0px_0px_#000000]' : 'border-transparent hover:bg-purple-50 text-gray-700'}`}
+            >
+              <Layers size={20} />
+              <span>Logistics Coverage</span>
+            </button>
+          )}
+
+          {(adminRole === 'super_admin' || adminRole === 'admin') && (
+            <button
               onClick={() => setActiveTab('audit')}
               className={`w-full flex items-center gap-3 p-3 border-2 font-bold text-left ${activeTab === 'audit' ? 'bg-[#7c3aed] text-white border-black shadow-[3px_3px_0px_0px_#000000]' : 'border-transparent hover:bg-purple-50 text-gray-700'}`}
             >
@@ -354,6 +457,7 @@ export default function App() {
           {activeTab === 'users' && <UserKYCPanel token={token} />}
           {activeTab === 'analytics' && <RAGAnalytics token={token} />}
           {activeTab === 'audit' && <AuditLogViewer token={token} />}
+          {activeTab === 'coverage' && <CoverageLogisticsPanel token={token} />}
         </main>
       </div>
     </div>
@@ -1473,6 +1577,392 @@ function AuditLogViewer({ token }: { token: string }) {
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+
+// ------------------------------------------------------------
+// MODULE 7: Logistics Coverage Panel Component
+// ------------------------------------------------------------
+function CoverageLogisticsPanel({ token }: { token: string }) {
+  const [metrics, setMetrics] = useState<any>(null)
+  const [localities, setLocalities] = useState<any[]>([])
+  const [filterState, setFilterState] = useState<string>('all')
+  const [filterHub, setFilterHub] = useState<string>('all')
+  const [searchQuery, setSearchQuery] = useState<string>('')
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<string>('')
+
+  // Edit / Override state
+  const [selectedLocality, setSelectedLocality] = useState<any | null>(null)
+  const [overrideHub, setOverrideHub] = useState<boolean>(false)
+  const [overrideRadius, setOverrideRadius] = useState<number>(15.0)
+  const [overrideFee, setOverrideFee] = useState<number>(250.0)
+  const [saving, setSaving] = useState<boolean>(false)
+
+  const fetchData = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const mRes = await fetch(`${API_BASE}/admin/coverage/metrics`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (!mRes.ok) throw new Error("Failed to fetch coverage metrics")
+      const mData = await mRes.json()
+      setMetrics(mData)
+
+      const lRes = await fetch(`${API_BASE}/admin/coverage/localities`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (!lRes.ok) throw new Error("Failed to fetch administrative localities list")
+      const lData = await lRes.json()
+      setLocalities(lData)
+    } catch (err: any) {
+      setError(err.message || "An error occurred fetching logistics coverage data.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchData()
+  }, [])
+
+  const handleOpenOverride = (loc: any) => {
+    setSelectedLocality(loc)
+    setOverrideHub(loc.has_rental_hub)
+    setOverrideRadius(loc.delivery_radius_km)
+    setOverrideFee(loc.delivery_fee_beyond_radius)
+  }
+
+  const handleSaveOverride = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedLocality) return
+    setSaving(true)
+    try {
+      const res = await fetch(`${API_BASE}/admin/coverage/localities/${selectedLocality.id}/override`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          has_rental_hub: overrideHub,
+          delivery_radius_km: Number(overrideRadius),
+          delivery_fee_beyond_radius: Number(overrideFee)
+        })
+      })
+      if (res.ok) {
+        setSelectedLocality(null)
+        await fetchData()
+      } else {
+        alert("Failed to save rules override.")
+      }
+    } catch (err) {
+      console.error(err)
+      alert("Error saving rules override.")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading && !metrics) {
+    return <div className="text-center font-bold text-lg py-12">Querying coverage configurations...</div>
+  }
+
+  const filteredLocalities = localities.filter(loc => {
+    const matchesSearch = loc.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          loc.district.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          loc.state.toLowerCase().includes(searchQuery.toLowerCase())
+    
+    const matchesState = filterState === 'all' || loc.state === filterState
+    
+    let matchesHub = true
+    if (filterHub === 'hubs') matchesHub = loc.has_rental_hub
+    if (filterHub === 'villages') matchesHub = !loc.has_rental_hub
+
+    return matchesSearch && matchesState && matchesHub
+  })
+
+  const statesList = Array.from(new Set(localities.map(l => l.state)))
+
+  return (
+    <div className="space-y-6">
+      <div className="border-b-4 border-black pb-4 flex justify-between items-center">
+        <div className="text-left">
+          <h2 className="text-3xl font-extrabold" style={{ fontFamily: 'Bangers, cursive' }}>Logistics & Coverage Master</h2>
+          <p className="text-sm font-semibold text-gray-500">Manage India-wide logistics hubs, delivery radiuses, doorstep surcharges, and check gap alerts</p>
+        </div>
+        <button 
+          onClick={fetchData} 
+          className="flex items-center gap-1.5 px-3 py-2 bg-purple-100 hover:bg-purple-200 border-2 border-black font-bold shadow-[2px_2px_0px_0px_#000000] text-sm cursor-pointer"
+        >
+          <RefreshCw size={16} /> Refresh
+        </button>
+      </div>
+
+      {error && (
+        <div className="p-3 bg-red-100 border-2 border-red-500 text-red-700 font-bold flex items-center gap-2">
+          <AlertTriangle size={18} /> {error}
+        </div>
+      )}
+
+      {/* Metrics Row */}
+      {metrics && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-left">
+          <div className="p-5 bg-yellow-100 border-4 border-black shadow-[4px_4px_0_0_#000000] text-black">
+            <h3 className="font-extrabold text-[11px] uppercase tracking-tight text-gray-700">Total Localities</h3>
+            <p className="text-3xl font-black mt-1 font-mono">{metrics.summary.total_localities}</p>
+            <p className="text-[10px] font-bold text-gray-600 mt-2">Cities, Towns, and Villages seeded</p>
+          </div>
+          <div className="p-5 bg-blue-100 border-4 border-black shadow-[4px_4px_0_0_#000000] text-black">
+            <h3 className="font-extrabold text-[11px] uppercase tracking-tight text-gray-700">Active Depot Hubs</h3>
+            <p className="text-3xl font-black mt-1 font-mono">{metrics.summary.hub_count}</p>
+            <p className="text-[10px] font-bold text-gray-600 mt-2">Fulfillment hubs with physical inventory</p>
+          </div>
+          <div className="p-5 bg-red-100 border-4 border-black shadow-[4px_4px_0_0_#000000] text-black">
+            <h3 className="font-extrabold text-[11px] uppercase tracking-tight text-gray-700">Coverage Gaps</h3>
+            <p className="text-3xl font-black mt-1 font-mono">{metrics.summary.total_gaps_identified}</p>
+            <p className="text-[10px] font-bold text-red-800 mt-2">Localities outside maximum radius or &gt;15km</p>
+          </div>
+          <div className="p-5 bg-emerald-100 border-4 border-black shadow-[4px_4px_0_0_#000000] text-black">
+            <h3 className="font-extrabold text-[11px] uppercase tracking-tight text-gray-700">Avg Delivery Corridor</h3>
+            <p className="text-3xl font-black mt-1 font-mono">{metrics.summary.average_delivery_distance_km} km</p>
+            <p className="text-[10px] font-bold text-emerald-800 mt-2">Mean distance from non-hubs to nearest hub</p>
+          </div>
+        </div>
+      )}
+
+      {/* Two Column Layout: Hubs List and Gap Analysis */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 text-left">
+        
+        {/* Hubs Depot Registry */}
+        <div className="bg-white p-5 border-4 border-black shadow-[6px_6px_0_0_#000000]">
+          <h3 className="text-xl font-bold uppercase mb-4 border-b-2 border-black pb-2 flex items-center gap-2">
+            🏬 Hub Depot Registry ({metrics?.hubs?.length || 0})
+          </h3>
+          <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2">
+            {metrics?.hubs?.map((hub: any) => (
+              <div key={hub.id} className="p-3 bg-slate-50 border-2 border-black font-semibold text-xs flex justify-between items-center">
+                <div className="space-y-1">
+                  <div className="font-black text-sm text-slate-800">{hub.name} (Hub Depot)</div>
+                  <div className="text-[10px] text-gray-500 font-bold">
+                    Coordinates: {hub.latitude.toFixed(4)}° N, {hub.longitude.toFixed(4)}° E
+                  </div>
+                  <div className="text-[10px] text-gray-500 font-bold">
+                    Coverage radius: {hub.delivery_radius_km} km • Default fee: ₹{hub.delivery_fee_beyond_radius}
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="bg-purple-100 text-purple-700 border border-purple-300 font-black px-2.5 py-1 text-xs">
+                    {hub.assigned_localities_count} Localities Served
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Coverage Gap Alerts */}
+        <div className="bg-white p-5 border-4 border-black shadow-[6px_6px_0_0_#000000]">
+          <h3 className="text-xl font-bold uppercase mb-4 border-b-2 border-black pb-2 flex items-center gap-2 text-red-600">
+            ⚠️ Logistics Gap Reports ({metrics?.gaps?.length || 0})
+          </h3>
+          <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2">
+            {metrics?.gaps?.length === 0 ? (
+              <p className="text-sm font-bold text-emerald-600 py-4 text-center">✓ 100% of seeded areas are within deliverable bounds!</p>
+            ) : (
+              metrics?.gaps?.map((gap: any, idx: number) => (
+                <div key={idx} className="p-3 bg-red-50/50 border-2 border-red-300 text-xs font-semibold flex justify-between items-center gap-4">
+                  <div className="space-y-1">
+                    <div className="font-black text-red-950">{gap.locality_name} ({gap.locality_type.toUpperCase()})</div>
+                    <div className="text-[10px] text-slate-600 font-bold">
+                      Nearest hub: {gap.nearest_hub_name} ({gap.distance_km} km away)
+                    </div>
+                    <div className="text-[10px] text-red-700 font-extrabold flex items-center gap-1">
+                      🚨 {gap.reason} (Max: {gap.delivery_radius_km} km)
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const actualLoc = localities.find(l => l.id === gap.locality_id)
+                      if (actualLoc) handleOpenOverride(actualLoc)
+                    }}
+                    className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider bg-yellow-300 border-2 border-black hover:bg-yellow-400 shadow-[1px_1px_0_0_#000000] cursor-pointer"
+                  >
+                    Adjust Rules
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+      </div>
+
+      {/* Localities Overrides Registry */}
+      <div className="bg-white p-5 border-4 border-black shadow-[6px_6px_0_0_#000000] space-y-4 text-left">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b-2 border-black pb-3">
+          <h3 className="text-xl font-bold uppercase flex items-center gap-2">
+            📍 India Localities Registry ({filteredLocalities.length})
+          </h3>
+          
+          {/* Filters Bar */}
+          <div className="flex flex-wrap items-center gap-3">
+            <input 
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by name, district..."
+              className="px-3 py-1.5 border-2 border-black text-xs font-semibold w-48 rounded-none outline-none"
+            />
+            
+            <select
+              value={filterState}
+              onChange={(e) => setFilterState(e.target.value)}
+              className="px-2.5 py-1.5 border-2 border-black text-xs font-semibold bg-white rounded-none outline-none"
+            >
+              <option value="all">All States</option>
+              {statesList.map((st, i) => (
+                <option key={i} value={st}>{st}</option>
+              ))}
+            </select>
+
+            <select
+              value={filterHub}
+              onChange={(e) => setFilterHub(e.target.value)}
+              className="px-2.5 py-1.5 border-2 border-black text-xs font-semibold bg-white rounded-none outline-none"
+            >
+              <option value="all">All Localities</option>
+              <option value="hubs">depots Only</option>
+              <option value="villages">villages & Non-Hubs</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Localities Table */}
+        <div className="overflow-x-auto border-2 border-black max-h-[500px] overflow-y-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-slate-100 border-b-2 border-black font-extrabold text-slate-800">
+                <th className="p-3 border-r-2 border-black">Locality Name</th>
+                <th className="p-3 border-r-2 border-black">Type</th>
+                <th className="p-3 border-r-2 border-black">District & State</th>
+                <th className="p-3 border-r-2 border-black">Hub Status</th>
+                <th className="p-3 border-r-2 border-black text-right">Delivery Radius (km)</th>
+                <th className="p-3 border-r-2 border-black text-right">Doorstep Fee (₹)</th>
+                <th className="p-3 text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y-2 divide-black">
+              {filteredLocalities.map((loc) => (
+                <tr key={loc.id} className="hover:bg-slate-50 font-semibold text-slate-700">
+                  <td className="p-3 border-r-2 border-black font-black text-sm text-slate-900">{loc.name}</td>
+                  <td className="p-3 border-r-2 border-black uppercase text-[10px]">
+                    <span className={`px-1.5 py-0.5 rounded font-black border ${loc.type === 'city' ? 'bg-blue-50 text-blue-700 border-blue-200' : loc.type === 'town' ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                      {loc.type}
+                    </span>
+                  </td>
+                  <td className="p-3 border-r-2 border-black">{loc.district}, {loc.state}</td>
+                  <td className="p-3 border-r-2 border-black">
+                    {loc.has_rental_hub ? (
+                      <span className="text-emerald-700 font-extrabold flex items-center gap-1">🏬 active Depot</span>
+                    ) : (
+                      <span className="text-gray-500 font-bold">Delivery Zone</span>
+                    )}
+                  </td>
+                  <td className="p-3 border-r-2 border-black text-right font-mono">{loc.delivery_radius_km} km</td>
+                  <td className="p-3 border-r-2 border-black text-right font-mono">₹{loc.delivery_fee_beyond_radius}</td>
+                  <td className="p-3 text-center">
+                    <button
+                      onClick={() => handleOpenOverride(loc)}
+                      className="px-2 py-1 text-[10px] font-black uppercase bg-purple-100 hover:bg-purple-200 border border-black shadow-[1px_1px_0_0_#000000] cursor-pointer"
+                    >
+                      Override
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Override Modal */}
+      {selectedLocality && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+          <form onSubmit={handleSaveOverride} className="w-full max-w-sm bg-white border-4 border-black p-6 shadow-[8px_8px_0_0_#000000] space-y-4 text-left">
+            <div className="flex justify-between items-center border-b-2 border-black pb-2">
+              <h4 className="font-extrabold text-lg uppercase tracking-wider text-purple-700">Override Logistics Rules</h4>
+              <button 
+                type="button" 
+                onClick={() => setSelectedLocality(null)}
+                className="p-1 bg-red-100 hover:bg-red-200 border border-black cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            
+            <div className="bg-slate-50 p-2 border-2 border-black text-xs font-semibold text-gray-700 space-y-1">
+              <div><strong className="text-black">Locality:</strong> {selectedLocality.name}</div>
+              <div><strong className="text-black">Administrative Region:</strong> {selectedLocality.district} District, {selectedLocality.state}</div>
+            </div>
+
+            <div className="flex items-center gap-2 py-1 border-b border-gray-200">
+              <input 
+                type="checkbox" 
+                id="is_hub" 
+                checked={overrideHub} 
+                onChange={(e) => setOverrideHub(e.target.checked)} 
+                className="w-4 h-4 cursor-pointer accent-purple-600"
+              />
+              <label htmlFor="is_hub" className="text-xs font-black uppercase text-slate-800 cursor-pointer">Designate as Rental Hub Depot</label>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-gray-500 uppercase tracking-wider block">Max Delivery Radius (km)</label>
+              <input 
+                type="number" 
+                step="0.1" 
+                value={overrideRadius}
+                onChange={(e) => setOverrideRadius(Number(e.target.value))}
+                className="w-full px-3 py-1.5 border-2 border-black text-xs font-semibold outline-none bg-white text-black"
+                required
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-gray-500 uppercase tracking-wider block">Doorstep Surcharge Fee (₹)</label>
+              <input 
+                type="number" 
+                step="50" 
+                value={overrideFee}
+                onChange={(e) => setOverrideFee(Number(e.target.value))}
+                className="w-full px-3 py-1.5 border-2 border-black text-xs font-semibold outline-none bg-white text-black"
+                required
+              />
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button 
+                type="button" 
+                onClick={() => setSelectedLocality(null)}
+                className="flex-1 py-2 border-2 border-black hover:bg-slate-100 font-bold uppercase text-xs tracking-wider cursor-pointer bg-white text-black"
+              >
+                Cancel
+              </button>
+              <button 
+                type="submit" 
+                disabled={saving}
+                className="flex-1 py-2 bg-yellow-300 hover:bg-yellow-400 border-2 border-black shadow-[2px_2px_0_0_#000000] font-black uppercase text-xs tracking-wider disabled:opacity-50 cursor-pointer text-black"
+              >
+                {saving ? "Saving Rules..." : "Save Overrides"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   )
 }

@@ -113,3 +113,69 @@ from typing import Optional
 def sa_sum_func(col):
     from sqlalchemy import func
     return func.sum(col)
+
+
+
+def reconcile_provider_bookings(db: Session) -> dict:
+    """
+    Periodically verifies our booking records against provider status for bookings in non-terminal states.
+    Auto-expires holds that have passed their held_until deadline.
+    """
+    logger.info("Running provider booking reconciliation job...")
+    from app.models.bookings import (
+        BookingStatus, FlightBooking, HotelBooking, VehicleRentalBooking, BookingEvent
+    )
+    from app.providers.registry import provider_registry
+
+    reconciled_count = 0
+    status_updates = []
+
+    tables = [FlightBooking, HotelBooking, VehicleRentalBooking]
+
+    for table in tables:
+        bookings = db.query(table).filter(
+            table.status.in_([
+                BookingStatus.HOLD,
+                BookingStatus.AWAITING_HUMAN_PAYMENT_APPROVAL,
+                BookingStatus.PAYMENT_PROCESSING,
+                BookingStatus.CONFIRMED
+            ])
+        ).all()
+
+        for b in bookings:
+            provider_name = b.pricing_snapshot.get("provider_name") if b.pricing_snapshot else None
+            if not provider_name:
+                if table == FlightBooking:
+                    provider_name = "Amadeus"
+                elif table == HotelBooking:
+                    provider_name = "HotelBeds"
+                else:
+                    provider_name = "FirstPartyFleet"
+
+            provider = provider_registry.get_provider(
+                "flights" if table == FlightBooking else ("hotels" if table == HotelBooking else "vehicle_rental"),
+                provider_name
+            )
+
+            if provider:
+                now = datetime.datetime.utcnow()
+                if b.status in [BookingStatus.HOLD, BookingStatus.AWAITING_HUMAN_PAYMENT_APPROVAL]:
+                    if b.held_until and now > b.held_until:
+                        old_status = b.status
+                        b.status = BookingStatus.EXPIRED
+                        reconciled_count += 1
+                        status_updates.append(f"{b.booking_reference}: {old_status.value} -> expired")
+
+                        event = BookingEvent(
+                            booking_reference=b.booking_reference,
+                            event_type="reconciliation_expire",
+                            description=f"Reconciliation job auto-expired booking hold. Expiry was {b.held_until}."
+                        )
+                        db.add(event)
+
+    db.commit()
+    return {
+        "reconciled_count": reconciled_count,
+        "status_updates": status_updates
+    }
+

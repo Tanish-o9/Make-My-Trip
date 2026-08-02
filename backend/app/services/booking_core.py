@@ -1,6 +1,6 @@
 import datetime
 from typing import Dict, Any, List
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 from app.models.bookings import BookingStatus, BookingMixin
 
 class BookingStateMachine:
@@ -9,11 +9,33 @@ class BookingStateMachine:
     @staticmethod
     def transition_to(booking: BookingMixin, target_status: BookingStatus) -> None:
         current = booking.status
+        if current == target_status:
+            return
+            
         allowed = False
-        
-        if current == BookingStatus.HOLD:
-            if target_status in [BookingStatus.CONFIRMED, BookingStatus.PENDING_APPROVAL, BookingStatus.PENDING_ADMIN_APPROVAL, BookingStatus.CANCELLED]:
+        if current == BookingStatus.OFFER_SELECTED:
+            if target_status in [BookingStatus.HOLD, BookingStatus.EXPIRED, BookingStatus.CANCELLED]:
                 allowed = True
+        elif current == BookingStatus.HOLD:
+            if target_status in [
+                BookingStatus.CONFIRMED, 
+                BookingStatus.PENDING_APPROVAL, 
+                BookingStatus.PENDING_ADMIN_APPROVAL, 
+                BookingStatus.CANCELLED,
+                BookingStatus.PAYMENT_PENDING,
+                BookingStatus.AWAITING_HUMAN_PAYMENT_APPROVAL,
+                BookingStatus.PAYMENT_PROCESSING,
+                BookingStatus.EXPIRED
+            ]:
+                allowed = True
+        elif current == BookingStatus.AWAITING_HUMAN_PAYMENT_APPROVAL:
+            if target_status in [BookingStatus.PAYMENT_PROCESSING, BookingStatus.HOLD, BookingStatus.EXPIRED, BookingStatus.CANCELLED, BookingStatus.CONFIRMED, BookingStatus.PAYMENT_PENDING]:
+                allowed = True
+        elif current == BookingStatus.PAYMENT_PROCESSING:
+            if target_status in [BookingStatus.CONFIRMED, BookingStatus.PAYMENT_FAILED, BookingStatus.EXPIRED, BookingStatus.CANCELLED, BookingStatus.PAYMENT_PENDING]:
+                allowed = True
+        elif current == BookingStatus.EXPIRED:
+            pass
         elif current == BookingStatus.PENDING_ADMIN_APPROVAL:
             if target_status in [BookingStatus.CONFIRMED, BookingStatus.REJECTED, BookingStatus.CANCELLED]:
                 allowed = True
@@ -24,14 +46,81 @@ class BookingStateMachine:
             if target_status in [BookingStatus.CONFIRMED, BookingStatus.CANCELLED]:
                 allowed = True
         elif current == BookingStatus.CONFIRMED:
-            if target_status in [BookingStatus.CANCELLED, BookingStatus.COMPLETED]:
+            if target_status in [
+                BookingStatus.CANCELLED,
+                BookingStatus.COMPLETED,
+                BookingStatus.REFUND_INITIATED,
+                BookingStatus.REFUNDED,
+                BookingStatus.VEHICLE_HANDED_OVER
+            ]:
                 allowed = True
+        elif current == BookingStatus.VEHICLE_HANDED_OVER:
+            if target_status in [
+                BookingStatus.TRIP_ACTIVE,
+                BookingStatus.CANCELLED,
+                BookingStatus.CONFIRMED
+            ]:
+                allowed = True
+        elif current == BookingStatus.TRIP_ACTIVE:
+            if target_status in [
+                BookingStatus.RETURNED,
+                BookingStatus.COMPLETED
+            ]:
+                allowed = True
+        elif current == BookingStatus.RETURNED:
+            if target_status in [
+                BookingStatus.COMPLETED
+            ]:
+                allowed = True
+        elif current == BookingStatus.REFUND_INITIATED:
+            if target_status in [BookingStatus.REFUNDED, BookingStatus.CONFIRMED]:
+                allowed = True
+        elif current == BookingStatus.REFUNDED:
+            # Terminal state
+            pass
         elif current == BookingStatus.REJECTED:
             # Terminal state, no further transitions
             pass
+        elif current == BookingStatus.PAYMENT_PENDING:
+            if target_status in [
+                BookingStatus.PAYMENT_CONFIRMED,
+                BookingStatus.PAYMENT_FAILED,
+                BookingStatus.CANCELLED,
+                BookingStatus.CONFIRMED,
+                BookingStatus.HOLD
+            ]:
+                allowed = True
+        elif current == BookingStatus.PAYMENT_FAILED:
+            if target_status in [
+                BookingStatus.PAYMENT_PENDING,
+                BookingStatus.CANCELLED,
+                BookingStatus.CONFIRMED,
+                BookingStatus.HOLD
+            ]:
+                allowed = True
+        elif current == BookingStatus.PAYMENT_CONFIRMED:
+            if target_status in [
+                BookingStatus.CONFIRMED,
+                BookingStatus.PENDING_APPROVAL,
+                BookingStatus.PENDING_ADMIN_APPROVAL,
+                BookingStatus.CANCELLED
+            ]:
+                allowed = True
         
         if not allowed:
             raise ValueError(f"State transition from {current} to {target_status} is not permitted.")
+            
+        if target_status == BookingStatus.CONFIRMED:
+            session = object_session(booking)
+            if session:
+                from app.models.payments import Payment, PaymentStatus
+                payment = session.query(Payment).filter(
+                    Payment.booking_id == booking.booking_reference
+                ).first()
+                if payment and payment.status != PaymentStatus.CAPTURED:
+                    raise ValueError("Cannot transition booking to CONFIRMED unless payment status is captured.")
+                if current in [BookingStatus.PAYMENT_PENDING, BookingStatus.PAYMENT_CONFIRMED, BookingStatus.PAYMENT_FAILED] and not payment:
+                    raise ValueError("Cannot transition booking to CONFIRMED without a payment record.")
             
         booking.status = target_status
 

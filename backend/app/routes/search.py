@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 from typing import Dict, Any, List
 from fastapi import APIRouter, Query
 from app.database import SessionLocal
@@ -8,10 +9,17 @@ from app.models.search_entities import (
     City, Airport, TrainStation, BusTerminal, CurrencyExchange,
     CountryVisaRequirement, TollPlaza, FlightRoute, HotelProperty,
     HotelRoom, VillaProperty, HolidayPackage, TrainRoute, BusRoute,
-    CabVehicle, TourActivity, CruiseItinerary, InsurancePlan
+    CabVehicle, TourActivity, CruiseItinerary, InsurancePlan, RentalVehicle, Locality, VehicleAvailability
 )
+from app.services.price_compare_agent import PriceCompareAgent
+from app.utils.rate_limiter import RateLimiter
+from fastapi import APIRouter, Query, Depends
 
 router = APIRouter(prefix="/search", tags=["search"])
+
+search_limiter = RateLimiter(max_requests=20, window_seconds=60, scope="search")
+
+
 
 def attach_media_to_results(results: List[Dict[str, Any]], owner_type: str) -> List[Dict[str, Any]]:
     """Helper to attach primary photo URL and base64 blur-up hash to search results"""
@@ -32,11 +40,32 @@ def attach_media_to_results(results: List[Dict[str, Any]], owner_type: str) -> L
                 item["primary_photo_url"] = media.url
                 item["blur_hash_base64"] = media.blur_hash_base64
             else:
-                # Fallback to random placeholder category images
                 if owner_type == "hotel":
-                    item["primary_photo_url"] = "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800"
+                    # Stable hash of hotel name to pick a different image
+                    hash_val = sum(ord(c) for c in name_key) if name_key else 0
+                    fallback_hotel_urls = [
+                        "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800",
+                        "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=800",
+                        "https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800",
+                        "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=800"
+                    ]
+                    item["primary_photo_url"] = fallback_hotel_urls[hash_val % len(fallback_hotel_urls)]
                 elif owner_type == "villa":
-                    item["primary_photo_url"] = "https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=800"
+                    # Stable hash of villa name to pick a different image
+                    hash_val = sum(ord(c) for c in name_key) if name_key else 0
+                    fallback_villa_urls = [
+                        "https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=800",
+                        "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=800",
+                        "https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800",
+                        "https://images.unsplash.com/photo-1613977257363-707ba9348227?w=800",
+                        "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800",
+                        "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800",
+                        "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=800",
+                        "https://images.unsplash.com/photo-1542718610-a1d656d1884c?w=800",
+                        "https://images.unsplash.com/photo-1499793983690-e29da59ef1c2?w=800",
+                        "https://images.unsplash.com/photo-1518780664697-55e3ad937233?w=800"
+                    ]
+                    item["primary_photo_url"] = fallback_villa_urls[hash_val % len(fallback_villa_urls)]
                 elif owner_type == "holiday":
                     item["primary_photo_url"] = "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800"
                 elif owner_type == "cruise":
@@ -57,59 +86,78 @@ def attach_media_to_results(results: List[Dict[str, Any]], owner_type: str) -> L
     return results
 
 
-@router.get("")
-def unified_vertical_search(
+@router.get("", dependencies=[Depends(search_limiter)])
+async def unified_vertical_search(
     vertical: str = Query(..., description="flights, hotels, villas, holidays, trains, buses, cabs, tours, visa, cruises, forex, insurance"),
     origin: str = Query(None),
     destination: str = Query(None),
     date: str = Query(None),
     passengers: int = Query(1),
     budget: float = Query(None),
-    category: str = Query(None)
+    category: str = Query(None),
+    locality_id: int = Query(None),
+    pickup: str = Query(None),
+    drop: str = Query(None),
+    type: str = Query(None),
+    selfDrive: str = Query(None),
+    check_in: str = Query(None),
+    check_out: str = Query(None)
 ):
     """Unified search gateway routing queries based on vertical type"""
     v = vertical.lower()
     
     if v == "flights":
-        return flight_search_tool(origin or "DEL", destination or "GOI", date or "2026-12-15", passengers)
+        flight_offers = await PriceCompareAgent.compare_flights(origin or "DEL", destination or "GOI", date or "2026-12-15")
+        flight_res = []
+        for offer in flight_offers:
+            f = offer.details.copy()
+            f["provider_name"] = offer.provider_name
+            f["price_per_passenger"] = offer.price
+            f["total_price"] = offer.price * passengers
+            f["offer_id"] = offer.id
+            f["cancellation_policy"] = offer.cancellation_policy
+            f["raw_provider_ref"] = offer.raw_provider_ref
+            f["expires_at"] = offer.expires_at.isoformat()
+            f["alternatives"] = offer.details.get("alternatives", [])
+            f["is_simulated"] = offer.is_simulated
+            
+            # Compatibility helpers for frontend
+            dep_dt = f.get("departure_time", "")
+            arr_dt = f.get("arrival_time", "")
+            f["dep"] = dep_dt.split("T")[1][:5] if "T" in dep_dt else "08:30"
+            f["arr"] = arr_dt.split("T")[1][:5] if "T" in arr_dt else "10:45"
+            dur_mins = f.get("duration_minutes", 150)
+            f["duration"] = f"{dur_mins // 60}h {dur_mins % 60}m"
+            
+            flight_res.append(f)
+        return {
+            "vertical": "flights",
+            "results": attach_media_to_results(flight_res, "vehicle")
+        }
         
     elif v == "hotels":
-        db = SessionLocal()
+        check_in_val = check_in or date or "2026-12-15"
         try:
-            city_name = (destination or "Goa").split(" ")[0]
-            city_obj = db.query(City).filter(City.name.like(f"%{city_name}%")).first()
-            if city_obj:
-                props = db.query(HotelProperty).filter(HotelProperty.city_id == city_obj.id).all()
-            else:
-                props = db.query(HotelProperty).all()
-            
-            if props:
-                results = []
-                for p in props:
-                    room = db.query(HotelRoom).filter(HotelRoom.hotel_id == p.id).first()
-                    price = float(room.price) if room else 4500.0
-                    results.append({
-                        "name": p.name,
-                        "rating": p.star_rating,
-                        "price": price,
-                        "details": p.description,
-                        "address": p.address,
-                        "amenities": p.amenities_json
-                    })
-                return {
-                    "vertical": "hotels",
-                    "results": attach_media_to_results(results, "hotel")
-                }
-        finally:
-            db.close()
-
-        results = [
-            {"name": "Grand Hyatt Resort", "rating": "4.8 ★", "price": 12000, "details": "Beachfront lounge"},
-            {"name": "Goa Backpackers Hostel", "rating": "4.2 ★", "price": 850, "details": "AC room near shoreline"}
-        ]
+            check_out_val = check_out or (datetime.datetime.strptime(check_in_val, "%Y-%m-%d") + datetime.timedelta(days=2)).strftime("%Y-%m-%d")
+        except Exception:
+            check_out_val = "2026-12-17"
+        
+        hotel_offers = await PriceCompareAgent.compare_hotels(destination or "Goa", check_in_val, check_out_val)
+        hotel_res = []
+        for offer in hotel_offers:
+            h = offer.details.copy()
+            h["provider_name"] = offer.provider_name
+            h["price"] = offer.price
+            h["offer_id"] = offer.id
+            h["cancellation_policy"] = offer.cancellation_policy
+            h["raw_provider_ref"] = offer.raw_provider_ref
+            h["expires_at"] = offer.expires_at.isoformat()
+            h["alternatives"] = offer.details.get("alternatives", [])
+            h["is_simulated"] = offer.is_simulated
+            hotel_res.append(h)
         return {
             "vertical": "hotels",
-            "results": attach_media_to_results(results, "hotel")
+            "results": attach_media_to_results(hotel_res, "hotel")
         }
         
     elif v == "villas":
@@ -395,6 +443,105 @@ def unified_vertical_search(
             "results": attach_media_to_results(results, "vehicle")
         }
 
+    elif v in ["rent-a-ride", "vehicle_rental"]:
+        db = SessionLocal()
+        try:
+            # 1. Resolve Locality
+            locality_obj = None
+            if locality_id:
+                locality_obj = db.query(Locality).filter(Locality.id == locality_id).first()
+            elif destination:
+                dest_clean = destination.strip()
+                locality_obj = db.query(Locality).filter(Locality.name.like(f"%{dest_clean}%")).first()
+            
+            if not locality_obj:
+                locality_obj = db.query(Locality).filter(Locality.name == "Panaji").first()
+                if not locality_obj:
+                    locality_obj = db.query(Locality).first()
+            
+            if not locality_obj:
+                return {"vertical": "rent-a-ride", "results": []}
+
+            # 2. Check nearest hub & delivery radius
+            delivery_required = not locality_obj.has_rental_hub
+            target_hub_id = locality_obj.nearest_hub_locality_id if delivery_required else locality_obj.id
+            
+            hub_locality = db.query(Locality).filter(Locality.id == target_hub_id).first()
+            if not hub_locality:
+                hub_locality = locality_obj
+            
+            # Calculate distance using Haversine formula
+            import math
+            def haversine(lat1, lon1, lat2, lon2):
+                R = 6371.0
+                phi1 = math.radians(lat1)
+                phi2 = math.radians(lat2)
+                delta_phi = math.radians(lat2 - lat1)
+                delta_lambda = math.radians(lon2 - lon1)
+                a = math.sin(delta_phi / 2.0)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2.0)**2
+                c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
+                return R * c
+            
+            hub_distance = haversine(
+                float(locality_obj.latitude), float(locality_obj.longitude),
+                float(hub_locality.latitude), float(hub_locality.longitude)
+            )
+
+            # Check if out of delivery range
+            if delivery_required and hub_distance > locality_obj.delivery_radius_km:
+                return {
+                    "vertical": "rent-a-ride",
+                    "results": [],
+                    "not_deliverable": True,
+                    "nearest_hub_name": hub_locality.name,
+                    "distance_km": round(hub_distance, 1),
+                    "max_radius_km": locality_obj.delivery_radius_km
+                }
+
+            # 3. Fetch comparing vehicles from PriceCompareAgent
+            vehicle_offers = await PriceCompareAgent.compare_vehicles(destination or locality_obj.name, pickup, drop, type, selfDrive == "true")
+            results = []
+            for offer in vehicle_offers:
+                vh = offer.details.copy()
+                vh["provider_name"] = offer.provider_name
+                vh["price_per_day"] = offer.price
+                vh["offer_id"] = offer.id
+                vh["cancellation_policy"] = offer.cancellation_policy
+                vh["raw_provider_ref"] = offer.raw_provider_ref
+                vh["expires_at"] = offer.expires_at.isoformat()
+                vh["alternatives"] = offer.details.get("alternatives", [])
+                results.append(vh)
+
+            # Apply specialist agents (recommendation + pricing)
+            from app.services.vehicle_rental_agents import recommendation_agent, pricing_agent
+            ranked = recommendation_agent(results, destination or locality_obj.name)
+            final_results = pricing_agent(ranked)
+            
+            delivery_fee = float(locality_obj.delivery_fee_beyond_radius) if delivery_required else 0.0
+            delivery_eta_hours = math.ceil(hub_distance / 15) if delivery_required else 0
+
+            return {
+                "vertical": "rent-a-ride",
+                "results": attach_media_to_results(final_results, "vehicle"),
+                "delivery_info": {
+                    "delivery_required": delivery_required,
+                    "delivery_fee": delivery_fee,
+                    "delivery_eta_hours": delivery_eta_hours,
+                    "locality_name": locality_obj.name,
+                    "nearest_hub_name": hub_locality.name,
+                    "nearest_hub_distance": round(hub_distance, 1)
+                },
+                "debug_info": {
+                    "total_hub_vehicles": len(results),
+                    "locality_id": locality_obj.id,
+                    "hub_id": hub_locality.id
+                }
+            }
+        finally:
+            db.close()
+            
+        return {"vertical": "rent-a-ride", "results": []}
+
     elif v == "tours":
         db = SessionLocal()
         try:
@@ -563,3 +710,9 @@ async def combo_fanout_search(
         "hotels": hotels,
         "visa": visa
     }
+
+
+@router.get("/providers/health")
+async def get_providers_health():
+    """Returns the health status of all registered aggregator providers"""
+    return await provider_registry.check_health()

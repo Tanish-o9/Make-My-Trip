@@ -1,7 +1,7 @@
 import datetime
 from typing import Optional
 from enum import Enum as PyEnum
-from sqlalchemy import String, Integer, Numeric, DateTime, ForeignKey, Enum, JSON
+from sqlalchemy import String, Integer, Numeric, DateTime, ForeignKey, Enum, JSON, Boolean, Float
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
@@ -14,10 +14,21 @@ class BookingStatus(PyEnum):
     CANCELLED = "cancelled"
     RESCHEDULED = "rescheduled"
     COMPLETED = "completed"
+    REFUND_INITIATED = "refund_initiated"
     REFUNDED = "refunded"
     REJECTED = "rejected"
     CANCELLATION_REQUEST_SENT = "cancellation_request_sent"
     REFUND_REQUEST_SENT = "refund_request_sent"
+    PAYMENT_PENDING = "payment_pending"
+    PAYMENT_CONFIRMED = "payment_confirmed"
+    PAYMENT_FAILED = "payment_failed"
+    VEHICLE_HANDED_OVER = "vehicle_handed_over"
+    TRIP_ACTIVE = "trip_active"
+    RETURNED = "returned"
+    OFFER_SELECTED = "offer_selected"
+    AWAITING_HUMAN_PAYMENT_APPROVAL = "awaiting_human_payment_approval"
+    PAYMENT_PROCESSING = "payment_processing"
+    EXPIRED = "expired"
 
 class BookingMixin:
     """Common columns shared across all booking verticals"""
@@ -35,6 +46,7 @@ class BookingMixin:
         DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow
     )
     seed_batch_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    linked_booking_reference: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
 
 
 
@@ -197,6 +209,33 @@ class ForexOrder(Base, BookingMixin):
     rate_locked_at_order: Mapped[float] = mapped_column(Numeric(12, 4), nullable=False)
     delivery_mode: Mapped[str] = mapped_column(String(50), nullable=False) # Home Delivery, Branch Pickup
     kyc_ref: Mapped[str] = mapped_column(String(100), nullable=False)
+
+
+class VehicleRentalBooking(Base, BookingMixin):
+    __tablename__ = "vehicle_rental_bookings"
+
+    city: Mapped[str] = mapped_column(String(100), nullable=False)
+    pickup_time: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
+    drop_time: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
+    vehicle_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    vehicle_type: Mapped[str] = mapped_column(String(50), nullable=False) # Hatchback, Sedan, SUV, Bike, EV
+    self_drive: Mapped[bool] = mapped_column(Boolean, default=True)
+    fuel_type: Mapped[str] = mapped_column(String(50), nullable=True) # Petrol, Diesel, EV
+    transmission: Mapped[str] = mapped_column(String(50), nullable=True) # Manual, Automatic
+    kyc_ref: Mapped[str] = mapped_column(String(100), nullable=True)
+    pickup_lat: Mapped[float] = mapped_column(Float, nullable=True)
+    pickup_lng: Mapped[float] = mapped_column(Float, nullable=True)
+    qr_handover_code: Mapped[str] = mapped_column(String(100), nullable=True)
+
+
+class BookingEvent(Base):
+    __tablename__ = "booking_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    booking_reference: Mapped[str] = mapped_column(String(50), index=True, nullable=False)
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False) # hold, cancellation, schedule_change
+    description: Mapped[str] = mapped_column(String(500), nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
 
 
 
