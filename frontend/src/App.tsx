@@ -12,7 +12,21 @@ import { CheckoutPage } from './CheckoutPage';
 import { ConfirmationPage } from './ConfirmationPage';
 import { DesignTokensPage } from './DesignTokensPage';
 
-const API_URL = "http://localhost:8000/api/v1";
+const resolveApiBase = () => {
+  let url = import.meta.env.VITE_API_URL || "https://make-my-trip-production.up.railway.app/api";
+  if (url.endsWith("/")) {
+    url = url.slice(0, -1);
+  }
+  if (url.endsWith("/v1")) {
+    url = url.slice(0, -3);
+  }
+  return url;
+};
+
+const API_BASE = resolveApiBase();
+const API_URL = `${API_BASE}/v1`;
+const WS_BASE = API_BASE.replace(/^http/, "ws");
+const API_HOST = API_BASE.replace(/\/api$/, "");
 let globalTabLoadingListeners: ((loadingVerticals: Record<string, boolean>) => void)[] = [];
 let globalLoadingVerticals: Record<string, boolean> = {};
 
@@ -127,7 +141,7 @@ export default function App() {
       const newPath = window.location.pathname + (newSearch ? `?${newSearch}` : '');
       window.history.replaceState({}, '', newPath);
 
-      fetch("http://localhost:8000/api/v1/auth/exchange", {
+      fetch(`${API_URL}/auth/exchange`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ exchange_code: exchangeCode })
@@ -170,7 +184,7 @@ export default function App() {
 
   const redirectToAdmin = async (authToken: string) => {
     try {
-      const resp = await fetch("http://localhost:8000/api/v1/auth/exchange-code", {
+      const resp = await fetch(`${API_URL}/auth/exchange-code`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${authToken}`
@@ -1360,7 +1374,7 @@ function FlightsSearchForm({ currency, onBook, onDetailClick, onTrackFlight }: {
     setLoading(true);
     setResults([]);
     
-    fetch(`http://localhost:8000/api/v1/search?vertical=flights&origin=${encodeURIComponent(fromCity)}&destination=${encodeURIComponent(toCity)}&date=${encodeURIComponent(depDate)}&passengers=${passengers}`)
+    fetch(`${API_URL}/search?vertical=flights&origin=${encodeURIComponent(fromCity)}&destination=${encodeURIComponent(toCity)}&date=${encodeURIComponent(depDate)}&passengers=${passengers}`)
       .then(res => {
         if (!res.ok) throw new Error("Flight search failed");
         return res.json();
@@ -1726,7 +1740,7 @@ function HotelsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
     }
     setLoading(true);
     setResults([]);
-    fetch(`http://localhost:8000/api/v1/search?vertical=hotels&destination=${encodeURIComponent(city)}`)
+    fetch(`${API_URL}/search?vertical=hotels&destination=${encodeURIComponent(city)}`)
       .then(res => res.json())
       .then(data => {
         setLoading(false);
@@ -1952,7 +1966,7 @@ function VillasSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
     }
     setLoading(true);
     setRawResults([]);
-    fetch(`http://localhost:8000/api/v1/search?vertical=villas&destination=${encodeURIComponent(destination)}`)
+    fetch(`${API_URL}/search?vertical=villas&destination=${encodeURIComponent(destination)}`)
       .then(res => res.json())
       .then(data => {
         setLoading(false);
@@ -2121,7 +2135,7 @@ function HolidayPackagesSearchForm({ onBook, onDetailClick }: { onBook: (data: a
     }
     setLoading(true);
     setResults([]);
-    fetch(`http://localhost:8000/api/v1/search?vertical=holidays&destination=${encodeURIComponent(destination)}`)
+    fetch(`${API_URL}/search?vertical=holidays&destination=${encodeURIComponent(destination)}`)
       .then(res => res.json())
       .then(data => {
         setLoading(false);
@@ -2311,7 +2325,7 @@ function TrainsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
     }
     setLoading(true);
     setResults([]);
-    fetch(`http://localhost:8000/api/v1/search?vertical=trains&origin=${encodeURIComponent(fromStn)}&destination=${encodeURIComponent(toStn)}`)
+    fetch(`${API_URL}/search?vertical=trains&origin=${encodeURIComponent(fromStn)}&destination=${encodeURIComponent(toStn)}`)
       .then(res => res.json())
       .then(data => {
         setLoading(false);
@@ -2478,7 +2492,7 @@ function BusesSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => voi
     }
     setLoading(true);
     setResults([]);
-    fetch(`http://localhost:8000/api/v1/search?vertical=buses&origin=${encodeURIComponent(fromCity)}&destination=${encodeURIComponent(toCity)}`)
+    fetch(`${API_URL}/search?vertical=buses&origin=${encodeURIComponent(fromCity)}&destination=${encodeURIComponent(toCity)}`)
       .then(res => res.json())
       .then(data => {
         setLoading(false);
@@ -2700,7 +2714,7 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
     }
     setLoading(true);
     setResults([]);
-    fetch(`http://localhost:8000/api/v1/search?vertical=cabs&origin=${encodeURIComponent(pickup)}&destination=${encodeURIComponent(drop)}`)
+    fetch(`${API_URL}/search?vertical=cabs&origin=${encodeURIComponent(pickup)}&destination=${encodeURIComponent(drop)}`)
       .then(res => res.json())
       .then(data => {
         setLoading(false);
@@ -2854,7 +2868,7 @@ function ToursSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => voi
     }
     setLoading(true);
     setResults([]);
-    fetch(`http://localhost:8000/api/v1/search?vertical=tours&destination=${encodeURIComponent(destination)}`)
+    fetch(`${API_URL}/search?vertical=tours&destination=${encodeURIComponent(destination)}`)
       .then(res => res.json())
       .then(data => {
         setLoading(false);
@@ -2981,7 +2995,7 @@ function VisaSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
     }
     setLoading(true);
     setRules(null);
-    fetch(`http://localhost:8000/api/v1/search?vertical=visa&destination=${encodeURIComponent(country)}`)
+    fetch(`${API_URL}/search?vertical=visa&destination=${encodeURIComponent(country)}`)
       .then(res => res.json())
       .then(data => {
         setLoading(false);
@@ -3109,7 +3123,7 @@ function CruisesSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => v
     }
     setLoading(true);
     setResults([]);
-    fetch(`http://localhost:8000/api/v1/search?vertical=cruises&origin=${encodeURIComponent(port)}`)
+    fetch(`${API_URL}/search?vertical=cruises&origin=${encodeURIComponent(port)}`)
       .then(res => res.json())
       .then(data => {
         setLoading(false);
@@ -3241,7 +3255,7 @@ function ForexSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => voi
       alert("Please enter a valid amount to convert.");
       return;
     }
-    fetch(`http://localhost:8000/api/v1/search?vertical=forex`)
+    fetch(`${API_URL}/search?vertical=forex`)
       .then(res => res.json())
       .then(data => {
         setRateInfo(data);
@@ -3405,7 +3419,7 @@ function InsuranceSearchForm({ onBook, onDetailClick }: { onBook: (data: any) =>
     }
     setLoading(true);
     setResults([]);
-    fetch(`http://localhost:8000/api/v1/search?vertical=insurance&destination=${encodeURIComponent(destination)}`)
+    fetch(`${API_URL}/search?vertical=insurance&destination=${encodeURIComponent(destination)}`)
       .then(res => res.json())
       .then(data => {
         setLoading(false);
@@ -3576,7 +3590,7 @@ function CheckoutModal({ data, onClose, userProfile, onConfirm }: { data: any, o
         
         // Fetch invoice
         if (bookingRef) {
-          fetch(`http://localhost:8000/api/v1/bookings/${bookingRef}/invoice?vertical=${data.vertical}`)
+          fetch(`${API_URL}/bookings/${bookingRef}/invoice?vertical=${data.vertical}`)
             .then(r => r.json())
             .then(inv => setInvoiceText(inv.invoice_text))
             .catch(() => {});
@@ -3630,7 +3644,7 @@ function CheckoutModal({ data, onClose, userProfile, onConfirm }: { data: any, o
     }
 
     // 1. Create Hold Reservation
-    fetch(`http://localhost:8000/api/v1/bookings/hold`, {
+    fetch(`${API_URL}/bookings/hold`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -3987,7 +4001,7 @@ function MyTripsView({ userProfile, setActiveTab, setPrefilledMessage }: { userP
 
   const fetchTrips = () => {
     setLoading(true);
-    fetch(`http://localhost:8000/api/v1/bookings/user/1`)
+    fetch(`${API_URL}/bookings/user/1`)
       .then(res => res.json())
       .then(data => {
         setTrips(data);
@@ -4001,7 +4015,7 @@ function MyTripsView({ userProfile, setActiveTab, setPrefilledMessage }: { userP
   }, []);
 
   const handleCancelTrip = (ref: string, vertical: string) => {
-    fetch(`http://localhost:8000/api/v1/bookings/cancel?booking_reference=${ref}&vertical=${vertical}&action_type=cancel`, {
+    fetch(`${API_URL}/bookings/cancel?booking_reference=${ref}&vertical=${vertical}&action_type=cancel`, {
       method: "POST"
     })
       .then(res => res.json())
@@ -4024,7 +4038,7 @@ function MyTripsView({ userProfile, setActiveTab, setPrefilledMessage }: { userP
   };
 
   const handleRequestRefund = (ref: string, vertical: string) => {
-    fetch(`http://localhost:8000/api/v1/bookings/cancel?booking_reference=${ref}&vertical=${vertical}&action_type=refund`, {
+    fetch(`${API_URL}/bookings/cancel?booking_reference=${ref}&vertical=${vertical}&action_type=refund`, {
       method: "POST"
     })
       .then(res => res.json())
@@ -4053,7 +4067,7 @@ function MyTripsView({ userProfile, setActiveTab, setPrefilledMessage }: { userP
   };
 
   const handleDownloadInvoice = (ref: string, vertical: string) => {
-    fetch(`http://localhost:8000/api/v1/bookings/${ref}/invoice?vertical=${vertical}`)
+    fetch(`${API_URL}/bookings/${ref}/invoice?vertical=${vertical}`)
       .then(res => res.json())
       .then(data => {
         setInvoiceText(data.invoice_text);
@@ -4272,7 +4286,7 @@ function MyTripsView({ userProfile, setActiveTab, setPrefilledMessage }: { userP
                   {selectedTrip.status === "confirmed" ? (
                     <button
                       onClick={() => {
-                        fetch(`http://localhost:8000/api/v1/rent-a-ride/transition?booking_reference=${selectedTrip.booking_reference}&status=vehicle_handed_over`, { method: "POST" })
+                        fetch(`${API_URL}/rent-a-ride/transition?booking_reference=${selectedTrip.booking_reference}&status=vehicle_handed_over`, { method: "POST" })
                           .then(res => res.json())
                           .then(data => {
                             setSelectedTrip({ ...selectedTrip, status: "vehicle_handed_over" });
@@ -4286,7 +4300,7 @@ function MyTripsView({ userProfile, setActiveTab, setPrefilledMessage }: { userP
                   ) : (
                     <button
                       onClick={() => {
-                        fetch(`http://localhost:8000/api/v1/rent-a-ride/transition?booking_reference=${selectedTrip.booking_reference}&status=trip_active`, { method: "POST" })
+                        fetch(`${API_URL}/rent-a-ride/transition?booking_reference=${selectedTrip.booking_reference}&status=trip_active`, { method: "POST" })
                           .then(res => res.json())
                           .then(data => {
                             setSelectedTrip({ ...selectedTrip, status: "trip_active" });
@@ -4746,7 +4760,7 @@ function ChatView({
 
   // Fetch session history from backend on load
   useEffect(() => {
-    fetch(`http://localhost:8000/api/v1/agents/chat/history/${sessionId}`)
+    fetch(`${API_URL}/agents/chat/history/${sessionId}`)
       .then(res => res.json())
       .then(data => {
         if (data.history && data.history.length > 0) {
@@ -4771,7 +4785,7 @@ function ChatView({
 
   // WebSocket Connection
   useEffect(() => {
-    const socket = new WebSocket(`ws://localhost:8000/api/v1/agents/chat/ws/${sessionId}`);
+    const socket = new WebSocket(`${WS_BASE}/v1/agents/chat/ws/${sessionId}`);
     
     socket.onopen = () => {
       console.log("WebSocket connected");
@@ -4885,7 +4899,7 @@ function ChatView({
       ws.send(JSON.stringify({ message: textToSend }));
     } else {
       console.log("WebSocket not open, attempting to reconnect...");
-      const socket = new WebSocket(`ws://localhost:8000/api/v1/agents/chat/ws/${sessionId}`);
+      const socket = new WebSocket(`${WS_BASE}/v1/agents/chat/ws/${sessionId}`);
       socket.onopen = () => {
         setWs(socket);
         socket.send(JSON.stringify({ message: textToSend }));
@@ -5344,7 +5358,7 @@ function CardThumbnail({ ownerType, ownerId, defaultUrl = "/static/uploads/defau
   }, [defaultUrl, blurHash]);
 
   useEffect(() => {
-    fetch(`http://localhost:8000/api/v1/media?owner_type=${ownerType}&owner_id=${encodeURIComponent(ownerId)}`)
+    fetch(`${API_URL}/media?owner_type=${ownerType}&owner_id=${encodeURIComponent(ownerId)}`)
       .then(res => res.json())
       .then((data: any[]) => {
         const primary = data.find(p => p.is_primary) || data[0];
@@ -5359,7 +5373,7 @@ function CardThumbnail({ ownerType, ownerId, defaultUrl = "/static/uploads/defau
   return (
     <div className="relative w-full h-48 rounded-xl overflow-hidden bg-slate-900 border border-slate-800">
       <img 
-        src={imgUrl.startsWith("http") ? imgUrl : `http://localhost:8000${imgUrl}`} 
+        src={imgUrl.startsWith("http") ? imgUrl : `${API_HOST}${imgUrl}`} 
         alt={ownerId}
         loading="lazy"
         onLoad={() => setIsLoaded(true)}
@@ -5382,7 +5396,7 @@ function DetailGallery({ ownerType, ownerId, onClose }: { ownerType: string, own
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
   useEffect(() => {
-    fetch(`http://localhost:8000/api/v1/media?owner_type=${ownerType}&owner_id=${encodeURIComponent(ownerId)}`)
+    fetch(`${API_URL}/media?owner_type=${ownerType}&owner_id=${encodeURIComponent(ownerId)}`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) setPhotos(data);
@@ -5406,7 +5420,7 @@ function DetailGallery({ ownerType, ownerId, onClose }: { ownerType: string, own
   }, [lightboxOpen, photos.length]);
 
   const activePhoto = photos[activeIndex] || { url: "/static/uploads/default_travel.webp", alt_text: "Placeholder" };
-  const activeFullUrl = activePhoto.url.startsWith("http") ? activePhoto.url : `http://localhost:8000${activePhoto.url}`;
+  const activeFullUrl = activePhoto.url.startsWith("http") ? activePhoto.url : `${API_HOST}${activePhoto.url}`;
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
@@ -5441,7 +5455,7 @@ function DetailGallery({ ownerType, ownerId, onClose }: { ownerType: string, own
 
             <div className="flex gap-2 overflow-x-auto pb-2">
               {photos.map((p, idx) => {
-                const thumbUrl = p.url.startsWith("http") ? p.url : `http://localhost:8000${p.url}`;
+                const thumbUrl = p.url.startsWith("http") ? p.url : `${API_HOST}${p.url}`;
                 return (
                   <button 
                     key={p.id} 
@@ -5495,7 +5509,7 @@ function PartnerLogoTile({ name, grad, onClick }: { name: string, grad: string, 
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`http://localhost:8000/api/v1/media?owner_type=partner&owner_id=${encodeURIComponent(name)}`)
+    fetch(`${API_URL}/media?owner_type=partner&owner_id=${encodeURIComponent(name)}`)
       .then(res => res.json())
       .then(data => {
         const primary = data.find((p: any) => p.is_primary) || data[0];
@@ -5505,7 +5519,7 @@ function PartnerLogoTile({ name, grad, onClick }: { name: string, grad: string, 
   }, [name]);
 
   if (logoUrl) {
-    const fullLogoUrl = logoUrl.startsWith("http") ? logoUrl : `http://localhost:8000${logoUrl}`;
+    const fullLogoUrl = logoUrl.startsWith("http") ? logoUrl : `${API_HOST}${logoUrl}`;
     return (
       <div onClick={onClick} className="relative w-full h-24 rounded-[var(--radius-card)] border border-slate-800 bg-[var(--color-surface-raised)] cursor-pointer hover:border-[var(--color-gold)] transition-all overflow-hidden group shadow-sm">
         <img 
@@ -6787,7 +6801,7 @@ function RentARideSearchForm({ onBook, onDetailClick, onNavigate }: { onBook: (d
     }
 
     const timer = setTimeout(() => {
-      fetch(`http://localhost:8000/api/v1/localities/autocomplete?q=${encodeURIComponent(destination)}`)
+      fetch(`${API_URL}/localities/autocomplete?q=${encodeURIComponent(destination)}`)
         .then(res => res.json())
         .then(data => {
           if (Array.isArray(data)) {
@@ -6970,7 +6984,7 @@ function VehicleRentalCrossSell({ destinationCity, dateRange, tripId }: { destin
   useEffect(() => {
     if (!destinationCity) return;
     setLoading(true);
-    fetch(`http://localhost:8000/api/v1/search?vertical=rent-a-ride&destination=${encodeURIComponent(destinationCity)}`)
+    fetch(`${API_URL}/search?vertical=rent-a-ride&destination=${encodeURIComponent(destinationCity)}`)
       .then(res => res.json())
       .then(data => {
         setLoading(false);
@@ -7060,7 +7074,7 @@ function RentARidePage({ city, pickup, drop, initialType, initialSelfDrive, link
     setLoading(true);
     const params = new URLSearchParams(window.location.search);
     const localityId = params.get("locality_id") || "";
-    fetch(`http://localhost:8000/api/v1/search?vertical=rent-a-ride&destination=${encodeURIComponent(city)}&locality_id=${localityId}&pickup=${encodeURIComponent(pickup)}&drop=${encodeURIComponent(drop)}`)
+    fetch(`${API_URL}/search?vertical=rent-a-ride&destination=${encodeURIComponent(city)}&locality_id=${localityId}&pickup=${encodeURIComponent(pickup)}&drop=${encodeURIComponent(drop)}`)
       .then(res => res.json())
       .then(data => {
         setLoading(false);
@@ -7087,7 +7101,7 @@ function RentARidePage({ city, pickup, drop, initialType, initialSelfDrive, link
   useEffect(() => {
     if (deliveryMode === "depot" && pickupAddress) {
       setRoutingLoading(true);
-      fetch(`http://localhost:8000/api/v1/rent-a-ride/routing?location=${encodeURIComponent(pickupAddress)}`)
+      fetch(`${API_URL}/rent-a-ride/routing?location=${encodeURIComponent(pickupAddress)}`)
         .then(res => res.json())
         .then(data => {
           setRoutingLoading(false);
@@ -7624,7 +7638,7 @@ function ActiveRentalManager({ bookingReference, fetchTrips, setSelectedTrip }: 
 
   useEffect(() => {
     setLoading(true);
-    fetch(`http://localhost:8000/api/v1/rent-a-ride/telemetry/${bookingReference}`)
+    fetch(`${API_URL}/rent-a-ride/telemetry/${bookingReference}`)
       .then(res => res.json())
       .then(data => {
         setTelemetry(data);
@@ -7636,7 +7650,7 @@ function ActiveRentalManager({ bookingReference, fetchTrips, setSelectedTrip }: 
   const handleSendChat = () => {
     if (!chatMessage.trim()) return;
     setChatLoading(true);
-    fetch(`http://localhost:8000/api/v1/rent-a-ride/support-chat`, {
+    fetch(`${API_URL}/rent-a-ride/support-chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ booking_reference: bookingReference, message: chatMessage })
@@ -7652,7 +7666,7 @@ function ActiveRentalManager({ bookingReference, fetchTrips, setSelectedTrip }: 
 
   const handleExtendRental = () => {
     setExtending(true);
-    fetch(`http://localhost:8000/api/v1/rent-a-ride/extend`, {
+    fetch(`${API_URL}/rent-a-ride/extend`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ booking_reference: bookingReference, additional_days: extendDays })
@@ -7672,7 +7686,7 @@ function ActiveRentalManager({ bookingReference, fetchTrips, setSelectedTrip }: 
       alert("Please state the nature of emergency.");
       return;
     }
-    fetch(`http://localhost:8000/api/v1/rent-a-ride/emergency`, {
+    fetch(`${API_URL}/rent-a-ride/emergency`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ booking_reference: bookingReference, issue_type: "Breakdown/Accident", details: emergencyIssue })
@@ -7686,7 +7700,7 @@ function ActiveRentalManager({ bookingReference, fetchTrips, setSelectedTrip }: 
   };
 
   const handleSimulateReturn = () => {
-    fetch(`http://localhost:8000/api/v1/rent-a-ride/transition?booking_reference=${bookingReference}&status=returned`, { method: "POST" })
+    fetch(`${API_URL}/rent-a-ride/transition?booking_reference=${bookingReference}&status=returned`, { method: "POST" })
       .then(res => res.json())
       .then(data => {
         alert("Vehicle returned successfully! Thank you for using Rent a Ride.");
@@ -7852,7 +7866,7 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, role: string, email
     try {
       if (isSignUp) {
         // Sign Up
-        const signupResp = await fetch("http://localhost:8000/api/v1/auth/signup", {
+        const signupResp = await fetch(`${API_URL}/auth/signup`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, password, phone: phone || undefined })
@@ -7873,7 +7887,7 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, role: string, email
         .map(key => encodeURIComponent(key) + '=' + encodeURIComponent((details as any)[key]))
         .join('&');
 
-      const loginResp = await fetch("http://localhost:8000/api/v1/auth/token", {
+      const loginResp = await fetch(`${API_URL}/auth/token`, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: formBody

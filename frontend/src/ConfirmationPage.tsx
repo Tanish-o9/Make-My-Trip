@@ -1,4 +1,18 @@
 import React, { useState, useEffect } from "react";
+
+const resolveApiBase = () => {
+  let url = import.meta.env.VITE_API_URL || "https://make-my-trip-production.up.railway.app/api";
+  if (url.endsWith("/")) {
+    url = url.slice(0, -1);
+  }
+  if (url.endsWith("/v1")) {
+    url = url.slice(0, -3);
+  }
+  return url;
+};
+
+const API_BASE = resolveApiBase();
+const API_URL = `${API_BASE}/v1`;
 import { CheckCircle, Calendar, ArrowRight, FileText } from "lucide-react";
 
 interface ConfirmationPageProps {
@@ -11,13 +25,13 @@ export function ConfirmationPage({ bookingId, onNavigate }: ConfirmationPageProp
   const [crossSell, setCrossSell] = useState<{ count: number, lowestPrice: number } | null>(null);
 
   useEffect(() => {
-    fetch(`http://localhost:8000/api/v1/bookings/details/${bookingId}`)
+    fetch(`${API_URL}/bookings/details/${bookingId}`)
       .then(res => res.json())
       .then(bookingData => {
         setDetails(bookingData);
         if (bookingData && bookingData.destination && bookingData.vertical !== "rent-a-ride") {
           const dest = bookingData.destination;
-          fetch(`http://localhost:8000/api/v1/search?vertical=rent-a-ride&destination=${encodeURIComponent(dest)}`)
+          fetch(`${API_URL}/search?vertical=rent-a-ride&destination=${encodeURIComponent(dest)}`)
             .then(res => res.json())
             .then(searchData => {
               if (searchData && Array.isArray(searchData.results) && searchData.results.length > 0) {

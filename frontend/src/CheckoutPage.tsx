@@ -1,4 +1,18 @@
 import React, { useState, useEffect, useRef } from "react";
+
+const resolveApiBase = () => {
+  let url = import.meta.env.VITE_API_URL || "https://make-my-trip-production.up.railway.app/api";
+  if (url.endsWith("/")) {
+    url = url.slice(0, -1);
+  }
+  if (url.endsWith("/v1")) {
+    url = url.slice(0, -3);
+  }
+  return url;
+};
+
+const API_BASE = resolveApiBase();
+const API_URL = `${API_BASE}/v1`;
 import { CreditCard, QrCode, Globe, Wallet, ShieldAlert, ArrowLeft, RefreshCw, Clock } from "lucide-react";
 
 interface CheckoutPageProps {
@@ -53,7 +67,7 @@ export function CheckoutPage({ bookingId, onNavigate }: CheckoutPageProps) {
     setLoading(true);
     setError("");
     try {
-      const statusRes = await fetch(`http://localhost:8000/api/v1/payments/status/${bookingId}`);
+      const statusRes = await fetch(`${API_URL}/payments/status/${bookingId}`);
       if (!statusRes.ok) throw new Error("Failed to load booking details");
       
       const statusData = await statusRes.json();
@@ -85,7 +99,7 @@ export function CheckoutPage({ bookingId, onNavigate }: CheckoutPageProps) {
     
     pollingIntervalRef.current = setInterval(async () => {
       try {
-        const res = await fetch(`http://localhost:8000/api/v1/payments/status/${bookingId}`);
+        const res = await fetch(`${API_URL}/payments/status/${bookingId}`);
         if (!res.ok) return;
         const data = await res.json();
         
@@ -114,7 +128,7 @@ export function CheckoutPage({ bookingId, onNavigate }: CheckoutPageProps) {
     setPaymentLoading(true);
     setError("");
     try {
-      const res = await fetch(`http://localhost:8000/api/v1/payments/create-order`, {
+      const res = await fetch(`${API_URL}/payments/create-order`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -169,7 +183,7 @@ export function CheckoutPage({ bookingId, onNavigate }: CheckoutPageProps) {
     setPaymentLoading(true);
     setError("");
     try {
-      const orderRes = await fetch(`http://localhost:8000/api/v1/payments/create-order`, {
+      const orderRes = await fetch(`${API_URL}/payments/create-order`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -213,7 +227,7 @@ export function CheckoutPage({ bookingId, onNavigate }: CheckoutPageProps) {
         handler: async function (response: any) {
           setPaymentLoading(true);
           try {
-            const verifyRes = await fetch(`http://localhost:8000/api/v1/payments/verify`, {
+            const verifyRes = await fetch(`${API_URL}/payments/verify`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
