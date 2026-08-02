@@ -3,12 +3,22 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 import sys
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://travel_user:travel_password@localhost:5432/travel_os")
-IS_EXPLICIT_DB = os.getenv("DATABASE_URL") is not None
+DATABASE_URL = os.getenv("DATABASE_URL")
+IS_EXPLICIT_DB = DATABASE_URL is not None
+is_railway = os.getenv("RAILWAY_ENVIRONMENT_NAME") is not None
 
 # Automatically switch to local SQLite database when running inside pytest
 if "pytest" in sys.modules or "pytest" in "".join(sys.argv):
     DATABASE_URL = "sqlite:///./test_travel_os.db"
+elif is_railway:
+    if not DATABASE_URL:
+        raise ValueError("CRITICAL: DATABASE_URL is missing in Railway production environment!")
+    if "localhost" in DATABASE_URL or "127.0.0.1" in DATABASE_URL:
+        raise ValueError(f"CRITICAL: DATABASE_URL points to localhost/127.0.0.1 in production: {DATABASE_URL}")
+else:
+    # Local development fallback
+    if not DATABASE_URL:
+        DATABASE_URL = "postgresql://travel_user:travel_password@localhost:5432/travel_os"
 
 engine = None
 try:
@@ -31,7 +41,6 @@ try:
     with engine.connect() as conn:
         pass
 except Exception as e:
-    is_railway = os.getenv("RAILWAY_ENVIRONMENT_NAME") is not None
     if IS_EXPLICIT_DB or is_railway:
         print(f"CRITICAL: Failed to connect to explicit DATABASE_URL: {e}", file=sys.stderr)
         raise e

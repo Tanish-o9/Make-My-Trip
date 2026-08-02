@@ -39,7 +39,8 @@ from app.models.payments import (
 target_metadata = Base.metadata
 
 def get_url():
-    return os.getenv("DATABASE_URL", "postgresql://travel_user:travel_password@postgres:5432/travel_os")
+    from app.database import DATABASE_URL
+    return DATABASE_URL
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
