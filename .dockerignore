@@ -1,0 +1,29 @@
+# Git and local files
+.git
+.gitignore
+.dockerignore
+README.md
+
+# Virtual environments and dependencies
+venv/
+**/venv/
+.env
+backend/.env
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+**/.pytest_cache/
+backend/scratch/
+
+# Database files
+*.db
+*.sqlite
+backend/travel_os.db
+backend/test_travel_os.db
+
+# Frontend (not needed in backend container)
+frontend/
+**/node_modules/
+node_modules/
