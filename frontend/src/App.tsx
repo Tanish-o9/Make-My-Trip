@@ -868,7 +868,7 @@ function ExploreView({
         if (path === '/mybiz') {
           onShowMyBiz();
         } else if (path === '/admin') {
-          navigate('/admin');
+          onNavigate('/admin');
         } else {
           const vert = path.replace('/', '');
           const validVerticals = ['flights', 'hotels', 'trains', 'cabs', 'visa', 'forex', 'insurance', 'tours', 'cruises', 'villas', 'holidays', 'rent-a-ride'];
