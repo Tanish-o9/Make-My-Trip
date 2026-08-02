@@ -337,40 +337,12 @@ def shutdown_event():
     logger.info("Graceful shutdown completed successfully.")
 
 @app.get("/healthz", tags=["monitoring"])
-def health_check(db: Session = Depends(get_db)):
-    """Liveness probe validating API health and DB/Redis/Provider connectivity"""
-    from app.utils.redis_client import redis_client
-    from app.providers.flights.amadeus import _has_real_credentials
-    
-    db_status = "connected"
-    try:
-        db.execute(text("SELECT 1"))
-    except Exception as e:
-        db_status = f"unhealthy: {e}"
-
-    redis_status = "not_configured"
-    if redis_client:
-        try:
-            redis_client.ping()
-            redis_status = "connected"
-        except Exception as e:
-            redis_status = f"unhealthy: {e}"
-            
-    amadeus_status = "configured" if _has_real_credentials() else "simulated_mode"
-
-    status_code = 200
-    if "unhealthy" in db_status or "unhealthy" in redis_status:
-        status_code = 503
-
+def health_check():
+    """Liveness probe validating API health"""
     from fastapi.responses import JSONResponse
     return JSONResponse(
-        status_code=status_code,
-        content={
-            "status": "healthy" if status_code == 200 else "unhealthy",
-            "database": db_status,
-            "redis": redis_status,
-            "amadeus_api": amadeus_status
-        }
+        status_code=200,
+        content={"status": "healthy"}
     )
 
 @app.get("/metrics", tags=["monitoring"])
