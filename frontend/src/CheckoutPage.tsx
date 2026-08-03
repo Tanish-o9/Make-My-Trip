@@ -80,6 +80,10 @@ export function CheckoutPage({ bookingId, onNavigate, token }: CheckoutPageProps
       const statusRes = await fetch(`${API_URL}/payments/status/${bookingId}`, {
         headers: token ? { "Authorization": `Bearer ${token}` } : {}
       });
+      if (statusRes.status === 401) {
+        onNavigate("/?logout=true");
+        return;
+      }
       if (statusRes.ok) {
         const statusData = await statusRes.json();
         setPaymentStatus(statusData.status);
@@ -146,6 +150,10 @@ export function CheckoutPage({ bookingId, onNavigate, token }: CheckoutPageProps
         })
       });
       
+      if (res.status === 401) {
+        onNavigate("/?logout=true");
+        return;
+      }
       if (!res.ok) {
         const errData = await res.json();
         throw new Error(errData.detail || "Failed to generate UPI QR");
@@ -204,6 +212,10 @@ export function CheckoutPage({ bookingId, onNavigate, token }: CheckoutPageProps
         })
       });
       
+      if (orderRes.status === 401) {
+        onNavigate("/?logout=true");
+        return;
+      }
       if (!orderRes.ok) {
         const errData = await orderRes.json();
         throw new Error(errData.detail || "Failed to initiate payment");

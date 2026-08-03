@@ -276,7 +276,10 @@ export default function App() {
     // Step 1: Create HOLD reservation
     fetch(`${API_URL}/bookings/hold`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        ...(token ? { "Authorization": `Bearer ${token}` } : {})
+      },
       body: JSON.stringify({
         vertical: checkoutData.vertical,
         amount: checkoutData.amount,
