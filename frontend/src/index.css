@@ -11,88 +11,207 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Headings typography reset with Fraunces font */
+  /* Headings typography reset with Impact italic retro comic style */
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-display) !important;
     color: var(--color-ivory) !important;
-    font-weight: 500 !important;
-    font-style: normal !important;
-    letter-spacing: normal !important;
-    text-transform: none !important;
-    text-shadow: none !important;
+    font-weight: 900 !important;
+    font-style: italic !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
   }
 
   /* Interactive Elements Focus Ring */
   *:focus-visible {
-    outline: 2px solid var(--color-gold) !important;
+    outline: 3px solid var(--color-teal) !important;
     outline-offset: 2px !important;
   }
 
   /* Scrollbar styling */
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
   }
   ::-webkit-scrollbar-track {
     background: var(--color-obsidian);
+    border-left: 2px solid #000000;
   }
   ::-webkit-scrollbar-thumb {
-    background: var(--color-surface-raised);
+    background: var(--color-gold);
+    border: 2px solid #000000;
     border-radius: var(--radius-card);
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: var(--color-gold-muted);
+    background: var(--color-teal);
   }
 }
 
-/* Premium layout utility classes */
-.premium-card {
-  background-color: var(--color-surface);
-  border: 1px solid rgba(243, 239, 230, 0.05);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-md);
-  transition: border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
+/* Neobrutalist UI Card Override */
+.premium-card,
+[class*="bg-[#131A29]"],
+[class*="bg-[#1C2438]"],
+[class*="bg-[#0B0E14]"],
+[class*="bg-slate-900"],
+[class*="bg-slate-800"],
+[class*="bg-gray-900"],
+.bg-slate-900,
+.bg-slate-800,
+.bg-gray-900 {
+  background-color: #ffffff !important;
+  border: 3px solid #000000 !important;
+  box-shadow: 4px 4px 0px 0px #000000 !important;
+  color: #000000 !important;
+  border-radius: 4px !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease !important;
 }
 
 .premium-card:hover {
-  border-color: rgba(201, 162, 75, 0.4);
+  transform: translate(-2px, -2px) !important;
+  box-shadow: 6px 6px 0px 0px #000000 !important;
 }
 
-.premium-btn-primary {
-  background-color: var(--color-gold);
-  color: var(--color-obsidian);
-  font-family: var(--font-body);
-  font-weight: 600;
-  border: none;
-  border-radius: var(--radius-card);
-  padding: 10px 20px;
-  cursor: pointer;
-  transition: transform 0.2s ease, background-color 0.2s ease;
+/* General inputs & textareas override */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="date"],
+input[type="time"],
+input[type="number"],
+input[type="search"],
+select,
+textarea,
+.bg-slate-950,
+[class*="bg-slate-950"],
+.bg-\[\#0F172A\],
+.bg-black\/20 {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border: 2px solid #000000 !important;
+  box-shadow: 2px 2px 0px 0px #000000 !important;
+  border-radius: 4px !important;
+  padding: 8px 12px !important;
+  font-family: var(--font-body) !important;
 }
 
-.premium-btn-primary:hover {
-  background-color: #d6b35d;
-  transform: scale(1.02);
+input:focus, select:focus, textarea:focus {
+  outline: 2px solid var(--color-teal) !important;
+  box-shadow: 3px 3px 0px 0px #000000 !important;
 }
 
-.premium-btn-primary:active {
-  transform: scale(0.98);
+/* Sidebar neobrutalist yellow theme */
+aside,
+.w-64,
+nav[class*="bg-"],
+[class*="bg-[#0b0e14]"] {
+  background-color: var(--color-gold) !important;
+  border-right: 3px solid #000000 !important;
+  color: #000000 !important;
 }
 
-/* Boarding Pass cutouts and styling details */
+/* Active navigation links style (Sky blue with black border) */
+aside a[class*="active"],
+aside a[class*="bg-slate-800"],
+aside button[class*="active"],
+.bg-slate-800\/50,
+.bg-slate-800 {
+  background-color: var(--color-teal) !important;
+  border: 2px solid #000000 !important;
+  box-shadow: 2px 2px 0px 0px #000000 !important;
+  color: #ffffff !important;
+  border-radius: 4px !important;
+}
+
+/* Standard and premium buttons override */
+.premium-btn-primary,
+button,
+input[type="submit"],
+.btn {
+  background-color: var(--color-gold) !important;
+  color: #000000 !important;
+  font-family: var(--font-display) !important;
+  text-transform: uppercase !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
+  border: 2px solid #000000 !important;
+  box-shadow: 3px 3px 0px 0px #000000 !important;
+  border-radius: 4px !important;
+  padding: 10px 20px !important;
+  cursor: pointer !important;
+  transition: transform 0.1s ease, box-shadow 0.1s ease !important;
+}
+
+.premium-btn-primary:hover,
+button:hover,
+input[type="submit"]:hover {
+  transform: translate(-1px, -1px) !important;
+  box-shadow: 4px 4px 0px 0px #000000 !important;
+}
+
+.premium-btn-primary:active,
+button:active,
+input[type="submit"]:active {
+  transform: translate(2px, 2px) !important;
+  box-shadow: 1px 1px 0px 0px #000000 !important;
+}
+
+/* Alternate / secondary buttons (Tomato red) */
+button[class*="bg-red-500"],
+button[class*="text-red-500"],
+.bg-rose-600,
+.bg-red-600 {
+  background-color: var(--color-red) !important;
+  color: #ffffff !important;
+}
+
+/* Subdue/text contrast helpers for readable labels in light mode */
+.text-slate-400,
+.text-slate-300,
+.text-slate-500,
+.text-gray-400,
+.text-gray-500,
+.text-white\/60,
+.text-white\/40,
+[class*="text-slate-"],
+[class*="text-gray-"] {
+  color: #2f3640 !important;
+}
+
+.text-white,
+.text-slate-100,
+.text-slate-200,
+.text-slate-50 {
+  color: #000000 !important;
+}
+
+.text-gold,
+.text-\[\#C9A24B\] {
+  color: var(--color-teal) !important;
+  font-weight: bold !important;
+}
+
+/* Boarding Pass layout overrides */
 .boarding-pass-cutout {
-  position: relative;
+  border: 3px solid #000000 !important;
+  box-shadow: 4px 4px 0px 0px #000000 !important;
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border-radius: 4px !important;
 }
 
 .boarding-pass-cutout::before,
 .boarding-pass-cutout::after {
-  content: '';
-  position: absolute;
-  width: 16px;
-  height: 16px;
-  background-color: var(--color-obsidian);
-  border-radius: 50%;
-  z-index: 10;
+  background-color: var(--color-obsidian) !important;
+  border: 2px solid #000000 !important;
+}
+
+/* Divider lines */
+hr,
+.border-slate-800,
+.border-gray-800,
+.border-white\/10,
+.border-white\/5 {
+  border-color: #000000 !important;
+  border-width: 1.5px !important;
 }
 
 /* Animation Keyframes */
@@ -118,34 +237,14 @@
   }
 }
 
-@keyframes pulseGold {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.4;
-    transform: scale(1.2);
-  }
-}
-
 /* Animation Classes */
 .animate-slideup {
-  animation: slideUpFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: slideUpFade 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .animate-scalein {
-  animation: scaleInFade 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: scaleInFade 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
-
-.animate-pulse-gold {
-  animation: pulseGold 2s infinite ease-in-out;
-}
-
-/* Stagger Animation Utilities */
-.stagger-delay-1 { animation-delay: 100ms; }
-.stagger-delay-2 { animation-delay: 200ms; }
-.stagger-delay-3 { animation-delay: 300ms; }
 
 /* Accessibility support */
 @media (prefers-reduced-motion: reduce) {
