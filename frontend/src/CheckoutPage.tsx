@@ -21,7 +21,10 @@ interface CheckoutPageProps {
 }
 
 export function CheckoutPage({ bookingId, onNavigate }: CheckoutPageProps) {
+  // Audit: Retrieve JWT from localStorage for authenticated order creation endpoints
   const token = localStorage.getItem("token");
+  
+  // Audit: Pre-populate default booking state to prevent TypeError before status check resolves
   const [booking, setBooking] = useState<any>({
     booking_reference: bookingId,
     title: `Travel OS Booking ${bookingId}`,
