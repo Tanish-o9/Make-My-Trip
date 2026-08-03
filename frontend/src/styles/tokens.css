@@ -1,10 +1,10 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;700;900&family=IBM+Plex+Mono:ital,wght@0,500;1,500&display=swap');
 
 :root {
-  /* Deep Navy & White Card Pop Palette */
+  /* Deep Navy & Warm Cream Card Pop Palette */
   --color-obsidian: #0B1220;        /* Page background: Deep Navy (Dark 75%) */
-  --color-surface: #FFFFFF;         /* Cards background: White (White 15%) */
-  --color-surface-raised: #FAF8F5;  /* Secondary Card/Surface: Warm White/Cream */
+  --color-surface: #FAF6EE;         /* Cards background: Warm Cream */
+  --color-surface-raised: #F5EFEB;  /* Secondary Card/Surface: Warm Cream/Beige */
   --color-gold: #f3c623;            /* Gold Accent (Gold 10%) */
   --color-gold-muted: #d3a413;      /* Hover Gold */
   --color-ivory: #ffffff;           /* Primary Text on Page background: White */
