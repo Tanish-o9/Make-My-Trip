@@ -46,7 +46,7 @@
   }
 }
 
-/* Neobrutalist Light Comic Card / Container Override */
+/* Neobrutalist White Cards Popping on Deep Navy Background */
 .premium-card,
 [class*="bg-[#131A29]"],
 [class*="bg-[#1C2438]"],
@@ -60,7 +60,7 @@
   background-color: var(--color-surface) !important;
   border: 4px solid #000000 !important;
   box-shadow: var(--shadow-md) !important;
-  color: var(--color-ivory) !important;
+  color: #000000 !important;
   border-radius: var(--radius-card) !important;
   transition: transform 0.15s ease, box-shadow 0.15s ease !important;
 }
@@ -68,6 +68,26 @@
 .premium-card:hover {
   transform: translate(-2px, -2px) !important;
   box-shadow: var(--shadow-lg) !important;
+}
+
+/* Visibility helpers inside white cards: force all white/light texts to pure black */
+.premium-card [class*="text-slate-"],
+.premium-card [class*="text-gray-"],
+.premium-card .text-white,
+[class*="bg-[#131A29]"] [class*="text-slate-"],
+[class*="bg-[#131A29]"] [class*="text-gray-"],
+[class*="bg-[#131A29]"] .text-white,
+[class*="bg-[#1D]"] [class*="text-slate-"],
+[class*="bg-[#1C2438]"] [class*="text-slate-"],
+[class*="bg-[#1C2438]"] [class*="text-gray-"],
+[class*="bg-[#1C2438]"] .text-white,
+.bg-slate-900 [class*="text-slate-"],
+.bg-slate-900 [class*="text-gray-"],
+.bg-slate-900 .text-white,
+.bg-slate-800 [class*="text-slate-"],
+.bg-slate-800 [class*="text-gray-"],
+.bg-slate-800 .text-white {
+  color: #000000 !important;
 }
 
 /* General inputs & textareas override (Clean white background, thick outlines) */
@@ -97,14 +117,14 @@ input:focus, select:focus, textarea:focus {
   box-shadow: 4px 4px 0px 0px #000000 !important;
 }
 
-/* Sidebar neobrutalist yellow theme */
+/* Sidebar neobrutalist dark theme to match deep navy background */
 aside,
 .w-64,
 nav[class*="bg-"],
 [class*="bg-[#0b0e14]"] {
   background-color: var(--color-obsidian) !important;
   border-right: 4px solid #000000 !important;
-  color: var(--color-ivory) !important;
+  color: #ffffff !important;
 }
 
 /* Active navigation links style (Gold with black border) */
@@ -123,15 +143,15 @@ aside button[class*="active"],
 
 /* Inactive navigation links formatting */
 aside a, aside button {
-  color: var(--color-ivory) !important;
+  color: #ffffff !important;
   background-color: transparent !important;
   border: none !important;
   box-shadow: none !important;
 }
 
 aside a:hover, aside button:hover {
-  color: var(--color-teal) !important;
-  background-color: rgba(0,0,0,0.02) !important;
+  color: var(--color-gold) !important;
+  background-color: rgba(255,255,255,0.02) !important;
 }
 
 /* Header luxury glassmorphism */
@@ -148,7 +168,7 @@ header,
   background-color: var(--color-surface) !important;
   border: 3px solid #000000 !important;
   border-radius: var(--radius-inner) !important;
-  color: var(--color-ivory) !important;
+  color: #000000 !important;
 }
 
 /* Wallet amount in gold */
@@ -201,7 +221,7 @@ input[type="submit"]:active {
 /* Inactive Vertical Tabs inside search form */
 button[class*="bg-[var(--color-surface)]"] {
   background-color: var(--color-surface-raised) !important;
-  color: var(--color-ivory-dim) !important;
+  color: #475569 !important;
   border: 3px solid #000000 !important;
   box-shadow: 3px 3px 0px 0px #000000 !important;
   border-radius: var(--radius-inner) !important;
@@ -250,7 +270,7 @@ div[class*="border-red-"],
   font-weight: bold !important;
 }
 
-/* Text Colors Hierarchy */
+/* Text Colors Hierarchy on page background (Deep Navy) */
 .text-slate-400,
 .text-slate-300,
 .text-slate-500,
@@ -260,22 +280,22 @@ div[class*="border-red-"],
 .text-white\/40,
 [class*="text-slate-"],
 [class*="text-gray-"] {
-  color: var(--color-ivory-dim) !important;
+  color: var(--color-ivory-dim);
 }
 
 .text-white,
 .text-slate-100,
 .text-slate-200,
 .text-slate-50 {
-  color: var(--color-ivory) !important;
+  color: var(--color-ivory);
 }
 
-/* Boarding Pass ticket styling */
+/* Boarding Pass ticket styling (White card) */
 .boarding-pass-cutout {
   border: 4px solid #000000 !important;
   box-shadow: var(--shadow-md) !important;
-  background-color: var(--color-surface-raised) !important;
-  color: var(--color-ivory) !important;
+  background-color: var(--color-surface) !important;
+  color: #000000 !important;
   border-radius: var(--radius-card) !important;
 }
 
@@ -283,6 +303,21 @@ div[class*="border-red-"],
 .boarding-pass-cutout::after {
   background-color: var(--color-obsidian) !important;
   border: 2px solid #000000 !important;
+}
+
+/* Gold headings inside boarding pass */
+.boarding-pass-cutout [class*="text-slate-500"],
+.boarding-pass-cutout [class*="text-slate-400"],
+.boarding-pass-cutout [class*="text-xs"],
+.boarding-pass-cutout p:first-child {
+  color: var(--color-gold-muted) !important;
+}
+
+/* Black values inside boarding pass */
+.boarding-pass-cutout [class*="text-white"],
+.boarding-pass-cutout [class*="font-semibold"],
+.boarding-pass-cutout span {
+  color: #000000 !important;
 }
 
 /* Divider lines */

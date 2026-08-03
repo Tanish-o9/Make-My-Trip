@@ -1,14 +1,14 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;700;900&family=IBM+Plex+Mono:ital,wght@0,500;1,500&display=swap');
 
 :root {
-  /* Light Comic Pop-Art Palette */
-  --color-obsidian: #FAF6EE;        /* Page background: Warm Cream */
-  --color-surface: #FFFFFF;         /* Cards background: White */
-  --color-surface-raised: #FAF8F5;  /* Secondary Card/Surface: Slightly warmer beige */
-  --color-gold: #f3c623;            /* Gold Accent */
+  /* Deep Navy & White Card Pop Palette */
+  --color-obsidian: #0B1220;        /* Page background: Deep Navy (Dark 75%) */
+  --color-surface: #FFFFFF;         /* Cards background: White (White 15%) */
+  --color-surface-raised: #FAF8F5;  /* Secondary Card/Surface: Warm White/Cream */
+  --color-gold: #f3c623;            /* Gold Accent (Gold 10%) */
   --color-gold-muted: #d3a413;      /* Hover Gold */
-  --color-ivory: #000000;           /* Primary Text: Pure Black */
-  --color-ivory-dim: #2F3542;       /* Secondary Text: Charcoal */
+  --color-ivory: #ffffff;           /* Primary Text on Page background: White */
+  --color-ivory-dim: #a4b0be;       /* Secondary Text on Page background: Muted Gray */
   --color-teal: #00B894;            /* Primary CTA: Emerald Green */
   --color-red: #FF1E56;             /* Danger / Alert Red */
   --color-green: #00B894;           /* Success Green */
