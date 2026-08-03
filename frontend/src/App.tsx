@@ -5,7 +5,7 @@ import {
   TrendingUp, AlertTriangle, ArrowRight, Plus, Check, CreditCard, Tag, Globe, User,
   Heart, ArrowUpDown, ShieldCheck, HelpCircle, MapPin, FileText, ChevronRight, Info,
   Bus, Ship, Coins, Activity, Anchor, Home, Gift, Briefcase, Clock, Trash2,
-  Car, Key
+  Car, Key, Menu, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckoutPage } from './CheckoutPage';
@@ -75,6 +75,7 @@ const decodeJwt = (t: string) => {
 };
 
 export default function App() {
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [userRole, setUserRole] = useState<string | null>(localStorage.getItem('user_role'));
   const [activeTab, setActiveTab] = useState<'explore' | 'chat' | 'wallet' | 'trips'>('explore');
@@ -391,15 +392,31 @@ export default function App() {
       )}
       
       <div className="flex flex-1 overflow-hidden font-sans relative text-[var(--color-ivory)] bg-[var(--color-obsidian)]">
+      {/* SIDEBAR NAVIGATION BACKDROP ON MOBILE */}
+      {isMobileSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden transition-opacity duration-300"
+          onClick={() => setIsMobileSidebarOpen(false)}
+        />
+      )}
       {/* SIDEBAR NAVIGATION */}
-      <aside className="w-64 bg-[var(--color-obsidian)] border-r border-slate-800/80 flex flex-col justify-between p-4 z-20">
+      <aside className={`fixed md:static inset-y-0 left-0 w-64 bg-[var(--color-obsidian)] border-r border-slate-800/80 flex flex-col justify-between p-4 z-50 transform ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 transition-transform duration-300 ease-in-out`}>
         <div>
-          <div className="flex items-center gap-2 mb-8 px-2 py-1">
-            <span className="font-serif italic font-bold text-2xl text-[var(--color-gold)]">T</span>
-            <span className="font-serif italic font-black text-sm tracking-wider text-[var(--color-ivory)] flex items-center gap-1">
-              TRAVEL OS
-              <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-gold)] animate-pulse-gold inline-block" />
-            </span>
+          <div className="flex items-center justify-between mb-8 px-2 py-1">
+            <div className="flex items-center gap-2">
+              <span className="font-serif italic font-bold text-2xl text-[var(--color-gold)]">T</span>
+              <span className="font-serif italic font-black text-sm tracking-wider text-[var(--color-ivory)] flex items-center gap-1">
+                TRAVEL OS
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-gold)] animate-pulse-gold inline-block" />
+              </span>
+            </div>
+            <button 
+              onClick={() => setIsMobileSidebarOpen(false)}
+              className="text-[var(--color-ivory-dim)] hover:text-white md:hidden focus:outline-none cursor-pointer p-1"
+              title="Close Menu"
+            >
+              <X size={20} />
+            </button>
           </div>
 
           <nav className="space-y-1">
@@ -407,25 +424,25 @@ export default function App() {
               active={activeTab === 'explore'} 
               icon={<Compass size={20} />} 
               label="Explore & Book" 
-              onClick={() => setActiveTab('explore')} 
+              onClick={() => { setActiveTab('explore'); setIsMobileSidebarOpen(false); }} 
             />
             <SidebarBtn 
               active={activeTab === 'chat'} 
               icon={<MessageSquare size={20} />} 
               label="AI Travel Assistant" 
-              onClick={() => setActiveTab('chat')} 
+              onClick={() => { setActiveTab('chat'); setIsMobileSidebarOpen(false); }} 
             />
             <SidebarBtn 
               active={activeTab === 'trips'} 
               icon={<FileText size={20} />} 
               label="My Trips" 
-              onClick={() => setActiveTab('trips')} 
+              onClick={() => { setActiveTab('trips'); setIsMobileSidebarOpen(false); }} 
             />
             <SidebarBtn 
               active={activeTab === 'wallet'} 
               icon={<Wallet size={20} />} 
               label="Wallet & Loyalty" 
-              onClick={() => setActiveTab('wallet')} 
+              onClick={() => { setActiveTab('wallet'); setIsMobileSidebarOpen(false); }} 
             />
           </nav>
         </div>
@@ -453,9 +470,16 @@ export default function App() {
 
       {/* MAIN VIEW AREA */}
       <main className="flex-1 flex flex-col h-full overflow-hidden bg-[#0a0f1d]">
-        <header className="h-16 border-b border-slate-800/80 flex items-center justify-between px-8 bg-[var(--color-obsidian)] z-10">
+        <header className="h-16 border-b border-slate-800/80 flex items-center justify-between px-4 md:px-8 bg-[var(--color-obsidian)] z-10 w-full">
           {/* Left Logo */}
           <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setIsMobileSidebarOpen(true)}
+              className="p-1.5 text-[var(--color-ivory)] hover:text-[var(--color-gold)] focus:outline-none md:hidden cursor-pointer mr-1"
+              title="Open Menu"
+            >
+              <Menu size={24} />
+            </button>
             <span className="font-serif italic font-bold text-2xl text-[var(--color-gold)]">T</span>
             <span className="font-serif italic font-black text-sm tracking-wider text-[var(--color-ivory)] flex items-center gap-1">
               TRAVEL OS
@@ -490,8 +514,8 @@ export default function App() {
           </nav>
 
           {/* Right Side */}
-          <div className="flex items-center gap-6">
-            <div className="text-right text-xs">
+          <div className="flex items-center gap-3 md:gap-6">
+            <div className="text-right text-xs hidden sm:block">
               <span className="text-[var(--color-ivory-dim)] text-[10px] uppercase tracking-wider block">Wallet Balance</span>
               <span className="font-mono text-sm font-medium text-[var(--color-gold)] mt-0.5 block">
                 {currency === 'INR' ? '₹' : currency === 'USD' ? '$' : '€'}
@@ -716,7 +740,7 @@ function ExploreView({
   }, []);
   
   return (
-    <div className="h-full overflow-y-auto bg-[#0a0f1d] pb-16 scroll-smooth">
+    <div className="h-full overflow-y-auto overflow-x-hidden bg-[#0a0f1d] pb-28 md:pb-16 scroll-smooth w-full">
       {/* 1. TOP UTILITY HEADER */}
       <div className="w-full bg-[#0b1021]/80 backdrop-blur-md border-b border-slate-900/60 py-3 px-8 flex justify-between items-center text-xs text-slate-300">
         <div className="flex items-center gap-4">
@@ -733,7 +757,7 @@ function ExploreView({
       </div>
 
       {/* 2. HERO SHELL */}
-      <div className="relative bg-[var(--color-obsidian)] py-10 px-6 border-b border-slate-800/80 overflow-hidden">
+      <div className="relative w-full bg-[var(--color-obsidian)] py-8 px-4 sm:px-6 md:px-8 border-b border-slate-800/80 overflow-hidden">
         {/* Ambient Flight Paths Pattern */}
         <div className="absolute inset-0 opacity-[0.08] pointer-events-none">
           <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
@@ -745,7 +769,7 @@ function ExploreView({
         </div>
 
         <div className="max-w-7xl mx-auto text-center mb-6 relative z-10 animate-slideup">
-          <h2 className="text-3xl md:text-4xl lg:text-5xl font-serif text-[var(--color-ivory)] tracking-tight leading-tight uppercase">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-serif text-[var(--color-ivory)] tracking-tight leading-tight uppercase">
             WHERE WOULD YOU LIKE TO <span className="font-serif italic text-[var(--color-gold)]">TRAVEL</span>?
           </h2>
           <p className="text-[10px] font-mono uppercase tracking-widest text-[var(--color-ivory-dim)] mt-2">
@@ -757,7 +781,7 @@ function ExploreView({
         <div className="max-w-7xl mx-auto bg-[var(--color-surface)] border border-slate-800 rounded-[var(--radius-card)] shadow-2xl relative z-10 animate-scalein flex flex-col md:flex-row overflow-hidden">
           
           {/* Main Ticket Stub (Left Form Section - 75% width) */}
-          <div className="flex-1 p-8 md:p-10">
+          <div className="flex-1 p-4 sm:p-8 md:p-10">
             {/* Animated Tab Selector */}
             <div className="flex flex-wrap gap-2 gap-y-3 border-b border-slate-800/80 pb-4 mb-6 justify-start">
               <VerticalTab id="flights" label="Flights" icon={<Plane size={16} />} active={activeVertical} onClick={setActiveVertical} isLoading={loadingVerticals['flights']} />
@@ -800,7 +824,7 @@ function ExploreView({
         </div>
 
         {/* Ticket Stub (Right Section - wider and taller) */}
-        <div className="w-full md:w-80 bg-[var(--color-surface-raised)] p-8 md:p-10 flex flex-col justify-between border-t md:border-t-0 md:border-l border-slate-800/80">
+        <div className="w-full md:w-80 bg-[var(--color-surface-raised)] p-4 sm:p-8 md:p-10 flex flex-col justify-between border-t md:border-t-0 md:border-l border-slate-800/80">
           <div className="space-y-6">
             <div>
               <span className="text-[10px] font-mono text-[var(--color-ivory-dim)] uppercase block">PASSENGER TICKET</span>
@@ -1839,7 +1863,7 @@ function HotelsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
       {/* Hotel Results Grid */}
       <div className="mt-4">
         {loading && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {[1, 2].map((i) => (
               <div key={i} className="glass-card p-4 rounded-2xl animate-pulse border border-slate-800 space-y-4">
                 <div className="h-48 bg-slate-800 rounded-xl w-full"></div>
@@ -1859,7 +1883,7 @@ function HotelsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
                 {"Comparing simulated inventory (HotelBeds & Expedia sandbox)"}
               </span>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {results.map((res, index) => (
               <div key={index} className="bg-[#121c33] p-4 rounded-2xl border border-slate-800 hover:border-slate-700 transition-all flex flex-col justify-between gap-4 relative">
                 {index === 0 && (
@@ -2065,7 +2089,7 @@ function VillasSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
         <div className="text-center py-6 text-slate-400 text-xs">Searching homestays...</div>
       ) : rawResults.length > 0 ? (
         results.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {results.map((v, i) => (
               <div key={i} className="bg-white border-3 border-black p-4 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col justify-between gap-3 text-left">
                 <div onClick={() => onDetailClick("villas", v)} className="cursor-pointer">
@@ -2216,7 +2240,7 @@ function HolidayPackagesSearchForm({ onBook, onDetailClick }: { onBook: (data: a
       </div>
 
       {/* Budget range slider and Package Type */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
         {/* Budget Range Slider */}
         <div className="space-y-2 bg-white border-3 border-black p-4 shadow-[4px_4px_0px_0px_#000000] flex flex-col justify-center">
           <div className="flex justify-between items-center text-xs font-black">
@@ -2261,7 +2285,7 @@ function HolidayPackagesSearchForm({ onBook, onDetailClick }: { onBook: (data: a
       {loading ? (
         <div className="text-center py-6 text-slate-400 text-xs">Searching flight+hotel holiday combos...</div>
       ) : results.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left">
           {results.map((p, i) => (
             <div key={i} className="bg-white border-3 border-black p-4 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col justify-between gap-3 text-black">
               <div onClick={() => onDetailClick("holidays", p)} className="cursor-pointer">
@@ -2811,7 +2835,7 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
       {loading ? (
         <div className="text-center py-6 text-slate-400 text-xs">Computing fuel tolls & routes...</div>
       ) : results.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left">
           {results.map((c, i) => (
             <div key={i} className="bg-white border-3 border-black p-4 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col justify-between gap-3 text-black">
               <div onClick={() => onDetailClick("cabs", c)} className="cursor-pointer">
@@ -2936,7 +2960,7 @@ function ToursSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => voi
       {loading ? (
         <div className="text-center py-6 text-slate-400 text-xs">Connecting with Local Guide Agents...</div>
       ) : results.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left">
           {results.map((a, i) => (
             <div key={i} className="bg-white border-3 border-black p-4 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col justify-between gap-3 text-black">
               <div onClick={() => onDetailClick("tours", a)} className="cursor-pointer">
@@ -3190,7 +3214,7 @@ function CruisesSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => v
       {loading ? (
         <div className="text-center py-6 text-slate-400 text-xs">Consulting ocean cruiser bookings...</div>
       ) : results.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left">
           {results.map((c, i) => (
             <div key={i} className="bg-white border-3 border-black p-4 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col justify-between gap-3 text-black">
               <div onClick={() => onDetailClick("cruises", c)} className="cursor-pointer">
@@ -3482,7 +3506,7 @@ function InsuranceSearchForm({ onBook, onDetailClick }: { onBook: (data: any) =>
       {loading ? (
         <div className="text-center py-6 text-slate-400 text-xs">Running coverage risk premium calculations...</div>
       ) : results.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left">
           {results.map((i, idx) => (
             <div key={idx} className="bg-white border-3 border-black p-4 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col justify-between gap-3 text-black">
               <div onClick={() => onDetailClick("insurance", i)} className="cursor-pointer">
@@ -4089,7 +4113,7 @@ function MyTripsView({ userProfile, setActiveTab, setPrefilledMessage }: { userP
   });
 
   return (
-    <div className="p-8 h-full overflow-y-auto max-w-4xl mx-auto space-y-6 text-black font-sans text-left">
+    <div className="p-4 md:p-8 pb-28 md:pb-16 h-full overflow-y-auto overflow-x-hidden max-w-4xl mx-auto space-y-6 text-black font-sans text-left">
       <div className="flex justify-between items-center text-black">
         <h3 className="text-2xl font-black italic uppercase tracking-wider flex items-center gap-2 text-white">
           <FileText size={24} className="text-blue-500" /> Bookings & Trips History
@@ -4611,7 +4635,7 @@ function FloatingAssistant({ onTrigger }: { onTrigger: (msg: string) => void }) 
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-40 bg-[#0d1527] border border-slate-800 rounded-full p-1.5 shadow-2xl flex items-center max-w-sm w-80">
+    <div className="fixed bottom-6 right-4 left-4 md:right-6 md:left-auto z-40 bg-[#0d1527] border border-slate-800 rounded-full p-1.5 shadow-2xl flex items-center w-[calc(100%-32px)] md:w-80 max-w-sm">
       <div className="p-2 bg-blue-600 rounded-full text-white">
         <Sparkles size={16} className="animate-pulse" />
       </div>
@@ -5047,7 +5071,7 @@ function ChatView({
 
   return (
     <div className="flex flex-col h-full bg-[#0a0f1d]">
-      <div className="flex-1 overflow-y-auto p-8 space-y-6">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 space-y-4 md:space-y-6">
         {messages.map((msg, index) => (
           <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-2xl rounded-2xl p-5 ${
@@ -5220,7 +5244,7 @@ function ChatView({
         </div>
       )}
 
-      <div className="h-20 border-t border-slate-900 px-8 flex items-center justify-between bg-[#0a0f1d]/80">
+      <div className="h-20 border-t border-slate-900 px-4 md:px-8 flex items-center justify-between bg-[#0a0f1d]/80">
         <div className="flex-1 flex gap-2 max-w-4xl mx-auto items-center">
           <button 
             onClick={() => setIsVoice(!isVoice)}
@@ -5282,7 +5306,7 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
   };
 
   return (
-    <div className="p-8 h-full overflow-y-auto max-w-4xl mx-auto space-y-6">
+    <div className="p-4 md:p-8 pb-28 md:pb-16 h-full overflow-y-auto overflow-x-hidden max-w-4xl mx-auto space-y-6">
       <div className="bg-gradient-to-r from-blue-900/60 to-indigo-900/60 rounded-2xl p-6 border border-blue-500/20 shadow-xl flex justify-between items-center">
         <div>
           <span className="text-xs text-blue-300 font-bold uppercase tracking-wider">Active Balance</span>
@@ -5295,7 +5319,7 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
         <div className="glass-card p-6 rounded-2xl border border-slate-800 space-y-4">
           <h4 className="font-bold text-slate-200 flex items-center gap-2"><CreditCard size={18} className="text-blue-500" /> Wallet Recharge</h4>
           <form onSubmit={handleTopup} className="space-y-3">
@@ -5729,7 +5753,7 @@ function InfoHighlightRow({ onNavigate }: { onNavigate?: (path: string) => void 
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 py-8 border-t border-slate-800/80 font-sans">
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 py-8 border-t border-slate-800/80 font-sans">
       {highlights.map((h) => (
         <a 
           href={h.cta_url}
