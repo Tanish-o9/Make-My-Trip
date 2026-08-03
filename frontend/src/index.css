@@ -11,42 +11,42 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Headings typography reset with Impact italic retro comic style */
+  /* Headings typography reset with Fraunces font */
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-display) !important;
     color: var(--color-ivory) !important;
-    font-weight: 900 !important;
-    font-style: italic !important;
-    text-transform: uppercase !important;
-    letter-spacing: 0.05em !important;
+    font-weight: 500 !important;
+    font-style: normal !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+    text-shadow: none !important;
   }
 
   /* Interactive Elements Focus Ring */
   *:focus-visible {
-    outline: 3px solid var(--color-teal) !important;
+    outline: 2px solid var(--color-gold) !important;
     outline-offset: 2px !important;
   }
 
   /* Scrollbar styling */
   ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 8px;
+    height: 8px;
   }
   ::-webkit-scrollbar-track {
     background: var(--color-obsidian);
-    border-left: 2px solid #000000;
   }
   ::-webkit-scrollbar-thumb {
-    background: var(--color-gold);
-    border: 2px solid #000000;
+    background: var(--color-surface);
+    border: 1px solid rgba(255,255,255,0.08);
     border-radius: var(--radius-card);
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: var(--color-teal);
+    background: var(--color-gold-muted);
   }
 }
 
-/* Neobrutalist UI Card Override */
+/* Premium Card (Luxury dark card surface with thin borders & smooth shadows) */
 .premium-card,
 [class*="bg-[#131A29]"],
 [class*="bg-[#1C2438]"],
@@ -57,20 +57,21 @@
 .bg-slate-900,
 .bg-slate-800,
 .bg-gray-900 {
-  background-color: #ffffff !important;
-  border: 3px solid #000000 !important;
-  box-shadow: 4px 4px 0px 0px #000000 !important;
-  color: #000000 !important;
-  border-radius: 4px !important;
-  transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+  background-color: var(--color-surface-raised) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: var(--shadow-md) !important;
+  color: var(--color-ivory) !important;
+  border-radius: var(--radius-card) !important;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 .premium-card:hover {
-  transform: translate(-2px, -2px) !important;
-  box-shadow: 6px 6px 0px 0px #000000 !important;
+  transform: translateY(-2px) !important;
+  border-color: rgba(212, 175, 55, 0.3) !important;
+  box-shadow: var(--shadow-lg) !important;
 }
 
-/* General inputs & textareas override */
+/* Global input styling - clean white inputs for high contrast */
 input[type="text"],
 input[type="email"],
 input[type="password"],
@@ -85,17 +86,17 @@ textarea,
 .bg-\[\#0F172A\],
 .bg-black\/20 {
   background-color: #ffffff !important;
-  color: #000000 !important;
-  border: 2px solid #000000 !important;
-  box-shadow: 2px 2px 0px 0px #000000 !important;
-  border-radius: 4px !important;
-  padding: 8px 12px !important;
+  color: #0c1017 !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: none !important;
+  border-radius: var(--radius-inner) !important;
+  padding: 10px 14px !important;
   font-family: var(--font-body) !important;
 }
 
 input:focus, select:focus, textarea:focus {
-  outline: 2px solid var(--color-teal) !important;
-  box-shadow: 3px 3px 0px 0px #000000 !important;
+  outline: 2px solid var(--color-gold) !important;
+  border-color: var(--color-gold) !important;
 }
 
 /* Sidebar neobrutalist yellow theme */
@@ -103,67 +104,125 @@ aside,
 .w-64,
 nav[class*="bg-"],
 [class*="bg-[#0b0e14]"] {
-  background-color: var(--color-gold) !important;
-  border-right: 3px solid #000000 !important;
-  color: #000000 !important;
+  background-color: var(--color-obsidian) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: var(--color-ivory-dim) !important;
+  box-shadow: none !important;
 }
 
-/* Active navigation links style (Sky blue with black border) */
+/* Sidebar active navigation links style (gold left border + subtle dark highlight) */
 aside a[class*="active"],
 aside a[class*="bg-slate-800"],
 aside button[class*="active"],
 .bg-slate-800\/50,
 .bg-slate-800 {
-  background-color: var(--color-teal) !important;
-  border: 2px solid #000000 !important;
-  box-shadow: 2px 2px 0px 0px #000000 !important;
-  color: #ffffff !important;
-  border-radius: 4px !important;
+  background-color: rgba(255, 255, 255, 0.03) !important;
+  border: none !important;
+  border-left: 3px solid var(--color-gold) !important;
+  box-shadow: none !important;
+  color: var(--color-gold) !important;
+  border-radius: 0px !important;
 }
 
-/* Standard and premium buttons override */
+/* Secondary sidebar link formatting */
+aside a, aside button {
+  color: var(--color-ivory-dim) !important;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+aside a:hover, aside button:hover {
+  color: var(--color-ivory) !important;
+  background-color: rgba(255,255,255,0.02) !important;
+}
+
+/* Header luxury glassmorphism */
+header,
+.bg-slate-900\/80,
+.backdrop-blur-md {
+  background-color: rgba(11, 15, 23, 0.8) !important;
+  backdrop-filter: blur(12px) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Wallet Card (Inside header) */
+.bg-slate-900\/50,
+[class*="bg-slate-900/50"] {
+  background-color: var(--color-surface) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: var(--radius-inner) !important;
+  color: var(--color-ivory-dim) !important;
+}
+
+/* Wallet amount in gold */
+.text-gold,
+.text-\[\#C9A24B\],
+[class*="text-[#C9A24B]"] {
+  color: var(--color-gold) !important;
+  font-weight: 600 !important;
+}
+
+/* Primary Button (Gold background, black text) */
 .premium-btn-primary,
 button,
 input[type="submit"],
 .btn {
   background-color: var(--color-gold) !important;
-  color: #000000 !important;
-  font-family: var(--font-display) !important;
-  text-transform: uppercase !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-  border: 2px solid #000000 !important;
-  box-shadow: 3px 3px 0px 0px #000000 !important;
-  border-radius: 4px !important;
+  color: var(--color-obsidian) !important;
+  font-family: var(--font-body) !important;
+  font-weight: 600 !important;
+  border: 1px solid var(--color-gold) !important;
+  box-shadow: 0 4px 12px rgba(212, 175, 55, 0.2) !important;
+  border-radius: var(--radius-inner) !important;
   padding: 10px 20px !important;
   cursor: pointer !important;
-  transition: transform 0.1s ease, box-shadow 0.1s ease !important;
+  transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease !important;
 }
 
 .premium-btn-primary:hover,
 button:hover,
 input[type="submit"]:hover {
-  transform: translate(-1px, -1px) !important;
-  box-shadow: 4px 4px 0px 0px #000000 !important;
+  background-color: var(--color-gold-muted) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 16px rgba(212, 175, 55, 0.3) !important;
 }
 
 .premium-btn-primary:active,
 button:active,
 input[type="submit"]:active {
-  transform: translate(2px, 2px) !important;
-  box-shadow: 1px 1px 0px 0px #000000 !important;
+  transform: translateY(1px) !important;
+  box-shadow: 0 2px 6px rgba(212, 175, 55, 0.15) !important;
 }
 
-/* Alternate / secondary buttons (Tomato red) */
+/* Secondary Button (Dark background, gold border, gold text) */
+.premium-btn-secondary,
+button[class*="border-gold"],
+button[class*="text-gold"] {
+  background-color: var(--color-surface) !important;
+  border: 1px solid var(--color-gold) !important;
+  color: var(--color-gold) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+.premium-btn-secondary:hover,
+button[class*="border-gold"]:hover {
+  background-color: rgba(212, 175, 55, 0.05) !important;
+}
+
+/* Danger / Cancel Buttons (Red) */
 button[class*="bg-red-500"],
 button[class*="text-red-500"],
 .bg-rose-600,
 .bg-red-600 {
   background-color: var(--color-red) !important;
+  border-color: var(--color-red) !important;
   color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(255, 92, 117, 0.2) !important;
 }
 
-/* Subdue/text contrast helpers for readable labels in light mode */
+/* Text Colors Hierarchy */
 .text-slate-400,
 .text-slate-300,
 .text-slate-500,
@@ -173,35 +232,44 @@ button[class*="text-red-500"],
 .text-white\/40,
 [class*="text-slate-"],
 [class*="text-gray-"] {
-  color: #2f3640 !important;
+  color: var(--color-ivory-dim) !important;
 }
 
 .text-white,
 .text-slate-100,
 .text-slate-200,
 .text-slate-50 {
-  color: #000000 !important;
+  color: var(--color-ivory) !important;
 }
 
-.text-gold,
-.text-\[\#C9A24B\] {
-  color: var(--color-teal) !important;
-  font-weight: bold !important;
-}
-
-/* Boarding Pass layout overrides */
+/* Passenger Ticket overrides (Dark card, Gold headings, White values) */
 .boarding-pass-cutout {
-  border: 3px solid #000000 !important;
-  box-shadow: 4px 4px 0px 0px #000000 !important;
-  background-color: #ffffff !important;
-  color: #000000 !important;
-  border-radius: 4px !important;
+  background-color: var(--color-surface-raised) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: var(--shadow-md) !important;
+  color: var(--color-ivory) !important;
+  border-radius: var(--radius-card) !important;
 }
 
 .boarding-pass-cutout::before,
 .boarding-pass-cutout::after {
   background-color: var(--color-obsidian) !important;
-  border: 2px solid #000000 !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Gold headings inside boarding pass */
+.boarding-pass-cutout [class*="text-slate-500"],
+.boarding-pass-cutout [class*="text-slate-400"],
+.boarding-pass-cutout [class*="text-xs"],
+.boarding-pass-cutout p:first-child {
+  color: var(--color-gold) !important;
+}
+
+/* White values inside boarding pass */
+.boarding-pass-cutout [class*="text-white"],
+.boarding-pass-cutout [class*="font-semibold"],
+.boarding-pass-cutout span {
+  color: var(--color-ivory) !important;
 }
 
 /* Divider lines */
@@ -210,8 +278,7 @@ hr,
 .border-gray-800,
 .border-white\/10,
 .border-white\/5 {
-  border-color: #000000 !important;
-  border-width: 1.5px !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
 }
 
 /* Animation Keyframes */
