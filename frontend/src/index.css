@@ -164,7 +164,6 @@ header,
 .bg-\[var\(--color-gold\)\],
 .bg-amber-500,
 .bg-yellow-400,
-button,
 input[type="submit"],
 .btn {
   background-color: var(--color-gold) !important;
@@ -185,7 +184,6 @@ input[type="submit"],
 .bg-\[var\(--color-gold\)\]:hover,
 .bg-amber-500:hover,
 .bg-yellow-400:hover,
-button:hover,
 input[type="submit"]:hover {
   transform: translate(-1px, -1px) !important;
   box-shadow: 4px 4px 0px 0px #000000 !important;
@@ -195,7 +193,6 @@ input[type="submit"]:hover {
 .bg-\[var\(--color-gold\)\]:active,
 .bg-amber-500:active,
 .bg-yellow-400:active,
-button:active,
 input[type="submit"]:active {
   transform: translate(2px, 2px) !important;
   box-shadow: 1px 1px 0px 0px #000000 !important;
