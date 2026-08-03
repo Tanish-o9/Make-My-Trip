@@ -1,18 +1,18 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;700;900&family=IBM+Plex+Mono:ital,wght@0,500;1,500&display=swap');
 
 :root {
-  /* Dark Comic Neobrutalist Palette */
-  --color-obsidian: #0B0F17;        /* Primary Background (Dark 75%) */
-  --color-surface: #131A29;         /* Secondary Surface (Dark 75%) */
-  --color-surface-raised: #1C2438;  /* Cards Background (Dark 75%) */
-  --color-gold: #f3c623;            /* Gold Accent (Gold 10%) */
+  /* Light Comic Pop-Art Palette */
+  --color-obsidian: #FAF6EE;        /* Page background: Warm Cream */
+  --color-surface: #FFFFFF;         /* Cards background: White */
+  --color-surface-raised: #FAF8F5;  /* Secondary Card/Surface: Slightly warmer beige */
+  --color-gold: #f3c623;            /* Gold Accent */
   --color-gold-muted: #d3a413;      /* Hover Gold */
-  --color-ivory: #ffffff;           /* Primary Text (White 15%) */
-  --color-ivory-dim: #a4b0be;       /* Secondary Text */
-  --color-teal: #0984e3;            /* Sky Blue Accent */
-  --color-red: #FF5C75;             /* Error Red */
-  --color-green: #00C896;           /* Success Green */
-  --color-warning: #FFB547;         /* Warning Orange */
+  --color-ivory: #000000;           /* Primary Text: Pure Black */
+  --color-ivory-dim: #2F3542;       /* Secondary Text: Charcoal */
+  --color-teal: #00B894;            /* Primary CTA: Emerald Green */
+  --color-red: #FF1E56;             /* Danger / Alert Red */
+  --color-green: #00B894;           /* Success Green */
+  --color-warning: #FFB547;         /* Warning Yellow */
 
   /* Typography Fonts */
   --font-display: 'Impact', 'Arial Black', 'Outfit', sans-serif;
@@ -42,11 +42,11 @@
   --space-16: 64px;
 
   /* Borders & Radius */
-  --radius-card: 4px;               /* Retro blocky card radius */
-  --radius-inner: 2px;
+  --radius-card: 20px;              /* Round 20px corners */
+  --radius-inner: 8px;
 
   /* Neobrutalist Hard Black Shadows */
-  --shadow-sm: 2px 2px 0px 0px #000000;
-  --shadow-md: 4px 4px 0px 0px #000000;
-  --shadow-lg: 6px 6px 0px 0px #000000;
+  --shadow-sm: 3px 3px 0px 0px #000000;
+  --shadow-md: 6px 6px 0px 0px #000000;
+  --shadow-lg: 8px 8px 0px 0px #000000;
 }
