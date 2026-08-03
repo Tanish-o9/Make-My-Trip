@@ -519,4 +519,32 @@ h3[class*="text-slate-200"] {
   color: inherit !important;
 }
 
+/* Mobile footer accordion overrides for readability and premium pop-art theme */
+.mobile-footer-accordion > div {
+  border: 3px solid #000000 !important;
+  box-shadow: 4px 4px 0px #000000 !important;
+  border-radius: var(--radius-inner) !important;
+  background-color: var(--color-surface) !important;
+  margin-bottom: 12px !important;
+  overflow: hidden !important;
+}
+
+.mobile-footer-accordion button {
+  color: #000000 !important;
+  background-color: var(--color-surface-raised) !important;
+  border: none !important;
+  border-bottom: 3px solid #000000 !important;
+  font-weight: 800 !important;
+}
+
+.mobile-footer-accordion a {
+  color: #1e293b !important;
+  font-weight: 600 !important;
+}
+
+.mobile-footer-accordion a:hover {
+  color: var(--color-gold) !important;
+}
+
+
 

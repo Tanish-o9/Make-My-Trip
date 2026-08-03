@@ -5938,7 +5938,7 @@ function SEOMegaFooter({ onNavigate }: { onNavigate?: (path: string) => void }) 
         </div>
 
         {/* Mobile View: Accordion */}
-        <div className="md:hidden space-y-3">
+        <div className="mobile-footer-accordion md:hidden space-y-3">
           {footerData.map((section, idx) => {
             const isExpanded = expandedSection === idx;
             return (
