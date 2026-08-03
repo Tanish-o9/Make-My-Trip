@@ -44,6 +44,17 @@ def setup_db_and_auth():
     db.query(FlightBooking).filter(FlightBooking.user_id == user.id).delete()
     db.commit()
     db.close()
+    try:
+        from app.utils.redis_client import redis_client
+        if redis_client:
+            redis_client.delete(
+                "processed_webhook:evt_capture_12345",
+                "processed_webhook:evt_replay_uuid_999",
+                "processed_webhook:evt_tampered_1",
+                "processed_webhook:evt_failed_outoforder"
+            )
+    except Exception:
+        pass
 
 
 def test_valid_order_creation(setup_db_and_auth):

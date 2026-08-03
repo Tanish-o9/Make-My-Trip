@@ -333,7 +333,7 @@ export default function App() {
   
   if (checkoutMatch) {
     const bookingId = checkoutMatch[1];
-    return <CheckoutPage bookingId={bookingId} onNavigate={navigate} />;
+    return <CheckoutPage bookingId={bookingId} onNavigate={navigate} token={token} />;
   }
   
   if (confirmationMatch) {

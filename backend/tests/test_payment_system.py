@@ -50,6 +50,12 @@ def init_db():
     db.query(AutoApprovalRule).delete()
     db.commit()
     db.close()
+    try:
+        from app.utils.redis_client import redis_client
+        if redis_client:
+            redis_client.delete("processed_webhook:evt_dis_101")
+    except Exception:
+        pass
 
 
 @pytest.fixture

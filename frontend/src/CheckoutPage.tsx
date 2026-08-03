@@ -18,11 +18,10 @@ import { CreditCard, QrCode, Globe, Wallet, ShieldAlert, ArrowLeft, RefreshCw, C
 interface CheckoutPageProps {
   bookingId: string;
   onNavigate: (path: string) => void;
+  token: string | null;
 }
 
-export function CheckoutPage({ bookingId, onNavigate }: CheckoutPageProps) {
-  // Audit: Retrieve JWT from localStorage for authenticated order creation endpoints
-  const token = localStorage.getItem("token");
+export function CheckoutPage({ bookingId, onNavigate, token }: CheckoutPageProps) {
   
   // Audit: Pre-populate default booking state to prevent TypeError before status check resolves
   const [booking, setBooking] = useState<any>({
