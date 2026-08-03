@@ -693,7 +693,7 @@ function SidebarBtn({ active, icon, label, onClick }: { active: boolean, icon: a
   return (
     <button 
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[var(--radius-card)] text-sm font-medium transition-all cursor-pointer ${
+      className={`sidebar-btn-item w-full flex items-center gap-3 px-3 py-2.5 rounded-[var(--radius-card)] text-sm font-medium transition-all cursor-pointer ${
         active 
           ? 'bg-transparent text-[var(--color-gold)] border-l-2 border-[var(--color-gold)] pl-2.5' 
           : 'text-[var(--color-ivory-dim)] hover:text-[var(--color-ivory)] hover:bg-[var(--color-surface)]'

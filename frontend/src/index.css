@@ -131,8 +131,8 @@ nav[class*="bg-"],
 aside a[class*="active"],
 aside a[class*="bg-slate-800"],
 aside button[class*="active"],
-.bg-slate-800\/50,
-.bg-slate-800 {
+aside .bg-slate-800\/50,
+aside .bg-slate-800 {
   background-color: var(--color-gold) !important;
   border: 3px solid #000000 !important;
   box-shadow: 3px 3px 0px 0px #000000 !important;
@@ -181,7 +181,7 @@ header,
 
 /* Primary Button (Emerald Green background, black text, thick outlines) */
 .premium-btn-primary,
-.bg-\[var\(--color-gold\)\],
+button.bg-\[var\(--color-gold\)\],
 .bg-amber-500,
 .bg-yellow-400,
 input[type="submit"],
@@ -201,7 +201,7 @@ input[type="submit"],
 }
 
 .premium-btn-primary:hover,
-.bg-\[var\(--color-gold\)\]:hover,
+button.bg-\[var\(--color-gold\)\]:hover,
 .bg-amber-500:hover,
 .bg-yellow-400:hover,
 input[type="submit"]:hover {
@@ -210,7 +210,7 @@ input[type="submit"]:hover {
 }
 
 .premium-btn-primary:active,
-.bg-\[var\(--color-gold\)\]:active,
+button.bg-\[var\(--color-gold\)\]:active,
 .bg-amber-500:active,
 .bg-yellow-400:active,
 input[type="submit"]:active {
@@ -218,16 +218,45 @@ input[type="submit"]:active {
   box-shadow: 2px 2px 0px 0px #000000 !important;
 }
 
-/* Inactive Vertical Tabs inside search form */
-button[class*="bg-[var(--color-surface)]"] {
-  background-color: var(--color-surface-raised) !important;
-  color: #475569 !important;
+/* Alternating light pastels for inactive category tabs inside search form */
+.flex-wrap button:not(.text-\[var\(--color-gold\)\]):nth-child(5n+1) {
+  background-color: #E3FAF0 !important; /* Light Green */
+  color: #000000 !important;
   border: 3px solid #000000 !important;
-  box-shadow: 3px 3px 0px 0px #000000 !important;
+  box-shadow: 3px 3px 0px #000000 !important;
+  border-radius: var(--radius-inner) !important;
+}
+.flex-wrap button:not(.text-\[var\(--color-gold\)\]):nth-child(5n+2) {
+  background-color: #E3F2FD !important; /* Light Blue */
+  color: #000000 !important;
+  border: 3px solid #000000 !important;
+  box-shadow: 3px 3px 0px #000000 !important;
+  border-radius: var(--radius-inner) !important;
+}
+.flex-wrap button:not(.text-\[var\(--color-gold\)\]):nth-child(5n+3) {
+  background-color: #FFF3CD !important; /* Light Yellow */
+  color: #000000 !important;
+  border: 3px solid #000000 !important;
+  box-shadow: 3px 3px 0px #000000 !important;
+  border-radius: var(--radius-inner) !important;
+}
+.flex-wrap button:not(.text-\[var\(--color-gold\)\]):nth-child(5n+4) {
+  background-color: #FCE4EC !important; /* Light Pink */
+  color: #000000 !important;
+  border: 3px solid #000000 !important;
+  box-shadow: 3px 3px 0px #000000 !important;
+  border-radius: var(--radius-inner) !important;
+}
+.flex-wrap button:not(.text-\[var\(--color-gold\)\]):nth-child(5n) {
+  background-color: #F3E5F5 !important; /* Light Purple */
+  color: #000000 !important;
+  border: 3px solid #000000 !important;
+  box-shadow: 3px 3px 0px #000000 !important;
   border-radius: var(--radius-inner) !important;
 }
 
-button[class*="text-[var(--color-gold)]"] {
+/* Active category tabs inside search form get the active gold box style */
+.flex-wrap button.text-\[var\(--color-gold\)\] {
   background-color: var(--color-gold) !important;
   color: #000000 !important;
   border: 3px solid #000000 !important;
@@ -450,4 +479,44 @@ h3[class*="text-slate-200"] {
 .partner-card-item:nth-child(5n) {
   background-color: #F3E5F5 !important; /* Light Purple */
 }
+
+/* Color inactive sidebar buttons with alternating pastels */
+.sidebar-btn-item:not([class*="text-[var(--color-gold)]"]):nth-child(4n+1) {
+  background-color: #E3FAF0 !important; /* Pastel Green */
+  color: #000000 !important;
+  border: 2px solid #000000 !important;
+  box-shadow: 2px 2px 0px #000000 !important;
+}
+.sidebar-btn-item:not([class*="text-[var(--color-gold)]"]):nth-child(4n+2) {
+  background-color: #E3F2FD !important; /* Pastel Blue */
+  color: #000000 !important;
+  border: 2px solid #000000 !important;
+  box-shadow: 2px 2px 0px #000000 !important;
+}
+.sidebar-btn-item:not([class*="text-[var(--color-gold)]"]):nth-child(4n+3) {
+  background-color: #FFF3CD !important; /* Pastel Yellow */
+  color: #000000 !important;
+  border: 2px solid #000000 !important;
+  box-shadow: 2px 2px 0px #000000 !important;
+}
+.sidebar-btn-item:not([class*="text-[var(--color-gold)]"]):nth-child(4n) {
+  background-color: #FCE4EC !important; /* Pastel Pink */
+  color: #000000 !important;
+  border: 2px solid #000000 !important;
+  box-shadow: 2px 2px 0px #000000 !important;
+}
+
+/* Sidebar active item styling (clean Gold background, black text, thick borders) */
+.sidebar-btn-item[class*="text-[var(--color-gold)]"] {
+  background-color: var(--color-gold) !important;
+  color: #000000 !important;
+  border: 3px solid #000000 !important;
+  box-shadow: 3px 3px 0px #000000 !important;
+  border-radius: var(--radius-inner) !important;
+}
+
+.sidebar-btn-item * {
+  color: inherit !important;
+}
+
 
