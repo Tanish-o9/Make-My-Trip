@@ -1,21 +1,21 @@
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500;1,9..144,600&family=Outfit:wght@400;500;600;700&family=IBM+Plex+Mono:ital,wght@0,500;1,500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;700;900&family=IBM+Plex+Mono:ital,wght@0,500;1,500&display=swap');
 
 :root {
-  /* Luxury Dark Gold Palette */
-  --color-obsidian: #0B0F17;        /* Primary Background */
-  --color-surface: #151A23;         /* Secondary Surface */
-  --color-surface-raised: #1B2230;  /* Cards Background */
-  --color-gold: #D4AF37;            /* Primary Accent Gold */
-  --color-gold-muted: #F5C542;      /* Hover Gold */
-  --color-ivory: #F5F7FA;           /* Primary Text */
-  --color-ivory-dim: #A7B0BE;       /* Secondary Text */
+  /* Dark Comic Neobrutalist Palette */
+  --color-obsidian: #0B0F17;        /* Primary Background (Dark 75%) */
+  --color-surface: #131A29;         /* Secondary Surface (Dark 75%) */
+  --color-surface-raised: #1C2438;  /* Cards Background (Dark 75%) */
+  --color-gold: #f3c623;            /* Gold Accent (Gold 10%) */
+  --color-gold-muted: #d3a413;      /* Hover Gold */
+  --color-ivory: #ffffff;           /* Primary Text (White 15%) */
+  --color-ivory-dim: #a4b0be;       /* Secondary Text */
   --color-teal: #0984e3;            /* Sky Blue Accent */
   --color-red: #FF5C75;             /* Error Red */
   --color-green: #00C896;           /* Success Green */
-  --color-warning: #FFB547;         /* Warning Yellow/Orange */
+  --color-warning: #FFB547;         /* Warning Orange */
 
   /* Typography Fonts */
-  --font-display: 'Fraunces', Georgia, serif;
+  --font-display: 'Impact', 'Arial Black', 'Outfit', sans-serif;
   --font-body: 'Outfit', 'Inter', -apple-system, sans-serif;
   --font-mono: 'IBM Plex Mono', monospace;
 
@@ -42,11 +42,11 @@
   --space-16: 64px;
 
   /* Borders & Radius */
-  --radius-card: 16px;              /* Rounded 16px corners */
-  --radius-inner: 8px;
+  --radius-card: 4px;               /* Retro blocky card radius */
+  --radius-inner: 2px;
 
-  /* Premium Elevation Blurred Shadows */
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.15);
-  --shadow-md: 0 10px 30px rgba(0, 0, 0, 0.25); /* Smooth shadows */
-  --shadow-lg: 0 20px 50px rgba(0, 0, 0, 0.35);
+  /* Neobrutalist Hard Black Shadows */
+  --shadow-sm: 2px 2px 0px 0px #000000;
+  --shadow-md: 4px 4px 0px 0px #000000;
+  --shadow-lg: 6px 6px 0px 0px #000000;
 }
