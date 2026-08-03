@@ -74,6 +74,10 @@ async def request_id_middleware(request, call_next):
     request_id_token = request_id_ctx_var.set(request_id)
     user_id_token = user_id_ctx_var.set("anonymous")
     
+    logger = logging.getLogger("travel_os")
+    if "/payments/create-order" in request.url.path or "/create-order" in request.url.path:
+        logger.info(f"AUDIT [create-order] headers: {dict(request.headers)}")
+        
     try:
         response = await call_next(request)
         response.headers["X-Request-ID"] = request_id
