@@ -386,3 +386,68 @@ h3[class*="text-slate-200"] {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Styling overrides for the light colorful cards */
+.info-highlight-card,
+.offer-card-item,
+.collection-card-item,
+.partner-card-item {
+  border: 4px solid #000000 !important;
+  box-shadow: var(--shadow-sm) !important;
+  border-radius: var(--radius-card) !important;
+  color: #000000 !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease !important;
+}
+
+.info-highlight-card:hover,
+.offer-card-item:hover,
+.collection-card-item:hover,
+.partner-card-item:hover {
+  transform: translate(-2px, -2px) !important;
+  box-shadow: var(--shadow-md) !important;
+}
+
+/* Ensure all text classes inside these cards resolve to black */
+.info-highlight-card *,
+.offer-card-item *,
+.collection-card-item *,
+.partner-card-item * {
+  color: #000000 !important;
+}
+
+/* Alternating Light Pastel background colors */
+.info-highlight-card:nth-child(5n+1),
+.offer-card-item:nth-child(5n+1),
+.collection-card-item:nth-child(5n+1),
+.partner-card-item:nth-child(5n+1) {
+  background-color: #E3FAF0 !important; /* Light Green */
+}
+
+.info-highlight-card:nth-child(5n+2),
+.offer-card-item:nth-child(5n+2),
+.collection-card-item:nth-child(5n+2),
+.partner-card-item:nth-child(5n+2) {
+  background-color: #E3F2FD !important; /* Light Blue */
+}
+
+.info-highlight-card:nth-child(5n+3),
+.offer-card-item:nth-child(5n+3),
+.collection-card-item:nth-child(5n+3),
+.partner-card-item:nth-child(5n+3) {
+  background-color: #FFF3CD !important; /* Light Yellow */
+}
+
+.info-highlight-card:nth-child(5n+4),
+.offer-card-item:nth-child(5n+4),
+.collection-card-item:nth-child(5n+4),
+.partner-card-item:nth-child(5n+4) {
+  background-color: #FCE4EC !important; /* Light Pink */
+}
+
+.info-highlight-card:nth-child(5n),
+.offer-card-item:nth-child(5n),
+.collection-card-item:nth-child(5n),
+.partner-card-item:nth-child(5n) {
+  background-color: #F3E5F5 !important; /* Light Purple */
+}
+

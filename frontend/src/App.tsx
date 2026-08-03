@@ -4509,7 +4509,7 @@ function OffersCarousel({ onOfferClick }: { onOfferClick: (off: any) => void }) 
       {/* Snap Scroll Carousel Cards */}
       <div className="flex gap-4 overflow-x-auto py-2 snap-x snap-mandatory scroll-smooth scrollbar-thin">
         {filtered.map((off, idx) => (
-          <div key={idx} className={`flex-none w-80 snap-start bg-[var(--color-surface)] border border-slate-800/80 rounded-[var(--radius-card)] p-5 flex flex-col justify-between hover:border-[var(--color-gold)] hover:-translate-y-1 hover:shadow-xl transition-all duration-300 animate-slideup stagger-delay-${(idx % 3) + 1}`}>
+          <div key={idx} className={`offer-card-item flex-none w-80 snap-start bg-[var(--color-surface)] border border-slate-800/80 rounded-[var(--radius-card)] p-5 flex flex-col justify-between hover:border-[var(--color-gold)] hover:-translate-y-1 hover:shadow-xl transition-all duration-300 animate-slideup stagger-delay-${(idx % 3) + 1}`}>
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <span className="text-[9px] font-mono uppercase bg-[var(--color-surface-raised)] text-[var(--color-gold)] px-2 py-0.5 rounded-[var(--radius-inner)] font-semibold">{off.tags}</span>
@@ -5548,7 +5548,7 @@ function PartnerLogoTile({ name, grad, onClick }: { name: string, grad: string, 
   if (logoUrl) {
     const fullLogoUrl = logoUrl.startsWith("http") ? logoUrl : `${API_HOST}${logoUrl}`;
     return (
-      <div onClick={onClick} className="relative w-full h-24 rounded-[var(--radius-card)] border border-slate-800 bg-[var(--color-surface-raised)] cursor-pointer hover:border-[var(--color-gold)] transition-all overflow-hidden group shadow-sm">
+      <div onClick={onClick} className="partner-card-item relative w-full h-24 rounded-[var(--radius-card)] border border-slate-800 bg-[var(--color-surface-raised)] cursor-pointer hover:border-[var(--color-gold)] transition-all overflow-hidden group shadow-sm">
         <img 
           src={fullLogoUrl} 
           alt={name} 
@@ -5564,7 +5564,7 @@ function PartnerLogoTile({ name, grad, onClick }: { name: string, grad: string, 
   }
 
   return (
-    <div onClick={onClick} className="p-4 rounded-[var(--radius-card)] border border-slate-800 bg-[var(--color-surface-raised)] hover:border-[var(--color-gold)] cursor-pointer transition-all min-h-[96px] flex flex-col justify-between group shadow-sm">
+    <div onClick={onClick} className="partner-card-item p-4 rounded-[var(--radius-card)] border border-slate-800 bg-[var(--color-surface-raised)] hover:border-[var(--color-gold)] cursor-pointer transition-all min-h-[96px] flex flex-col justify-between group shadow-sm">
       <span className="font-serif italic text-xs text-[var(--color-ivory)] group-hover:text-[var(--color-gold)] transition-colors">{name}</span>
       <span className="text-[9px] font-mono text-[var(--color-ivory-dim)] underline">Show partner details</span>
     </div>
@@ -5699,7 +5699,7 @@ function CollectionCarousel({ slug, onDestinationClick }: { slug: string, onDest
           <div 
             key={item.id}
             onClick={() => onDestinationClick(item.ref_id, item.tag_text, item.image_url)}
-            className="flex-none w-72 snap-start bg-[var(--color-surface)] border border-slate-800/80 rounded-[var(--radius-card)] shadow-md hover:shadow-xl hover:-translate-y-1 hover:border-[var(--color-gold)] transition-all duration-300 flex flex-col gap-3 cursor-pointer overflow-hidden group/card"
+            className="collection-card-item flex-none w-72 snap-start bg-[var(--color-surface)] border border-slate-800/80 rounded-[var(--radius-card)] shadow-md hover:shadow-xl hover:-translate-y-1 hover:border-[var(--color-gold)] transition-all duration-300 flex flex-col gap-3 cursor-pointer overflow-hidden group/card"
           >
             <div className="relative w-full h-40 overflow-hidden">
               <img src={item.image_url} alt={item.tag_text} className="w-full h-full object-cover transition-transform duration-500 group-hover/card:scale-103" />
@@ -5767,7 +5767,7 @@ function InfoHighlightRow({ onNavigate }: { onNavigate?: (path: string) => void 
               onNavigate(h.cta_url);
             }
           }}
-          className="bg-[var(--color-surface)] border border-slate-800/80 p-5 rounded-[var(--radius-card)] shadow-sm hover:border-[var(--color-gold)] transition-all flex items-start gap-4 cursor-pointer"
+          className="info-highlight-card bg-[var(--color-surface)] border border-slate-800/80 p-5 rounded-[var(--radius-card)] shadow-sm hover:border-[var(--color-gold)] transition-all flex items-start gap-4 cursor-pointer"
         >
           <div className="p-2 border border-[var(--color-gold)] rounded-full flex items-center justify-center shrink-0">
             {getIcon(h.icon_name)}
