@@ -62,7 +62,7 @@
   box-shadow: var(--shadow-md) !important;
   color: var(--color-ivory) !important;
   border-radius: var(--radius-card) !important;
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease, box-shadow 0.25s ease !important;
 }
 
 .premium-card:hover {
@@ -83,7 +83,6 @@ select,
 textarea,
 .bg-slate-950,
 [class*="bg-slate-950"],
-.bg-\[\#0F172A\],
 .bg-black\/20 {
   background-color: #ffffff !important;
   color: #0c1017 !important;
@@ -99,7 +98,7 @@ input:focus, select:focus, textarea:focus {
   border-color: var(--color-gold) !important;
 }
 
-/* Sidebar neobrutalist yellow theme */
+/* Sidebar luxury dark theme */
 aside,
 .w-64,
 nav[class*="bg-"],
@@ -164,11 +163,83 @@ header,
   font-weight: 600 !important;
 }
 
+/* Search form ticket container (left stub styled as clean white card) */
+.max-w-7xl.mx-auto.bg-\[var\(--color-surface\)\],
+div[class*="max-w-7xl mx-auto bg-[var(--color-surface)]"] {
+  background-color: #ffffff !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1) !important;
+  color: #0b0f17 !important;
+  border-radius: var(--radius-card) !important;
+}
+
+/* Inactive Vertical Tabs inside white search form stub */
+div[class*="max-w-7xl mx-auto bg-[var(--color-surface)]"] button[class*="bg-[var(--color-surface)]"] {
+  background-color: #f1f5f9 !important;
+  color: #475569 !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: var(--radius-inner) !important;
+  box-shadow: none !important;
+}
+
+/* Active Vertical Tabs inside white search form stub */
+div[class*="max-w-7xl mx-auto bg-[var(--color-surface)]"] button[class*="text-[var(--color-gold)]"] {
+  background-color: rgba(212, 175, 55, 0.1) !important;
+  color: var(--color-gold) !important;
+  border: 1px solid var(--color-gold) !important;
+  border-radius: var(--radius-inner) !important;
+  box-shadow: none !important;
+}
+
+/* Make sure the right stub (passenger ticket) remains dark */
+.max-w-7xl.mx-auto.bg-\[var\(--color-surface\)\] > .w-full.md\:w-80,
+div[class*="max-w-7xl mx-auto bg-[var(--color-surface)]"] > div[class*="w-full md:w-80"] {
+  background-color: var(--color-surface-raised) !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: var(--color-ivory) !important;
+  border-radius: 0px !important;
+}
+
+/* Passenger Ticket overrides (Dark card, Gold headings, White values) */
+.boarding-pass-cutout {
+  background-color: var(--color-surface-raised) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: var(--shadow-md) !important;
+  color: var(--color-ivory) !important;
+  border-radius: var(--radius-card) !important;
+}
+
+.boarding-pass-cutout::before,
+.boarding-pass-cutout::after {
+  background-color: var(--color-obsidian) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Passenger Ticket headings inside stubs */
+div[class*="w-full md:w-80"] span[class*="text-[var(--color-ivory-dim)]"],
+div[class*="w-full md:w-80"] span[class*="font-mono"],
+.boarding-pass-cutout [class*="text-slate-500"],
+.boarding-pass-cutout [class*="text-slate-400"],
+.boarding-pass-cutout [class*="text-xs"],
+.boarding-pass-cutout p:first-child {
+  color: var(--color-gold) !important;
+}
+
+/* Passenger Ticket white values inside stubs */
+div[class*="w-full md:w-80"] span[class*="text-[var(--color-ivory)]"],
+div[class*="w-full md:w-80"] span[class*="text-[var(--color-teal)]"],
+.boarding-pass-cutout [class*="text-white"],
+.boarding-pass-cutout [class*="font-semibold"],
+.boarding-pass-cutout span {
+  color: var(--color-ivory) !important;
+}
+
 /* Primary Button (Gold background, black text) */
 .premium-btn-primary,
-button,
-input[type="submit"],
-.btn {
+.bg-\[var\(--color-gold\)\],
+.bg-amber-500,
+.bg-yellow-400,
+input[type="submit"] {
   background-color: var(--color-gold) !important;
   color: var(--color-obsidian) !important;
   font-family: var(--font-body) !important;
@@ -182,7 +253,9 @@ input[type="submit"],
 }
 
 .premium-btn-primary:hover,
-button:hover,
+.bg-\[var\(--color-gold\)\]:hover,
+.bg-amber-500:hover,
+.bg-yellow-400:hover,
 input[type="submit"]:hover {
   background-color: var(--color-gold-muted) !important;
   transform: translateY(-1px) !important;
@@ -190,7 +263,9 @@ input[type="submit"]:hover {
 }
 
 .premium-btn-primary:active,
-button:active,
+.bg-\[var\(--color-gold\)\]:active,
+.bg-amber-500:active,
+.bg-yellow-400:active,
 input[type="submit"]:active {
   transform: translateY(1px) !important;
   box-shadow: 0 2px 6px rgba(212, 175, 55, 0.15) !important;
@@ -199,7 +274,8 @@ input[type="submit"]:active {
 /* Secondary Button (Dark background, gold border, gold text) */
 .premium-btn-secondary,
 button[class*="border-gold"],
-button[class*="text-gold"] {
+button[class*="text-gold"],
+.border-gold {
   background-color: var(--color-surface) !important;
   border: 1px solid var(--color-gold) !important;
   color: var(--color-gold) !important;
@@ -207,7 +283,8 @@ button[class*="text-gold"] {
 }
 
 .premium-btn-secondary:hover,
-button[class*="border-gold"]:hover {
+button[class*="border-gold"]:hover,
+.border-gold:hover {
   background-color: rgba(212, 175, 55, 0.05) !important;
 }
 
@@ -239,36 +316,6 @@ button[class*="text-red-500"],
 .text-slate-100,
 .text-slate-200,
 .text-slate-50 {
-  color: var(--color-ivory) !important;
-}
-
-/* Passenger Ticket overrides (Dark card, Gold headings, White values) */
-.boarding-pass-cutout {
-  background-color: var(--color-surface-raised) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  box-shadow: var(--shadow-md) !important;
-  color: var(--color-ivory) !important;
-  border-radius: var(--radius-card) !important;
-}
-
-.boarding-pass-cutout::before,
-.boarding-pass-cutout::after {
-  background-color: var(--color-obsidian) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-}
-
-/* Gold headings inside boarding pass */
-.boarding-pass-cutout [class*="text-slate-500"],
-.boarding-pass-cutout [class*="text-slate-400"],
-.boarding-pass-cutout [class*="text-xs"],
-.boarding-pass-cutout p:first-child {
-  color: var(--color-gold) !important;
-}
-
-/* White values inside boarding pass */
-.boarding-pass-cutout [class*="text-white"],
-.boarding-pass-cutout [class*="font-semibold"],
-.boarding-pass-cutout span {
   color: var(--color-ivory) !important;
 }
 
