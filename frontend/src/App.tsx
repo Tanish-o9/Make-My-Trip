@@ -100,6 +100,7 @@ export default function App() {
   }, []);
 
   const navigate = (path: string) => {
+    console.log("LOG: Router navigation initiated to:", path);
     window.history.pushState(null, '', path);
     setCurrentPath(path);
   };
@@ -331,12 +332,16 @@ export default function App() {
     return <LoginScreen onLogin={handleLogin} />;
   }
 
-  const checkoutMatch = currentPath.match(/^\/checkout\/([^/]+)$/);
-  const confirmationMatch = currentPath.match(/^\/bookings\/([^/]+)\/confirmation$/);
+  const checkoutMatch = currentPath.match(/^\/checkout\/([^/]+)$/) || currentPath.match(/^\/payment-failed\/([^/]+)$/);
+  const confirmationMatch = 
+    currentPath.match(/^\/bookings\/([^/]+)\/confirmation$/) || 
+    currentPath.match(/^\/booking-confirmation\/([^/]+)$/) || 
+    currentPath.match(/^\/payment-success\/([^/]+)$/);
   
   if (checkoutMatch) {
     const bookingId = checkoutMatch[1];
-    return <CheckoutPage bookingId={bookingId} onNavigate={navigate} token={token} />;
+    const initialError = currentPath.startsWith("/payment-failed") ? "Payment attempt was unsuccessful. Please check credentials and try again." : "";
+    return <CheckoutPage bookingId={bookingId} onNavigate={navigate} token={token} initialError={initialError} />;
   }
   
   if (confirmationMatch) {

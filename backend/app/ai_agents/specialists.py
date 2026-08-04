@@ -1,5 +1,6 @@
 import json
 import logging
+from typing import Dict, Any, List
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import SessionLocal

@@ -19,9 +19,10 @@ interface CheckoutPageProps {
   bookingId: string;
   onNavigate: (path: string) => void;
   token: string | null;
+  initialError?: string;
 }
 
-export function CheckoutPage({ bookingId, onNavigate, token }: CheckoutPageProps) {
+export function CheckoutPage({ bookingId, onNavigate, token, initialError }: CheckoutPageProps) {
   
   // Audit: Pre-populate default booking state to prevent TypeError before status check resolves
   const [booking, setBooking] = useState<any>({
@@ -33,7 +34,7 @@ export function CheckoutPage({ bookingId, onNavigate, token }: CheckoutPageProps
     traveler_name: "Guest Traveler"
   });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(initialError || "");
   const [activeTab, setActiveTab] = useState<"card" | "upi" | "netbanking" | "wallet">("card");
   
   // Payment states
@@ -73,28 +74,61 @@ export function CheckoutPage({ bookingId, onNavigate, token }: CheckoutPageProps
     };
   }, [bookingId]);
 
+  useEffect(() => {
+    if (initialError) {
+      setError(initialError);
+    }
+  }, [initialError]);
+
   const fetchBookingDetails = async () => {
     setLoading(true);
     setError("");
+    console.log("LOG: Fetching booking status for PNR:", bookingId);
     try {
       const statusRes = await fetch(`${API_URL}/payments/status/${bookingId}`, {
         headers: token ? { "Authorization": `Bearer ${token}` } : {}
       });
       if (statusRes.status === 401) {
-        onNavigate("/?logout=true");
+        console.warn("LOG: Status check returned 401 Unauthorized.");
+        setError("Your session has expired. Please log in again to complete checkout.");
         return;
       }
       if (statusRes.ok) {
         const statusData = await statusRes.json();
         setPaymentStatus(statusData.status);
+        console.log("LOG: Booking status resolved:", statusData.status);
         if (statusData.status === "captured") {
+          console.log("LOG: Payment already captured, routing to confirmation:", bookingId);
           onNavigate(`/bookings/${bookingId}/confirmation`);
+          return;
         }
+      }
+
+      console.log("LOG: Fetching booking details for PNR:", bookingId);
+      const detailsRes = await fetch(`${API_URL}/bookings/details/${bookingId}`, {
+        headers: token ? { "Authorization": `Bearer ${token}` } : {}
+      });
+      if (detailsRes.status === 401) {
+        setError("Your session has expired or unauthorized. Please log in again.");
+        return;
+      }
+      if (detailsRes.ok) {
+        const detailsData = await detailsRes.json();
+        console.log("LOG: Fetched booking details:", detailsData);
+        setBooking({
+          booking_reference: detailsData.booking_reference,
+          title: `Travel OS ${detailsData.vertical?.toUpperCase() || "Itinerary"} Booking ${detailsData.booking_reference}`,
+          total_amount: detailsData.total_amount,
+          currency: detailsData.currency || "INR",
+          vertical: detailsData.vertical || "flight",
+          traveler_name: detailsData.traveler_name || "Guest Traveler"
+        });
       } else {
-        console.warn("Booking status check returned non-200. Using client-side defaults.");
+        console.warn("Booking details fetch returned non-200. Using client-side defaults.");
       }
     } catch (err: any) {
-      console.warn("Failed to check booking status, using default state:", err);
+      console.warn("Failed to check booking status/details:", err);
+      setError("Failed to fetch booking details. Please refresh or try again.");
     } finally {
       setLoading(false);
     }
@@ -128,6 +162,7 @@ export function CheckoutPage({ bookingId, onNavigate, token }: CheckoutPageProps
 
   // 3. Initialize embedded UPI QR flow
   const initUpiQr = async () => {
+    console.log("LOG: initUpiQr clicked. humanApproved:", humanApproved);
     if (!humanApproved) {
       setError("Please check the 'Approve Payment Transaction' checkbox first to proceed.");
       return;
@@ -135,6 +170,7 @@ export function CheckoutPage({ bookingId, onNavigate, token }: CheckoutPageProps
     setPaymentLoading(true);
     setError("");
     try {
+      console.log("LOG: Sending create-order request for UPI QR, PNR:", bookingId);
       const res = await fetch(`${API_URL}/payments/create-order`, {
         method: "POST",
         headers: { 
@@ -150,8 +186,9 @@ export function CheckoutPage({ bookingId, onNavigate, token }: CheckoutPageProps
         })
       });
       
+      console.log("LOG: create-order (UPI) response status:", res.status);
       if (res.status === 401) {
-        onNavigate("/?logout=true");
+        setError("Your session has expired or unauthorized. Please log in again to retry.");
         return;
       }
       if (!res.ok) {
@@ -160,6 +197,7 @@ export function CheckoutPage({ bookingId, onNavigate, token }: CheckoutPageProps
       }
       
       const data = await res.json();
+      console.log("LOG: create-order (UPI) response data:", data);
       setQrCodeUrl(data.qr_code_url);
       setQrCodeId(data.qr_code_id);
       setPaymentStatus("pending");
@@ -171,6 +209,7 @@ export function CheckoutPage({ bookingId, onNavigate, token }: CheckoutPageProps
       qrExpiryIntervalRef.current = setInterval(() => {
         setQrTimeLeft((prev) => {
           if (prev <= 1) {
+            console.log("LOG: UPI QR expired");
             clearInterval(qrExpiryIntervalRef.current);
             clearInterval(pollingIntervalRef.current);
             setPaymentStatus("expired");
@@ -182,6 +221,7 @@ export function CheckoutPage({ bookingId, onNavigate, token }: CheckoutPageProps
       }, 1000);
 
     } catch (err: any) {
+      console.error("LOG: UPI QR initialization failed:", err);
       setError(err.message || "Failed to initialize QR Payment");
     } finally {
       setPaymentLoading(false);
@@ -190,6 +230,7 @@ export function CheckoutPage({ bookingId, onNavigate, token }: CheckoutPageProps
 
   // 4. Load & trigger Razorpay Checkout.js (Standard Cards/Netbanking/Wallets)
   const payWithRazorpay = async () => {
+    console.log("LOG: payWithRazorpay clicked. humanApproved:", humanApproved, "activeTab:", activeTab);
     if (!humanApproved) {
       setError("Please check the 'Approve Payment Transaction' checkbox first to proceed.");
       return;
@@ -197,6 +238,7 @@ export function CheckoutPage({ bookingId, onNavigate, token }: CheckoutPageProps
     setPaymentLoading(true);
     setError("");
     try {
+      console.log("LOG: Sending create-order request for cards/other, PNR:", bookingId, "amount:", booking.total_amount);
       const orderRes = await fetch(`${API_URL}/payments/create-order`, {
         method: "POST",
         headers: { 
@@ -212,8 +254,9 @@ export function CheckoutPage({ bookingId, onNavigate, token }: CheckoutPageProps
         })
       });
       
+      console.log("LOG: create-order response status:", orderRes.status);
       if (orderRes.status === 401) {
-        onNavigate("/?logout=true");
+        setError("Your session has expired or unauthorized. Please log in again to retry.");
         return;
       }
       if (!orderRes.ok) {
@@ -222,6 +265,7 @@ export function CheckoutPage({ bookingId, onNavigate, token }: CheckoutPageProps
       }
       
       const orderData = await orderRes.json();
+      console.log("LOG: create-order response data:", orderData);
       
       const loadScript = () => {
         return new Promise((resolve) => {
@@ -233,10 +277,12 @@ export function CheckoutPage({ bookingId, onNavigate, token }: CheckoutPageProps
         });
       };
       
+      console.log("LOG: Loading Razorpay SDK script...");
       const loaded = await loadScript();
       if (!loaded) {
         throw new Error("Failed to load Razorpay SDK. Check your internet connection.");
       }
+      console.log("LOG: Razorpay SDK script loaded successfully.");
       
       const options = {
         key: orderData.razorpay_key_id,
@@ -246,8 +292,10 @@ export function CheckoutPage({ bookingId, onNavigate, token }: CheckoutPageProps
         description: `Payment for booking ${bookingId}`,
         order_id: orderData.razorpay_order_id,
         handler: async function (response: any) {
+          console.log("LOG: Razorpay payment capture callback received:", response);
           setPaymentLoading(true);
           try {
+            console.log("LOG: Sending payment verification payload to backend...");
             const verifyRes = await fetch(`${API_URL}/payments/verify`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -258,14 +306,18 @@ export function CheckoutPage({ bookingId, onNavigate, token }: CheckoutPageProps
               })
             });
             
+            console.log("LOG: Payment verification response status:", verifyRes.status);
             if (!verifyRes.ok) {
               const verifyErr = await verifyRes.json();
               throw new Error(verifyErr.detail || "Payment verification failed.");
             }
             
+            console.log("LOG: Payment captured and verified successfully.");
             setPaymentStatus("captured");
+            console.log("LOG: Router navigating to confirmation page.");
             onNavigate(`/bookings/${bookingId}/confirmation`);
           } catch (err: any) {
+            console.error("LOG: Payment verification failed:", err);
             setError(err.message || "Payment verification failed.");
             setPaymentStatus("failed");
           } finally {
@@ -282,9 +334,11 @@ export function CheckoutPage({ bookingId, onNavigate, token }: CheckoutPageProps
         }
       };
       
+      console.log("LOG: Opening Razorpay Checkout widget...");
       const rzp = new (window as any).Razorpay(options);
       rzp.open();
     } catch (err: any) {
+      console.error("LOG: payWithRazorpay failed:", err);
       setError(err.message || "Failed to initialize payment");
     } finally {
       setPaymentLoading(false);
