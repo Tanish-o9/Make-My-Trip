@@ -567,3 +567,43 @@ h3[class*="text-slate-200"] {
 .boarding-pass-container span:not([class*="text-[var(--color-gold)]"]):not([class*="text-[var(--color-teal)]"]):not([class*="text-emerald"]):not([class*="text-teal"]):not([class*="text-gold"]) {
   color: #000000 !important;
 }
+
+
+/* Explore Pill Card light colorful retro style overrides */
+.explore-pill-card {
+  border: 4px solid #000000 !important;
+  box-shadow: var(--shadow-sm) !important;
+  border-radius: var(--radius-card) !important;
+  color: #000000 !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease !important;
+}
+
+.explore-pill-card:hover {
+  transform: translate(-2px, -2px) !important;
+  box-shadow: var(--shadow-md) !important;
+}
+
+.explore-pill-card *,
+.explore-pill-card span {
+  color: #000000 !important;
+}
+
+.explore-pill-card:nth-child(5n+1) {
+  background-color: #E3FAF0 !important; /* Light Green */
+}
+
+.explore-pill-card:nth-child(5n+2) {
+  background-color: #E3F2FD !important; /* Light Blue */
+}
+
+.explore-pill-card:nth-child(5n+3) {
+  background-color: #FFF3CD !important; /* Light Yellow */
+}
+
+.explore-pill-card:nth-child(5n+4) {
+  background-color: #FCE4EC !important; /* Light Pink */
+}
+
+.explore-pill-card:nth-child(5n) {
+  background-color: #F3E5F5 !important; /* Light Purple */
+}

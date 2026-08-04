@@ -4565,12 +4565,12 @@ function ExploreMoreRow({ onSelectPill }: { onSelectPill?: (title: string) => vo
 
 function ExplorePill({ title, sub, badge, onClick }: { title: string, sub: string, badge?: string, onClick?: () => void }) {
   return (
-    <div onClick={onClick} className="bg-[#0e1628]/60 hover:bg-[#0e1628] border border-slate-800/60 hover:border-slate-800 p-4 rounded-xl flex flex-col justify-between cursor-pointer transition-all relative">
+    <div onClick={onClick} className="explore-pill-card p-4 rounded-xl flex flex-col justify-between cursor-pointer transition-all relative">
       {badge && (
-        <span className="absolute -top-1.5 right-2 text-[7px] bg-red-600 text-white font-black px-1 rounded-full">{badge}</span>
+        <span className="absolute -top-2.5 right-2 text-[8px] bg-red-600 text-white font-black px-1.5 py-0.5 rounded-full border border-black shadow-[1px_1px_0px_#000000]">{badge}</span>
       )}
-      <span className="font-extrabold text-xs text-slate-200">{title}</span>
-      <span className="text-[9px] text-slate-300 mt-1">{sub}</span>
+      <span className="font-extrabold text-xs">{title}</span>
+      <span className="text-[9px] mt-1 font-medium">{sub}</span>
     </div>
   );
 }
