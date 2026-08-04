@@ -2,19 +2,6 @@ import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 
-# Retrieve environment variables with secure fallback to active test keys
-env_key_id = os.getenv("RAZORPAY_KEY_ID")
-if not env_key_id or "placeholder" in env_key_id or "your-razorpay" in env_key_id:
-    env_key_id = "rzp_test_TKNqtYMraXbefU"
-
-env_key_secret = os.getenv("RAZORPAY_KEY_SECRET")
-if not env_key_secret or "placeholder" in env_key_secret or "your-razorpay" in env_key_secret:
-    env_key_secret = "BJa1JWIiisFRf1mTPN5gPlfD"
-
-env_webhook_secret = os.getenv("RAZORPAY_WEBHOOK_SECRET")
-if not env_webhook_secret or "placeholder" in env_webhook_secret or "your-razorpay" in env_webhook_secret:
-    env_webhook_secret = "demo_secret"
-
 class RazorpaySettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -22,8 +9,18 @@ class RazorpaySettings(BaseSettings):
         extra="ignore"
     )
 
-    RAZORPAY_KEY_ID: str = env_key_id
-    RAZORPAY_KEY_SECRET: str = env_key_secret
-    RAZORPAY_WEBHOOK_SECRET: Optional[str] = env_webhook_secret
+    RAZORPAY_KEY_ID: str = "rzp_test_TKNqtYMraXbefU"
+    RAZORPAY_KEY_SECRET: str = "BJa1JWIiisFRf1mTPN5gPlfD"
+    RAZORPAY_WEBHOOK_SECRET: Optional[str] = "demo_secret"
 
 settings = RazorpaySettings()
+
+# Post-instantiation sanitization and fallback overrides to bypass Pydantic environment loading
+if not settings.RAZORPAY_KEY_ID or "placeholder" in settings.RAZORPAY_KEY_ID or "your-razorpay" in settings.RAZORPAY_KEY_ID:
+    settings.RAZORPAY_KEY_ID = "rzp_test_TKNqtYMraXbefU"
+
+if not settings.RAZORPAY_KEY_SECRET or "placeholder" in settings.RAZORPAY_KEY_SECRET or "your-razorpay" in settings.RAZORPAY_KEY_SECRET:
+    settings.RAZORPAY_KEY_SECRET = "BJa1JWIiisFRf1mTPN5gPlfD"
+
+if not settings.RAZORPAY_WEBHOOK_SECRET or "placeholder" in settings.RAZORPAY_WEBHOOK_SECRET or "your-razorpay" in settings.RAZORPAY_WEBHOOK_SECRET:
+    settings.RAZORPAY_WEBHOOK_SECRET = "demo_secret"
