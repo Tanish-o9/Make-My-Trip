@@ -3906,10 +3906,15 @@ function CheckoutModal({ data, onClose, userProfile, onConfirm }: { data: any, o
       return;
     }
 
+    const localToken = localStorage.getItem('token');
+
     // 1. Create Hold Reservation
     fetch(`${API_URL}/bookings/hold`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        ...(localToken ? { "Authorization": `Bearer ${localToken}` } : {})
+      },
       body: JSON.stringify({
         vertical: data.vertical,
         amount: finalPayVal,

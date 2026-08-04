@@ -213,6 +213,16 @@ def create_payment_order(
     if not booking:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found.")
 
+    # Ownership Debug Prints
+    print("--- OWNERSHIP DEBUG TRACE ---")
+    print(f"1. current_user.id: {current_user.id}")
+    print(f"2. booking.user_id: {booking.user_id if booking else None}")
+    print(f"3. booking.booking_reference: {booking.booking_reference if booking else None}")
+    print(f"4. booking.created_by: {getattr(booking, 'created_by', 'N/A')}")
+    print(f"5. JWT subject (current_user.email): {current_user.email}")
+    print(f"6. Database booking row: {booking.__class__.__name__} (id={getattr(booking, 'id', None)}, ref={getattr(booking, 'booking_reference', None)}, user_id={getattr(booking, 'user_id', None)}, status={getattr(booking, 'status', None)})")
+    print("------------------------------")
+
     # Validate that it belongs to the requesting user
     if booking.user_id != current_user.id:
         raise HTTPException(

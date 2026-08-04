@@ -26,34 +26,22 @@ class BookingHoldRequest(BaseModel):
     user_id: int
     details: Dict[str, Any]
 
+from app.auth.dependencies import get_current_user
+from app.models.core import User
+
 router = APIRouter(prefix="/bookings", tags=["bookings"])
 
 @router.post("/hold")
 async def create_booking_hold(
     req: BookingHoldRequest,
     request: Request,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Creates a temporary hold on any of the 12 booking verticals before payment capture"""
     vertical = req.vertical.lower()
     amount = req.amount
-    user_id = req.user_id
-    
-    # Audit: Dynamically resolve user_id from Authorization header JWT token if available
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        try:
-            token = auth_header.split(" ")[1]
-            from app.auth.jwt import decode_token, verify_token_type
-            from app.models.core import User
-            payload = decode_token(token)
-            if payload and verify_token_type(payload, "access"):
-                email = payload.get("sub")
-                user = db.query(User).filter(User.email == email).first()
-                if user:
-                    user_id = user.id
-        except Exception:
-            pass
+    user_id = current_user.id
     details = req.details
 
     booking_ref = f"BK-{uuid.uuid4().hex[:8].upper()}"
