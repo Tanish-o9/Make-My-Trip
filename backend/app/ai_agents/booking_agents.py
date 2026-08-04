@@ -60,10 +60,23 @@ JSON:
         cabin_class=cabin_class
     )
 
+    # Filter based on preferences
+    avoided_airlines = []
+    user_prefs = state.get("trip_context", {}).get("user_historical_preferences", [])
+    for pref in user_prefs:
+        if "avoid" in pref.lower():
+            for air_name in ["Indigo", "Air India", "Vistara", "Akasa Air"]:
+                if air_name.lower() in pref.lower():
+                    avoided_airlines.append(air_name.lower())
+
     # Map to frontend keys
     raw_flights = search_results.get("results", [])
     mapped_flights = []
     for fl in raw_flights:
+        airline_name = fl.get("airline", "")
+        if airline_name.lower() in avoided_airlines:
+            logger.info(f"Filtering out flight {fl.get('flight_number')} due to preference: avoid {airline_name}")
+            continue
         mapped_flights.append({
             "airline": fl.get("airline"),
             "flight_number": fl.get("flight_number"),
@@ -156,10 +169,28 @@ JSON:
         budget_tier=budget_tier
     )
 
+    # Filter hotels based on preferences
+    avoided_hotel_terms = []
+    user_prefs = state.get("trip_context", {}).get("user_historical_preferences", [])
+    for pref in user_prefs:
+        if "avoid" in pref.lower() or "dislike" in pref.lower():
+            for hot_term in ["hostel", "inn", "boutique", "palace", "resort"]:
+                if hot_term.lower() in pref.lower():
+                    avoided_hotel_terms.append(hot_term.lower())
+
     # Map to frontend keys
     raw_hotels = search_results.get("results", [])
     mapped_hotels = []
     for ht in raw_hotels:
+        hotel_name = ht.get("name", "")
+        should_avoid = False
+        for term in avoided_hotel_terms:
+            if term in hotel_name.lower():
+                should_avoid = True
+                break
+        if should_avoid:
+            logger.info(f"Filtering out hotel {hotel_name} due to preference")
+            continue
         mapped_hotels.append({
             "name": ht.get("name"),
             "rating": str(ht.get("rating", "4.5")),

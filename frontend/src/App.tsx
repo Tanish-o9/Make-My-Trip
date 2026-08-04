@@ -4689,6 +4689,85 @@ interface Message {
   flights?: any[];
   hotels?: any[];
   itinerary?: any[];
+  visa?: any;
+  weather?: any;
+  budget?: any;
+  map_data?: any;
+}
+
+function InteractiveRouteMap({ locations }: { locations: any }) {
+  const [activePin, setActivePin] = useState<number | null>(null);
+
+  const locs = Array.isArray(locations) ? locations : ["Origin Airport", "Taj Resort", "Baga Beach"];
+  const pinCoords = [
+    { x: 50, y: 120, label: locs[0] || "Airport" },
+    { x: 180, y: 50, label: locs[1] || "Hotel stay" },
+    { x: 300, y: 110, label: locs[2] || "Attraction" }
+  ];
+
+  return (
+    <div className="relative font-sans select-none">
+      <svg viewBox="0 0 360 170" className="w-full h-auto bg-slate-950/80 rounded-xl border border-slate-850 p-2 overflow-visible">
+        {/* Animated connection path */}
+        <path
+          d="M 50 120 Q 115 50 180 50 T 300 110"
+          fill="none"
+          stroke="#3b82f6"
+          strokeWidth="3"
+          strokeDasharray="6,6"
+          className="animate-[dash_10s_linear_infinite]"
+        />
+        
+        {/* Render coordinates pins */}
+        {pinCoords.map((pin, idx) => {
+          const isActive = activePin === idx;
+          return (
+            <g 
+              key={idx} 
+              className="cursor-pointer"
+              onMouseEnter={() => setActivePin(idx)}
+              onMouseLeave={() => setActivePin(null)}
+              onClick={() => setActivePin(isActive ? null : idx)}
+            >
+              {/* Pulsing glow under active pin */}
+              {(isActive || idx === 1) && (
+                <circle cx={pin.x} cy={pin.y} r="10" fill="#3b82f6" opacity="0.3" className="animate-ping" />
+              )}
+              {/* Core Pin */}
+              <circle cx={pin.x} cy={pin.y} r="6" fill={idx === 0 ? "#10b981" : idx === 1 ? "#ef4444" : "#f59e0b"} stroke="#fff" strokeWidth="1.5" />
+              {/* Text label */}
+              <text 
+                x={pin.x} 
+                y={pin.y + 18} 
+                fill="#cbd5e1" 
+                fontSize="9" 
+                fontWeight="bold" 
+                textAnchor="middle"
+                className="drop-shadow"
+              >
+                {pin.label}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+
+      {/* Tooltip Overlay */}
+      {activePin !== null && (
+        <div className="absolute top-2 left-2 bg-slate-900 border border-slate-800 text-[10px] text-slate-200 px-2 py-1 rounded shadow-lg pointer-events-none">
+          📍 <span className="font-extrabold text-blue-400">{pinCoords[activePin].label}</span>
+          <div className="text-[8px] text-slate-400 mt-0.5">Custom TRV-OS Coordinates Pin</div>
+        </div>
+      )}
+
+      <button 
+        onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locs[1] || 'Goa')}`, '_blank')}
+        className="mt-2 w-full py-1.5 bg-blue-600/10 hover:bg-blue-600/20 border border-blue-500/20 text-blue-400 text-[10px] font-bold rounded-lg transition-all"
+      >
+        🗺️ View Full Interactive Route on Google Maps
+      </button>
+    </div>
+  );
 }
 
 function ChatView({ 
@@ -4707,6 +4786,7 @@ function ChatView({
   ]);
   const [inputMsg, setInputMsg] = useState("");
   const [isVoice, setIsVoice] = useState(false);
+  const [shouldSpeak, setShouldSpeak] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [bookedItems, setBookedItems] = useState<Record<string, boolean>>({});
@@ -4721,12 +4801,16 @@ function ChatView({
 
   const parseMessageBlocks = (fullText: string) => {
     if (!fullText || typeof fullText !== 'string') {
-      return { content: "", flights: undefined, hotels: undefined, itinerary: undefined };
+      return { content: "", flights: undefined, hotels: undefined, itinerary: undefined, visa: undefined, weather: undefined, budget: undefined, map_data: undefined };
     }
     let textWithoutBlocks = fullText;
     let flights: any[] | undefined = undefined;
     let hotels: any[] | undefined = undefined;
     let itinerary: any[] | undefined = undefined;
+    let visa: any = undefined;
+    let weather: any = undefined;
+    let budget: any = undefined;
+    let map_data: any = undefined;
 
     const flightsMatch = fullText.match(/```flights-data([\s\S]*?)```/);
     if (flightsMatch) {
@@ -4789,6 +4873,46 @@ function ChatView({
       }
     }
 
+    const visaMatch = fullText.match(/```visa-data([\s\S]*?)```/);
+    if (visaMatch) {
+      try {
+        visa = JSON.parse(visaMatch[1].trim());
+        textWithoutBlocks = textWithoutBlocks.replace(visaMatch[0], "");
+      } catch (e) {
+        console.error("Failed to parse visa JSON", e);
+      }
+    }
+
+    const weatherMatch = fullText.match(/```weather-data([\s\S]*?)```/);
+    if (weatherMatch) {
+      try {
+        weather = JSON.parse(weatherMatch[1].trim());
+        textWithoutBlocks = textWithoutBlocks.replace(weatherMatch[0], "");
+      } catch (e) {
+        console.error("Failed to parse weather JSON", e);
+      }
+    }
+
+    const budgetMatch = fullText.match(/```budget-data([\s\S]*?)```/);
+    if (budgetMatch) {
+      try {
+        budget = JSON.parse(budgetMatch[1].trim());
+        textWithoutBlocks = textWithoutBlocks.replace(budgetMatch[0], "");
+      } catch (e) {
+        console.error("Failed to parse budget JSON", e);
+      }
+    }
+
+    const mapMatch = fullText.match(/```map-data([\s\S]*?)```/);
+    if (mapMatch) {
+      try {
+        map_data = JSON.parse(mapMatch[1].trim());
+        textWithoutBlocks = textWithoutBlocks.replace(mapMatch[0], "");
+      } catch (e) {
+        console.error("Failed to parse map JSON", e);
+      }
+    }
+
     const summaryMatch = fullText.match(/```trip-summary([\s\S]*?)```/);
     if (summaryMatch) {
       try {
@@ -4802,7 +4926,11 @@ function ChatView({
       content: textWithoutBlocks.trim(),
       flights,
       hotels,
-      itinerary
+      itinerary,
+      visa,
+      weather,
+      budget,
+      map_data
     };
   };
 
@@ -4820,7 +4948,11 @@ function ChatView({
                 content: parsed.content || msg.content,
                 flights: parsed.flights,
                 hotels: parsed.hotels,
-                itinerary: parsed.itinerary
+                itinerary: parsed.itinerary,
+                visa: parsed.visa,
+                weather: parsed.weather,
+                budget: parsed.budget,
+                map_data: parsed.map_data
               };
             }
             return msg;
@@ -4871,9 +5003,27 @@ function ChatView({
             last.flights = parsed.flights;
             last.hotels = parsed.hotels;
             last.itinerary = parsed.itinerary;
+            last.visa = parsed.visa;
+            last.weather = parsed.weather;
+            last.budget = parsed.budget;
+            last.map_data = parsed.map_data;
           }
           return copy;
         });
+
+        // Vocalize text response (TTS) if speech was activated
+        if (shouldSpeak) {
+          const lastMsg = messages[messages.length - 1];
+          // We can synthesize from data.full_response content parsed
+          const parsed = parseMessageBlocks(data.full_response);
+          const utterText = parsed.content.replace(/[*#`\-]/g, "").trim();
+          const utterance = new SpeechSynthesisUtterance(utterText);
+          const voices = window.speechSynthesis.getVoices();
+          const engVoice = voices.find(v => v.lang.startsWith("en"));
+          if (engVoice) utterance.voice = engVoice;
+          window.speechSynthesis.speak(utterance);
+          setShouldSpeak(false);
+        }
       } else if (data.type === 'error') {
         setMessages(prev => {
           const copy = [...prev];
@@ -4914,14 +5064,47 @@ function ChatView({
   }, [prefilledMessage]);
 
   useEffect(() => {
-    if (isVoice) {
-      const timer = setTimeout(() => {
-        setInputMsg("Recommend flights from Delhi to Goa on December 15th");
-        setIsVoice(false);
-        alert("Voice detected: 'Recommend flights from Delhi to Goa on December 15th'");
-      }, 2000);
-      return () => clearTimeout(timer);
+    if (!isVoice) return;
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Speech recognition is not supported in this browser. Please try Google Chrome or Edge.");
+      setIsVoice(false);
+      return;
     }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = "en-US";
+
+    recognition.onstart = () => {
+      console.log("Speech recognition started");
+    };
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      console.log("Speech recognition result:", transcript);
+      setInputMsg(transcript);
+      setShouldSpeak(true);
+      triggerSendMessage(transcript);
+    };
+
+    recognition.onerror = (e: any) => {
+      console.error("Speech recognition error:", e);
+      setIsVoice(false);
+    };
+
+    recognition.onend = () => {
+      console.log("Speech recognition ended");
+      setIsVoice(false);
+    };
+
+    recognition.start();
+
+    return () => {
+      recognition.abort();
+    };
   }, [isVoice]);
 
   const triggerSendMessage = (textToSend: string) => {
@@ -5228,6 +5411,102 @@ function ChatView({
                   ))}
                 </div>
               )}
+
+              {msg.visa && (
+                <div className="mt-4 border-t border-slate-800 pt-4 space-y-2">
+                  <h4 className="text-xs text-slate-400 font-semibold mb-2 flex items-center gap-1.5">📋 VISA APPLICATION REQUIREMENT:</h4>
+                  <div className="bg-[#121c33] p-4 rounded-xl border border-slate-800 text-xs text-slate-300 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-slate-200 uppercase">{msg.visa.destination_country} Visa Advisory</span>
+                      <span className="text-[10px] bg-blue-900/60 text-blue-300 px-2 py-0.5 rounded font-semibold">{msg.visa.requirement_type || 'eVisa'}</span>
+                    </div>
+                    <div>🎯 <span className="font-semibold text-slate-400">Eligibility:</span> For {msg.visa.citizenship || 'Indian'} Passport holders</div>
+                    <div>⏱️ <span className="font-semibold text-slate-400">Processing Time:</span> {msg.visa.processing_time || '15 calendar days'}</div>
+                    <div className="space-y-1 mt-2">
+                      <div className="font-semibold text-slate-400">Documents Checklist:</div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 pl-2 text-[11px]">
+                        {(msg.visa.documents || ['Valid Passport', 'Flight Tickets', 'Hotel Reservation', 'Medical Insurance']).map((doc: string, idx: number) => (
+                          <div key={idx} className="flex items-center gap-1 text-slate-300">✔️ {doc}</div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {msg.weather && (
+                <div className="mt-4 border-t border-slate-800 pt-4 space-y-2">
+                  <h4 className="text-xs text-slate-400 font-semibold mb-2 flex items-center gap-1.5">🌦️ CLIMATE & PACKING ADVISORY:</h4>
+                  <div className="bg-[#121c33] p-4 rounded-xl border border-slate-800 text-xs text-slate-300 space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-slate-200">Destination Weather Guide</span>
+                      <span className="font-bold text-yellow-400">{msg.weather.avg_temp || '28'}°C / Average</span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 leading-normal">
+                      ℹ️ {msg.weather.forecast || 'Sunny and pleasant conditions. Ideal for sightseeing.'}
+                    </div>
+                    <div className="space-y-1.5 mt-2">
+                      <div className="font-semibold text-slate-400 text-xs">Essential Travel Checklist:</div>
+                      <div className="grid grid-cols-2 gap-2 text-[11px]">
+                        {(msg.weather.packing_checklist || ['Light cotton clothes', 'Sunglasses & Sunscreen', 'Comfortable footwear', 'Universal adapter']).map((item: string, idx: number) => {
+                          return (
+                            <label key={idx} className="flex items-center gap-2 text-slate-300 cursor-pointer">
+                              <input type="checkbox" defaultChecked className="rounded border-slate-800 bg-slate-900 text-blue-600 focus:ring-0" />
+                              <span>{item}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {msg.budget && (
+                <div className="mt-4 border-t border-slate-800 pt-4 space-y-2">
+                  <h4 className="text-xs text-slate-400 font-semibold mb-2 flex items-center gap-1.5">💰 BUDGET ALLOCATION:</h4>
+                  <div className="bg-[#121c33] p-4 rounded-xl border border-slate-800 text-xs text-slate-300 space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-slate-200">Total Proposed Budget:</span>
+                      <span className="font-black text-emerald-400 text-sm">₹{Number(msg.budget.total_budget || 0).toLocaleString()}</span>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      {Object.entries(msg.budget.breakdown || {
+                        flights: 9000,
+                        hotels: 10500,
+                        activities: 4500,
+                        food_transport: 6000
+                      }).map(([key, value]: [string, any], idx) => {
+                        const total = msg.budget.total_budget || 30000;
+                        const pct = Math.round((Number(value) / total) * 100);
+                        const label = key.replace("_", " ").toUpperCase();
+                        const colorClass = ['bg-blue-500', 'bg-purple-500', 'bg-pink-500', 'bg-yellow-500'][idx % 4];
+                        return (
+                          <div key={key} className="space-y-1">
+                            <div className="flex justify-between text-[10px] font-semibold text-slate-400">
+                              <span>{label}</span>
+                              <span>₹{Number(value).toLocaleString()} ({pct}%)</span>
+                            </div>
+                            <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden">
+                              <div className={`${colorClass} h-full rounded-full`} style={{ width: `${pct}%` }}></div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {msg.map_data && (
+                <div className="mt-4 border-t border-slate-800 pt-4 space-y-2">
+                  <h4 className="text-xs text-slate-400 font-semibold mb-2 flex items-center gap-1.5">🗺️ DYNAMIC TRIP ROUTE MAP:</h4>
+                  <div className="bg-[#121c33] p-4 rounded-xl border border-slate-800">
+                    <InteractiveRouteMap locations={msg.map_data} />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -5386,6 +5665,43 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
               Validate Coupon
             </button>
             {couponStatus && <div className="text-xs text-blue-400 font-medium px-1 mt-2">{couponStatus}</div>}
+          </div>
+        </div>
+      </div>
+
+      {/* Travel OS Analytics Dashboard */}
+      <div className="glass-card p-6 rounded-2xl border border-slate-800 space-y-4">
+        <h4 className="font-bold text-slate-200 flex items-center gap-2">🚀 TRAVEL OS ENTERPRISE-GRADE ANALYTICS</h4>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="bg-[#121c33] p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+            <span className="text-[10px] text-slate-400 font-bold uppercase">Total Trips</span>
+            <span className="text-xl font-black text-white mt-2">12 Trips</span>
+            <span className="text-[9px] text-emerald-400 mt-1">▲ 2 new this month</span>
+          </div>
+          <div className="bg-[#121c33] p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+            <span className="text-[10px] text-slate-400 font-bold uppercase">Money Saved</span>
+            <span className="text-xl font-black text-white mt-2">₹18,400</span>
+            <span className="text-[9px] text-blue-400 mt-1">Via fare alerts & holds</span>
+          </div>
+          <div className="bg-[#121c33] p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+            <span className="text-[10px] text-slate-400 font-bold uppercase">Visited Countries</span>
+            <span className="text-xl font-black text-white mt-2">4 Countries</span>
+            <span className="text-[9px] text-slate-400 mt-1">India, Bali, Thailand, UAE</span>
+          </div>
+          <div className="bg-[#121c33] p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+            <span className="text-[10px] text-slate-400 font-bold uppercase">Travel Score</span>
+            <span className="text-xl font-black text-white mt-2">92 / 100</span>
+            <span className="text-[9px] text-emerald-400 mt-1">Excellent travel standing</span>
+          </div>
+          <div className="bg-[#121c33] p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+            <span className="text-[10px] text-slate-400 font-bold uppercase">Loyalty Progress</span>
+            <span className="text-xl font-black text-white mt-2">Gold Member</span>
+            <span className="text-[9px] text-indigo-400 mt-1">550 pts to Platinum</span>
+          </div>
+          <div className="bg-[#121c33] p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+            <span className="text-[10px] text-slate-400 font-bold uppercase">Carbon Footprint</span>
+            <span className="text-xl font-black text-white mt-2">1.2 Tons CO2</span>
+            <span className="text-[9px] text-yellow-500 mt-1">Offset program recommended</span>
           </div>
         </div>
       </div>

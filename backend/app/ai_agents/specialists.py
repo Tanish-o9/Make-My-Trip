@@ -290,3 +290,61 @@ def notification_node(state: AgentState) -> dict:
         "final_response": msg,
         "messages": [{"role": "assistant", "content": msg}]
     }
+
+@log_agent_execution("insurance_assistant_agent")
+def insurance_assistant_node(state: AgentState, config: Dict[str, Any] = None) -> dict:
+    """Agent node to recommend travel insurance options"""
+    from app.ai_agents.supervisor import report_agent_status
+    report_agent_status(config, "Insurance Agent: Fetching premium coverages and travel protection policies...")
+    
+    context = state.get("trip_context", {})
+    destination = context.get("destination") or "Goa"
+    duration = int(context.get("duration_days") or 3)
+    passengers = int(context.get("passengers") or 1)
+
+    # Calculate estimated premiums
+    base_premium = 350.0  # ₹350 per passenger for standard domestic
+    if destination.lower() not in ["goa", "delhi", "mumbai", "india"]:
+        base_premium = 1200.0  # International premium
+
+    total_premium = base_premium * passengers * (1 + (duration * 0.05))
+
+    advisory_prompt = f"""
+You are the Insurance Assistant Agent. Recommend a travel insurance package for this trip:
+Destination: {destination}
+Duration: {duration} days
+Travelers: {passengers}
+Total Estimated Premium: ₹{total_premium:.2f}
+
+Provide a structured, helpful guide listing key benefits (e.g. medical cover, flight delay offset, baggage loss), the estimated premium, and how to enroll. Keep it professional, warm, and highly structured.
+"""
+    response = llm_router.complete(prompt=advisory_prompt, task_type="simple")
+    return {
+        "final_response": response,
+        "messages": [{"role": "assistant", "content": response}]
+    }
+
+@log_agent_execution("emergency_assistant_agent")
+def emergency_assistant_node(state: AgentState, config: Dict[str, Any] = None) -> dict:
+    """Agent node to provide local emergency contacts, embassy details, and safety index"""
+    from app.ai_agents.supervisor import report_agent_status
+    report_agent_status(config, "Emergency Agent: Fetching local helpline numbers and safety indexes...")
+    
+    context = state.get("trip_context", {})
+    destination = context.get("destination") or "Goa"
+
+    # Query safety info or suggest standard emergency contacts
+    emergency_prompt = f"""
+You are the Emergency Assistance Agent. Formulate an emergency guide for travelers visiting {destination}.
+Include:
+1. Police, Medical, Fire, and Tourist Helpline numbers for {destination}.
+2. Travel safety tips and security advices.
+3. Steps to contact the local embassy/consulate if they are international travelers.
+
+Make your response highly formatted, using tables, bold lists, and highlight critical helpline numbers.
+"""
+    response = llm_router.complete(prompt=emergency_prompt, task_type="simple")
+    return {
+        "final_response": response,
+        "messages": [{"role": "assistant", "content": response}]
+    }

@@ -20,7 +20,9 @@ from app.ai_agents.specialists import (
     analytics_node,
     rag_node,
     memory_node,
-    notification_node
+    notification_node,
+    insurance_assistant_node,
+    emergency_assistant_node
 )
 
 logger = logging.getLogger(__name__)
@@ -64,11 +66,13 @@ You must choose one of the following exact categories:
 - weather_info (weather forecast, packing list, climate, clothing advice)
 - local_guide (hidden gems, local spots, travel recommendations, attractions, restaurants, shopping, nightlife)
 - currency_conversion (forex, converting currency, exchange rates, recommended cash)
-- travel_safety (safety warnings, advisories, safety index, emergency numbers)
+- travel_safety (safety warnings, advisories, safety index)
 - customer_support (customer support, human agent help, booking problems)
 - payment_assistant (payment failures, retry transactions)
 - analytics_info (token counts, latency stats, admin metrics)
 - trip_planner (comprehensive end-to-end trip packages, holiday packages, planning a full travel itinerary with flights/hotels/pricing, honeymoon trip, family trip, solo trip, adventure trip, luxury trip, corporate travel, weekend trip, international travel, multi-city trip, travel advice)
+- insurance_assistant (travel insurance coverage, claim guidelines, premium recommendations)
+- emergency_assistant (local emergency phone numbers, medical help, police contact, embassy contacts)
 - general_chat (greetings, standard conversational exchanges, off-topic chats)
 
 Output ONLY the category name. Do not write anything else.
@@ -83,7 +87,7 @@ Category:
         "itinerary_generator", "visa_assistant", "weather_info",
         "local_guide", "currency_conversion", "restaurant_recommendation",
         "travel_safety", "customer_support", "payment_assistant",
-        "analytics_info", "trip_planner", "general_chat"
+        "analytics_info", "trip_planner", "insurance_assistant", "emergency_assistant", "general_chat"
     ]
     if intent not in valid_intents:
         intent = "general_chat"
@@ -129,6 +133,8 @@ builder.add_node("customer_support", customer_support_node)
 builder.add_node("payment_assistant", payment_assistant_node)
 builder.add_node("analytics_info", analytics_node)
 builder.add_node("trip_planner", trip_planner_node)
+builder.add_node("insurance_assistant", insurance_assistant_node)
+builder.add_node("emergency_assistant", emergency_assistant_node)
 builder.add_node("general_chat", general_chat_node)
 
 # Set up Routing entry point
@@ -149,6 +155,8 @@ builder.set_conditional_entry_point(
         "payment_assistant": "payment_assistant",
         "analytics_info": "analytics_info",
         "trip_planner": "trip_planner",
+        "insurance_assistant": "insurance_assistant",
+        "emergency_assistant": "emergency_assistant",
         "general_chat": "general_chat"
     }
 )
@@ -168,6 +176,8 @@ builder.add_edge("customer_support", END)
 builder.add_edge("payment_assistant", END)
 builder.add_edge("analytics_info", END)
 builder.add_edge("trip_planner", END)
+builder.add_edge("insurance_assistant", END)
+builder.add_edge("emergency_assistant", END)
 builder.add_edge("general_chat", END)
 
 # Compile
@@ -188,11 +198,34 @@ class SupervisorAgent:
         trip_context = active_context.get("trip_context", {})
         budget_constraints = active_context.get("budget_constraints", {})
         
+        # Check and save user preferences
+        try:
+            pref_prompt = f"""
+            Analyze the user's message: "{message}"
+            Does the user explicitly state any long-term preference, airline preference, seat preference, dietary restriction, avoided airlines, avoided destinations, or languages?
+            If yes, summarize it into a short preference statement (e.g. "Prefers Vistara airlines", "Vegetarian food only", "Wants to avoid Indigo flights", "Avoids rainy destinations").
+            If no preference is expressed, return "NONE".
+            Output ONLY the preference statement or "NONE".
+            """
+            pref_stmt = llm_router.complete(prompt=pref_prompt, task_type="simple").strip()
+            if pref_stmt and pref_stmt.upper() != "NONE":
+                MemoryManager.save_user_preference(user_id=user_id, preference_text=pref_stmt, category="preference")
+                if "user_historical_preferences" not in trip_context:
+                    trip_context["user_historical_preferences"] = []
+                if pref_stmt not in trip_context["user_historical_preferences"]:
+                    trip_context["user_historical_preferences"].append(pref_stmt)
+        except Exception as e:
+            logger.error(f"Preference capture error: {e}")
+
         # Query long-term preferences from Chroma
         try:
             user_prefs = MemoryManager.query_user_preferences(user_id=user_id, query=message, limit=5)
             if user_prefs:
-                trip_context["user_historical_preferences"] = user_prefs
+                existing_prefs = trip_context.get("user_historical_preferences", [])
+                for p in user_prefs:
+                    if p not in existing_prefs:
+                        existing_prefs.append(p)
+                trip_context["user_historical_preferences"] = existing_prefs
         except Exception as e:
             logger.error(f"Failed to load user preferences: {e}")
         
@@ -291,11 +324,34 @@ class SupervisorAgent:
         trip_context = active_context.get("trip_context", {})
         budget_constraints = active_context.get("budget_constraints", {})
         
+        # Check and save user preferences
+        try:
+            pref_prompt = f"""
+            Analyze the user's message: "{message}"
+            Does the user explicitly state any long-term preference, airline preference, seat preference, dietary restriction, avoided airlines, avoided destinations, or languages?
+            If yes, summarize it into a short preference statement (e.g. "Prefers Vistara airlines", "Vegetarian food only", "Wants to avoid Indigo flights", "Avoids rainy destinations").
+            If no preference is expressed, return "NONE".
+            Output ONLY the preference statement or "NONE".
+            """
+            pref_stmt = llm_router.complete(prompt=pref_prompt, task_type="simple").strip()
+            if pref_stmt and pref_stmt.upper() != "NONE":
+                MemoryManager.save_user_preference(user_id=user_id, preference_text=pref_stmt, category="preference")
+                if "user_historical_preferences" not in trip_context:
+                    trip_context["user_historical_preferences"] = []
+                if pref_stmt not in trip_context["user_historical_preferences"]:
+                    trip_context["user_historical_preferences"].append(pref_stmt)
+        except Exception as e:
+            logger.error(f"Preference capture error: {e}")
+
         # Query long-term preferences from Chroma
         try:
             user_prefs = MemoryManager.query_user_preferences(user_id=user_id, query=message, limit=5)
             if user_prefs:
-                trip_context["user_historical_preferences"] = user_prefs
+                existing_prefs = trip_context.get("user_historical_preferences", [])
+                for p in user_prefs:
+                    if p not in existing_prefs:
+                        existing_prefs.append(p)
+                trip_context["user_historical_preferences"] = existing_prefs
         except Exception as e:
             logger.error(f"Failed to load user preferences: {e}")
         
