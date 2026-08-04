@@ -889,6 +889,59 @@ function ExploreView({
         <HotelBrandsShowcase onPartnerClick={(name) => onPartnerClick('hotel', name)} />
       </div>
 
+      {/* 6. PLATFORM INFO & BENEFITS CARDS */}
+      <div className="max-w-6xl mx-auto px-8 pb-16 border-t border-slate-900/60 pt-10 mt-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 font-sans">
+          
+          {/* Card 1: How to Use */}
+          <div className="bg-[#e0f2fe] border-4 border-black p-6 rounded-[var(--radius-card)] shadow-[6px_6px_0px_0px_#000000] text-black hover:-translate-y-1 transition-all duration-200 flex flex-col justify-between">
+            <div>
+              <h4 className="font-extrabold text-sm mb-4 flex items-center gap-2 text-sky-950 uppercase tracking-wide">
+                <Compass className="shrink-0 text-sky-700" size={18} />
+                How to Use
+              </h4>
+              <ol className="list-decimal list-inside text-xs space-y-3 font-semibold text-slate-800 leading-relaxed text-left">
+                <li><span className="font-bold text-black">Select Travel Vertical:</span> Choose Flights, Hotels, Cabs, etc., from the dashboard.</li>
+                <li><span className="font-bold text-black">Interact with AI:</span> Prompt the assistant for tailored recommendations and real-time itinerary splits.</li>
+                <li><span className="font-bold text-black">Secure Hold & Pay:</span> Lock rates instantly and check out via unified wallet.</li>
+              </ol>
+            </div>
+          </div>
+
+          {/* Card 2: Benefits */}
+          <div className="bg-[#fef08a] border-4 border-black p-6 rounded-[var(--radius-card)] shadow-[6px_6px_0px_0px_#000000] text-black hover:-translate-y-1 transition-all duration-200 flex flex-col justify-between">
+            <div>
+              <h4 className="font-extrabold text-sm mb-4 flex items-center gap-2 text-yellow-950 uppercase tracking-wide">
+                <Tag className="shrink-0 text-yellow-700" size={18} />
+                Key Benefits
+              </h4>
+              <ul className="list-disc list-inside text-xs space-y-3 font-semibold text-slate-800 leading-relaxed text-left">
+                <li><span className="font-bold text-black">OneCircle Loyalty:</span> Earn multi-vertical points with every booking to redeem.</li>
+                <li><span className="font-bold text-black">Zero-Penalty Holds:</span> Hold availability for premium resorts with zero upfront fee.</li>
+                <li><span className="font-bold text-black">Fare Protection:</span> Shield your checkout from dynamic demand surges.</li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Card 3: Why Choose Us */}
+          <div className="bg-[#fce7f3] border-4 border-black p-6 rounded-[var(--radius-card)] shadow-[6px_6px_0px_0px_#000000] text-black hover:-translate-y-1 transition-all duration-200 flex flex-col justify-between">
+            <div>
+              <h4 className="font-extrabold text-sm mb-4 flex items-center gap-2 text-pink-950 uppercase tracking-wide">
+                <Sparkles className="shrink-0 text-pink-700" size={18} />
+                Why We Are Better
+              </h4>
+              <p className="text-xs font-semibold text-slate-800 leading-relaxed text-left mb-3">
+                <span className="font-bold text-black">Multi-Agent Engine:</span> Concurrently resolves flight options, live weather, local events, and visa rules.
+              </p>
+              <p className="text-xs font-semibold text-slate-800 leading-relaxed text-left">
+                <span className="font-bold text-black">Self-Healing Router:</span> Transparently switches LLM providers to ensure 100% service availability.
+              </p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
     </div>
   );
 }
