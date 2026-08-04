@@ -274,7 +274,6 @@ Instead, at the very bottom of your response, you MUST append:
     if "```hotels-data" not in final_response:
         final_response += f"\n\n```hotels-data\n{json.dumps(mapped_hotels, indent=2)}\n```"
     if "```itinerary-data" not in final_response:
-        # Extract or regenerate a basic itinerary array if not present
         itin_arr = []
         for d in range(1, n_days + 1):
             itin_arr.append({
@@ -285,6 +284,45 @@ Instead, at the very bottom of your response, you MUST append:
                 "evening": "Wind down with dinner and sunset views."
             })
         final_response += f"\n\n```itinerary-data\n{json.dumps(itin_arr, indent=2)}\n```"
+
+    # Inject Visa data block
+    is_domestic = destination.lower() in ["goa", "delhi", "mumbai", "india", "jaipur", "kerala"]
+    visa_info = {
+        "destination_country": destination if not is_domestic else "India (Domestic)",
+        "requirement_type": "Permit-free" if is_domestic else "Visa on Arrival / eVisa",
+        "citizenship": "Indian",
+        "processing_time": "Immediate" if is_domestic else "24-48 hours",
+        "documents": ["Aadhar Card", "Voter ID", "Hotel Confirmation", "Flight Ticket"] if is_domestic else ["Valid Passport", "Return Flight Ticket", "Hotel Voucher", "Passport Photo"]
+    }
+    final_response += f"\n\n```visa-data\n{json.dumps(visa_info, indent=2)}\n```"
+
+    # Inject Weather data block
+    weather_info = {
+        "avg_temp": "28" if destination.lower() == "goa" else "22",
+        "forecast": f"Pleasant climate in {destination}. Perfect for sightseeing and local tours.",
+        "packing_checklist": ["Sunglasses & Sunscreen", "Comfortable walking shoes", "Light cotton clothes", "Chargers & Adaptors"]
+    }
+    final_response += f"\n\n```weather-data\n{json.dumps(weather_info, indent=2)}\n```"
+
+    # Inject Budget data block
+    try:
+        b_val = float(total_budget or 30000)
+    except Exception:
+        b_val = 30000.0
+    budget_info = {
+        "total_budget": b_val,
+        "breakdown": {
+            "flights": b_val * 0.35,
+            "hotels": b_val * 0.40,
+            "activities": b_val * 0.15,
+            "food_transport": b_val * 0.10
+        }
+    }
+    final_response += f"\n\n```budget-data\n{json.dumps(budget_info, indent=2)}\n```"
+
+    # Inject Map data block
+    map_info = [origin, destination, f"{destination} center"]
+    final_response += f"\n\n```map-data\n{json.dumps(map_info, indent=2)}\n```"
 
     updated_context = dict(state.get("trip_context", {}))
     updated_context.update({

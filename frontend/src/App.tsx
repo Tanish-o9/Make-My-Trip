@@ -558,6 +558,7 @@ export default function App() {
                 onShowWishlist={() => setShowWishlist(true)}
                 onShowProfile={() => setShowProfile(true)}
                 onNavigate={navigate}
+                setPrefilledMessage={setPrefilledMessage}
               />
             )}
             {activeTab === 'chat' && (
@@ -714,7 +715,8 @@ function ExploreView({
   currency, onBook, setActiveTab, 
   onDetailClick, onOfferClick, onPartnerClick, 
   onDestinationClick, onTrackFlight, onShowMyBiz,
-  onShowWishlist, onShowProfile, onNavigate
+  onShowWishlist, onShowProfile, onNavigate,
+  setPrefilledMessage
 }: { 
   currency: string, onBook: (data: any) => void, setActiveTab: any,
   onDetailClick: (vert: string, item: any) => void,
@@ -725,7 +727,8 @@ function ExploreView({
   onShowMyBiz: () => void,
   onShowWishlist: () => void,
   onShowProfile: () => void,
-  onNavigate: (path: string) => void
+  onNavigate: (path: string) => void,
+  setPrefilledMessage: (msg: string) => void
 }) {
   const [activeVertical, setActiveVertical] = useState<string>(() => sessionStorage.getItem("active_vertical") || 'flights');
   const [loadingVerticals, setLoadingVerticals] = useState<Record<string, boolean>>({});
@@ -778,6 +781,23 @@ function ExploreView({
           <p className="text-[10px] font-mono uppercase tracking-widest text-[var(--color-ivory-dim)] mt-2">
             Discover curated itineraries, premium flight search, and instant wallet bookings
           </p>
+        </div>
+
+        {/* Quick prompt assistant widget */}
+        <div className="max-w-2xl mx-auto bg-slate-900/60 backdrop-blur border border-slate-850 p-4 rounded-xl shadow-lg relative z-10 mb-6 flex flex-col sm:flex-row items-center gap-3">
+          <div className="flex-1 text-left">
+            <span className="text-[9px] text-amber-400 font-extrabold uppercase tracking-widest block">🤖 AI Operating System Copilot</span>
+            <p className="text-xs text-slate-300 mt-1">Prompt: "I have ₹70,000. Delhi to Goa. 4 days. Nightlife."</p>
+          </div>
+          <button 
+            onClick={() => {
+              setPrefilledMessage("I have ₹70,000. Delhi to Goa. 4 days. Nightlife.");
+              setActiveTab('chat');
+            }}
+            className="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-4 py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 shadow-md shadow-blue-500/10 cursor-pointer"
+          >
+            ⚡ Plan Instantly via AI
+          </button>
         </div>
 
         {/* Boarding Pass Ticket Layout Container */}
@@ -883,6 +903,99 @@ function ExploreView({
         <CollectionCarousel slug="lesser-known-wonders" onDestinationClick={onDestinationClick} />
       </div>
 
+      {/* POPULAR PACKAGES */}
+      <div className="max-w-6xl mx-auto px-8 py-6">
+        <h3 className="text-xl font-extrabold text-slate-200 mb-6 flex items-center gap-2">🎁 Curated Travel Packages</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="glass-card p-5 rounded-2xl border border-slate-800 flex flex-col justify-between hover:border-amber-500/50 transition-all duration-300">
+            <div>
+              <div className="h-40 rounded-xl overflow-hidden mb-4 relative bg-[url('https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600')] bg-cover bg-center">
+                <span className="absolute top-2 right-2 bg-amber-500 text-slate-950 text-[10px] font-black uppercase px-2 py-0.5 rounded">Best Seller</span>
+              </div>
+              <h4 className="font-extrabold text-sm text-slate-200">Beach Paradise — Goa Stay</h4>
+              <p className="text-[11px] text-slate-400 mt-1">Flights + Premium Resort + Beach Sightseeing</p>
+              <div className="flex gap-2 mt-3 flex-wrap">
+                <span className="text-[9px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded">4 Nights</span>
+                <span className="text-[9px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded">2 Travelers</span>
+              </div>
+            </div>
+            <div className="flex justify-between items-center mt-5 border-t border-slate-800/80 pt-4">
+              <div>
+                <span className="text-[9px] text-slate-500 uppercase block">Starting from</span>
+                <span className="text-base font-black text-amber-400">₹24,999</span>
+              </div>
+              <button 
+                onClick={() => {
+                  setPrefilledMessage("I have ₹70,000. Delhi to Goa. 4 days. Nightlife.");
+                  setActiveTab('chat');
+                }} 
+                className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-3 py-1.5 rounded-lg transition-all"
+              >
+                Plan via AI
+              </button>
+            </div>
+          </div>
+
+          <div className="glass-card p-5 rounded-2xl border border-slate-800 flex flex-col justify-between hover:border-amber-500/50 transition-all duration-300">
+            <div>
+              <div className="h-40 rounded-xl overflow-hidden mb-4 relative bg-[url('https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=600')] bg-cover bg-center">
+                <span className="absolute top-2 right-2 bg-purple-600 text-white text-[10px] font-black uppercase px-2 py-0.5 rounded">Luxury</span>
+              </div>
+              <h4 className="font-extrabold text-sm text-slate-200">Royal Heritage — Jaipur Escape</h4>
+              <p className="text-[11px] text-slate-400 mt-1">First Class Flight + Palace Hotel + Forts Tour</p>
+              <div className="flex gap-2 mt-3 flex-wrap">
+                <span className="text-[9px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded">3 Nights</span>
+                <span className="text-[9px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded">2 Travelers</span>
+              </div>
+            </div>
+            <div className="flex justify-between items-center mt-5 border-t border-slate-800/80 pt-4">
+              <div>
+                <span className="text-[9px] text-slate-500 uppercase block">Starting from</span>
+                <span className="text-base font-black text-amber-400">₹14,500</span>
+              </div>
+              <button 
+                onClick={() => {
+                  setPrefilledMessage("Recommend a full holiday package for Jaipur for 3 days starting Dec 15th");
+                  setActiveTab('chat');
+                }} 
+                className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-3 py-1.5 rounded-lg transition-all"
+              >
+                Plan via AI
+              </button>
+            </div>
+          </div>
+
+          <div className="glass-card p-5 rounded-2xl border border-slate-800 flex flex-col justify-between hover:border-amber-500/50 transition-all duration-300">
+            <div>
+              <div className="h-40 rounded-xl overflow-hidden mb-4 relative bg-[url('https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=600')] bg-cover bg-center">
+                <span className="absolute top-2 right-2 bg-sky-600 text-white text-[10px] font-black uppercase px-2 py-0.5 rounded">Trending</span>
+              </div>
+              <h4 className="font-extrabold text-sm text-slate-200">Tropical Villa — Bali Getaway</h4>
+              <p className="text-[11px] text-slate-400 mt-1">Flights + Private Pool Villa stay + Local Guide</p>
+              <div className="flex gap-2 mt-3 flex-wrap">
+                <span className="text-[9px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded">6 Nights</span>
+                <span className="text-[9px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded">2 Travelers</span>
+              </div>
+            </div>
+            <div className="flex justify-between items-center mt-5 border-t border-slate-800/80 pt-4">
+              <div>
+                <span className="text-[9px] text-slate-500 uppercase block">Starting from</span>
+                <span className="text-base font-black text-amber-400">₹89,900</span>
+              </div>
+              <button 
+                onClick={() => {
+                  setPrefilledMessage("Recommend a full holiday package for Bali for 6 days starting Dec 15");
+                  setActiveTab('chat');
+                }} 
+                className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-3 py-1.5 rounded-lg transition-all"
+              >
+                Plan via AI
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* 5. PARTNER SHOWCASE SHOWS */}
       <div className="max-w-6xl mx-auto px-8 py-10 grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-slate-900/60 mt-8 pt-10">
         <AirlinePartnersShowcase onPartnerClick={(name) => onPartnerClick('airline', name)} />
@@ -942,6 +1055,103 @@ function ExploreView({
         </div>
       </div>
 
+      {/* TRAVEL ANALYTICS PREVIEW */}
+      <div className="max-w-6xl mx-auto px-8 py-6 border-t border-slate-900/60 pt-10">
+        <div className="bg-slate-900/40 border border-slate-805 rounded-2xl p-6 flex flex-col md:flex-row justify-between items-center gap-6">
+          <div className="space-y-2 text-left max-w-sm">
+            <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider block">Travel OS Metrics</span>
+            <h4 className="text-lg font-black text-white">Live Platform Travel Analytics</h4>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              We track real-time savings, active search indices, flight price drops, and carbon footprint reduction parameters to optimize your journeys.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 w-full md:w-auto flex-1 max-w-xl text-left">
+            <div className="bg-[#121c33] p-4 rounded-xl border border-slate-800">
+              <span className="text-[9px] text-slate-500 font-bold uppercase">Average Traveler Savings</span>
+              <span className="text-sm font-black text-white block mt-1">₹4,850 / trip</span>
+            </div>
+            <div className="bg-[#121c33] p-4 rounded-xl border border-slate-800">
+              <span className="text-[9px] text-slate-500 font-bold uppercase">Active Monitored Trips</span>
+              <span className="text-sm font-black text-white block mt-1">1,248 Trips</span>
+            </div>
+            <div className="bg-[#121c33] p-4 rounded-xl border border-slate-800 col-span-2 sm:col-span-1">
+              <span className="text-[9px] text-slate-500 font-bold uppercase">Platform Health Standing</span>
+              <span className="text-sm font-black text-emerald-400 block mt-1">99.98% SLA</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* CUSTOMER REVIEWS */}
+      <div className="max-w-6xl mx-auto px-8 py-6 border-t border-slate-900/60 pt-10">
+        <h3 className="text-xl font-extrabold text-slate-200 mb-6 flex items-center gap-2">💬 What Our Travelers Say</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+          <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-2xl space-y-3 flex flex-col justify-between">
+            <p className="text-xs italic text-slate-300 leading-relaxed">
+              "Travel OS completely planned my Goa getaway, reserved Vistara flights, and mapped out an incredible nightlife list! I literally didn't have to search a single hotel myself."
+            </p>
+            <div className="flex justify-between items-center pt-2">
+              <span className="font-bold text-xs text-white">Rohan S.</span>
+              <span className="text-xs text-amber-400 font-bold">★★★★★ Gold Tier</span>
+            </div>
+          </div>
+          <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-2xl space-y-3 flex flex-col justify-between">
+            <p className="text-xs italic text-slate-300 leading-relaxed">
+              "The interactive route mapping and Google Calendar sync saved me hours of planning. Plus, I held the hotel price for free before checking out via my UPI wallet."
+            </p>
+            <div className="flex justify-between items-center pt-2">
+              <span className="font-bold text-xs text-white">Priya M.</span>
+              <span className="text-xs text-amber-400 font-bold">★★★★★ Platinum Tier</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* PREMIUM FOOTER */}
+      <footer className="w-full bg-slate-950 border-t border-slate-900 py-12 px-8 mt-12">
+        <div className="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8 text-left">
+          <div className="space-y-3 col-span-2 md:col-span-1">
+            <h4 className="font-black text-sm text-white tracking-widest uppercase">TRAVEL OS</h4>
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              The world's best AI-powered autonomous Travel Operating System, resolving flights, hotel stays, visa guidance, and premium itineraries.
+            </p>
+          </div>
+          <div className="space-y-3">
+            <h5 className="font-bold text-xs text-slate-300 uppercase">Products</h5>
+            <ul className="space-y-1.5 text-[11px] text-slate-400 list-none p-0 m-0">
+              <li><a href="#" className="hover:text-amber-400 transition-colors">Flight Search</a></li>
+              <li><a href="#" className="hover:text-amber-400 transition-colors">Hotel Booking</a></li>
+              <li><a href="#" className="hover:text-amber-400 transition-colors">Luxury Villas</a></li>
+              <li><a href="#" className="hover:text-amber-400 transition-colors">Cruises & Trains</a></li>
+            </ul>
+          </div>
+          <div className="space-y-3">
+            <h5 className="font-bold text-xs text-slate-300 uppercase">Safety & Support</h5>
+            <ul className="space-y-1.5 text-[11px] text-slate-400 list-none p-0 m-0">
+              <li><a href="#" className="hover:text-amber-400 transition-colors">Consulate Advisory</a></li>
+              <li><a href="#" className="hover:text-amber-400 transition-colors">Emergency Helplines</a></li>
+              <li><a href="#" className="hover:text-amber-400 transition-colors">Travel Insurance</a></li>
+              <li><a href="#" className="hover:text-amber-400 transition-colors">System Health SLA</a></li>
+            </ul>
+          </div>
+          <div className="space-y-3">
+            <h5 className="font-bold text-xs text-slate-300 uppercase">Sustainability</h5>
+            <ul className="space-y-1.5 text-[11px] text-slate-400 list-none p-0 m-0">
+              <li><a href="#" className="hover:text-amber-400 transition-colors">Carbon Offset Program</a></li>
+              <li><a href="#" className="hover:text-amber-400 transition-colors">Green Hotel List</a></li>
+              <li><a href="#" className="hover:text-amber-400 transition-colors">Eco Sightseeing Guides</a></li>
+              <li><a href="#" className="hover:text-amber-400 transition-colors">Sustainable Metrics</a></li>
+            </ul>
+          </div>
+        </div>
+        <div className="max-w-6xl mx-auto mt-10 pt-6 border-t border-slate-900 flex flex-col sm:flex-row justify-between items-center text-[10px] text-slate-500">
+          <span>© 2026 Travel OS Inc. All rights reserved.</span>
+          <span className="flex gap-4 mt-2 sm:mt-0">
+            <a href="#" className="hover:text-slate-300">Privacy Policy</a>
+            <a href="#" className="hover:text-slate-300">Terms of Service</a>
+          </span>
+        </div>
+      </footer>
     </div>
   );
 }
@@ -4770,6 +4980,61 @@ function InteractiveRouteMap({ locations }: { locations: any }) {
   );
 }
 
+function ReasoningPanel({ status, isDone }: { status?: string, isDone: boolean }) {
+  const steps = [
+    { key: 'understand', label: '🧠 Understanding Request...', match: ['think', 'understand'] },
+    { key: 'flights', label: '✈️ Searching Flights...', match: ['flight'] },
+    { key: 'hotels', label: '🏨 Comparing Hotels...', match: ['hotel', 'accommodation'] },
+    { key: 'weather', label: '🌦️ Checking Weather...', match: ['weather', 'climate'] },
+    { key: 'budget', label: '💰 Planning Budget...', match: ['budget', 'currency', 'forex'] },
+    { key: 'itinerary', label: '📅 Creating Itinerary...', match: ['itinerary', 'slot', 'plan'] }
+  ];
+
+  let activeIndex = -1;
+  if (status) {
+    const sLower = status.toLowerCase();
+    activeIndex = steps.findIndex(step => step.match.some(m => sLower.includes(m)));
+    if (activeIndex === -1) activeIndex = 0;
+  }
+
+  return (
+    <div className="bg-slate-900/60 backdrop-blur border border-slate-800 p-4 rounded-xl space-y-2 text-xs font-mono max-w-sm mb-4">
+      <div className="text-[10px] text-slate-400 font-bold tracking-wider uppercase mb-1">🧠 Agent Reasoning Panel</div>
+      {steps.map((step, idx) => {
+        const completed = isDone || (activeIndex > idx);
+        const current = !isDone && (activeIndex === idx);
+        return (
+          <div key={step.key} className="flex items-center gap-2">
+            {completed ? (
+              <span className="text-emerald-400 font-bold">✓</span>
+            ) : current ? (
+              <span className="text-blue-400 animate-spin">⏳</span>
+            ) : (
+              <span className="text-slate-600">○</span>
+            )}
+            <span className={completed ? "text-slate-300 font-semibold" : current ? "text-blue-400 font-black animate-pulse" : "text-slate-500"}>
+              {step.label}
+            </span>
+          </div>
+        );
+      })}
+      <div className="flex items-center gap-2 pt-1 border-t border-slate-850">
+        {isDone ? (
+          <>
+            <span className="text-emerald-400 font-bold">✓</span>
+            <span className="text-emerald-400 font-bold">Ready</span>
+          </>
+        ) : (
+          <>
+            <span className="text-blue-400 animate-pulse">●</span>
+            <span className="text-slate-400">Processing turn...</span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ChatView({ 
   userProfile, 
   setUserProfile, 
@@ -4790,6 +5055,54 @@ function ChatView({
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [bookedItems, setBookedItems] = useState<Record<string, boolean>>({});
+  const [editingSlot, setEditingSlot] = useState<{ msgIdx: number, dayIdx: number, slotKey: 'morning' | 'afternoon' | 'evening' } | null>(null);
+  const [editValue, setEditValue] = useState("");
+
+  const handleEditSlot = (msgIdx: number, dayIdx: number, slotKey: 'morning' | 'afternoon' | 'evening', currentValue: string) => {
+    setEditingSlot({ msgIdx, dayIdx, slotKey });
+    setEditValue(currentValue);
+  };
+
+  const handleSaveSlot = () => {
+    if (!editingSlot) return;
+    const { msgIdx, dayIdx, slotKey } = editingSlot;
+    setMessages(prev => {
+      const copy = [...prev];
+      const msg = copy[msgIdx];
+      if (msg && msg.itinerary) {
+        const day = { ...msg.itinerary[dayIdx] };
+        if (day.slots) {
+          day.slots = { ...day.slots, [slotKey]: editValue };
+        } else {
+          day[slotKey] = editValue;
+        }
+        msg.itinerary[dayIdx] = day;
+      }
+      return copy;
+    });
+    setEditingSlot(null);
+  };
+
+  const handleSwapSlots = (msgIdx: number, dayIdx: number, slotA: 'morning' | 'afternoon' | 'evening', slotB: 'morning' | 'afternoon' | 'evening') => {
+    setMessages(prev => {
+      const copy = [...prev];
+      const msg = copy[msgIdx];
+      if (msg && msg.itinerary) {
+        const day = { ...msg.itinerary[dayIdx] };
+        const valA = getSlotText(day, slotA);
+        const valB = getSlotText(day, slotB);
+        
+        if (day.slots) {
+          day.slots = { ...day.slots, [slotA]: valB, [slotB]: valA };
+        } else {
+          day[slotA] = valB;
+          day[slotB] = valA;
+        }
+        msg.itinerary[dayIdx] = day;
+      }
+      return copy;
+    });
+  };
 
   const [sessionId, setSessionId] = useState(() => {
     const saved = localStorage.getItem('chat_session_id');
@@ -5234,6 +5547,68 @@ function ChatView({
     document.body.removeChild(link);
   };
 
+  const downloadItineraryPDF = (itin: any[]) => {
+    if (!itin || !Array.isArray(itin)) return;
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      alert("Please allow popups to download your PDF itinerary.");
+      return;
+    }
+    
+    let daysHtml = itin.map(day => `
+      <div class="day-card">
+        <h3>Day ${day.day} — ${day.title || day.theme || 'Plan'}</h3>
+        <p><strong>🌅 Morning:</strong> ${getSlotText(day, 'morning')}</p>
+        <p><strong>☀️ Afternoon:</strong> ${getSlotText(day, 'afternoon')}</p>
+        <p><strong>🌙 Evening:</strong> ${getSlotText(day, 'evening')}</p>
+      </div>
+    `).join("");
+
+    const htmlContent = `
+      <html>
+        <head>
+          <title>Travel OS - Travel Itinerary</title>
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #030712; color: #f3f4f6; padding: 40px; }
+            h1 { font-family: serif; color: #fbbf24; border-bottom: 2px solid #fbbf24; padding-bottom: 10px; text-transform: uppercase; font-size: 28px; }
+            .meta-info { margin: 20px 0 40px 0; font-size: 14px; color: #9ca3af; }
+            .day-card { background: #111827; border: 1px solid #374151; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+            .day-card h3 { color: #60a5fa; margin-top: 0; font-size: 16px; border-bottom: 1px solid #1f2937; padding-bottom: 8px; }
+            p { font-size: 13px; line-height: 1.6; margin: 8px 0; color: #d1d5db; }
+            strong { color: #f3f4f6; }
+            .footer { margin-top: 60px; text-align: center; border-top: 1px dashed #374151; padding-top: 20px; font-size: 11px; color: #6b7280; display: flex; justify-content: space-between; align-items: center; }
+            .qr-code { background: #fff; padding: 8px; border-radius: 8px; }
+          </style>
+        </head>
+        <body>
+          <h1>✈️ Travel OS Itinerary Proposal</h1>
+          <div class="meta-info">
+            Generated by Autonomous Travel Coordinator • Session: ${sessionId} • Date: ${new Date().toLocaleDateString()}
+          </div>
+          <div class="itinerary-list">
+            ${daysHtml}
+          </div>
+          <div class="footer">
+            <div>
+              <p>Thank you for choosing <strong>Travel OS</strong>.</p>
+              <p>Lock your fares and complete reservations directly inside the Travel OS dashboard.</p>
+            </div>
+            <div class="qr-code">
+              <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=https://travelos.com/session/${sessionId}" alt="Itinerary QR Verification" width="100" height="100" />
+            </div>
+          </div>
+          <script>
+            window.onload = function() {
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `;
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
+
   const suggestedPrompts = [
     { label: "Plan a 3-day trip to Goa", text: "I want to plan a 3-day trip to Goa starting Dec 15th." },
     { label: "Find flights to Goa", text: "Show me direct flight selections from Delhi to Goa on December 15th." },
@@ -5286,10 +5661,8 @@ function ChatView({
                 ? 'bg-blue-600 text-white rounded-tr-none' 
                 : 'glass-card text-slate-100 rounded-tl-none border border-slate-800'
             }`}>
-              {msg.status && (
-                <div className="flex items-center gap-2 text-blue-400 text-sm font-semibold">
-                  <RefreshCw size={14} className="animate-spin" /> {msg.status}
-                </div>
+              {msg.role === 'assistant' && (msg.status || msg.flights || msg.hotels || msg.itinerary) && (
+                <ReasoningPanel status={msg.status} isDone={!msg.status} />
               )}
               {(!msg.status || msg.content) && (
                 <div className="whitespace-pre-wrap leading-relaxed text-sm">
@@ -5392,20 +5765,96 @@ function ChatView({
                 <div className="mt-4 space-y-3 border-t border-slate-800 pt-4">
                   <div className="flex justify-between items-center mb-2">
                     <h4 className="text-xs text-slate-400 font-semibold">GENERATED TRIP PLAN:</h4>
-                    <button 
-                      onClick={() => downloadCalendarICS(msg.itinerary!)}
-                      className="bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 text-[10px] font-bold px-2.5 py-1 rounded border border-blue-500/20 flex items-center gap-1 transition-all"
-                    >
-                      <Calendar size={12} /> Sync to Google Calendar
-                    </button>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => downloadItineraryPDF(msg.itinerary!)}
+                        className="bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 text-[10px] font-bold px-2.5 py-1 rounded border border-emerald-500/20 flex items-center gap-1 transition-all"
+                      >
+                        📄 Download PDF
+                      </button>
+                      <button 
+                        onClick={() => downloadCalendarICS(msg.itinerary!)}
+                        className="bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 text-[10px] font-bold px-2.5 py-1 rounded border border-blue-500/20 flex items-center gap-1 transition-all"
+                      >
+                        <Calendar size={12} /> Sync to Google Calendar
+                      </button>
+                    </div>
                   </div>
                   {msg.itinerary.map((day: any, i: number) => (
                     <div key={i} className="bg-[#121c33] p-4 rounded-xl border border-slate-800">
                       <div className="font-bold text-xs text-blue-400">Day {day.day} — {day.title || day.theme || 'Plan'}</div>
                       <div className="mt-2 space-y-1.5 text-[11px] text-slate-300">
-                        <div>🌅 <span className="font-semibold text-slate-400">Morning:</span> {getSlotText(day, 'morning')}</div>
-                        <div>☀️ <span className="font-semibold text-slate-400">Afternoon:</span> {getSlotText(day, 'afternoon')}</div>
-                        <div>🌙 <span className="font-semibold text-slate-400">Evening:</span> {getSlotText(day, 'evening')}</div>
+                        {/* Morning */}
+                        <div className="flex items-center justify-between group py-1 border-b border-slate-900/20 last:border-0">
+                          {editingSlot?.msgIdx === index && editingSlot?.dayIdx === i && editingSlot?.slotKey === 'morning' ? (
+                            <div className="flex items-center gap-2 w-full">
+                              <span className="shrink-0 text-sm">🌅</span>
+                              <input 
+                                type="text" 
+                                value={editValue} 
+                                onChange={(e) => setEditValue(e.target.value)} 
+                                className="flex-1 px-2 py-0.5 rounded bg-slate-950/80 border border-slate-700 text-[11px] text-white focus:outline-none"
+                              />
+                              <button onClick={handleSaveSlot} className="bg-emerald-600 px-2 py-0.5 rounded text-[10px] text-white font-bold">Save</button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-between w-full">
+                              <div>🌅 <span className="font-semibold text-slate-400">Morning:</span> {getSlotText(day, 'morning')}</div>
+                              <div className="hidden group-hover:flex items-center gap-1.5 ml-2">
+                                <button onClick={() => handleEditSlot(index, i, 'morning', getSlotText(day, 'morning'))} className="text-slate-400 hover:text-white transition-colors bg-transparent border-none text-[10px] p-0 cursor-pointer" title="Edit">✏️</button>
+                                <button onClick={() => handleSwapSlots(index, i, 'morning', 'afternoon')} className="text-slate-400 hover:text-white transition-colors bg-transparent border-none text-[10px] p-0 cursor-pointer" title="Swap with Afternoon">🔄</button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Afternoon */}
+                        <div className="flex items-center justify-between group py-1 border-b border-slate-900/20 last:border-0">
+                          {editingSlot?.msgIdx === index && editingSlot?.dayIdx === i && editingSlot?.slotKey === 'afternoon' ? (
+                            <div className="flex items-center gap-2 w-full">
+                              <span className="shrink-0 text-sm">☀️</span>
+                              <input 
+                                type="text" 
+                                value={editValue} 
+                                onChange={(e) => setEditValue(e.target.value)} 
+                                className="flex-1 px-2 py-0.5 rounded bg-slate-950/80 border border-slate-700 text-[11px] text-white focus:outline-none"
+                              />
+                              <button onClick={handleSaveSlot} className="bg-emerald-600 px-2 py-0.5 rounded text-[10px] text-white font-bold">Save</button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-between w-full">
+                              <div>☀️ <span className="font-semibold text-slate-400">Afternoon:</span> {getSlotText(day, 'afternoon')}</div>
+                              <div className="hidden group-hover:flex items-center gap-1.5 ml-2">
+                                <button onClick={() => handleEditSlot(index, i, 'afternoon', getSlotText(day, 'afternoon'))} className="text-slate-400 hover:text-white transition-colors bg-transparent border-none text-[10px] p-0 cursor-pointer" title="Edit">✏️</button>
+                                <button onClick={() => handleSwapSlots(index, i, 'afternoon', 'evening')} className="text-slate-400 hover:text-white transition-colors bg-transparent border-none text-[10px] p-0 cursor-pointer" title="Swap with Evening">🔄</button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Evening */}
+                        <div className="flex items-center justify-between group py-1 border-b border-slate-900/20 last:border-0">
+                          {editingSlot?.msgIdx === index && editingSlot?.dayIdx === i && editingSlot?.slotKey === 'evening' ? (
+                            <div className="flex items-center gap-2 w-full">
+                              <span className="shrink-0 text-sm">🌙</span>
+                              <input 
+                                type="text" 
+                                value={editValue} 
+                                onChange={(e) => setEditValue(e.target.value)} 
+                                className="flex-1 px-2 py-0.5 rounded bg-slate-950/80 border border-slate-700 text-[11px] text-white focus:outline-none"
+                              />
+                              <button onClick={handleSaveSlot} className="bg-emerald-600 px-2 py-0.5 rounded text-[10px] text-white font-bold">Save</button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-between w-full">
+                              <div>🌙 <span className="font-semibold text-slate-400">Evening:</span> {getSlotText(day, 'evening')}</div>
+                              <div className="hidden group-hover:flex items-center gap-1.5 ml-2">
+                                <button onClick={() => handleEditSlot(index, i, 'evening', getSlotText(day, 'evening'))} className="text-slate-400 hover:text-white transition-colors bg-transparent border-none text-[10px] p-0 cursor-pointer" title="Edit">✏️</button>
+                                <button onClick={() => handleSwapSlots(index, i, 'evening', 'morning')} className="text-slate-400 hover:text-white transition-colors bg-transparent border-none text-[10px] p-0 cursor-pointer" title="Swap with Morning">🔄</button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
