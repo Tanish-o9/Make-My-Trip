@@ -175,8 +175,8 @@ def startup_db_seed():
     from app.models.search_entities import City, HotelProperty
     db_init = SessionLocal()
     try:
-        if db_init.query(City).count() == 0 or db_init.query(HotelProperty).count() == 0:
-            logger.info("Database is empty or missing hotel properties. Triggering automatic database seeding...")
+        if db_init.query(City).count() < 22 or db_init.query(HotelProperty).count() < 550:
+            logger.info("Database has incomplete cities or hotel properties. Triggering automatic database seeding...")
             from app.commands.seed import (
                 run_reference, run_locations, run_flights, run_hotels,
                 run_villas, run_packages, run_trains, run_buses, run_cabs,

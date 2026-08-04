@@ -1,6 +1,6 @@
 {
-  "cities_count": 15,
-  "hotels_per_city": 15,
+  "cities_count": 22,
+  "hotels_per_city": 25,
   "villas_per_city": 8,
   "cabs_per_city": 6,
   "tours_per_city": 10,

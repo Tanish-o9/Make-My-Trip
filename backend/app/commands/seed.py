@@ -108,6 +108,13 @@ def run_reference():
         ("Amritsar", "India", 31.6340, 74.8723, "Asia/Kolkata"),
         ("Dehradun", "India", 30.3165, 78.0322, "Asia/Kolkata"),
         ("Leh", "India", 34.1526, 77.5771, "Asia/Kolkata"),
+        ("Manali", "India", 32.2396, 77.1887, "Asia/Kolkata"),
+        ("Shimla", "India", 31.1048, 77.1734, "Asia/Kolkata"),
+        ("Udaipur", "India", 24.5854, 73.7125, "Asia/Kolkata"),
+        ("Rishikesh", "India", 30.0869, 78.2676, "Asia/Kolkata"),
+        ("Varanasi", "India", 25.3176, 82.9739, "Asia/Kolkata"),
+        ("Mysore", "India", 12.2958, 76.6394, "Asia/Kolkata"),
+        ("Darjeeling", "India", 27.0410, 88.2627, "Asia/Kolkata"),
     ]
 
     cities = []
@@ -195,7 +202,14 @@ def run_reference():
         ("Goa", 1500, 800, 1200),
         ("Delhi", 1000, 600, 800),
         ("Mumbai", 1800, 900, 1500),
-        ("Srinagar", 1200, 700, 1000)
+        ("Srinagar", 1200, 700, 1000),
+        ("Manali", 1100, 650, 900),
+        ("Shimla", 1100, 650, 900),
+        ("Udaipur", 1200, 700, 1000),
+        ("Rishikesh", 900, 500, 1200),
+        ("Varanasi", 800, 450, 700),
+        ("Mysore", 1000, 600, 800),
+        ("Darjeeling", 1100, 650, 900)
     ]
     for dest, food, transport, act in cost_baselines:
         exists = db.query(DestinationCostBaseline).filter(DestinationCostBaseline.destination == dest).first()
@@ -278,50 +292,256 @@ def run_flights():
 def run_hotels():
     db = SessionLocal()
     print("Seeding Hotel Properties & Rooms...")
+    # Clear existing hotels and associated media to ensure a clean, unique seed
+    try:
+        db.query(Media).filter(Media.owner_type == "hotel").delete()
+        # HotelRoom will be cascade deleted automatically because of ForeignKey ondelete="CASCADE"
+        db.query(HotelProperty).delete()
+        db.commit()
+        print("Cleared existing hotels and hotel media for a clean seeding run.")
+    except Exception as e:
+        db.rollback()
+        print(f"Warning: Failed to clear existing hotels: {e}")
+
     cities = db.query(City).all()
     if not cities:
         print("Please seed reference data first!")
         db.close()
         return
 
-    hotel_names = [
-        "Palace Resort", "Grand Heritage Inn", "Regency Plaza", "Sands Villa",
-        "Backpackers Den", "Crown Continental", "Royal Orchid Hotel", "Green Meadows Resort",
-        "Coastal Horizon", "Capital Suites", "Imperial Manor", "Oakwood Retreat"
+    # Pools of brands by category
+    luxury_brands = [
+        "Taj Palace", "Oberoi Grand", "The Leela Maharaja", "Marriott Premier", 
+        "ITC Grand Landmark", "Sheraton Executive", "Hyatt Regency", "Radisson Plaza", 
+        "Westin Resort & Spa", "The Lodhi", "Trident Imperial", "The Lalit Palace", 
+        "Alila Heritage", "St. Regis Premium", "Fairmont Castle", "JW Marriott",
+        "W Escapes Resort", "Ritz-Carlton Reserve"
+    ]
+    business_brands = [
+        "Grand Continental", "Regency Business Inn", "Oakwood Suites", "Lemon Tree Premier", 
+        "Fern Residency", "Novotel Hub", "Holiday Inn Express", "Ginger Prime", 
+        "Ibis Styles", "Sayaji Grand", "Fortune Select", "Park Plaza", "Pride Plaza",
+        "Key Select Inn", "Capital Suites Hotel"
+    ]
+    resort_brands = [
+        "Misty Meadows Resort", "Whispering Pines Retreat", "Mementos Heritage", "The Hideaway Resort", 
+        "Forest Hills Resort", "Serene Palms Villa", "Rivera Heights Resort", "Sands Ocean Resort", 
+        "Coral Reef Oasis", "Wildflower Hall", "The Glenburn Retreat", "Ahilya Fort Boutique", 
+        "Bari Kothi Heritage", "Ananda Spa Resort", "Evolve Back Lodge", "Khyber Mountain Resort",
+        "Windflower Spa", "Heritage Retreat Palace"
+    ]
+    budget_brands = [
+        "Zostel Cafe & Stay", "Backpackers Den", "Stops Hostel", "FabHotel Classic", 
+        "Treebo Trend Inn", "Comfy Beds", "Urban Nest Stay", "Nomads Hostel", 
+        "Econostay", "Metro Inn", "Blue Sky Cottage", "Bed & Breakfast Comfort",
+        "Backpackers Nest", "Sweet Sleep Inn"
     ]
 
-    hotel_photo_pool = [
+    # Category images
+    luxury_images = [
         "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800",
         "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=800",
+        "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=800",
+        "https://images.unsplash.com/photo-1582719508461-905c673771fd?w=800",
         "https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800",
-        "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=800"
+        "https://images.unsplash.com/photo-1445019980597-93fa8acb246c?w=800",
+        "https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=800",
+        "https://images.unsplash.com/photo-1596394516093-501ba68a0ba6?w=800",
+        "https://images.unsplash.com/photo-1618773928121-c32242e63f39?w=800",
+        "https://images.unsplash.com/photo-1590490360182-c33d57733427?w=800",
+        "https://images.unsplash.com/photo-1578683010236-d716f9a3f461?w=800",
+        "https://images.unsplash.com/photo-1541971875076-8f970d573be6?w=800"
+    ]
+    business_images = [
+        "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=800",
+        "https://images.unsplash.com/photo-1496417263034-38ec4f0b665a?w=800",
+        "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800",
+        "https://images.unsplash.com/photo-1584132967334-10e028bd69f7?w=800",
+        "https://images.unsplash.com/photo-1568495248636-6432b97bd949?w=800",
+        "https://images.unsplash.com/photo-1606046604972-77cc76aee944?w=800",
+        "https://images.unsplash.com/photo-1598928506311-c55ded91a20c?w=800",
+        "https://images.unsplash.com/photo-1611048267451-e6ed903d4a38?w=800",
+        "https://images.unsplash.com/photo-1590490360182-c33d57733427?w=800",
+        "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800"
+    ]
+    resort_images = [
+        "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800",
+        "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=800",
+        "https://images.unsplash.com/photo-1506929562872-bb421503ef21?w=800",
+        "https://images.unsplash.com/photo-1510798831971-661eb04b3739?w=800",
+        "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?w=800",
+        "https://images.unsplash.com/photo-1464146072230-91cabc968266?w=800",
+        "https://images.unsplash.com/photo-1505873242700-f289a29e1e0f?w=800",
+        "https://images.unsplash.com/photo-1522338242992-e1a54906a8da?w=800",
+        "https://images.unsplash.com/photo-1549294413-26f195afcbce?w=800",
+        "https://images.unsplash.com/photo-1535827841776-24afc1e255bc?w=800"
+    ]
+    budget_images = [
+        "https://images.unsplash.com/photo-1555854877-bab0e564b8d5?w=800",
+        "https://images.unsplash.com/photo-1629140727571-9b5c6f6267b4?w=800",
+        "https://images.unsplash.com/photo-1520271348391-019da1df6157?w=800",
+        "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800",
+        "https://images.unsplash.com/photo-1566665797739-1674de7a421a?w=800",
+        "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=800",
+        "https://images.unsplash.com/photo-1583847268964-b28dc8f51f92?w=800",
+        "https://images.unsplash.com/photo-1596550001029-806052416b08?w=800",
+        "https://images.unsplash.com/photo-1560185007-c5ca9d2c014d?w=800",
+        "https://images.unsplash.com/photo-1560185893-a55cbc2c78a9?w=800"
     ]
 
+    limit = config.get("hotels_per_city", 25)
+
+    # Let's seed unique properties
     for city in cities:
-        # Create properties per city
-        available_names = list(hotel_names)
-        random.shuffle(available_names)
-        limit = min(len(available_names), config["hotels_per_city"])
+        # Create a list of 25 unique hotel brands for this city
+        is_leisure_city = city.name in ["Goa", "Manali", "Shimla", "Srinagar", "Rishikesh", "Darjeeling", "Leh", "Udaipur"]
         
-        for idx in range(limit):
-            name = f"{city.name} {available_names[idx]}"
+        if is_leisure_city:
+            # More resorts & boutique hotels
+            mix = (
+                [("Luxury Resort", b) for b in luxury_brands] * 2 +
+                [("Mountain Resort" if city.name in ["Manali", "Shimla", "Darjeeling", "Leh", "Srinagar"] else "Beach Resort" if city.name == "Goa" else "Heritage Resort", b) for b in resort_brands] * 2 +
+                [("Boutique Hotel", b) for b in resort_brands] +
+                [("Budget Hotel", b) for b in budget_brands] +
+                [("Business Hotel", b) for b in business_brands]
+            )
+        else:
+            # More business & city hotels
+            mix = (
+                [("Business Hotel", b) for b in business_brands] * 2 +
+                [("City Hotel", b) for b in business_brands] +
+                [("Luxury Hotel", b) for b in luxury_brands] * 2 +
+                [("Boutique Hotel", b) for b in resort_brands] +
+                [("Budget Hotel", b) for b in budget_brands] * 2
+            )
+        
+        random.shuffle(mix)
+        selected_mix = mix[:limit]
+        
+        for idx, (cat, brand) in enumerate(selected_mix):
+            # Prepend city name and add index to guarantee uniqueness
+            name = f"{city.name} {brand} {idx+1}"
             
             exists = db.query(HotelProperty).filter(HotelProperty.name == name).first()
             if not exists:
-                star = f"{random.choice([3.5, 4.0, 4.2, 4.5, 4.8])} ★"
-                addr = f"{idx + 10} Beach Road / Sector {idx}, {city.name}, India"
-                amenities = ["WiFi", "Room Service", "AC", "Laundry"]
-                if idx % 2 == 0:
-                    amenities.append("Swimming Pool")
-                if idx % 3 == 0:
-                    amenities.append("Bar / Lounge")
+                # Assign star ratings
+                if "Luxury" in cat:
+                    star = f"{random.choice([4.5, 4.7, 4.8, 5.0])} ★"
+                    guest_review_score = round(random.uniform(9.0, 9.8), 1)
+                elif "Resort" in cat or "Boutique" in cat:
+                    star = f"{random.choice([4.0, 4.2, 4.5])} ★"
+                    guest_review_score = round(random.uniform(8.2, 9.2), 1)
+                elif "Business" in cat:
+                    star = f"{random.choice([3.8, 4.0, 4.2])} ★"
+                    guest_review_score = round(random.uniform(7.8, 8.8), 1)
+                else:
+                    star = f"{random.choice([2.5, 3.0, 3.5])} ★"
+                    guest_review_score = round(random.uniform(6.5, 7.8), 1)
+                
+                review_count = random.randint(50, 2500)
+                breakfast_included = random.choice([True, False])
+                free_cancellation = random.choice([True, False])
+                
+                # Dynamic base price factors based on category
+                if "Luxury" in cat:
+                    base_price = random.choice([15000.0, 18000.0, 22000.0, 28000.0, 35000.0])
+                elif "Resort" in cat:
+                    base_price = random.choice([8000.0, 10000.0, 12000.0, 15000.0, 18000.0])
+                elif "Boutique" in cat:
+                    base_price = random.choice([5500.0, 6500.0, 7500.0, 9000.0, 11000.0])
+                elif "Business" in cat:
+                    base_price = random.choice([4000.0, 5000.0, 6000.0, 7500.0, 9000.0])
+                else:
+                    base_price = random.choice([950.0, 1200.0, 1500.0, 1800.0, 2200.0])
+                
+                # City location neighborhoods for addresses
+                neighborhoods = {
+                    "Delhi": ["Connaught Place", "Saket", "Aerocity", "Karol Bagh", "Dwarka"],
+                    "Mumbai": ["Colaba", "Bandra Kurla Complex", "Juhu Beach", "Andheri West", "Marine Drive"],
+                    "Goa": ["Calangute", "Candolim", "Anjuna Beach", "Panaji", "Benaulim"],
+                    "Srinagar": ["Dal Lake Road", "Rajbagh", "Shalimar", "Nishat"],
+                    "Bengaluru": ["Indiranagar", "Koramangala", "Whitefield", "MG Road", "Jayanagar"],
+                    "Kolkata": ["Park Street", "Salt Lake Sector V", "New Town", "Ballygunge"],
+                    "Chennai": ["Nungambakkam", "Mylapore", "T. Nagar", "OMR", "Marina Beach"],
+                    "Hyderabad": ["Gachibowli", "Banjara Hills", "Jubilee Hills", "HITEC City"],
+                    "Pune": ["Koregaon Park", "Kalyani Nagar", "Viman Nagar", "Hinjewadi"],
+                    "Kochi": ["Fort Kochi", "Marine Drive", "Kakkanad", "Edapally"],
+                    "Jaipur": ["C-Scheme", "Malviya Nagar", "Bani Park", "Amer Road"],
+                    "Ahmedabad": ["C.G. Road", "Satellite", "SG Highway", "Ashram Road"],
+                    "Amritsar": ["Golden Temple Road", "Ranjit Avenue", "Civil Lines"],
+                    "Dehradun": ["Rajpur Road", "Clement Town", "Dehradun Heights"],
+                    "Leh": ["Main Bazaar", "Changspa", "Fort Road", "Chubi"],
+                    "Manali": ["Mall Road", "Old Manali", "Solang Valley", "Vashisht"],
+                    "Shimla": ["Mall Road", "Lakkar Bazaar", "Chotta Shimla", "Kufri"],
+                    "Udaipur": ["Lake Pichola", "Fateh Sagar", "Hiran Magri", "City Palace area"],
+                    "Rishikesh": ["Tapovan", "Laxman Jhula", "Ram Jhula", "Swargashram"],
+                    "Varanasi": ["Dashashwamedh Ghat", "Assi Ghat", "Cantonment", "Sarnath"],
+                    "Mysore": ["Gokulam", "Devaraja Mohalla", "Mysore Palace area", "Vijayanagar"],
+                    "Darjeeling": ["Chowrasta Mall", "Gandhi Road", "Happy Valley", "Lebong Cart Road"]
+                }
+                
+                nb_list = neighborhoods.get(city.name, ["Center Sector 1", "Main Road", "Downtown"])
+                addr = f"Plot {idx + 101}, {random.choice(nb_list)}, {city.name}, India"
+                
+                # Pool of unique photo URLs based on category
+                if "Luxury" in cat:
+                    photo_pool = luxury_images
+                elif "Resort" in cat:
+                    photo_pool = resort_images
+                elif "Budget" in cat or "Hostel" in cat:
+                    photo_pool = budget_images
+                elif "Business" in cat:
+                    photo_pool = business_images
+                else:
+                    photo_pool = resort_images
+                
+                photo_url = photo_pool[idx % len(photo_pool)]
+                # Append signature parameter to make URL uniquely identifiable for browser loading
+                photo_url = f"{photo_url}&unique={city.name.lower()}-{idx+1}"
+
+                # Category-specific descriptive text
+                desc_texts = {
+                    "Luxury Resort": f"A breathtaking luxury resort offering world-class spa treatments, infinity pools, and gourmet dining in {city.name}.",
+                    "Luxury Hotel": f"An ultra-premium corporate hotel with top-tier business facilities, plush accommodations, and fine dining in {city.name}.",
+                    "Beach Resort": f"A premium beachfront getaway featuring direct sand access, water sports, and beautiful seaside views in {city.name}.",
+                    "Mountain Resort": f"A cozy mountain sanctuary nestled among scenic peaks, offering guided treks and bonfire dining in {city.name}.",
+                    "Heritage Resort": f"A historically restored royal palace providing retro heritage living combined with modern comforts in {city.name}.",
+                    "Boutique Hotel": f"A chic, artistically designed hotel featuring curated interiors, personalized butler service, and local flavors in {city.name}.",
+                    "Business Hotel": f"A modern corporate hotel located near major tech parks and hubs, optimized for working travelers in {city.name}.",
+                    "City Hotel": f"A centrally located hotel steps away from shopping streets, metro lines, and local heritage sights in {city.name}.",
+                    "Budget Hotel": f"A highly affordable, clean, and safe hotel offering cozy beds and essential amenities in the heart of {city.name}.",
+                    "Hostel": f"A vibrant social hostel with shared bunk rooms, community kitchen, gaming zone, and regular traveler meetups in {city.name}."
+                }
+                
+                text_desc = desc_texts.get(cat, f"A lovely {cat.lower()} offering comfortable rooms and warm hospitality in the center of {city.name}.")
+
+                # Embed all extra properties in description JSON
+                desc_json = {
+                    "text": text_desc,
+                    "guest_review_score": guest_review_score,
+                    "review_count": review_count,
+                    "category": cat,
+                    "breakfast_included": breakfast_included,
+                    "free_cancellation": free_cancellation,
+                    "distance_from_center": round(random.uniform(0.3, 7.5), 1),
+                    "lat": float(city.lat) + random.uniform(-0.015, 0.015),
+                    "lng": float(city.lng) + random.uniform(-0.015, 0.015)
+                }
+
+                amenities = ["Free WiFi", "Air Conditioning", "Housekeeping", "Attached Bathroom"]
+                if "Luxury" in cat or "Resort" in cat:
+                    amenities.extend(["Swimming Pool", "Wellness Spa", "Fitness Gym", "Fine Dining Bar", "24/7 Room Service"])
+                elif "Business" in cat:
+                    amenities.extend(["Meeting Rooms", "Business Center", "Fitness Gym", "Ironing Service", "Valet Parking"])
+                elif "Boutique" in cat:
+                    amenities.extend(["Custom Minibar", "Fine Dining Bar", "Valet Parking", "Espresso Machine"])
                 
                 hotel = HotelProperty(
                     city_id=city.id,
                     name=name,
                     star_rating=star,
                     address=addr,
-                    description=f"A beautiful premium hotel located in the heart of {city.name}. Excellent hospitality services.",
+                    description=json.dumps(desc_json),
                     amenities_json=amenities,
                     seed_batch_id=SEED_BATCH_ID
                 )
@@ -330,7 +550,6 @@ def run_hotels():
                 db.refresh(hotel)
 
                 # Seed Media row for hotel
-                photo_url = hotel_photo_pool[idx % len(hotel_photo_pool)]
                 db.add(Media(
                     owner_type="hotel",
                     owner_id=name,
@@ -345,17 +564,25 @@ def run_hotels():
                 db.add(HotelRoom(
                     hotel_id=hotel.id,
                     room_type="Deluxe Room",
-                    price=2500.0 + (idx * 500),
+                    price=base_price,
                     description="Standard comfortable room with twin/queen bed and basic amenities.",
                     seed_batch_id=SEED_BATCH_ID
                 ))
                 db.add(HotelRoom(
                     hotel_id=hotel.id,
                     room_type="Executive Suite",
-                    price=5000.0 + (idx * 800),
+                    price=base_price * 1.6,
                     description="Spacious suite with king bed, personal workspace, and city/seaview.",
                     seed_batch_id=SEED_BATCH_ID
                 ))
+                db.add(HotelRoom(
+                    hotel_id=hotel.id,
+                    room_type="Presidential Suite",
+                    price=base_price * 3.2,
+                    description="Grand master suite with private jacuzzi, kitchenette, and dedicated butler.",
+                    seed_batch_id=SEED_BATCH_ID
+                ))
+                
     db.commit()
     db.close()
     print("Hotels and rooms seeded successfully.")

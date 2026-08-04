@@ -2091,7 +2091,7 @@ function HotelsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
     }
     setLoading(true);
     setResults([]);
-    fetch(`${API_URL}/search?vertical=hotels&destination=${encodeURIComponent(city)}`)
+    fetch(`${API_URL}/search?vertical=hotels&destination=${encodeURIComponent(city)}&check_in=${checkIn}&check_out=${checkOut}`)
       .then(res => res.json())
       .then(data => {
         setLoading(false);
@@ -2201,83 +2201,139 @@ function HotelsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
           </div>
         )}
 
-        {!loading && results.length > 0 && (
-          <div className="w-full">
-            <VehicleRentalCrossSell destinationCity={city} dateRange={{ start: checkIn }} />
-            <div className="flex justify-between items-center mb-3 px-1">
-              <h4 className="text-xs text-slate-400 font-bold uppercase tracking-wider">Available Hotels:</h4>
-              <span className="text-[10px] text-yellow-500 font-semibold">
-                {"Comparing simulated inventory (HotelBeds & Expedia sandbox)"}
-              </span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            {results.map((res, index) => (
-              <div key={index} className="dark-card-override bg-[#121c33] p-4 rounded-2xl border border-slate-800 hover:border-slate-700 transition-all flex flex-col justify-between gap-4 relative">
-                {index === 0 && (
-                  <div className="absolute -top-2 left-4 bg-gradient-to-r from-emerald-500 to-teal-400 text-[9px] text-white font-black px-2.5 py-0.5 rounded-full shadow-lg shadow-emerald-500/20 animate-pulse z-10">🏆 BEST PRICE</div>
-                )}
-                <div onClick={() => onDetailClick("hotels", res)} className="cursor-pointer">
-                  <CardThumbnail ownerType="hotel" ownerId={res.name} blurHash={res.blur_hash_base64} defaultUrl={res.primary_photo_url} />
-                  <div className="flex flex-col gap-1.5 mt-3 text-left">
-                    <div className="flex justify-between items-center">
-                      <h4 className="font-extrabold text-slate-200 text-base">{res.name}</h4>
-                      <span className="text-xs text-blue-400 font-black">{res.rating}</span>
-                    </div>
-                    <p className="text-xs text-slate-400">{res.details}</p>
-                    {res.provider_name && !res.is_simulated && (
-                      <span className="text-[9px] bg-purple-900/40 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/20 w-fit">via {res.provider_name}</span>
-                    )}
-                    {res.alternatives && res.alternatives.filter((alt: any) => !alt.is_simulated).length > 0 && (
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[9px] text-slate-500">Also on:</span>
-                        {res.alternatives.filter((alt: any) => !alt.is_simulated).map((alt: any, ai: number) => (
-                          <span key={ai} className="text-[9px] bg-slate-800/80 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700">
-                            {alt.provider_name} ₹{Number(alt.price).toLocaleString()}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    <span className="text-[10px] text-blue-400 font-bold block mt-1 hover:underline">View details, reviews & cancellation policies ➔</span>
-                  </div>
-                </div>
-                <div className="flex justify-between items-center pt-2 border-t border-slate-800/80">
-                  <div>
-                    <span className="text-[9px] text-slate-500 uppercase block font-bold">Price per night</span>
-                    <span className="font-black text-emerald-400 text-base">₹{(res.price || 0).toLocaleString()}</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => setSelectedHotel(res)}
-                      className="bg-slate-800 hover:bg-slate-750 text-white text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1 transition-all"
-                    >
-                      Snaps
-                    </button>
-                    <button 
-                      onClick={() => onBook({
-                        vertical: "hotels",
-                        amount: res.price,
-                        details: {
-                          hotel_name: res.name,
-                          hotel_id: "H101",
-                          room_type: res.details,
-                          guests: [{ name: "Traveler Guest", age: 32 }],
-                          provider_name: res.provider_name,
-                          offer_id: res.offer_id
-                        },
-                        title: res.name,
-                        subtitle: res.details
-                      })}
-                      className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1 shadow-md shadow-blue-500/10 transition-all"
-                    >
-                      Book Room
-                    </button>
-                  </div>
-                </div>
+        {!loading && results.length > 0 && (() => {
+          const calculateNights = () => {
+            if (!checkIn || !checkOut) return 1;
+            try {
+              const start = new Date(checkIn);
+              const end = new Date(checkOut);
+              const diffTime = end.getTime() - start.getTime();
+              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+              return diffDays > 0 ? diffDays : 1;
+            } catch {
+              return 1;
+            }
+          };
+          const nights = calculateNights();
+          
+          return (
+            <div className="w-full">
+              <VehicleRentalCrossSell destinationCity={city} dateRange={{ start: checkIn }} />
+              <div className="flex justify-between items-center mb-3 px-1">
+                <h4 className="text-xs text-slate-400 font-bold uppercase tracking-wider">Available Hotels:</h4>
+                <span className="text-[10px] text-yellow-500 font-semibold">
+                  {"Comparing simulated inventory (HotelBeds & Expedia sandbox)"}
+                </span>
               </div>
-            ))}
-          </div>
-          </div>
-        )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {results.map((res, index) => (
+                <div key={index} className="dark-card-override bg-[#121c33] p-4 rounded-2xl border border-slate-800 hover:border-slate-700 transition-all flex flex-col justify-between gap-4 relative">
+                  {index === 0 && (
+                    <div className="absolute -top-2 left-4 bg-gradient-to-r from-emerald-500 to-teal-400 text-[9px] text-white font-black px-2.5 py-0.5 rounded-full shadow-lg shadow-emerald-500/20 animate-pulse z-10">🏆 BEST PRICE</div>
+                  )}
+                  <div onClick={() => onDetailClick("hotels", res)} className="cursor-pointer">
+                    <CardThumbnail ownerType="hotel" ownerId={res.name} blurHash={res.blur_hash_base64} defaultUrl={res.primary_photo_url} />
+                    <div className="flex flex-col gap-1.5 mt-3 text-left">
+                      <div className="flex items-center gap-1.5">
+                        <span className="dark-card-badge text-[8px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                          {res.category || "Hotel"}
+                        </span>
+                        <span className="text-xs text-blue-400 font-black">{res.rating}</span>
+                      </div>
+                      
+                      <h4 className="font-extrabold text-slate-200 text-base mt-0.5">{res.name}</h4>
+                      
+                      <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
+                        {res.guest_review_score && (
+                          <span className="bg-blue-950/40 text-blue-400 border border-blue-500/20 px-1.5 py-0.5 rounded font-black">
+                            ⭐ {res.guest_review_score}/10
+                          </span>
+                        )}
+                        {res.review_count && (
+                          <span className="text-slate-400 font-medium">({res.review_count} reviews)</span>
+                        )}
+                        {res.distance_from_center && (
+                          <span className="text-slate-500">• {res.distance_from_center} km from center</span>
+                        )}
+                      </div>
+                      
+                      <div className="text-[10px] text-slate-400 truncate mt-0.5">
+                        📍 {res.address}
+                      </div>
+
+                      <p className="text-xs text-slate-400 mt-1">{res.details}</p>
+                      
+                      <div className="text-xs text-slate-300 font-black mt-1 flex items-center gap-1">
+                        <span>🛏️</span>
+                        <span>{res.room_type || "Deluxe Room"}</span>
+                      </div>
+
+                      <div className="flex gap-1.5 flex-wrap mt-1">
+                        {res.breakfast_included && (
+                          <span className="text-[9px] bg-emerald-950/40 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded font-bold">🍳 Free Breakfast</span>
+                        )}
+                        {res.free_cancellation && (
+                          <span className="text-[9px] bg-teal-950/40 text-teal-400 border border-teal-500/20 px-1.5 py-0.5 rounded font-bold">🛡️ Free Cancellation</span>
+                        )}
+                      </div>
+
+                      {res.alternatives && res.alternatives.length > 0 && (
+                        <div className="flex items-center gap-1.5 flex-wrap mt-2 pt-2 border-t border-slate-800/60">
+                          <span className="text-[9px] text-slate-500">Compare:</span>
+                          {res.alternatives.map((alt: any, ai: number) => (
+                            <span key={ai} className="dark-card-badge text-[9px] px-1.5 py-0.5 rounded">
+                              {alt.provider_name}: ₹{Number(alt.price).toLocaleString()}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      
+                      <span className="text-[10px] text-blue-400 font-bold block mt-1 hover:underline">View details, reviews & cancellation policies ➔</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-between items-center pt-2 border-t border-slate-800/80">
+                    <div>
+                      <span className="text-[9px] text-slate-500 uppercase block font-bold">Price per night</span>
+                      <span className="font-black text-emerald-400 text-base">₹{(res.price || 0).toLocaleString()}</span>
+                      <span className="text-[9px] text-slate-400 block mt-0.5">
+                        Total for {nights} {nights === 1 ? "night" : "nights"}: <strong className="text-emerald-400">₹{Number((res.price || 0) * nights).toLocaleString()}</strong>
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => setSelectedHotel(res)}
+                        className="bg-slate-800 hover:bg-slate-750 text-white text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1 transition-all"
+                      >
+                        Snaps
+                      </button>
+                      <button 
+                        onClick={() => onBook({
+                          vertical: "hotels",
+                          amount: res.price,
+                          details: {
+                            hotel_name: res.name,
+                            hotel_id: res.hotel_id || "H101",
+                            room_type: res.room_type || "Deluxe Room",
+                            guests: [{ name: "Traveler Guest", age: 32 }],
+                            provider_name: res.provider_name,
+                            offer_id: res.offer_id
+                          },
+                          title: res.name,
+                          subtitle: res.details
+                        })}
+                        className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1 shadow-md shadow-blue-500/10 transition-all"
+                      >
+                        Book Room
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            </div>
+          );
+        })()}
       </div>
 
       {selectedHotel && (
