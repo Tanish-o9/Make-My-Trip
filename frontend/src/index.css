@@ -656,4 +656,15 @@ h3[class*="text-slate-200"] {
   color: #f1f5f9 !important; /* Force white text */
 }
 
+/* Specificity matching overrides to defeat neobrutalist boarding pass overrides */
+.boarding-pass-container .dark-card-override span:not([class*="text-[var(--color-gold)]"]):not([class*="text-[var(--color-teal)]"]):not([class*="text-emerald"]):not([class*="text-teal"]):not([class*="text-gold"]),
+.dark-card-override span:not([class*="text-[var(--color-gold)]"]):not([class*="text-[var(--color-teal)]"]):not([class*="text-emerald"]):not([class*="text-teal"]):not([class*="text-gold"]) {
+  color: #f1f5f9 !important;
+}
+
+.boarding-pass-container .dark-card-override div:not([class*="bg-teal"]):not([class*="bg-emerald"]):not([class*="bg-gold"]):not([class*="bg-indigo"]),
+.dark-card-override div:not([class*="bg-teal"]):not([class*="bg-emerald"]):not([class*="bg-gold"]):not([class*="bg-indigo"]) {
+  color: #f1f5f9 !important;
+}
+
 
