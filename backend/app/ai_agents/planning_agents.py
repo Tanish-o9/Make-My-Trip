@@ -4,6 +4,8 @@ from typing import Dict, Any
 from app.ai_agents.state import AgentState, log_agent_execution
 from app.ai_router.router import llm_router
 from app.ai_tools.weather_tool import weather_search_tool
+from app.ai_tools.flight_tool import flight_search_tool
+from app.ai_tools.hotel_tool import hotel_search_tool
 
 logger = logging.getLogger(__name__)
 
@@ -105,41 +107,200 @@ JSON:
 
 
 @log_agent_execution("trip_planner_agent")
-def trip_planner_node(state: AgentState) -> dict:
+def trip_planner_node(state: AgentState, config: Dict[str, Any] = None) -> dict:
     """Orchestrates flight + hotel options and aligns them under budget constraints"""
-    # Simply invoke Flight node and Hotel node behavior, combining results into one unified response
-    # In a full LangGraph we do this by chaining, in this monolithic agent we can run both lookups and compile.
+    from app.ai_agents.supervisor import report_agent_status
+    
     context = state.get("trip_context", {})
     budget = state.get("budget_constraints", {})
 
-    destination = context.get("destination") or "Goa"
-    departure_date = context.get("departure_date") or "2026-12-15"
-    return_date = context.get("return_date") or "2026-12-20"
-    total_budget = budget.get("total_budget") or 25000.0
+    destination = context.get("destination")
+    origin = context.get("origin")
+    departure_date = context.get("departure_date")
+    return_date = context.get("return_date")
+    total_budget = budget.get("total_budget")
+    passengers = context.get("passengers") or 1
+    travel_style = context.get("travel_style") or "general"
+    cabin_class = context.get("cabin_class") or "ECONOMY"
+    hotel_tier = context.get("hotel_tier") or "MIDRANGE"
 
-    # Compile itinerary skeleton
-    skeleton_prompt = f"""
-Synthesize a single coherent travel package recommendation.
-Destination: {destination}
-Dates: {departure_date} to {return_date}
-Budget limit: ₹{total_budget:,}
+    # Check for missing parameters
+    missing = []
+    if not destination or destination == "...":
+        missing.append("Destination")
+    if not origin or origin == "...":
+        missing.append("Origin departure city (e.g. Delhi, DEL)")
+    if not departure_date or departure_date == "...":
+        missing.append("Departure date")
+    if not return_date or return_date == "...":
+        missing.append("Return date")
+    if not total_budget:
+        missing.append("Trip budget (in INR)")
 
-Flight Details (if searched): {json.dumps(context.get("last_flight_search_results", []))}
-Hotel Details (if searched): {json.dumps(context.get("last_hotel_search_results", []))}
-Budget Splits: {json.dumps(budget.get("breakdown", {}))}
+    if missing:
+        missing_list_str = "\n".join([f"- **{m}**" for m in missing])
+        response_text = f"""### Welcome to Travel OS AI Consultant! 🌍
 
-Provide a beautiful overview. Include a structural JSON block at the bottom of your response inside a ```trip-summary code block containing:
-- destination
-- dates
-- flight_option (name, flight_number, price)
-- hotel_option (name, price_per_night, price_total)
-- remaining_budget
+I see you want to plan a trip, but I need a few more details to customize the perfect package for you. Could you please provide:
+
+{missing_list_str}
+
+Once you give me this information, I will instantly:
+1. ✈️ **Search real flight deals** matching your dates.
+2. 🏨 **Find top-rated hotel accommodations** within your budget.
+3. 🗺️ **Generate a personalized day-by-day itinerary** adapted to local weather forecasts.
+4. 💰 **Provide an optimized budget allocation**.
+
+*Let's get started! Where are you traveling from and when?*
 """
-    summary = llm_router.complete(prompt=skeleton_prompt, task_type="creative")
+        return {
+            "final_response": response_text,
+            "messages": [{"role": "assistant", "content": response_text}]
+        }
+
+    report_agent_status(config, f"AI Travel Consultant: Searching flights from {origin} to {destination}...")
+    flights_res = flight_search_tool(
+        origin=origin,
+        destination=destination,
+        departure_date=departure_date,
+        passengers=passengers,
+        cabin_class=cabin_class
+    )
+    
+    report_agent_status(config, f"AI Travel Consultant: Searching hotel accommodations in {destination}...")
+    hotels_res = hotel_search_tool(
+        destination=destination,
+        check_in=departure_date,
+        check_out=return_date,
+        guests=passengers,
+        budget_tier=hotel_tier
+    )
+
+    report_agent_status(config, f"AI Travel Consultant: Retrieving weather forecast for {destination}...")
+    weather_res = weather_search_tool(destination, month=12)
+
+    # 1. Map Flight schema to match frontend requirements
+    raw_flights = flights_res.get("results", [])
+    mapped_flights = []
+    for fl in raw_flights[:3]:  # Top 3 options
+        mapped_flights.append({
+            "airline": fl.get("airline"),
+            "flight_number": fl.get("flight_number"),
+            "dep": f"{fl.get('origin')} {fl.get('departure_time')[11:16] if fl.get('departure_time') else '08:00'}",
+            "arr": f"{fl.get('destination')} {fl.get('arrival_time')[11:16] if fl.get('arrival_time') else '10:30'}",
+            "price": float(fl.get("price_per_passenger") or fl.get("total_price") or 0.0),
+            "duration": fl.get("duration_minutes", 150)
+        })
+
+    # 2. Map Hotel schema to match frontend requirements
+    raw_hotels = hotels_res.get("results", [])
+    mapped_hotels = []
+    for ht in raw_hotels[:3]:  # Top 3 options
+        mapped_hotels.append({
+            "name": ht.get("name"),
+            "rating": str(ht.get("rating", "4.5")),
+            "amenities": ht.get("amenities", []),
+            "price": float(ht.get("price_per_night") or ht.get("total_price") or 0.0),
+            "total_price": float(ht.get("total_price", 0.0))
+        })
+
+    report_agent_status(config, "AI Travel Consultant: Planning day-by-day slots...")
+    
+    # Calculate duration
+    try:
+        from datetime import datetime
+        n_days = (datetime.strptime(return_date, "%Y-%m-%d") - datetime.strptime(departure_date, "%Y-%m-%d")).days
+        if n_days <= 0: n_days = 3
+    except Exception:
+        n_days = 3
+
+    # Generate Itinerary using LLM
+    itin_generation_prompt = f"""
+You are the Itinerary Planning Expert. Generate a day-by-day travel plan for a {n_days} days trip to {destination}.
+Weather: {weather_res.get("forecast_description")}
+Travel style: {travel_style}
+
+Provide a detailed conversational response detailing highlights.
+Additionally, you MUST output a JSON block inside a ```itinerary-data code block at the bottom containing an array of day objects:
+[
+  {{
+    "day": 1,
+    "title": "...",
+    "morning": "...",
+    "afternoon": "...",
+    "evening": "..."
+  }},
+  ...
+]
+
+Do not include code syntax in the conversational part. Only at the very bottom inside the code blocks.
+"""
+    itin_text = llm_router.complete(prompt=itin_generation_prompt, task_type="creative")
+
+    # Synthesize the final comprehensive response
+    package_synthesis_prompt = f"""
+You are a senior travel consultant compiling a complete travel package for the user.
+Destination: {destination}
+Origin: {origin}
+Dates: {departure_date} to {return_date} ({n_days} Days)
+Budget: ₹{total_budget:,}
+Passengers: {passengers}
+Travel Style: {travel_style}
+
+Here are the search details:
+- Flights: {json.dumps(mapped_flights)}
+- Hotels: {json.dumps(mapped_hotels)}
+- Weather: {weather_res.get("forecast_description")}
+- Itinerary Details: {itin_text}
+
+Write a professional, highly detailed travel proposal. 
+Include sections with icons:
+- 🗺️ Itinerary Highlights & Local Tips
+- ☀️ Weather & Packing Guide
+- 💰 Budget Optimization & Breakdown
+- 💎 Hidden Gems & Dinings (recommend local restaurants)
+
+Do NOT include any flights-data, hotels-data, or itinerary-data blocks inside your main text. 
+Instead, at the very bottom of your response, you MUST append:
+1. A ```flights-data block containing the exact JSON array of mapped flights.
+2. A ```hotels-data block containing the exact JSON array of mapped hotels.
+3. A ```itinerary-data block containing the exact JSON array of the day-by-day itinerary.
+"""
+    final_response = llm_router.complete(prompt=package_synthesis_prompt, task_type="reasoning")
+
+    # Inject the structural data blocks if they are missing or combine them
+    if "```flights-data" not in final_response:
+        final_response += f"\n\n```flights-data\n{json.dumps(mapped_flights, indent=2)}\n```"
+    if "```hotels-data" not in final_response:
+        final_response += f"\n\n```hotels-data\n{json.dumps(mapped_hotels, indent=2)}\n```"
+    if "```itinerary-data" not in final_response:
+        # Extract or regenerate a basic itinerary array if not present
+        itin_arr = []
+        for d in range(1, n_days + 1):
+            itin_arr.append({
+                "day": d,
+                "title": f"Explore {destination}",
+                "morning": f"Start the day exploring {destination} highlights.",
+                "afternoon": "Enjoy local lunch and shopping.",
+                "evening": "Wind down with dinner and sunset views."
+            })
+        final_response += f"\n\n```itinerary-data\n{json.dumps(itin_arr, indent=2)}\n```"
+
+    updated_context = dict(state.get("trip_context", {}))
+    updated_context.update({
+        "last_flight_search_results": raw_flights,
+        "last_hotel_search_results": raw_hotels,
+        "destination": destination,
+        "origin": origin,
+        "departure_date": departure_date,
+        "return_date": return_date,
+        "passengers": passengers
+    })
 
     return {
-        "final_response": summary,
-        "messages": [{"role": "assistant", "content": summary}]
+        "final_response": final_response,
+        "trip_context": updated_context,
+        "messages": [{"role": "assistant", "content": final_response}]
     }
 
 

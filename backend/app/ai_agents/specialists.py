@@ -13,8 +13,10 @@ from app.models.bookings import FlightBooking, HotelBooking, PaymentAttempt
 logger = logging.getLogger(__name__)
 
 @log_agent_execution("currency_conversion_agent")
-def currency_conversion_node(state: AgentState) -> dict:
+def currency_conversion_node(state: AgentState, config: Dict[str, Any] = None) -> dict:
     """Calculates daily travel cost recommendations and converts currency"""
+    from app.ai_agents.supervisor import report_agent_status
+    report_agent_status(config, "Forex Agent: Converting currency and calculating cash baseline...")
     context = state.get("trip_context", {})
     destination = context.get("destination") or "Goa"
     duration_days = int(context.get("duration_days") or 3)
@@ -66,8 +68,10 @@ def currency_conversion_node(state: AgentState) -> dict:
     }
 
 @log_agent_execution("restaurant_recommendation_agent")
-def restaurant_recommendation_node(state: AgentState) -> dict:
+def restaurant_recommendation_node(state: AgentState, config: Dict[str, Any] = None) -> dict:
     """Suggests local restaurants filtered by dietary preferences"""
+    from app.ai_agents.supervisor import report_agent_status
+    report_agent_status(config, "Dining Agent: Searching local dining options...")
     context = state.get("trip_context", {})
     destination = context.get("destination") or "Goa"
     dietary = context.get("dietary_preferences") or "None"
@@ -102,8 +106,10 @@ Provide a recommendation list with brief descriptions. Keep it very concise, war
     }
 
 @log_agent_execution("travel_safety_agent")
-def travel_safety_node(state: AgentState) -> dict:
+def travel_safety_node(state: AgentState, config: Dict[str, Any] = None) -> dict:
     """Retrieves travel advisories and alerts using RAG"""
+    from app.ai_agents.supervisor import report_agent_status
+    report_agent_status(config, "Safety Agent: Checking travel advisories...")
     context = state.get("trip_context", {})
     destination = context.get("destination") or "Goa"
 
@@ -122,8 +128,10 @@ def travel_safety_node(state: AgentState) -> dict:
     }
 
 @log_agent_execution("customer_support_agent")
-def customer_support_node(state: AgentState) -> dict:
+def customer_support_node(state: AgentState, config: Dict[str, Any] = None) -> dict:
     """Provides general Q&A and escalates support issues to human agents"""
+    from app.ai_agents.supervisor import report_agent_status
+    report_agent_status(config, "Support Agent: Retrieving profile bookings history...")
     messages = state.get("messages", [])
     user_query = messages[-1]["content"] if messages else ""
     user_id = state.get("user_id", 1)
@@ -168,8 +176,10 @@ JSON:
     }
 
 @log_agent_execution("payment_assistant_agent")
-def payment_assistant_node(state: AgentState) -> dict:
+def payment_assistant_node(state: AgentState, config: Dict[str, Any] = None) -> dict:
     """Diagnoses payment failures from transaction tables in plain language"""
+    from app.ai_agents.supervisor import report_agent_status
+    report_agent_status(config, "Payment Assistant: Analyzing payment history logs...")
     user_id = state.get("user_id", 1)
     
     db = SessionLocal()

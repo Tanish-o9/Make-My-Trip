@@ -50,6 +50,8 @@ JSON:
     cabin_class = params.get("cabin_class") or state.get("trip_context", {}).get("cabin_class") or "ECONOMY"
 
     # 2. Call Flight Search Tool
+    from app.ai_agents.supervisor import report_agent_status
+    report_agent_status(config, f"Flight Search Agent: Searching flights from {origin} to {destination}...")
     search_results = flight_search_tool(
         origin=origin,
         destination=destination,
@@ -58,16 +60,33 @@ JSON:
         cabin_class=cabin_class
     )
 
+    # Map to frontend keys
+    raw_flights = search_results.get("results", [])
+    mapped_flights = []
+    for fl in raw_flights:
+        mapped_flights.append({
+            "airline": fl.get("airline"),
+            "flight_number": fl.get("flight_number"),
+            "dep": f"{fl.get('origin')} {fl.get('departure_time')[11:16] if fl.get('departure_time') else '08:00'}",
+            "arr": f"{fl.get('destination')} {fl.get('arrival_time')[11:16] if fl.get('arrival_time') else '10:30'}",
+            "price": float(fl.get("price_per_passenger") or fl.get("total_price") or 0.0),
+            "duration": fl.get("duration_minutes", 150)
+        })
+
     # 3. Summarize & Rank via LLM Router
     summary_prompt = f"""
 You are the Flight Search Agent.
 We found these flight options:
-{json.dumps(search_results.get("results", []))}
+{json.dumps(mapped_flights)}
 
 Briefly summarize the flight options. Keep your response short, conversational, and direct. Do not include any programming code, python scripts, or system reasoning inside the conversational summary.
 Include a structural JSON block at the bottom of your response inside a ```flights-data code block containing the exact sorted flight array so the UI can render cards.
 """
     summary = llm_router.complete(prompt=summary_prompt, task_type="reasoning")
+    
+    # Ensure flights-data block exists
+    if "```flights-data" not in summary:
+        summary += f"\n\n```flights-data\n{json.dumps(mapped_flights, indent=2)}\n```"
 
     # Update state context
     updated_context = dict(state.get("trip_context", {}))
@@ -77,7 +96,7 @@ Include a structural JSON block at the bottom of your response inside a ```fligh
         "departure_date": departure_date,
         "passengers": passengers,
         "cabin_class": cabin_class,
-        "last_flight_search_results": search_results.get("results", [])
+        "last_flight_search_results": raw_flights
     })
 
     return {
@@ -88,7 +107,7 @@ Include a structural JSON block at the bottom of your response inside a ```fligh
 
 
 @log_agent_execution("hotel_recommendation_agent")
-def hotel_search_node(state: AgentState) -> dict:
+def hotel_search_node(state: AgentState, config: Dict[str, Any] = None) -> dict:
     """Agent node to search accommodations and recommend them"""
     messages = state.get("messages", [])
     user_query = messages[-1]["content"] if messages else ""
@@ -127,6 +146,8 @@ JSON:
     budget_tier = params.get("budget_tier") or state.get("budget_constraints", {}).get("tier") or "MIDRANGE"
 
     # 2. Call Hotel Search Tool
+    from app.ai_agents.supervisor import report_agent_status
+    report_agent_status(config, f"Hotel Recommendation Agent: Searching hotels in {destination}...")
     search_results = hotel_search_tool(
         destination=destination,
         check_in=check_in,
@@ -135,23 +156,39 @@ JSON:
         budget_tier=budget_tier
     )
 
+    # Map to frontend keys
+    raw_hotels = search_results.get("results", [])
+    mapped_hotels = []
+    for ht in raw_hotels:
+        mapped_hotels.append({
+            "name": ht.get("name"),
+            "rating": str(ht.get("rating", "4.5")),
+            "amenities": ht.get("amenities", []),
+            "price": float(ht.get("price_per_night") or ht.get("total_price") or 0.0),
+            "total_price": float(ht.get("total_price", 0.0))
+        })
+
     # 3. Summarize & recommend via LLM Router
     summary_prompt = f"""
 You are the Hotel Recommendation Agent.
 We found these hotel options in {destination}:
-{json.dumps(search_results.get("results", []))}
+{json.dumps(mapped_hotels)}
 
 Briefly highlight the best properties. Keep your response short, warm, and highly concise. Do not include any programming code, python scripts, or system reasoning inside the conversational text.
 Include a structural JSON block at the bottom of your response inside a ```hotels-data code block containing the exact hotel results array so the UI can render cards.
 """
     summary = llm_router.complete(prompt=summary_prompt, task_type="reasoning")
 
+    # Ensure hotels-data block exists
+    if "```hotels-data" not in summary:
+        summary += f"\n\n```hotels-data\n{json.dumps(mapped_hotels, indent=2)}\n```"
+
     updated_context = dict(state.get("trip_context", {}))
     updated_context.update({
         "hotel_destination": destination,
         "check_in": check_in,
         "check_out": check_out,
-        "last_hotel_search_results": search_results.get("results", [])
+        "last_hotel_search_results": raw_hotels
     })
 
     return {

@@ -93,6 +93,57 @@ class MemoryManager:
         finally:
             db.close()
 
+    @classmethod
+    def get_active_context(cls, session_id: str) -> Dict[str, Any]:
+        r = cls._get_redis()
+        if r:
+            try:
+                context_data = r.get(f"chat:context:{session_id}")
+                if context_data:
+                    return json.loads(context_data)
+            except Exception as e:
+                logger.error(f"Error reading active context from Redis: {e}")
+
+        # Fallback to Database
+        db: Session = SessionLocal()
+        try:
+            sess = db.query(ConversationSession).filter(ConversationSession.session_id == session_id).first()
+            if sess and sess.active_agent_context:
+                if r:
+                    try:
+                        r.setex(f"chat:context:{session_id}", 3600, json.dumps(sess.active_agent_context))
+                    except Exception:
+                        pass
+                return sess.active_agent_context
+        finally:
+            db.close()
+        return {}
+
+    @classmethod
+    def save_active_context(cls, session_id: str, context: Dict[str, Any], user_id: int):
+        # 1. Save to Redis
+        r = cls._get_redis()
+        if r:
+            try:
+                r.setex(f"chat:context:{session_id}", 3600, json.dumps(context))
+            except Exception as e:
+                logger.error(f"Error saving active context to Redis: {e}")
+
+        # 2. Save to Database
+        db: Session = SessionLocal()
+        try:
+            sess = db.query(ConversationSession).filter(ConversationSession.session_id == session_id).first()
+            if not sess:
+                sess = ConversationSession(session_id=session_id, user_id=user_id, active_agent_context=context)
+                db.add(sess)
+            else:
+                sess.active_agent_context = context
+            db.commit()
+        except Exception as e:
+            logger.error(f"Error saving active context to DB: {e}")
+        finally:
+            db.close()
+
     # --- Long-term Memory (ChromaDB Vector embeddings of past travel preferences) ---
     @classmethod
     def save_user_preference(cls, user_id: int, preference_text: str, category: str = "general"):

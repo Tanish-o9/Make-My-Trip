@@ -25,6 +25,23 @@ from app.ai_agents.specialists import (
 
 logger = logging.getLogger(__name__)
 
+import asyncio
+
+def report_agent_status(config, status_msg: str):
+    """Reports agent execution status to WebSocket via config status_callback"""
+    if not config:
+        return
+    status_callback = config.get("configurable", {}).get("status_callback")
+    if status_callback:
+        try:
+            loop = asyncio.get_running_loop()
+            if asyncio.iscoroutinefunction(status_callback):
+                asyncio.run_coroutine_threadsafe(status_callback(status_msg), loop)
+            else:
+                status_callback(status_msg)
+        except Exception as e:
+            logger.warning(f"Failed to report status '{status_msg}': {e}")
+
 def supervisor_router(state: AgentState) -> str:
     """Decides which agent node should execute next based on user intent and state history"""
     messages = state.get("messages", [])
@@ -40,19 +57,19 @@ Message: "{user_message}"
 
 You must choose one of the following exact categories:
 - flight_search (searching flights, booking flights)
-- hotel_search (hotel stays, accommodation)
-- budget_planning (budget analysis, splitting expenses)
-- itinerary_generator (day-by-day travel plans, sights scheduling)
-- visa_assistant (visas, passports, entry documents)
-- weather_info (forecast, climate, clothing advice)
-- local_guide (hidden gems, local spots, travel recommendations)
-- currency_conversion (converting currency, exchange rates, how much cash to carry)
-- restaurant_recommendation (food, dining, restaurants, eating out)
-- travel_safety (warnings, advisories, safety index)
-- customer_support (help, agent, human support, booking history issues)
-- payment_assistant (payment failed, decline explanation, retry transaction)
-- analytics_info (admin statistics, token counts, latency stats)
-- general_chat (greetings, general chat, general question answering)
+- hotel_search (hotel stays, villas, accommodations, room booking)
+- budget_planning (budget analysis, budget constraints analysis, splitting expenses)
+- itinerary_generator (generating day-by-day itineraries only, sightseeing schedules)
+- visa_assistant (visa requirements, passports, entry documents)
+- weather_info (weather forecast, packing list, climate, clothing advice)
+- local_guide (hidden gems, local spots, travel recommendations, attractions, restaurants, shopping, nightlife)
+- currency_conversion (forex, converting currency, exchange rates, recommended cash)
+- travel_safety (safety warnings, advisories, safety index, emergency numbers)
+- customer_support (customer support, human agent help, booking problems)
+- payment_assistant (payment failures, retry transactions)
+- analytics_info (token counts, latency stats, admin metrics)
+- trip_planner (comprehensive end-to-end trip packages, holiday packages, planning a full travel itinerary with flights/hotels/pricing, honeymoon trip, family trip, solo trip, adventure trip, luxury trip, corporate travel, weekend trip, international travel, multi-city trip, travel advice)
+- general_chat (greetings, standard conversational exchanges, off-topic chats)
 
 Output ONLY the category name. Do not write anything else.
 
@@ -66,7 +83,7 @@ Category:
         "itinerary_generator", "visa_assistant", "weather_info",
         "local_guide", "currency_conversion", "restaurant_recommendation",
         "travel_safety", "customer_support", "payment_assistant",
-        "analytics_info", "general_chat"
+        "analytics_info", "trip_planner", "general_chat"
     ]
     if intent not in valid_intents:
         intent = "general_chat"
@@ -76,8 +93,9 @@ Category:
 
 
 # Define the General Chat Node
-def general_chat_node(state: AgentState) -> dict:
+def general_chat_node(state: AgentState, config: Dict[str, Any] = None) -> dict:
     """Generates standard helpful responses for generic chat inputs"""
+    report_agent_status(config, "Travel OS Assistant thinking...")
     messages = state.get("messages", [])
     user_query = messages[-1]["content"] if messages else "Hello"
 
@@ -110,6 +128,7 @@ builder.add_node("travel_safety", travel_safety_node)
 builder.add_node("customer_support", customer_support_node)
 builder.add_node("payment_assistant", payment_assistant_node)
 builder.add_node("analytics_info", analytics_node)
+builder.add_node("trip_planner", trip_planner_node)
 builder.add_node("general_chat", general_chat_node)
 
 # Set up Routing entry point
@@ -129,6 +148,7 @@ builder.set_conditional_entry_point(
         "customer_support": "customer_support",
         "payment_assistant": "payment_assistant",
         "analytics_info": "analytics_info",
+        "trip_planner": "trip_planner",
         "general_chat": "general_chat"
     }
 )
@@ -147,6 +167,7 @@ builder.add_edge("travel_safety", END)
 builder.add_edge("customer_support", END)
 builder.add_edge("payment_assistant", END)
 builder.add_edge("analytics_info", END)
+builder.add_edge("trip_planner", END)
 builder.add_edge("general_chat", END)
 
 # Compile
@@ -162,28 +183,48 @@ class SupervisorAgent:
         # Append user message
         history.append({"role": "user", "content": message})
         
-        # 2. Extract/Rehydrate Context from conversation history
-        trip_context = {}
-        budget_constraints = {}
+        # 2. Load active context and user preferences
+        active_context = MemoryManager.get_active_context(session_id) or {}
+        trip_context = active_context.get("trip_context", {})
+        budget_constraints = active_context.get("budget_constraints", {})
         
+        # Query long-term preferences from Chroma
+        try:
+            user_prefs = MemoryManager.query_user_preferences(user_id=user_id, query=message, limit=5)
+            if user_prefs:
+                trip_context["user_historical_preferences"] = user_prefs
+        except Exception as e:
+            logger.error(f"Failed to load user preferences: {e}")
+        
+        # 3. Extract/Rehydrate Context from conversation history
         context_prompt = f"""
         Analyze the conversation history and extract the following travel parameters if mentioned:
+        - origin (string, IATA code if possible e.g. DEL, BOM)
         - destination (string)
         - departure_date (string, YYYY-MM-DD)
         - return_date (string, YYYY-MM-DD)
         - duration_days (int)
         - total_budget (float)
+        - passengers (int)
+        - travel_style (string e.g. Solo, Family, Honeymoon, Adventure, Luxury, Corporate)
+        - cabin_class (string e.g. ECONOMY, BUSINESS, FIRST)
+        - hotel_tier (string e.g. BUDGET, MIDRANGE, LUXURY)
         
         Conversation History:
         {json.dumps(history[-8:])}
         
         Output ONLY a JSON block:
         {{
+          "origin": "...",
           "destination": "...",
           "departure_date": "...",
           "return_date": "...",
           "duration_days": ...,
-          "total_budget": ...
+          "total_budget": ...,
+          "passengers": ...,
+          "travel_style": "...",
+          "cabin_class": "...",
+          "hotel_tier": "..."
         }}
         """
         try:
@@ -197,16 +238,15 @@ class SupervisorAgent:
                 extracted = json.loads(extraction_str.strip().strip("```json").strip("```").strip())
             
             if extracted:
-                if extracted.get("destination") and extracted["destination"] != "...":
-                    trip_context["destination"] = extracted["destination"]
-                if extracted.get("departure_date") and extracted["departure_date"] != "...":
-                    trip_context["departure_date"] = extracted["departure_date"]
-                if extracted.get("return_date") and extracted["return_date"] != "...":
-                    trip_context["return_date"] = extracted["return_date"]
-                if extracted.get("duration_days") and isinstance(extracted["duration_days"], (int, float)):
-                    trip_context["duration_days"] = int(extracted["duration_days"])
-                if extracted.get("total_budget") and isinstance(extracted["total_budget"], (int, float)):
-                    budget_constraints["total_budget"] = float(extracted["total_budget"])
+                for k, v in extracted.items():
+                    if v and v != "...":
+                        if k in ["total_budget", "hotel_tier"]:
+                            if k == "total_budget":
+                                budget_constraints["total_budget"] = float(v)
+                            else:
+                                budget_constraints["tier"] = str(v).upper()
+                        else:
+                            trip_context[k] = v
         except Exception as e:
             logger.error(f"Context extraction error in execute_chat_turn: {e}")
 
@@ -226,8 +266,120 @@ class SupervisorAgent:
         # Run graph
         result = supervisor_graph.invoke(state)
         
-        # Save updated history
+        # Save updated history & active context
         new_history = result.get("messages", [])
         MemoryManager.save_conversation_history(session_id, new_history, user_id)
+        
+        updated_active_context = {
+            "trip_context": result.get("trip_context", {}),
+            "budget_constraints": result.get("budget_constraints", {})
+        }
+        MemoryManager.save_active_context(session_id, updated_active_context, user_id)
+        
+        return result.get("final_response", "I'm sorry, I could not process your request.")
+
+    @staticmethod
+    async def execute_chat_turn_async(user_id: int, session_id: str, message: str, status_callback=None) -> str:
+        # 1. Retrieve session history from memory
+        history = MemoryManager.get_conversation_history(session_id)
+        
+        # Append user message
+        history.append({"role": "user", "content": message})
+        
+        # 2. Load active context and user preferences
+        active_context = MemoryManager.get_active_context(session_id) or {}
+        trip_context = active_context.get("trip_context", {})
+        budget_constraints = active_context.get("budget_constraints", {})
+        
+        # Query long-term preferences from Chroma
+        try:
+            user_prefs = MemoryManager.query_user_preferences(user_id=user_id, query=message, limit=5)
+            if user_prefs:
+                trip_context["user_historical_preferences"] = user_prefs
+        except Exception as e:
+            logger.error(f"Failed to load user preferences: {e}")
+        
+        # 3. Extract/Rehydrate Context from conversation history
+        context_prompt = f"""
+        Analyze the conversation history and extract the following travel parameters if mentioned:
+        - origin (string, IATA code if possible e.g. DEL, BOM)
+        - destination (string)
+        - departure_date (string, YYYY-MM-DD)
+        - return_date (string, YYYY-MM-DD)
+        - duration_days (int)
+        - total_budget (float)
+        - passengers (int)
+        - travel_style (string e.g. Solo, Family, Honeymoon, Adventure, Luxury, Corporate)
+        - cabin_class (string e.g. ECONOMY, BUSINESS, FIRST)
+        - hotel_tier (string e.g. BUDGET, MIDRANGE, LUXURY)
+        
+        Conversation History:
+        {json.dumps(history[-8:])}
+        
+        Output ONLY a JSON block:
+        {{
+          "origin": "...",
+          "destination": "...",
+          "departure_date": "...",
+          "return_date": "...",
+          "duration_days": ...,
+          "total_budget": ...,
+          "passengers": ...,
+          "travel_style": "...",
+          "cabin_class": "...",
+          "hotel_tier": "..."
+        }}
+        """
+        try:
+            extraction_str = llm_router.complete(prompt=context_prompt, task_type="simple")
+            import re
+            match = re.search(r"(\{[\s\S]*?\})", extraction_str)
+            extracted = {}
+            if match:
+                extracted = json.loads(match.group(1))
+            else:
+                extracted = json.loads(extraction_str.strip().strip("```json").strip("```").strip())
+            
+            if extracted:
+                for k, v in extracted.items():
+                    if v and v != "...":
+                        if k in ["total_budget", "hotel_tier"]:
+                            if k == "total_budget":
+                                budget_constraints["total_budget"] = float(v)
+                            else:
+                                budget_constraints["tier"] = str(v).upper()
+                        else:
+                            trip_context[k] = v
+        except Exception as e:
+            logger.error(f"Context extraction error in execute_chat_turn_async: {e}")
+
+        # Initialize state
+        state = {
+            "user_id": user_id,
+            "session_id": session_id,
+            "trace_id": f"trace_{session_id}_{len(history)}",
+            "messages": history,
+            "trip_context": trip_context,
+            "budget_constraints": budget_constraints,
+            "active_task": "",
+            "current_agent": "",
+            "final_response": ""
+        }
+        
+        # Pass status_callback in configuration
+        config = {"configurable": {"status_callback": status_callback}}
+        
+        # Run graph
+        result = await supervisor_graph.ainvoke(state, config=config)
+        
+        # Save updated history & active context
+        new_history = result.get("messages", [])
+        MemoryManager.save_conversation_history(session_id, new_history, user_id)
+        
+        updated_active_context = {
+            "trip_context": result.get("trip_context", {}),
+            "budget_constraints": result.get("budget_constraints", {})
+        }
+        MemoryManager.save_active_context(session_id, updated_active_context, user_id)
         
         return result.get("final_response", "I'm sorry, I could not process your request.")

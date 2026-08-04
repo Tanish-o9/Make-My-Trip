@@ -87,19 +87,22 @@ async def chat_ws_endpoint(websocket: WebSocket, session_id: str, db: Session = 
             }))
             
             # Execute Chat turn and respond
-            # In a full streaming scenario, the agent generator yields tokens. Let's simulate streaming tokens:
             try:
-                # We can call the agent turn
-                await websocket.send_text(json.dumps({
-                    "type": "status",
-                    "status": "Agent executing graph nodes..."
-                }))
-                
-                # Fetch final response
-                response = SupervisorAgent.execute_chat_turn(
+                async def status_callback(status_msg: str):
+                    try:
+                        await websocket.send_text(json.dumps({
+                            "type": "status",
+                            "status": status_msg
+                        }))
+                    except Exception:
+                        pass
+
+                # Fetch final response asynchronously
+                response = await SupervisorAgent.execute_chat_turn_async(
                     user_id=user_id,
                     session_id=session_id,
-                    message=message_text
+                    message=message_text,
+                    status_callback=status_callback
                 )
                 
                 # Simulate token streaming of the response to show smooth Framer Motion typing
