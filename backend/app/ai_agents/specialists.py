@@ -216,7 +216,7 @@ Give 1 actionable step to retry (e.g. check limit, try different card).
     }
 
 @log_agent_execution("analytics_agent")
-def analytics_node(state: AgentState) -> dict:
+def analytics_node(state: AgentState, config: Dict[str, Any] = None) -> dict:
     """Aggregates metrics for the admin console dashboard"""
     db = SessionLocal()
     try:
@@ -250,7 +250,7 @@ def analytics_node(state: AgentState) -> dict:
     }
 
 @log_agent_execution("rag_agent")
-def rag_node(state: AgentState) -> dict:
+def rag_node(state: AgentState, config: Dict[str, Any] = None) -> dict:
     """Wrapper node exposing general knowledge base Q&A"""
     messages = state.get("messages", [])
     user_query = messages[-1]["content"] if messages else ""
@@ -264,16 +264,16 @@ def rag_node(state: AgentState) -> dict:
     }
 
 @log_agent_execution("memory_agent")
-def memory_node(state: AgentState) -> dict:
+def memory_node(state: AgentState, config: Dict[str, Any] = None) -> dict:
     """Summarizes current conversation flow to update profile preferences"""
     messages = state.get("messages", [])
     history_str = "\n".join([f"{m['role']}: {m['content']}" for m in messages])
     
     prompt = f"""
-Summarize user preference signals (e.g. vegan, business cabin, low budget) from the conversation:
-{history_str}
-Output a comma-separated list of tags.
-"""
+    Summarize user preference signals (e.g. vegan, business cabin, low budget) from the conversation:
+    {history_str}
+    Output a comma-separated list of tags.
+    """
     summary = llm_router.complete(prompt=prompt, task_type="simple")
     return {
         "final_response": f"Profile preferences updated: {summary}",
@@ -281,7 +281,7 @@ Output a comma-separated list of tags.
     }
 
 @log_agent_execution("notification_agent")
-def notification_node(state: AgentState) -> dict:
+def notification_node(state: AgentState, config: Dict[str, Any] = None) -> dict:
     """Router helper mimicking event dispatches"""
     context = state.get("trip_context", {})
     ref = context.get("booking_reference") or "REF-DUMMY"

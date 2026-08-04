@@ -18,24 +18,28 @@ DESTINATION_COSTS = {
 }
 
 @log_agent_execution("budget_planning_agent")
-def budget_planning_node(state: AgentState) -> dict:
+def budget_planning_node(state: AgentState, config: Dict[str, Any] = None) -> dict:
     """Agent node to parse total budget and split it across categories, raising warnings if unrealistic"""
+    from app.ai_agents.supervisor import report_agent_status
+    report_agent_status(config, "Budget Agent: Analyzing expenses and splitting allocations...")
     messages = state.get("messages", [])
     user_query = messages[-1]["content"] if messages else ""
 
     # Parse constraints
     extraction_prompt = f"""
-Extract budget details from the user prompt:
-Prompt: "{user_query}"
-Current Context: {json.dumps(state.get("trip_context", {}))}
-
-Output ONLY a JSON block:
-- destination (string)
-- duration_days (int)
-- total_budget (float)
-
-JSON:
-"""
+    You are an extractor. Extract budget details from the user prompt.
+    Prompt: "{user_query}"
+    Current Context: {json.dumps(state.get("trip_context", {}))}
+    
+    Output ONLY a valid JSON string with these keys. Do NOT write Python code, scripts, or markdown blocks:
+    {{
+      "destination": "Goa",
+      "duration_days": 5,
+      "total_budget": 25000.0
+    }}
+    
+    JSON:
+    """
     extraction_str = llm_router.complete(prompt=extraction_prompt, task_type="simple")
     try:
         import re
@@ -99,9 +103,13 @@ JSON:
         "warning": warning
     }
 
+    collected = dict(state.get("collected_data") or {})
+    collected["budget"] = budget_constraints
+
     return {
         "final_response": result_text,
         "budget_constraints": budget_constraints,
+        "collected_data": collected,
         "messages": [{"role": "assistant", "content": result_text}]
     }
 
@@ -145,13 +153,7 @@ I see you want to plan a trip, but I need a few more details to customize the pe
 
 {missing_list_str}
 
-Once you give me this information, I will instantly:
-1. ✈️ **Search real flight deals** matching your dates.
-2. 🏨 **Find top-rated hotel accommodations** within your budget.
-3. 🗺️ **Generate a personalized day-by-day itinerary** adapted to local weather forecasts.
-4. 💰 **Provide an optimized budget allocation**.
-
-*Let's get started! Where are you traveling from and when?*
+Once you give me this information, I will instantly fetch everything for you.
 """
         return {
             "final_response": response_text,
@@ -216,113 +218,64 @@ Once you give me this information, I will instantly:
 
     # Generate Itinerary using LLM
     itin_generation_prompt = f"""
-You are the Itinerary Planning Expert. Generate a day-by-day travel plan for a {n_days} days trip to {destination}.
-Weather: {weather_res.get("forecast_description")}
-Travel style: {travel_style}
-
-Provide a detailed conversational response detailing highlights.
-Additionally, you MUST output a JSON block inside a ```itinerary-data code block at the bottom containing an array of day objects:
-[
-  {{
-    "day": 1,
-    "title": "...",
-    "morning": "...",
-    "afternoon": "...",
-    "evening": "..."
-  }},
-  ...
-]
-
-Do not include code syntax in the conversational part. Only at the very bottom inside the code blocks.
-"""
+    You are the Itinerary Planning Expert. Generate a day-by-day travel plan for a {n_days} days trip to {destination}.
+    Weather: {weather_res.get("forecast_description")}
+    Travel style: {travel_style}
+    
+    Provide a detailed conversational response detailing highlights.
+    Additionally, you MUST output a JSON block inside a ```itinerary-data code block at the bottom containing an array of day objects:
+    [
+      {{
+        "day": 1,
+        "title": "...",
+        "morning": "...",
+        "afternoon": "...",
+        "evening": "..."
+      }},
+      ...
+    ]
+    """
     itin_text = llm_router.complete(prompt=itin_generation_prompt, task_type="creative")
 
     # Synthesize the final comprehensive response
     package_synthesis_prompt = f"""
-You are a senior travel consultant compiling a complete travel package for the user.
-Destination: {destination}
-Origin: {origin}
-Dates: {departure_date} to {return_date} ({n_days} Days)
-Budget: ₹{total_budget:,}
-Passengers: {passengers}
-Travel Style: {travel_style}
-
-Here are the search details:
-- Flights: {json.dumps(mapped_flights)}
-- Hotels: {json.dumps(mapped_hotels)}
-- Weather: {weather_res.get("forecast_description")}
-- Itinerary Details: {itin_text}
-
-Write a professional, highly detailed travel proposal. 
-Include sections with icons:
-- 🗺️ Itinerary Highlights & Local Tips
-- ☀️ Weather & Packing Guide
-- 💰 Budget Optimization & Breakdown
-- 💎 Hidden Gems & Dinings (recommend local restaurants)
-
-Do NOT include any flights-data, hotels-data, or itinerary-data blocks inside your main text. 
-Instead, at the very bottom of your response, you MUST append:
-1. A ```flights-data block containing the exact JSON array of mapped flights.
-2. A ```hotels-data block containing the exact JSON array of mapped hotels.
-3. A ```itinerary-data block containing the exact JSON array of the day-by-day itinerary.
-"""
+    You are a senior travel consultant compiling a complete travel package for the user.
+    Destination: {destination}
+    Origin: {origin}
+    Dates: {departure_date} to {return_date} ({n_days} Days)
+    Budget: ₹{total_budget:,}
+    Passengers: {passengers}
+    Travel Style: {travel_style}
+    
+    Here are the search details:
+    - Flights: {json.dumps(mapped_flights)}
+    - Hotels: {json.dumps(mapped_hotels)}
+    - Weather: {weather_res.get("forecast_description")}
+    - Itinerary Details: {itin_text}
+    
+    Write a professional, highly detailed travel proposal. 
+    Include sections with icons:
+    - 🗺️ Itinerary Highlights & Local Tips
+    - ☀️ Weather & Packing Guide
+    - 💰 Budget Optimization & Breakdown
+    - 💎 Hidden Gems & Dinings (recommend local restaurants)
+    """
     final_response = llm_router.complete(prompt=package_synthesis_prompt, task_type="reasoning")
 
-    # Inject the structural data blocks if they are missing or combine them
-    if "```flights-data" not in final_response:
-        final_response += f"\n\n```flights-data\n{json.dumps(mapped_flights, indent=2)}\n```"
-    if "```hotels-data" not in final_response:
-        final_response += f"\n\n```hotels-data\n{json.dumps(mapped_hotels, indent=2)}\n```"
-    if "```itinerary-data" not in final_response:
-        itin_arr = []
-        for d in range(1, n_days + 1):
-            itin_arr.append({
-                "day": d,
-                "title": f"Explore {destination}",
-                "morning": f"Start the day exploring {destination} highlights.",
-                "afternoon": "Enjoy local lunch and shopping.",
-                "evening": "Wind down with dinner and sunset views."
-            })
-        final_response += f"\n\n```itinerary-data\n{json.dumps(itin_arr, indent=2)}\n```"
+    # Inject metadata blocks
+    final_response += f"\n\n```flights-data\n{json.dumps(mapped_flights, indent=2)}\n```"
+    final_response += f"\n\n```hotels-data\n{json.dumps(mapped_hotels, indent=2)}\n```"
 
-    # Inject Visa data block
-    is_domestic = destination.lower() in ["goa", "delhi", "mumbai", "india", "jaipur", "kerala"]
-    visa_info = {
-        "destination_country": destination if not is_domestic else "India (Domestic)",
-        "requirement_type": "Permit-free" if is_domestic else "Visa on Arrival / eVisa",
-        "citizenship": "Indian",
-        "processing_time": "Immediate" if is_domestic else "24-48 hours",
-        "documents": ["Aadhar Card", "Voter ID", "Hotel Confirmation", "Flight Ticket"] if is_domestic else ["Valid Passport", "Return Flight Ticket", "Hotel Voucher", "Passport Photo"]
-    }
-    final_response += f"\n\n```visa-data\n{json.dumps(visa_info, indent=2)}\n```"
-
-    # Inject Weather data block
-    weather_info = {
-        "avg_temp": "28" if destination.lower() == "goa" else "22",
-        "forecast": f"Pleasant climate in {destination}. Perfect for sightseeing and local tours.",
-        "packing_checklist": ["Sunglasses & Sunscreen", "Comfortable walking shoes", "Light cotton clothes", "Chargers & Adaptors"]
-    }
-    final_response += f"\n\n```weather-data\n{json.dumps(weather_info, indent=2)}\n```"
-
-    # Inject Budget data block
-    try:
-        b_val = float(total_budget or 30000)
-    except Exception:
-        b_val = 30000.0
-    budget_info = {
-        "total_budget": b_val,
-        "breakdown": {
-            "flights": b_val * 0.35,
-            "hotels": b_val * 0.40,
-            "activities": b_val * 0.15,
-            "food_transport": b_val * 0.10
-        }
-    }
-    final_response += f"\n\n```budget-data\n{json.dumps(budget_info, indent=2)}\n```"
-
-    # Inject Map data block
-    map_info = [origin, destination, f"{destination} center"]
-    final_response += f"\n\n```map-data\n{json.dumps(map_info, indent=2)}\n```"
+    itin_arr = []
+    for d in range(1, n_days + 1):
+        itin_arr.append({
+            "day": d,
+            "title": f"Explore {destination}",
+            "morning": f"Start the day exploring {destination} highlights.",
+            "afternoon": "Enjoy local lunch and shopping.",
+            "evening": "Wind down with dinner and sunset views."
+        })
+    final_response += f"\n\n```itinerary-data\n{json.dumps(itin_arr, indent=2)}\n```"
 
     updated_context = dict(state.get("trip_context", {}))
     updated_context.update({
@@ -335,16 +288,24 @@ Instead, at the very bottom of your response, you MUST append:
         "passengers": passengers
     })
 
+    collected = dict(state.get("collected_data") or {})
+    collected["flights"] = mapped_flights
+    collected["hotels"] = mapped_hotels
+    collected["itinerary"] = itin_arr
+
     return {
         "final_response": final_response,
         "trip_context": updated_context,
+        "collected_data": collected,
         "messages": [{"role": "assistant", "content": final_response}]
     }
 
 
 @log_agent_execution("itinerary_generator_agent")
-def itinerary_generator_node(state: AgentState) -> dict:
+def itinerary_generator_node(state: AgentState, config: Dict[str, Any] = None) -> dict:
     """Generates day-by-day slots (morning/afternoon/evening), respecting local weather alerts"""
+    from app.ai_agents.supervisor import report_agent_status
+    report_agent_status(config, "Itinerary Agent: Designing daily schedules adjusted to climate conditions...")
     context = state.get("trip_context", {})
     destination = context.get("destination") or "Goa"
     duration = context.get("duration_days") or 3
@@ -354,16 +315,30 @@ def itinerary_generator_node(state: AgentState) -> dict:
     weather_desc = weather.get("forecast_description", "")
 
     itinerary_prompt = f"""
-You are the Itinerary Generator Agent.
-Create a day-by-day travel plan (Morning, Afternoon, Evening slots) for a {duration} days trip to {destination}.
-Note the weather forecast context: "{weather_desc}". If the weather indicates monsoons or extreme heat/cold, avoid scheduling heavy outdoor visits in those slots.
-
-Provide a brief, beautiful day-by-day overview. Keep it extremely concise and direct. Do not include any programming code, python scripts, or system reasoning in your conversational text.
-Include a structural JSON block at the bottom of your response inside a ```itinerary-data code block containing the exact day-by-day array structure so the UI can render cards.
-"""
+    You are the Itinerary Generator Agent.
+    Create a day-by-day travel plan (Morning, Afternoon, Evening slots) for a {duration} days trip to {destination}.
+    Note the weather forecast context: "{weather_desc}". If the weather indicates monsoons or extreme heat/cold, avoid scheduling heavy outdoor visits in those slots.
+    
+    Provide a brief, beautiful day-by-day overview. Keep it extremely concise and direct. Do not include any programming code, python scripts, or system reasoning in your conversational text.
+    Include a structural JSON block at the bottom of your response inside a ```itinerary-data code block containing the exact day-by-day array structure so the UI can render cards.
+    """
     itinerary_text = llm_router.complete(prompt=itinerary_prompt, task_type="creative")
+
+    try:
+        import re
+        match = re.search(r"(\[[\s\S]*?\])", itinerary_text)
+        if match:
+            itin_arr = json.loads(match.group(1))
+        else:
+            itin_arr = []
+    except Exception:
+        itin_arr = []
+
+    collected = dict(state.get("collected_data") or {})
+    collected["itinerary"] = itin_arr
 
     return {
         "final_response": itinerary_text,
+        "collected_data": collected,
         "messages": [{"role": "assistant", "content": itinerary_text}]
     }

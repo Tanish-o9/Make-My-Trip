@@ -32,135 +32,69 @@ def flight_search_tool(
         passengers: Number of tickets needed.
         cabin_class: Cabin preference (ECONOMY, BUSINESS, FIRST).
     """
+    import asyncio
+    import concurrent.futures
+    from app.services.price_compare_agent import PriceCompareAgent
+
     origin = origin.upper().strip()
     destination = destination.upper().strip()
     cabin_class = cabin_class.upper().strip()
 
-    # 1. Check Redis Cache
-    cache_key = f"flights:{origin}:{destination}:{departure_date}:{passengers}:{cabin_class}"
-    r = _get_redis_client()
-    if r:
-        try:
-            cached = r.get(cache_key)
-            if cached:
-                logger.info("Flight search cache hit!")
-                return json.loads(cached)
-        except Exception as e:
-            logger.warning(f"Failed to query flight cache: {e}")
+    async def get_offers():
+        return await PriceCompareAgent.compare_flights(origin, destination, departure_date)
 
-    # 2. Amadeus Client Logic (Simulated / Fallback to Mock)
-    client_id = os.getenv("AMADEUS_CLIENT_ID")
-    client_secret = os.getenv("AMADEUS_CLIENT_SECRET")
-    
-    if client_id and client_secret:
-        # In a real system, you would execute an OAuth handshake and retrieve flight details
-        # We will write a concrete handler in services/amadeus.py for the full integration
-        pass
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
 
-    # 3. High-fidelity Flight Generator (using DB FlightRoute if seeded, else mock)
-    from app.database import SessionLocal
-    from app.models.search_entities import FlightRoute
-    
-    db = SessionLocal()
-    db_routes = db.query(FlightRoute).filter(
-        FlightRoute.origin == origin,
-        FlightRoute.destination == destination
-    ).all()
-    db.close()
-
-    flights = []
-    
-    # Establish a stable random seed based on details so results don't randomly morph
-    seed_str = f"{origin}-{destination}-{departure_date}"
-    seed = int(hashlib.md5(seed_str.encode()).hexdigest(), 16) % 100
-    
-    if db_routes:
-        for idx, r in enumerate(db_routes):
-            class_multiplier = {"ECONOMY": 1.0, "BUSINESS": 2.5, "FIRST": 4.0}.get(cabin_class, 1.0)
-            total_fare = float(r.base_price) * class_multiplier * passengers
-            
-            dep_hour_min = r.departure_time or "08:00"
-            departure_time = datetime.datetime.strptime(f"{departure_date} {dep_hour_min}", "%Y-%m-%d %H:%M")
-            arrival_time = departure_time + datetime.timedelta(minutes=150)
-            
-            flights.append({
-                "flight_number": r.flight_number,
-                "airline": r.airline_name,
-                "airline_code": r.airline_code,
-                "origin": origin,
-                "destination": destination,
-                "departure_time": departure_time.strftime("%Y-%m-%dT%H:%M:%S"),
-                "arrival_time": arrival_time.strftime("%Y-%m-%dT%H:%M:%S"),
-                "duration_minutes": 150,
-                "layovers": [],
-                "cabin_class": cabin_class,
-                "price_per_passenger": float(total_fare / passengers),
-                "total_price": float(total_fare),
-                "currency": "INR"
-            })
+    if loop and loop.is_running():
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(asyncio.run, get_offers())
+            offers = future.result()
     else:
-        airlines = [
-            {"code": "6E", "name": "IndiGo", "base_price": 4500},
-            {"code": "AI", "name": "Air India", "base_price": 5200},
-            {"code": "UK", "name": "Vistara", "base_price": 6000},
-            {"code": "QP", "name": "Akasa Air", "base_price": 4300}
-        ]
+        offers = asyncio.run(get_offers())
 
-        for idx, air in enumerate(airlines):
-            flight_num = f"{air['code']}-{(seed + idx * 17) % 900 + 100}"
-            
-            # Calculate price based on seed details and class multiplier
-            class_multiplier = {"ECONOMY": 1.0, "BUSINESS": 2.5, "FIRST": 4.0}.get(cabin_class, 1.0)
-            base = air["base_price"] + (seed % 15) * 100
-            total_fare = float(base) * class_multiplier * passengers
-            
-            # Layover configurations
-            layovers = []
-            duration_mins = 150 # Direct
-            if idx == 1: # Air India layover
-                layovers.append({"city": "BOM", "duration_mins": 90})
-                duration_mins = 300
-                total_fare -= 400 # Layovers are often cheaper
-                
-            departure_time = datetime.datetime.strptime(f"{departure_date} 08:00", "%Y-%m-%d %H:%M") + datetime.timedelta(hours=idx * 3)
-            arrival_time = departure_time + datetime.timedelta(minutes=duration_mins)
-
-            flights.append({
-                "flight_number": flight_num,
-                "airline": air["name"],
-                "airline_code": air["code"],
-                "origin": origin,
-                "destination": destination,
-                "departure_time": departure_time.strftime("%Y-%m-%dT%H:%M:%S"),
-                "arrival_time": arrival_time.strftime("%Y-%m-%dT%H:%M:%S"),
-                "duration_minutes": duration_mins,
-                "layovers": layovers,
-                "cabin_class": cabin_class,
-                "price_per_passenger": float(total_fare / passengers),
-                "total_price": float(total_fare),
-                "currency": "INR"
-            })
-
-    # Sort flights by price
-    flights = sorted(flights, key=lambda f: f["total_price"])
-
-    response = {
-        "success": True,
-        "search_parameters": {
+    results = []
+    for offer in offers:
+        f = offer.details.copy()
+        results.append({
+            "flight_number": f.get("flight_number"),
+            "airline": f.get("airline"),
+            "airline_code": f.get("airline_code"),
             "origin": origin,
             "destination": destination,
-            "departure_date": departure_date,
-            "passengers": passengers,
-            "cabin_class": cabin_class
-        },
-        "results": flights
-    }
+            "departure_time": f.get("departure_time"),
+            "arrival_time": f.get("arrival_time"),
+            "duration_minutes": f.get("duration_minutes", 150),
+            "layovers": f.get("layovers", []),
+            "cabin_class": cabin_class,
+            "price_per_passenger": float(offer.price),
+            "total_price": float(offer.price) * passengers,
+            "currency": "INR",
+            "alternatives": f.get("alternatives", []),
+            "cancellation_policy": offer.cancellation_policy,
+            "provider_name": offer.provider_name
+        })
 
-    # Cache response in Redis
-    if r:
-        try:
-            r.setex(cache_key, 600, json.dumps(response)) # 10 minutes cache TTL for price sensitivity
-        except Exception as e:
-            logger.warning(f"Failed to cache flight results: {e}")
+    # Fallback mock
+    if not results:
+        results = [{
+            "flight_number": "SA-101",
+            "airline": "Standard Air",
+            "airline_code": "SA",
+            "origin": origin,
+            "destination": destination,
+            "departure_time": f"{departure_date}T08:00:00",
+            "arrival_time": f"{departure_date}T10:30:00",
+            "duration_minutes": 150,
+            "layovers": [],
+            "cabin_class": cabin_class,
+            "price_per_passenger": 5000.0,
+            "total_price": 5000.0 * passengers,
+            "currency": "INR",
+            "cancellation_policy": "Refundable",
+            "provider_name": "TBO"
+        }]
 
-    return response
+    return {"success": True, "results": results}

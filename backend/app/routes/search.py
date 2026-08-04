@@ -101,7 +101,14 @@ async def unified_vertical_search(
     type: str = Query(None),
     selfDrive: str = Query(None),
     check_in: str = Query(None),
-    check_out: str = Query(None)
+    check_out: str = Query(None),
+    sort_by: str = Query(None),
+    stops: str = Query(None),
+    carrier: str = Query(None),
+    amenity: str = Query(None),
+    cancellation: str = Query(None),
+    limit: int = Query(25),
+    offset: int = Query(0)
 ):
     """Unified search gateway routing queries based on vertical type"""
     v = vertical.lower()
@@ -130,9 +137,79 @@ async def unified_vertical_search(
             f["duration"] = f"{dur_mins // 60}h {dur_mins % 60}m"
             
             flight_res.append(f)
+
+        # Apply filters
+        filtered_flights = []
+        for f in flight_res:
+            # stops filter
+            if stops == "direct" and len(f.get("layovers", [])) > 0:
+                continue
+            if stops == "1stop" and len(f.get("layovers", [])) != 1:
+                continue
+            # carrier filter
+            if carrier and carrier.upper() not in str(f.get("airline", "")).upper() and carrier.upper() not in str(f.get("airline_code", "")).upper():
+                continue
+            # price budget filter
+            if budget and float(f.get("price_per_passenger", 0)) > float(budget):
+                continue
+            filtered_flights.append(f)
+
+        # Apply sorting
+        if sort_by == "price_asc":
+            filtered_flights.sort(key=lambda x: x.get("price_per_passenger", 999999))
+        elif sort_by == "price_desc":
+            filtered_flights.sort(key=lambda x: x.get("price_per_passenger", 0), reverse=True)
+        elif sort_by == "duration_asc":
+            def get_dur_mins(item):
+                dur_str = item.get("duration", "2h 30m")
+                try:
+                    parts = dur_str.split()
+                    h = int(parts[0].replace("h", "")) if len(parts) > 0 else 2
+                    m = int(parts[1].replace("m", "")) if len(parts) > 1 else 0
+                    return h * 60 + m
+                except Exception:
+                    return 150
+            filtered_flights.sort(key=get_dur_mins)
+
+        # Determine the AI Pick for flights
+        if filtered_flights:
+            best_flight = None
+            best_score = -999999
+            best_reasons = []
+            for f in filtered_flights:
+                price = float(f.get("price_per_passenger", 5000))
+                score = 10000 - price
+                reasons = []
+                if "Vistara" in f.get("airline", "") or "Air India" in f.get("airline", ""):
+                    score += 1500
+                    reasons.append("Premium Cabin Experience")
+                if len(f.get("layovers", [])) == 0:
+                    score += 1000
+                    reasons.append("Direct Route")
+                if price < 6000:
+                    score += 800
+                    reasons.append("Excellent Value")
+                
+                if score > best_score:
+                    best_score = score
+                    best_flight = f
+                    best_reasons = reasons
+
+            if best_flight:
+                best_flight["ai_pick"] = True
+                reasons_str = " & ".join(best_reasons) if best_reasons else "Optimal Balance"
+                best_flight["ai_pick_reason"] = reasons_str
+
+        # Pagination
+        total_count = len(filtered_flights)
+        paginated_flights = filtered_flights[offset:offset+limit]
+
         return {
             "vertical": "flights",
-            "results": attach_media_to_results(flight_res, "vehicle")
+            "total_count": total_count,
+            "limit": limit,
+            "offset": offset,
+            "results": attach_media_to_results(paginated_flights, "vehicle")
         }
         
     elif v == "hotels":
@@ -154,10 +231,110 @@ async def unified_vertical_search(
             h["expires_at"] = offer.expires_at.isoformat()
             h["alternatives"] = offer.details.get("alternatives", [])
             h["is_simulated"] = offer.is_simulated
+            
+            # Extract fields flat from offer.details
+            h["guest_review_score"] = offer.details.get("guest_review_score")
+            h["review_count"] = offer.details.get("review_count")
+            h["category"] = offer.details.get("category")
+            h["breakfast_included"] = offer.details.get("breakfast_included")
+            h["free_cancellation"] = offer.details.get("free_cancellation")
+            h["distance_from_center"] = offer.details.get("distance_from_center")
+            h["lat"] = offer.details.get("lat")
+            h["lng"] = offer.details.get("lng")
+            
             hotel_res.append(h)
+
+        # Apply filters
+        filtered_hotels = []
+        for h in hotel_res:
+            # category / star filter
+            if category and category != "all":
+                # Matches numeric star rating or category text
+                if category.isdigit():
+                    try:
+                        star_val = float(h.get("rating", "4.0").split()[0])
+                        if not (float(category) <= star_val < float(category) + 1):
+                            continue
+                    except ValueError:
+                        continue
+                else:
+                    if category.lower() not in str(h.get("category", "")).lower():
+                        continue
+            
+            # amenity filter
+            if amenity:
+                amenities_lower = [a.lower() for a in h.get("amenities", [])]
+                if amenity.lower() not in amenities_lower:
+                    continue
+
+            # cancellation filter
+            if cancellation == "free" and not h.get("free_cancellation", False):
+                continue
+            
+            # budget filter
+            if budget and float(h.get("price", 0)) > float(budget):
+                continue
+                
+            filtered_hotels.append(h)
+
+        # Apply sorting
+        if sort_by == "price_asc":
+            filtered_hotels.sort(key=lambda x: x.get("price", 999999))
+        elif sort_by == "price_desc":
+            filtered_hotels.sort(key=lambda x: x.get("price", 0), reverse=True)
+        elif sort_by == "rating_desc":
+            def get_rating_num(item):
+                try:
+                    return float(item.get("rating", "0.0").split()[0])
+                except Exception:
+                    return 0.0
+            filtered_hotels.sort(key=get_rating_num, reverse=True)
+
+        # Determine the AI Pick for hotels
+        if filtered_hotels:
+            best_hotel = None
+            best_score = -999999
+            best_reasons = []
+            for h in filtered_hotels:
+                price = float(h.get("price", 4000))
+                rating_val = 4.0
+                try:
+                    rating_val = float(h.get("rating", "4.0").split()[0])
+                except Exception:
+                    pass
+                
+                score = (rating_val * 2000) - price
+                reasons = []
+                if rating_val >= 4.5:
+                    score += 1500
+                    reasons.append("Top-Tier Rating")
+                if h.get("breakfast_included", False):
+                    score += 800
+                    reasons.append("Breakfast Included")
+                if h.get("free_cancellation", False):
+                    score += 1000
+                    reasons.append("Flexible Cancellation")
+                
+                if score > best_score:
+                    best_score = score
+                    best_hotel = h
+                    best_reasons = reasons
+
+            if best_hotel:
+                best_hotel["ai_pick"] = True
+                reasons_str = " & ".join(best_reasons) if best_reasons else "Highly Rated"
+                best_hotel["ai_pick_reason"] = reasons_str
+
+        # Pagination
+        total_count = len(filtered_hotels)
+        paginated_hotels = filtered_hotels[offset:offset+limit]
+
         return {
             "vertical": "hotels",
-            "results": attach_media_to_results(hotel_res, "hotel")
+            "total_count": total_count,
+            "limit": limit,
+            "offset": offset,
+            "results": attach_media_to_results(paginated_hotels, "hotel")
         }
         
     elif v == "villas":

@@ -31,86 +31,123 @@ def hotel_search_tool(
         guests: Number of travelers.
         budget_tier: Budget filtering (BUDGET, MIDRANGE, LUXURY).
     """
+    import asyncio
+    import concurrent.futures
+    from app.services.price_compare_agent import PriceCompareAgent
+
     destination = destination.capitalize().strip()
     budget_tier = budget_tier.upper().strip()
 
-    # 1. Check Redis Cache
-    cache_key = f"hotels:{destination}:{check_in}:{check_out}:{guests}:{budget_tier}"
-    r = _get_redis_client()
-    if r:
-        try:
-            cached = r.get(cache_key)
-            if cached:
-                logger.info("Hotel search cache hit!")
-                return json.loads(cached)
-        except Exception as e:
-            logger.warning(f"Failed to query hotel cache: {e}")
+    async def get_offers():
+        return await PriceCompareAgent.compare_hotels(destination, check_in, check_out)
 
-    # 2. Mock Hotel Options Generator based on Destination & Budget
-    seed_str = f"{destination}-{check_in}-{check_out}"
-    seed = int(hashlib.md5(seed_str.encode()).hexdigest(), 16) % 100
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
 
-    hotel_templates = {
-        "BUDGET": [
-            {"name": "Backpackers Hostel", "base_price": 800, "rating": 4.1, "amenities": ["WiFi", "Shared Kitchen", "Lounge"]},
-            {"name": "Cozy Inn & Suites", "base_price": 1800, "rating": 4.0, "amenities": ["WiFi", "AC", "Free Breakfast"]}
-        ],
-        "MIDRANGE": [
-            {"name": "Royal Residency", "base_price": 3500, "rating": 4.3, "amenities": ["WiFi", "AC", "Pool", "Room Service"]},
-            {"name": "Ginger Boutique Hotel", "base_price": 4800, "rating": 4.4, "amenities": ["WiFi", "Gym", "Restaurant", "AC"]}
-        ],
-        "LUXURY": [
-            {"name": "Taj Exotica Resort", "base_price": 18000, "rating": 4.9, "amenities": ["Private Beach", "Infinity Pool", "Spa", "Fine Dining"]},
-            {"name": "The Leela Palace", "base_price": 22000, "rating": 4.8, "amenities": ["Butler Service", "Golf Course", "Spa", "AC"]}
-        ]
-    }
+    if loop and loop.is_running():
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(asyncio.run, get_offers())
+            offers = future.result()
+    else:
+        offers = asyncio.run(get_offers())
 
-    selected_templates = hotel_templates.get(budget_tier, hotel_templates["MIDRANGE"])
-    hotels = []
-    
+    # Map offers to results structure
+    results = []
     # Calculate duration
     try:
         from datetime import datetime
-        date_format = "%Y-%m-%d"
-        n_nights = (datetime.strptime(check_out, date_format) - datetime.strptime(check_in, date_format)).days
+        n_nights = (datetime.strptime(check_out, "%Y-%m-%d") - datetime.strptime(check_in, "%Y-%m-%d")).days
         if n_nights <= 0:
             n_nights = 1
     except Exception:
         n_nights = 1
 
-    for idx, ht in enumerate(selected_templates):
-        price_per_night = ht["base_price"] + (seed % 5) * 100
-        total_price = price_per_night * n_nights
+    for offer in offers:
+        h = offer.details.copy()
+        price_per_night = float(offer.price)
         
-        hotels.append({
-            "hotel_id": f"ht_{seed}_{idx}",
-            "name": f"{destination} {ht['name']}",
-            "rating": ht["rating"],
-            "price_per_night": float(price_per_night),
-            "total_price": float(total_price),
+        # Filter by budget tier if requested
+        if budget_tier == "BUDGET" and price_per_night > 3000:
+            continue
+        if budget_tier == "MIDRANGE" and (price_per_night < 3000 or price_per_night > 12000):
+            continue
+        if budget_tier == "LUXURY" and price_per_night < 12000:
+            continue
+
+        results.append({
+            "hotel_id": str(h.get("hotel_id") or offer.raw_provider_ref),
+            "name": h.get("name"),
+            "rating": h.get("rating"),
+            "price_per_night": price_per_night,
+            "total_price": price_per_night * n_nights,
             "nights": n_nights,
             "currency": "INR",
-            "amenities": ht["amenities"],
-            "location_summary": f"Located near key tourist spots in {destination}"
+            "amenities": h.get("amenities", []),
+            "location_summary": h.get("address", f"Located in {destination}"),
+            "guest_review_score": h.get("guest_review_score"),
+            "review_count": h.get("review_count"),
+            "category": h.get("category"),
+            "breakfast_included": h.get("breakfast_included"),
+            "free_cancellation": h.get("free_cancellation"),
+            "distance_from_center": h.get("distance_from_center"),
+            "lat": h.get("lat"),
+            "lng": h.get("lng"),
+            "alternatives": h.get("alternatives", []),
+            "primary_photo_url": h.get("primary_photo_url") or "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800",
+            "provider_name": offer.provider_name
         })
 
-    response = {
-        "success": True,
-        "search_parameters": {
-            "destination": destination,
-            "check_in": check_in,
-            "check_out": check_out,
-            "guests": guests,
-            "budget_tier": budget_tier
-        },
-        "results": hotels
-    }
+    # Fallback to keep it from returning nothing
+    if not results and offers:
+        for offer in offers:
+            h = offer.details.copy()
+            results.append({
+                "hotel_id": str(h.get("hotel_id") or offer.raw_provider_ref),
+                "name": h.get("name"),
+                "rating": h.get("rating"),
+                "price_per_night": float(offer.price),
+                "total_price": float(offer.price) * n_nights,
+                "nights": n_nights,
+                "currency": "INR",
+                "amenities": h.get("amenities", []),
+                "location_summary": h.get("address", f"Located in {destination}"),
+                "guest_review_score": h.get("guest_review_score"),
+                "review_count": h.get("review_count"),
+                "category": h.get("category"),
+                "breakfast_included": h.get("breakfast_included"),
+                "free_cancellation": h.get("free_cancellation"),
+                "distance_from_center": h.get("distance_from_center"),
+                "lat": h.get("lat"),
+                "lng": h.get("lng"),
+                "alternatives": h.get("alternatives", []),
+                "primary_photo_url": h.get("primary_photo_url") or "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800",
+                "provider_name": offer.provider_name
+            })
 
-    # Cache response in Redis
-    if r:
-        try:
-            r.setex(cache_key, 600, json.dumps(response)) # 10 minutes cache TTL
-        except Exception as e:
-            logger.warning(f"Failed to cache hotel results: {e}")
+    # If still completely empty, fallback mock (safety net)
+    if not results:
+        results = [{
+            "hotel_id": "ht_mock_1",
+            "name": f"{destination} Premium Grand Hotel",
+            "rating": "4.5 ★",
+            "price_per_night": 4500.0,
+            "total_price": 4500.0 * n_nights,
+            "nights": n_nights,
+            "currency": "INR",
+            "amenities": ["WiFi", "AC", "Pool"],
+            "location_summary": f"Center of {destination}",
+            "guest_review_score": 8.8,
+            "review_count": 120,
+            "category": "Boutique Hotel",
+            "breakfast_included": True,
+            "free_cancellation": True,
+            "distance_from_center": 1.5,
+            "lat": 15.29,
+            "lng": 74.12,
+            "primary_photo_url": "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800",
+            "provider_name": "Expedia"
+        }]
 
-    return response
+    return {"success": True, "results": results}

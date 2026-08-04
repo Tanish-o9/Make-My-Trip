@@ -81,6 +81,13 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'explore' | 'chat' | 'wallet' | 'trips'>('explore');
   const [loadingVerticals, setLoadingVerticals] = useState<Record<string, boolean>>({});
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([
+    { id: 1, title: "✈️ Flight Delay Alert", msg: "Flight AI-312 from Delhi is delayed by 20 minutes due to congestion.", time: "10 mins ago", read: false },
+    { id: 2, title: "📉 Price Drop Alert", msg: "Goa hotels in your wishlist dropped by 15% for December dates!", time: "2 hours ago", read: false },
+    { id: 3, title: "☀️ Weather Warning", msg: "Goa: Heavy rain forecast on 2026-12-16. Pack an umbrella!", time: "1 day ago", read: true },
+    { id: 4, title: "🛂 Visa Verification", msg: "Your Thailand visa request has been approved and issued.", time: "3 days ago", read: true }
+  ]);
 
   const [currency, setCurrency] = useState<'INR' | 'USD' | 'EUR'>('INR');
   const [locale, setLocale] = useState<'en' | 'es' | 'hi'>('en');
@@ -532,9 +539,48 @@ export default function App() {
             </div>
             
             {/* Notification Bell */}
-            <button className="text-[var(--color-ivory-dim)] hover:text-[var(--color-gold)] relative p-1 cursor-pointer transition-colors bg-transparent border-none">
-              <span className="relative">🔔</span>
-            </button>
+            <div className="relative">
+              <button 
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="text-[var(--color-ivory-dim)] hover:text-[var(--color-gold)] relative p-2 cursor-pointer transition-colors bg-transparent border-none flex items-center justify-center rounded-lg hover:bg-slate-800"
+              >
+                <span className="relative text-lg">🔔</span>
+                {notifications.some(n => !n.read) && (
+                  <span className="absolute top-1 right-1 bg-red-500 border border-slate-900 w-2.5 h-2.5 rounded-full" />
+                )}
+              </button>
+
+              {showNotifications && (
+                <div className="absolute right-0 mt-3 w-80 bg-[#0f172a] border-3 border-black p-4 rounded-xl shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] text-white z-50 space-y-3 max-h-96 overflow-y-auto">
+                  <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                    <span className="text-xs font-black uppercase tracking-wider text-yellow-400">🔔 Real-Time Alerts Hub</span>
+                    <button 
+                      onClick={() => setNotifications(prev => prev.map(n => ({...n, read: true})))}
+                      className="text-[9px] bg-slate-800 text-slate-300 font-bold px-2.5 py-1 rounded hover:bg-slate-700 cursor-pointer border-none"
+                    >
+                      Clear Unread
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {notifications.map(n => (
+                      <div 
+                        key={n.id} 
+                        onClick={() => setNotifications(prev => prev.map(item => item.id === n.id ? {...item, read: true} : item))}
+                        className={`p-2.5 rounded-lg border text-left cursor-pointer transition-all hover:bg-slate-800/80 ${
+                          n.read ? 'bg-slate-950/20 border-slate-900 opacity-60' : 'bg-[#1e293b]/70 border-blue-500/25'
+                        }`}
+                      >
+                        <div className="flex justify-between items-start gap-2">
+                          <span className="text-[10px] font-black uppercase text-slate-100">{n.title}</span>
+                          <span className="text-[8px] text-slate-500 font-bold whitespace-nowrap">{n.time}</span>
+                        </div>
+                        <p className="text-xs text-slate-300 mt-1 leading-snug">{n.msg}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
 
             <button 
               onClick={() => setShowProfile(true)}
@@ -812,6 +858,7 @@ function ExploreView({
           <div className="flex-1 p-4 sm:p-8 md:p-10">
             {/* Animated Tab Selector */}
             <div className="flex flex-wrap gap-2 gap-y-3 border-b border-slate-800/80 pb-4 mb-6 justify-start">
+              <VerticalTab id="trip-planner" label="AI Trip Planner" icon={<Compass size={16} className="text-yellow-400 animate-spin-slow" />} active={activeVertical} onClick={setActiveVertical} isLoading={loadingVerticals['trip-planner']} />
               <VerticalTab id="flights" label="Flights" icon={<Plane size={16} />} active={activeVertical} onClick={setActiveVertical} isLoading={loadingVerticals['flights']} />
               <VerticalTab id="hotels" label="Hotels" icon={<Hotel size={16} />} active={activeVertical} onClick={setActiveVertical} isLoading={loadingVerticals['hotels']} />
               <VerticalTab id="villas" label="Villas" icon={<Home size={16} />} active={activeVertical} onClick={setActiveVertical} isLoading={loadingVerticals['villas']} />
@@ -828,6 +875,7 @@ function ExploreView({
             </div>
             
             <div className="pt-1">
+            {activeVertical === 'trip-planner' && <TripPlannerForm onBook={onBook} onDetailClick={onDetailClick} setPrefilledMessage={setPrefilledMessage} setActiveTab={setActiveTab} />}
             {activeVertical === 'flights' && <FlightsSearchForm currency={currency} onBook={onBook} onDetailClick={onDetailClick} onTrackFlight={onTrackFlight} />}
             {activeVertical === 'hotels' && <HotelsSearchForm onBook={onBook} onDetailClick={onDetailClick} />}
             {activeVertical === 'villas' && <VillasSearchForm onBook={onBook} onDetailClick={onDetailClick} />}
@@ -1583,6 +1631,80 @@ const FLIGHT_TIMES = Array.from({ length: 48 }, (_, i) => {
   return `${formattedHours}:${formattedMinutes} ${ampm}`;
 });
 
+function SearchRouteMap({ vertical, origin, destination, points }: { vertical: 'flights' | 'hotels', origin?: string, destination?: string, points?: any[] }) {
+  const [selectedPin, setSelectedPin] = useState<any | null>(null);
+
+  if (vertical === 'flights') {
+    return (
+      <div className="bg-[#11192e] border-3 border-black p-4 rounded-2xl shadow-[4px_4px_0px_0px_#000000] relative overflow-hidden h-64 flex flex-col justify-between mb-4">
+        <div className="absolute top-2 left-2 bg-slate-900/80 px-2 py-0.5 rounded text-[8px] font-black uppercase text-yellow-400 z-10">✈️ Flight Route Visualizer</div>
+        <div className="relative flex-1 w-full bg-slate-950/40 rounded-xl overflow-hidden mt-4">
+          <svg className="w-full h-full" viewBox="0 0 500 200">
+            <circle cx="80" cy="100" r="6" fill="#60a5fa" stroke="black" strokeWidth="2" />
+            <text x="80" y="85" fill="white" fontSize="10" fontWeight="bold" textAnchor="middle">{origin || "DEL"}</text>
+            
+            <circle cx="420" cy="100" r="6" fill="#f87171" stroke="black" strokeWidth="2" />
+            <text x="420" y="85" fill="white" fontSize="10" fontWeight="bold" textAnchor="middle">{destination || "GOI"}</text>
+
+            <path d="M 80 100 Q 250 20 420 100" fill="none" stroke="#eab308" strokeWidth="3" strokeDasharray="6,6" />
+            
+            <g transform="translate(250, 60)">
+              <circle cx="0" cy="0" r="10" fill="#facc15" stroke="black" strokeWidth="2" />
+              <text x="0" y="3" fontSize="8" textAnchor="middle">✈️</text>
+            </g>
+          </svg>
+        </div>
+        <div className="text-[10px] text-slate-400 font-bold bg-slate-950/80 p-2 rounded mt-2">
+          Route details: Direct path from {origin || "DEL"} to {destination || "GOI"}. Air traffic control status: Normal.
+        </div>
+      </div>
+    );
+  }
+
+  const defaultPoints = [
+    { name: "Airport Terminal", type: "transport", x: 60, y: 150 },
+    { name: "Beachfront Area", type: "nature", x: 120, y: 50 },
+    { name: "Your Hotel Stay", type: "stay", x: 250, y: 100 },
+    { name: "Beachside Seafood Grill", type: "dining", x: 380, y: 120 }
+  ];
+
+  const pins = points || defaultPoints;
+
+  return (
+    <div className="bg-[#11192e] border-3 border-black p-4 rounded-2xl shadow-[4px_4px_0px_0px_#000000] relative overflow-hidden h-64 flex flex-col justify-between mb-4">
+      <div className="absolute top-2 left-2 bg-slate-900/80 px-2 py-0.5 rounded text-[8px] font-black uppercase text-yellow-400 z-10">🗺️ Neighborhood Map (Interactive)</div>
+      
+      <div className="relative flex-1 w-full bg-slate-950/40 rounded-xl overflow-hidden mt-4">
+        <svg className="w-full h-full" viewBox="0 0 500 200">
+          <path d="M 0 40 Q 250 80 500 30" fill="none" stroke="#38bdf8" strokeWidth="4" />
+          <text x="250" y="25" fill="#38bdf8" fontSize="8" fontWeight="bold" opacity="0.6">ARABIAN SEA</text>
+
+          <path d="M 60 150 L 250 100 L 380 120" fill="none" stroke="#475569" strokeWidth="1.5" strokeDasharray="3,3" />
+
+          {pins.map((p, i) => (
+            <g key={i} transform={`translate(${p.x}, ${p.y})`} className="cursor-pointer group" onClick={() => setSelectedPin(p)}>
+              <circle cx="0" cy="0" r="10" fill={p.type === 'stay' ? '#eab308' : p.type === 'dining' ? '#ec4899' : '#10b981'} stroke="black" strokeWidth="2" className="hover:scale-125 transition-transform" />
+              <text x="0" y="3" fontSize="8" textAnchor="middle" className="select-none pointer-events-none">
+                {p.type === 'stay' ? '🏨' : p.type === 'dining' ? '🍽️' : p.type === 'transport' ? '🚗' : '📍'}
+              </text>
+            </g>
+          ))}
+        </svg>
+
+        {selectedPin && (
+          <div className="absolute bottom-2 left-2 right-2 bg-slate-900 border border-slate-750 p-2 rounded-lg text-[10px] text-slate-200">
+            <span className="font-black text-yellow-400 block uppercase">{selectedPin.name}</span>
+            <span>Neighborhood feature ({selectedPin.type}) within walking distance of hotel property.</span>
+          </div>
+        )}
+      </div>
+      <div className="text-[10px] text-slate-400 font-bold bg-slate-950/80 p-2 rounded mt-2">
+        Click any pin on the map to explore walking distances and beach accessibility routes.
+      </div>
+    </div>
+  );
+}
+
 function FlightsSearchForm({ currency, onBook, onDetailClick, onTrackFlight }: { currency: string, onBook: (data: any) => void, onDetailClick: (vert: string, item: any) => void, onTrackFlight: (fnum: string) => void }) {
   const [fromCity, setFromCity] = useState(() => sessionStorage.getItem("fl_fromCity") || "");
   const [toCity, setToCity] = useState(() => sessionStorage.getItem("fl_toCity") || "");
@@ -1602,6 +1724,37 @@ function FlightsSearchForm({ currency, onBook, onDetailClick, onTrackFlight }: {
   useEffect(() => { sessionStorage.setItem("fl_depTime", depTime); }, [depTime]);
   useEffect(() => { sessionStorage.setItem("fl_passengers", String(passengers)); }, [passengers]);
   useEffect(() => { sessionStorage.setItem("fl_cabin", cabin); }, [cabin]);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    fetch(`${API_URL}/agents/preferences`, {
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data && Array.isArray(data.preferences)) {
+        for (const pref of data.preferences) {
+          const lowerPref = pref.toLowerCase();
+          if (lowerPref.includes("business class") || lowerPref.includes("prefer business")) {
+            setCabin("Business");
+          } else if (lowerPref.includes("first class") || lowerPref.includes("prefer first")) {
+            setCabin("First");
+          } else if (lowerPref.includes("economy class") || lowerPref.includes("prefer economy")) {
+            setCabin("Economy");
+          }
+          for (const airline of ["IndiGo", "Air India", "Vistara", "Akasa Air"]) {
+            if (lowerPref.includes(airline.toLowerCase()) && (lowerPref.includes("prefer") || lowerPref.includes("like"))) {
+              setCarrier(airline);
+            }
+          }
+        }
+      }
+    })
+    .catch(console.error);
+  }, []);
   
   const [specialFare, setSpecialFare] = useState("Regular");
   const [gstInvoice, setGstInvoice] = useState(false);
@@ -1611,13 +1764,17 @@ function FlightsSearchForm({ currency, onBook, onDetailClick, onTrackFlight }: {
   const [loading, setLoading] = useTabLoading('flights');
   const [showPayoutModal, setShowPayoutModal] = useState(false);
 
+  const [sortBy, setSortBy] = useState("price_asc");
+  const [stops, setStops] = useState("all");
+  const [carrier, setCarrier] = useState("");
+
   const swapCities = () => {
     const temp = fromCity;
     setFromCity(toCity);
     setToCity(temp);
   };
 
-  const handleSearch = () => {
+  const handleSearch = (overrideSort = sortBy, overrideStops = stops, overrideCarrier = carrier) => {
     if (!fromCity.trim()) {
       alert("Please enter a origin city (From).");
       return;
@@ -1637,7 +1794,12 @@ function FlightsSearchForm({ currency, onBook, onDetailClick, onTrackFlight }: {
     setLoading(true);
     setResults([]);
     
-    fetch(`${API_URL}/search?vertical=flights&origin=${encodeURIComponent(fromCity)}&destination=${encodeURIComponent(toCity)}&date=${encodeURIComponent(depDate)}&passengers=${passengers}`)
+    let url = `${API_URL}/search?vertical=flights&origin=${encodeURIComponent(fromCity)}&destination=${encodeURIComponent(toCity)}&date=${encodeURIComponent(depDate)}&passengers=${passengers}`;
+    if (overrideSort) url += `&sort_by=${overrideSort}`;
+    if (overrideStops && overrideStops !== "all") url += `&stops=${overrideStops}`;
+    if (overrideCarrier) url += `&carrier=${encodeURIComponent(overrideCarrier)}`;
+
+    fetch(url)
       .then(res => {
         if (!res.ok) throw new Error("Flight search failed");
         return res.json();
@@ -1652,6 +1814,12 @@ function FlightsSearchForm({ currency, onBook, onDetailClick, onTrackFlight }: {
         setLoading(false);
       });
   };
+
+  useEffect(() => {
+    if (results.length > 0) {
+      handleSearch(sortBy, stops, carrier);
+    }
+  }, [sortBy, stops, carrier]);
 
   return (
     <div className="space-y-6">
@@ -1776,7 +1944,7 @@ function FlightsSearchForm({ currency, onBook, onDetailClick, onTrackFlight }: {
         </div>
 
         <button 
-          onClick={handleSearch} 
+          onClick={() => handleSearch()} 
           className="w-full bg-[var(--color-gold)] hover:bg-[#d6b35d] text-[var(--color-obsidian)] font-bold text-sm py-3 rounded-[var(--radius-card)] transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider border-none"
         >
           Search Flights
@@ -1816,6 +1984,53 @@ function FlightsSearchForm({ currency, onBook, onDetailClick, onTrackFlight }: {
         {!loading && results.length > 0 && (
           <div className="space-y-3 mt-6">
             <VehicleRentalCrossSell destinationCity={toCity} dateRange={{ start: depDate }} />
+            <SearchRouteMap vertical="flights" origin={fromCity} destination={toCity} />
+            
+            {/* Sorting & Filtering UI Controls */}
+            <div className="flex flex-wrap gap-3 items-center justify-between bg-slate-900/60 p-4 rounded-xl border border-slate-800/80 mb-4">
+              <div className="flex flex-wrap gap-4 items-center">
+                <div className="flex flex-col gap-1">
+                  <span className="text-[9px] text-slate-500 uppercase font-black">Sort By</span>
+                  <select 
+                    value={sortBy} 
+                    onChange={(e) => setSortBy(e.target.value)} 
+                    className="bg-slate-950 border border-slate-800 text-xs font-bold text-slate-200 p-2 rounded outline-none cursor-pointer focus:border-yellow-400"
+                  >
+                    <option value="price_asc">Price: Low to High</option>
+                    <option value="price_desc">Price: High to Low</option>
+                    <option value="duration_asc">Duration: Shortest</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-[9px] text-slate-500 uppercase font-black">Stops</span>
+                  <select 
+                    value={stops} 
+                    onChange={(e) => setStops(e.target.value)} 
+                    className="bg-slate-950 border border-slate-800 text-xs font-bold text-slate-200 p-2 rounded outline-none cursor-pointer focus:border-yellow-400"
+                  >
+                    <option value="all">All Stops</option>
+                    <option value="direct">Non-stop</option>
+                    <option value="1stop">1 Stop</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-[9px] text-slate-500 uppercase font-black">Airline</span>
+                  <select 
+                    value={carrier} 
+                    onChange={(e) => setCarrier(e.target.value)} 
+                    className="bg-slate-950 border border-slate-800 text-xs font-bold text-slate-200 p-2 rounded outline-none cursor-pointer focus:border-yellow-400"
+                  >
+                    <option value="">All Airlines</option>
+                    <option value="IndiGo">IndiGo</option>
+                    <option value="Air India">Air India</option>
+                    <option value="Vistara">Vistara</option>
+                    <option value="Akasa Air">Akasa Air</option>
+                  </select>
+                </div>
+              </div>
+              <span className="text-[10px] text-slate-400 font-bold bg-slate-950 border border-slate-800/80 px-2.5 py-1.5 rounded">{results.length} flights found</span>
+            </div>
+
             <h4 className="text-xs text-slate-400 font-bold uppercase tracking-wider px-1 flex items-center justify-between">
               <span>Available Search Results (Live Agents):</span>
               <span className="text-[10px] text-yellow-500 normal-case font-semibold">
@@ -1858,9 +2073,11 @@ function FlightsSearchForm({ currency, onBook, onDetailClick, onTrackFlight }: {
 
                 return (
                   <div key={index} className="dark-card-override bg-[#0f192e] p-5 rounded-2xl flex flex-col md:flex-row gap-5 justify-between items-start md:items-center border border-slate-800 hover:border-slate-700 hover:shadow-xl transition-all relative">
-                    {index === 0 && (
+                    {res.ai_pick ? (
+                      <div className="absolute -top-2.5 left-4 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-[9px] text-white font-black px-2.5 py-0.5 rounded-full shadow-lg shadow-indigo-500/30 animate-pulse border border-indigo-400/30 z-10 flex items-center gap-1">✨ AI PICK: {res.ai_pick_reason}</div>
+                    ) : index === 0 ? (
                       <div className="absolute -top-2.5 left-4 bg-gradient-to-r from-emerald-500 to-teal-400 text-[9px] text-white font-black px-2.5 py-0.5 rounded-full shadow-lg shadow-emerald-500/20 animate-pulse">🏆 BEST PRICE</div>
-                    )}
+                    ) : null}
                     
                     {/* Left Section: Flight Details */}
                     <div className="flex-1 w-full space-y-3">
@@ -2076,7 +2293,40 @@ function HotelsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
   const [guests, setGuests] = useState(2);
   const [starRating, setStarRating] = useState("all");
 
-  const handleSearch = () => {
+  const [sortBy, setSortBy] = useState("price_asc");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [cancellationFilter, setCancellationFilter] = useState("all");
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    fetch(`${API_URL}/agents/preferences`, {
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data && Array.isArray(data.preferences)) {
+        for (const pref of data.preferences) {
+          const lowerPref = pref.toLowerCase();
+          if (lowerPref.includes("luxury resort") || lowerPref.includes("prefer luxury") || lowerPref.includes("taj hotels")) {
+            setCategoryFilter("Luxury Resort");
+          } else if (lowerPref.includes("business hotel")) {
+            setCategoryFilter("Business Hotel");
+          } else if (lowerPref.includes("hostel") || lowerPref.includes("backpackers")) {
+            setCategoryFilter("Hostel");
+          }
+          if (lowerPref.includes("free cancellation") || lowerPref.includes("flexible cancel")) {
+            setCancellationFilter("free");
+          }
+        }
+      }
+    })
+    .catch(console.error);
+  }, []);
+
+  const handleSearch = (overrideSort = sortBy, overrideCategory = categoryFilter, overrideCancellation = cancellationFilter) => {
     if (!city.trim()) {
       alert("Please enter a city or property name.");
       return;
@@ -2091,7 +2341,13 @@ function HotelsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
     }
     setLoading(true);
     setResults([]);
-    fetch(`${API_URL}/search?vertical=hotels&destination=${encodeURIComponent(city)}&check_in=${checkIn}&check_out=${checkOut}`)
+    
+    let url = `${API_URL}/search?vertical=hotels&destination=${encodeURIComponent(city)}&check_in=${checkIn}&check_out=${checkOut}&guests=${guests}`;
+    if (overrideSort) url += `&sort_by=${overrideSort}`;
+    if (overrideCategory && overrideCategory !== "all") url += `&category=${encodeURIComponent(overrideCategory)}`;
+    if (overrideCancellation && overrideCancellation !== "all") url += `&cancellation=${overrideCancellation}`;
+
+    fetch(url)
       .then(res => res.json())
       .then(data => {
         setLoading(false);
@@ -2103,6 +2359,12 @@ function HotelsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
         setLoading(false);
       });
   };
+
+  useEffect(() => {
+    if (results.length > 0) {
+      handleSearch(sortBy, categoryFilter, cancellationFilter);
+    }
+  }, [sortBy, categoryFilter, cancellationFilter]);
 
   return (
     <div className="space-y-6">
@@ -2180,7 +2442,7 @@ function HotelsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
       {/* Search Button */}
       <div className="flex justify-end pt-2 border-t border-slate-800/80">
         <button 
-          onClick={handleSearch} 
+          onClick={() => handleSearch()} 
           className="w-full bg-[var(--color-gold)] hover:bg-[#d6b35d] text-[var(--color-obsidian)] font-bold text-sm py-3 rounded-[var(--radius-card)] transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider border-none"
         >
           Search Hotels
@@ -2219,6 +2481,52 @@ function HotelsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
           return (
             <div className="w-full">
               <VehicleRentalCrossSell destinationCity={city} dateRange={{ start: checkIn }} />
+              <SearchRouteMap vertical="hotels" destination={city} />
+              
+              {/* Sorting & Filtering UI Controls */}
+              <div className="flex flex-wrap gap-3 items-center justify-between bg-slate-900/60 p-4 rounded-xl border border-slate-800/80 mb-4 mt-2">
+                <div className="flex flex-wrap gap-4 items-center">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[9px] text-slate-500 uppercase font-black">Sort By</span>
+                    <select 
+                      value={sortBy} 
+                      onChange={(e) => setSortBy(e.target.value)} 
+                      className="bg-slate-950 border border-slate-800 text-xs font-bold text-slate-200 p-2 rounded outline-none cursor-pointer focus:border-yellow-400"
+                    >
+                      <option value="price_asc">Price: Low to High</option>
+                      <option value="price_desc">Price: High to Low</option>
+                      <option value="rating_desc">Guest Rating: High to Low</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[9px] text-slate-500 uppercase font-black">Category</span>
+                    <select 
+                      value={categoryFilter} 
+                      onChange={(e) => setCategoryFilter(e.target.value)} 
+                      className="bg-slate-950 border border-slate-800 text-xs font-bold text-slate-200 p-2 rounded outline-none cursor-pointer focus:border-yellow-400"
+                    >
+                      <option value="all">All Categories</option>
+                      <option value="Luxury Resort">Luxury Resorts</option>
+                      <option value="Business Hotel">Business Hotels</option>
+                      <option value="Budget Hotel">Budget Hotels</option>
+                      <option value="Hostel">Hostels</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[9px] text-slate-500 uppercase font-black">Cancellation</span>
+                    <select 
+                      value={cancellationFilter} 
+                      onChange={(e) => setCancellationFilter(e.target.value)} 
+                      className="bg-slate-950 border border-slate-800 text-xs font-bold text-slate-200 p-2 rounded outline-none cursor-pointer focus:border-yellow-400"
+                    >
+                      <option value="all">Any Cancellation</option>
+                      <option value="free">Free Cancellation</option>
+                    </select>
+                  </div>
+                </div>
+                <span className="text-[10px] text-slate-400 font-bold bg-slate-950 border border-slate-800/80 px-2.5 py-1.5 rounded">{results.length} hotels found</span>
+              </div>
+
               <div className="flex justify-between items-center mb-3 px-1">
                 <h4 className="text-xs text-slate-400 font-bold uppercase tracking-wider">Available Hotels:</h4>
                 <span className="text-[10px] text-yellow-500 font-semibold">
@@ -2228,9 +2536,11 @@ function HotelsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               {results.map((res, index) => (
                 <div key={index} className="dark-card-override bg-[#121c33] p-4 rounded-2xl border border-slate-800 hover:border-slate-700 transition-all flex flex-col justify-between gap-4 relative">
-                  {index === 0 && (
+                  {res.ai_pick ? (
+                    <div className="absolute -top-2 left-4 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-[9px] text-white font-black px-2.5 py-0.5 rounded-full shadow-lg shadow-indigo-500/30 animate-pulse border border-indigo-400/30 z-20 flex items-center gap-1">✨ AI PICK: {res.ai_pick_reason}</div>
+                  ) : index === 0 ? (
                     <div className="absolute -top-2 left-4 bg-gradient-to-r from-emerald-500 to-teal-400 text-[9px] text-white font-black px-2.5 py-0.5 rounded-full shadow-lg shadow-emerald-500/20 animate-pulse z-10">🏆 BEST PRICE</div>
-                  )}
+                  ) : null}
                   <div onClick={() => onDetailClick("hotels", res)} className="cursor-pointer">
                     <CardThumbnail ownerType="hotel" ownerId={res.name} blurHash={res.blur_hash_base64} defaultUrl={res.primary_photo_url} />
                     <div className="flex flex-col gap-1.5 mt-3 text-left">
@@ -2520,6 +2830,345 @@ function VillasSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
           </div>
         )
       ) : null}
+    </div>
+  );
+}
+
+function TripPlannerForm({ onBook, onDetailClick, setPrefilledMessage, setActiveTab }: { onBook: (data: any) => void, onDetailClick: (vert: string, item: any) => void, setPrefilledMessage: (msg: string) => void, setActiveTab: (tab: any) => void }) {
+  const [origin, setOrigin] = useState("DEL");
+  const [destination, setDestination] = useState("Goa");
+  const [departureDate, setDepartureDate] = useState("2026-12-15");
+  const [duration, setDuration] = useState(4);
+  const [budget, setBudget] = useState(50000);
+  const [style, setStyle] = useState("Solo");
+  const [loading, setLoading] = useState(false);
+  const [packageData, setPackageData] = useState<any | null>(null);
+  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'flights' | 'hotels' | 'itinerary' | 'budget'>('overview');
+
+  const handleGenerate = () => {
+    setLoading(true);
+    setPackageData(null);
+    const message = `Plan a trip from ${origin} to ${destination} for ${duration} days on ${departureDate} with a total budget of ₹${budget} and travel style: ${style}.`;
+    
+    fetch(`${API_URL}/agents/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${localStorage.getItem("token")}`
+      },
+      body: JSON.stringify({
+        session_id: `session_planner_${Date.now()}`,
+        message: message
+      })
+    })
+    .then(res => {
+      if (!res.ok) throw new Error("Plan generation failed");
+      return res.json();
+    })
+    .then(data => {
+      setLoading(false);
+      if (data && data.response) {
+        const parsed = parseAgentData(data.response);
+        setPackageData(parsed);
+        setActiveSubTab('overview');
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      setLoading(false);
+      alert("Failed to generate AI package. Please check backend is running.");
+    });
+  };
+
+  const parseAgentData = (responseText: string) => {
+    const parseBlock = (tag: string) => {
+      const regex = new RegExp(`\`\`\`${tag}\\n([\\s\\S]*?)\\n\`\`\``);
+      const match = responseText.match(regex);
+      if (match) {
+        try {
+          return JSON.parse(match[1]);
+        } catch (e) {
+          console.error("Failed to parse " + tag, e);
+        }
+      }
+      return null;
+    };
+
+    return {
+      flights: parseBlock("flights-data"),
+      hotels: parseBlock("hotels-data"),
+      itinerary: parseBlock("itinerary-data"),
+      budget: parseBlock("budget-data"),
+      weather: parseBlock("weather-data"),
+      text: responseText.replace(/```(flights|hotels|itinerary|budget|weather)-data[\s\S]*?```/g, "").replace(/\n\n+/g, "\n\n").trim()
+    };
+  };
+
+  return (
+    <div className="space-y-6 text-left">
+      <div className="grid grid-cols-1 md:grid-cols-6 gap-4 bg-slate-950/20 p-6 border-3 border-black shadow-[6px_6px_0px_0px_#000000]">
+        <div className="space-y-1.5 md:col-span-1">
+          <span className="text-[10px] text-slate-400 font-extrabold uppercase block">Origin</span>
+          <input type="text" value={origin} onChange={(e) => setOrigin(e.target.value)} className="w-full bg-white border-3 border-black text-slate-900 font-black text-sm px-3 py-2 outline-none focus:bg-yellow-50/50" />
+        </div>
+        <div className="space-y-1.5 md:col-span-1">
+          <span className="text-[10px] text-slate-400 font-extrabold uppercase block">Destination</span>
+          <input type="text" value={destination} onChange={(e) => setDestination(e.target.value)} className="w-full bg-white border-3 border-black text-slate-900 font-black text-sm px-3 py-2 outline-none focus:bg-yellow-50/50" />
+        </div>
+        <div className="space-y-1.5 md:col-span-1">
+          <span className="text-[10px] text-slate-400 font-extrabold uppercase block">Departure Date</span>
+          <input type="date" value={departureDate} onChange={(e) => setDepartureDate(e.target.value)} className="w-full bg-white border-3 border-black text-slate-900 font-black text-sm px-3 py-2 outline-none focus:bg-yellow-50/50" />
+        </div>
+        <div className="space-y-1.5 md:col-span-1">
+          <span className="text-[10px] text-slate-400 font-extrabold uppercase block">Duration (Days)</span>
+          <input type="number" value={duration} onChange={(e) => setDuration(parseInt(e.target.value))} className="w-full bg-white border-3 border-black text-slate-900 font-black text-sm px-3 py-2 outline-none focus:bg-yellow-50/50" />
+        </div>
+        <div className="space-y-1.5 md:col-span-1">
+          <span className="text-[10px] text-slate-400 font-extrabold uppercase block">Budget (INR)</span>
+          <input type="number" value={budget} onChange={(e) => setBudget(parseInt(e.target.value))} className="w-full bg-white border-3 border-black text-slate-900 font-black text-sm px-3 py-2 outline-none focus:bg-yellow-50/50" />
+        </div>
+        <div className="space-y-1.5 md:col-span-1">
+          <span className="text-[10px] text-slate-400 font-extrabold uppercase block">Travel Style</span>
+          <select value={style} onChange={(e) => setStyle(e.target.value)} className="w-full bg-white border-3 border-black text-slate-900 font-black text-sm px-3 py-2 outline-none cursor-pointer focus:bg-yellow-50/50">
+            <option value="Solo">Solo</option>
+            <option value="Family">Family</option>
+            <option value="Luxury">Luxury</option>
+            <option value="Adventure">Adventure</option>
+            <option value="HoneyMoon">HoneyMoon</option>
+          </select>
+        </div>
+        
+        <button onClick={handleGenerate} disabled={loading} className="w-full md:col-span-6 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-500 hover:to-yellow-600 text-black font-black text-sm py-3 rounded-lg border-none cursor-pointer uppercase shadow-md shadow-amber-500/10 active:translate-y-px transition-all">
+          {loading ? "🤖 AI Consultant Orchestrating Package..." : "⚡ Generate AI Travel Package"}
+        </button>
+      </div>
+
+      {loading && (
+        <div className="glass-card p-10 rounded-2xl border border-slate-800 flex flex-col items-center justify-center space-y-4 text-center animate-pulse">
+          <div className="w-12 h-12 rounded-full border-4 border-yellow-400 border-t-transparent animate-spin"></div>
+          <p className="text-slate-300 font-bold text-sm">Consultant dispatching Flight, Hotel, Budget, Dining, Weather & Safety specialists...</p>
+        </div>
+      )}
+
+      {packageData && (
+        <div className="bg-[#0b1224] border border-slate-800 p-6 rounded-2xl space-y-6">
+          <div className="flex border-b border-slate-800 gap-1 overflow-x-auto pb-px">
+            {(['overview', 'flights', 'hotels', 'itinerary', 'budget'] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveSubTab(tab)}
+                className={`px-4 py-2 text-xs font-black uppercase border-b-2 transition-all cursor-pointer ${
+                  activeSubTab === tab 
+                    ? 'border-yellow-400 text-yellow-400' 
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+
+          <div className="pt-2">
+            {activeSubTab === 'overview' && (
+              <div className="space-y-4">
+                <h3 className="font-extrabold text-lg text-white">📋 Travel Guide Summary</h3>
+                <div className="text-slate-300 text-sm whitespace-pre-wrap leading-relaxed font-sans prose prose-invert max-w-none">
+                  {packageData.text}
+                </div>
+              </div>
+            )}
+
+            {activeSubTab === 'flights' && (
+              <div className="space-y-4">
+                <h3 className="font-extrabold text-lg text-white">✈️ AI Recommended Flights</h3>
+                {packageData.flights && packageData.flights.length > 0 ? (
+                  <div className="space-y-3">
+                    {packageData.flights.map((res: any, idx: number) => (
+                      <div key={idx} className="bg-[#0f192e] p-5 rounded-2xl flex justify-between items-center border border-slate-800 relative">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-extrabold text-sm text-slate-100">{res.airline}</span>
+                            <span className="text-[10px] font-mono bg-blue-950 text-blue-300 px-2 py-0.5 rounded">{res.flight_number}</span>
+                            <span className="text-[9px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded uppercase font-bold">{res.cabin_class}</span>
+                          </div>
+                          <div className="text-slate-300 text-xs font-bold">
+                            🛫 {res.dep || `${res.origin} 08:00`} ➔ 🛬 {res.arr || `${res.destination} 10:30`}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] text-slate-400 block">TOTAL FARE</span>
+                          <span className="font-black text-emerald-400 text-base">₹{(res.price || res.total_price).toLocaleString()}</span>
+                          <button 
+                            onClick={() => onBook({
+                              vertical: "flights",
+                              amount: res.price || res.total_price,
+                              details: res,
+                              title: `${res.airline} flight ${res.flight_number}`,
+                              subtitle: `${res.cabin_class} One-way`
+                            })}
+                            className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-3 py-1.5 rounded-lg border-none cursor-pointer mt-1.5 block active:translate-y-px"
+                          >
+                            Select Flight
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-slate-400 text-xs">No specific flight blocks extracted. Check Overview tab for pricing guidelines.</p>
+                )}
+              </div>
+            )}
+
+            {activeSubTab === 'hotels' && (
+              <div className="space-y-4">
+                <h3 className="font-extrabold text-lg text-white">🏨 AI Recommended Accommodations</h3>
+                {packageData.hotels && packageData.hotels.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {packageData.hotels.map((res: any, idx: number) => (
+                      <div key={idx} className="bg-[#121c33] p-4 rounded-2xl border border-slate-800 flex flex-col justify-between gap-3 text-left">
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="bg-slate-800 text-[8px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider text-slate-300">
+                              {res.category || "Hotel"}
+                            </span>
+                            <span className="text-xs text-blue-400 font-black">★ {res.rating}</span>
+                          </div>
+                          <h4 className="font-extrabold text-slate-200 text-sm mt-1">{res.name}</h4>
+                          <span className="text-[10px] text-slate-400 block mt-1">📍 {res.address || res.location_summary || "Located in center"}</span>
+                          <div className="flex gap-2 mt-1.5 flex-wrap">
+                            {res.amenities && res.amenities.map((a: string, i: number) => (
+                              <span key={i} className="text-[9px] bg-slate-900 px-1.5 py-0.5 rounded text-slate-400">{a}</span>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center pt-2 border-t border-slate-800/80">
+                          <div>
+                            <span className="text-[8px] text-slate-500 block uppercase font-bold">Total Stay</span>
+                            <span className="font-black text-emerald-400 text-sm">₹{(res.total_price || res.price).toLocaleString()}</span>
+                          </div>
+                          <button 
+                            onClick={() => onBook({
+                              vertical: "hotels",
+                              amount: res.total_price || res.price,
+                              details: res,
+                              title: res.name,
+                              subtitle: `${res.category || "Hotel"} Accommodation`
+                            })}
+                            className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-3 py-1.5 rounded-lg border-none cursor-pointer active:translate-y-px"
+                          >
+                            Select Hotel
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-slate-400 text-xs">No specific hotel blocks extracted. Check Overview tab for recommendations.</p>
+                )}
+              </div>
+            )}
+
+            {activeSubTab === 'itinerary' && (
+              <div className="space-y-4">
+                <h3 className="font-extrabold text-lg text-white">🗓️ Curated Daily Sightseeing</h3>
+                {packageData.itinerary && Array.isArray(packageData.itinerary) ? (
+                  <div className="relative border-l border-slate-800 ml-4 pl-6 space-y-6 text-left">
+                    {packageData.itinerary.map((day: any, idx: number) => (
+                      <div key={idx} className="relative">
+                        <div className="absolute -left-10 top-0 bg-yellow-400 text-black border-2 border-black w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shadow-[1px_1px_0px_0px_#000000]">
+                          {idx + 1}
+                        </div>
+                        <h4 className="font-extrabold text-sm text-slate-200 uppercase">{day.day || `Day ${idx + 1}`}: {day.theme || "Exploration"}</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+                          {day.morning && (
+                            <div className="bg-slate-900/50 p-2.5 rounded-lg border border-slate-850">
+                              <span className="text-[8px] text-slate-500 uppercase font-black">🌅 Morning</span>
+                              <p className="text-xs text-slate-300 mt-1 leading-snug">{day.morning}</p>
+                            </div>
+                          )}
+                          {day.afternoon && (
+                            <div className="bg-slate-900/50 p-2.5 rounded-lg border border-slate-850">
+                              <span className="text-[8px] text-slate-500 uppercase font-black">☀️ Afternoon</span>
+                              <p className="text-xs text-slate-300 mt-1 leading-snug">{day.afternoon}</p>
+                            </div>
+                          )}
+                          {day.evening && (
+                            <div className="bg-slate-900/50 p-2.5 rounded-lg border border-slate-850">
+                              <span className="text-[8px] text-slate-500 uppercase font-black">🌙 Evening</span>
+                              <p className="text-xs text-slate-300 mt-1 leading-snug">{day.evening}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-slate-400 text-xs">No structured daily itinerary found. Check Overview tab for the daily highlights plan.</p>
+                )}
+              </div>
+            )}
+
+            {activeSubTab === 'budget' && (
+              <div className="space-y-4">
+                <h3 className="font-extrabold text-lg text-white">📊 Category Budget Allocation</h3>
+                {packageData.budget ? (
+                  <div className="bg-slate-900/40 p-5 rounded-2xl border border-slate-800 space-y-4">
+                    <div className="flex flex-col gap-3">
+                      <div>
+                        <span className="text-xs text-slate-400">Total Planned Spend</span>
+                        <div className="text-2xl font-black text-yellow-400">₹{budget.toLocaleString()}</div>
+                      </div>
+                      <div className="w-full bg-slate-950 h-6 rounded-full overflow-hidden flex border border-slate-800">
+                        {packageData.budget.flights && (
+                          <div style={{ width: `${(packageData.budget.flights / budget) * 100}%` }} className="bg-indigo-500 h-full flex items-center justify-center text-[8px] font-black text-white" title="Flights">FL</div>
+                        )}
+                        {packageData.budget.hotels && (
+                          <div style={{ width: `${(packageData.budget.hotels / budget) * 100}%` }} className="bg-emerald-500 h-full flex items-center justify-center text-[8px] font-black text-white" title="Hotels">HT</div>
+                        )}
+                        {packageData.budget.activities && (
+                          <div style={{ width: `${(packageData.budget.activities / budget) * 100}%` }} className="bg-amber-500 h-full flex items-center justify-center text-[8px] font-black text-white" title="Activities">AC</div>
+                        )}
+                        {packageData.budget.food_transport && (
+                          <div style={{ width: `${(packageData.budget.food_transport / budget) * 100}%` }} className="bg-pink-500 h-full flex items-center justify-center text-[8px] font-black text-white" title="Dining & Transport">DT</div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 pt-2">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
+                        <div className="text-xs">
+                          <span className="text-slate-400 font-semibold">Flights:</span> <span className="font-extrabold text-white">₹{(packageData.budget.flights || 0).toLocaleString()}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                        <div className="text-xs">
+                          <span className="text-slate-400 font-semibold">Accommodations:</span> <span className="font-extrabold text-white">₹{(packageData.budget.hotels || 0).toLocaleString()}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                        <div className="text-xs">
+                          <span className="text-slate-400 font-semibold">Activities:</span> <span className="font-extrabold text-white">₹{(packageData.budget.activities || 0).toLocaleString()}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-pink-500"></span>
+                        <div className="text-xs">
+                          <span className="text-slate-400 font-semibold">Dining & Cabs:</span> <span className="font-extrabold text-white">₹{(packageData.budget.food_transport || 0).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-slate-400 text-xs">No specific budget data split block found. Check Overview tab for allocation ratios.</p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -5134,14 +5783,153 @@ function InteractiveRouteMap({ locations }: { locations: any }) {
   );
 }
 
+// ============================================================
+// DEVELOPER DEBUG PANEL (Ctrl+Shift+D to toggle)
+// ============================================================
+function DebugPanel({ sessionId, token, onClose }: { sessionId: string, token: string | null, onClose: () => void }) {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!token || !sessionId) { setLoading(false); return; }
+    fetch(`/api/agents/debug/${sessionId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(r => r.json())
+      .then(d => { setData(d); setLoading(false); })
+      .catch(e => { setError(String(e)); setLoading(false); });
+  }, [sessionId, token]);
+
+  const tel = data?.telemetry || {};
+  const agentRoute: any[] = tel.agent_route || tel.db_agent_route || [];
+  const totalLatency = tel.total_latency_ms || agentRoute.reduce((s: number, a: any) => s + (a.latency_ms || 0), 0);
+  const totalTokens = tel.total_tokens_used || tel.total_tokens || 0;
+  const memoryHits = tel.memory_hits ?? tel.total_preferences_loaded ?? '—';
+  const prefSummary = tel.pref_summary || '';
+  const prefCategories = tel.preference_categories || {};
+  const agentQueue = tel.agent_queue || [];
+  const reconstructedQuery = tel.reconstructed_query || '';
+  const ragUsed = tel.rag_used;
+  const collectedKeys = tel.collected_keys || [];
+
+  return (
+    <div className="fixed bottom-4 right-4 z-[9999] w-[480px] max-h-[80vh] overflow-y-auto bg-black/95 border border-emerald-500/40 rounded-2xl shadow-2xl font-mono text-xs">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-emerald-900/50 bg-emerald-950/40">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+          <span className="text-emerald-300 font-black tracking-widest text-[10px] uppercase">Dev Debug Panel</span>
+          <span className="text-slate-500 text-[9px]">Ctrl+Shift+D</span>
+        </div>
+        <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors cursor-pointer bg-transparent border-none text-lg leading-none">×</button>
+      </div>
+
+      {loading && <div className="p-4 text-slate-400 animate-pulse">Loading telemetry...</div>}
+      {error && <div className="p-4 text-red-400">Error: {error}</div>}
+
+      {!loading && !error && (
+        <div className="p-4 space-y-4">
+          {/* Session Info */}
+          <div className="space-y-1">
+            <div className="text-[9px] text-slate-500 uppercase tracking-widest font-bold">Session</div>
+            <div className="text-slate-300">{sessionId}</div>
+          </div>
+
+          {/* Memory Stats */}
+          <div className="bg-blue-950/30 border border-blue-900/30 rounded-xl p-3 space-y-2">
+            <div className="text-[9px] text-blue-400 uppercase tracking-widest font-black">💾 Memory Hits</div>
+            <div className="flex items-center gap-3">
+              <span className="text-blue-200 font-bold text-lg">{memoryHits}</span>
+              <span className="text-slate-500">total preferences loaded</span>
+            </div>
+            {Object.entries(prefCategories).filter(([,v]) => (v as number) > 0).map(([cat, count]) => (
+              <div key={cat} className="flex justify-between text-[10px]">
+                <span className="text-slate-400 capitalize">{cat}</span>
+                <span className="text-blue-300 font-bold">{count as number} pref(s)</span>
+              </div>
+            ))}
+            {prefSummary && (
+              <div className="text-[9px] text-slate-500 border-t border-slate-800 pt-2 mt-1 leading-relaxed">{prefSummary}</div>
+            )}
+          </div>
+
+          {/* Agent Route */}
+          <div className="space-y-2">
+            <div className="text-[9px] text-emerald-400 uppercase tracking-widest font-black">🤖 Agent Route</div>
+            {agentQueue.length > 0 && (
+              <div className="text-[9px] text-slate-500 mb-1">Scheduled: {agentQueue.join(' → ')}</div>
+            )}
+            {agentRoute.length === 0 && <div className="text-slate-600 text-[10px]">No route data yet — send a message</div>}
+            {agentRoute.map((step: any, i: number) => (
+              <div key={i} className={`flex items-center justify-between bg-slate-900/60 rounded-lg px-3 py-1.5 border ${step.status === 'success' ? 'border-emerald-900/30' : 'border-red-900/30'}`}>
+                <div className="flex items-center gap-2">
+                  <span className={step.status === 'success' ? 'text-emerald-400' : 'text-red-400'}>{step.status === 'success' ? '✓' : '✗'}</span>
+                  <span className="text-slate-200 font-bold">{step.agent}</span>
+                </div>
+                <div className="flex items-center gap-2 text-[9px] text-slate-500">
+                  <span className="text-yellow-400">{step.latency_ms}ms</span>
+                  {step.tokens_used > 0 && <span className="text-purple-400">{step.tokens_used}tok</span>}
+                  {step.provider && step.provider !== 'router' && <span className="text-slate-600">{step.provider}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Latency + Tokens */}
+          <div className="grid grid-cols-3 gap-2">
+            <div className="bg-slate-900/60 rounded-xl p-3 text-center border border-slate-800">
+              <div className="text-yellow-400 font-black text-base">{totalLatency > 0 ? `${(totalLatency/1000).toFixed(1)}s` : '—'}</div>
+              <div className="text-[9px] text-slate-500 mt-1">Total Latency</div>
+            </div>
+            <div className="bg-slate-900/60 rounded-xl p-3 text-center border border-slate-800">
+              <div className="text-purple-400 font-black text-base">{totalTokens > 0 ? totalTokens : '—'}</div>
+              <div className="text-[9px] text-slate-500 mt-1">Tokens Used</div>
+            </div>
+            <div className="bg-slate-900/60 rounded-xl p-3 text-center border border-slate-800">
+              <div className={`font-black text-base ${ragUsed ? 'text-emerald-400' : 'text-slate-600'}`}>{ragUsed !== undefined ? (ragUsed ? 'YES' : 'NO') : '—'}</div>
+              <div className="text-[9px] text-slate-500 mt-1">RAG Used</div>
+            </div>
+          </div>
+
+          {/* Tool Calls / Collected Data */}
+          {collectedKeys.length > 0 && (
+            <div className="space-y-1">
+              <div className="text-[9px] text-orange-400 uppercase tracking-widest font-black">🔧 Data Collected</div>
+              <div className="flex flex-wrap gap-1">
+                {collectedKeys.map((k: string) => (
+                  <span key={k} className="text-[9px] bg-orange-950/30 text-orange-300 border border-orange-900/30 px-2 py-0.5 rounded-full">{k}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Reconstructed Query */}
+          {reconstructedQuery && (
+            <div className="space-y-1">
+              <div className="text-[9px] text-slate-500 uppercase tracking-widest font-black">🧠 Reconstructed Query</div>
+              <div className="bg-slate-900/60 rounded-lg p-2 text-[10px] text-slate-300 leading-relaxed border border-slate-800 italic">"{reconstructedQuery}"</div>
+            </div>
+          )}
+
+          <div className="text-[8px] text-slate-700 text-center pt-2 border-t border-slate-900">Data from GET /agents/debug/{sessionId} • Refreshes on open</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ReasoningPanel({ status, isDone }: { status?: string, isDone: boolean }) {
   const steps = [
-    { key: 'understand', label: '🧠 Understanding Request...', match: ['think', 'understand'] },
-    { key: 'flights', label: '✈️ Searching Flights...', match: ['flight'] },
-    { key: 'hotels', label: '🏨 Comparing Hotels...', match: ['hotel', 'accommodation'] },
-    { key: 'weather', label: '🌦️ Checking Weather...', match: ['weather', 'climate'] },
-    { key: 'budget', label: '💰 Planning Budget...', match: ['budget', 'currency', 'forex'] },
-    { key: 'itinerary', label: '📅 Creating Itinerary...', match: ['itinerary', 'slot', 'plan'] }
+    { key: 'understand', label: '🧠 Classifying intent & resolving context...', match: ['analyzing', 'classifying', 'understand', 'thinking', 'supervisor'] },
+    { key: 'memory', label: '💾 Loading memory & preferences...', match: ['memory', 'preference', 'profile', 'loading'] },
+    { key: 'flights', label: '✈️ Searching live flights...', match: ['flight', 'searching flights', 'aviation'] },
+    { key: 'hotels', label: '🏨 Comparing hotel accommodations...', match: ['hotel', 'accommodation', 'stay', 'resort'] },
+    { key: 'weather', label: '🌦️ Fetching climate forecast...', match: ['weather', 'climate', 'forecast'] },
+    { key: 'visa', label: '📋 Checking visa requirements...', match: ['visa', 'entry', 'passport'] },
+    { key: 'budget', label: '💰 Calculating budget allocation...', match: ['budget', 'currency', 'forex', 'cost', 'allocation'] },
+    { key: 'insurance', label: '🛡️ Fetching insurance options...', match: ['insurance', 'cover', 'protection'] },
+    { key: 'itinerary', label: '📅 Designing day-by-day itinerary...', match: ['itinerary', 'slot', 'plan', 'schedule', 'day'] },
+    { key: 'compile', label: '✨ Compiling travel proposal...', match: ['collating', 'compiling', 'formatting', 'proposal'] },
   ];
 
   let activeIndex = -1;
@@ -5151,40 +5939,48 @@ function ReasoningPanel({ status, isDone }: { status?: string, isDone: boolean }
     if (activeIndex === -1) activeIndex = 0;
   }
 
+  const visibleSteps = isDone ? steps : steps.slice(0, Math.max(activeIndex + 3, 4));
+
   return (
-    <div className="bg-slate-900/60 backdrop-blur border border-slate-800 p-4 rounded-xl space-y-2 text-xs font-mono max-w-sm mb-4">
-      <div className="text-[10px] text-slate-400 font-bold tracking-wider uppercase mb-1">🧠 Agent Reasoning Panel</div>
-      {steps.map((step, idx) => {
-        const completed = isDone || (activeIndex > idx);
-        const current = !isDone && (activeIndex === idx);
-        return (
-          <div key={step.key} className="flex items-center gap-2">
-            {completed ? (
-              <span className="text-emerald-400 font-bold">✓</span>
-            ) : current ? (
-              <span className="text-blue-400 animate-spin">⏳</span>
-            ) : (
-              <span className="text-slate-600">○</span>
-            )}
-            <span className={completed ? "text-slate-300 font-semibold" : current ? "text-blue-400 font-black animate-pulse" : "text-slate-500"}>
-              {step.label}
-            </span>
-          </div>
-        );
-      })}
-      <div className="flex items-center gap-2 pt-1 border-t border-slate-850">
-        {isDone ? (
-          <>
-            <span className="text-emerald-400 font-bold">✓</span>
-            <span className="text-emerald-400 font-bold">Ready</span>
-          </>
-        ) : (
-          <>
-            <span className="text-blue-400 animate-pulse">●</span>
-            <span className="text-slate-400">Processing turn...</span>
-          </>
-        )}
+    <div className="bg-gradient-to-br from-slate-900/80 to-blue-950/30 backdrop-blur border border-blue-900/30 p-4 rounded-2xl mb-4 w-full">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+        <span className="text-[10px] text-blue-300 font-black tracking-widest uppercase">AI Autonomous Reasoning Engine</span>
       </div>
+      <div className="space-y-1.5">
+        {visibleSteps.map((step, idx) => {
+          const completed = isDone || (activeIndex > idx);
+          const current = !isDone && (activeIndex === idx);
+          return (
+            <div key={step.key} className={`flex items-center gap-2.5 py-0.5 transition-all ${
+              current ? 'opacity-100' : completed ? 'opacity-70' : 'opacity-30'
+            }`}>
+              <span className={`text-sm flex-shrink-0 ${completed ? 'text-emerald-400' : current ? 'text-blue-400 animate-pulse' : 'text-slate-600'}`}>
+                {completed ? '✓' : current ? '◉' : '○'}
+              </span>
+              <span className={`text-[11px] font-mono ${
+                completed ? 'text-slate-300 line-through' : current ? 'text-blue-200 font-bold' : 'text-slate-600'
+              }`}>
+                {step.label}
+              </span>
+              {current && (
+                <span className="ml-auto text-[9px] text-blue-400 font-bold bg-blue-950/60 px-1.5 py-0.5 rounded-full border border-blue-800/30 animate-pulse">ACTIVE</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {status && !isDone && (
+        <div className="mt-3 pt-2 border-t border-slate-800/60 text-[10px] text-slate-400 flex items-center gap-1.5">
+          <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-ping" />
+          {status}
+        </div>
+      )}
+      {isDone && (
+        <div className="mt-3 pt-2 border-t border-slate-800/60 text-[10px] text-emerald-400 flex items-center gap-1.5 font-bold">
+          ✓ All agents completed — Travel proposal ready
+        </div>
+      )}
     </div>
   );
 }
@@ -5265,6 +6061,22 @@ function ChatView({
     localStorage.setItem('chat_session_id', newId);
     return newId;
   });
+
+  // Developer Debug Panel
+  const [showDebug, setShowDebug] = useState(false);
+  const authToken = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token') || null;
+
+  // Ctrl+Shift+D toggles debug panel
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+        e.preventDefault();
+        setShowDebug(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const parseMessageBlocks = (fullText: string) => {
     if (!fullText || typeof fullText !== 'string') {
@@ -5805,8 +6617,82 @@ function ChatView({
     return [];
   };
 
+  const activeContext = messages.length > 1 ? (() => {
+    // Extract last mentioned context from messages for display in memory strip
+    const ctx: string[] = [];
+    const history = messages.slice().reverse();
+    for (const m of history) {
+      const c = m.content || '';
+      if (c.match(/delhi|mumbai|bangalore|goa|bali|paris|dubai|london/i)) {
+        const match = c.match(/(delhi|mumbai|bangalore|goa|bali|paris|dubai|london)/i);
+        if (match) { ctx.push(`📍 ${match[1].charAt(0).toUpperCase() + match[1].slice(1)}`); break; }
+      }
+    }
+    for (const m of history) {
+      const c = m.content || '';
+      if (c.match(/₹[\d,]+|budget|\d{4,} rupee/i)) {
+        const match = c.match(/₹([\d,]+)/);
+        if (match) { ctx.push(`💰 ₹${match[1]}`); break; }
+      }
+    }
+    for (const m of history) {
+      const c = m.content || '';
+      if (c.match(/\d+ (day|night|passenger|adult|pax)/i)) {
+        const match = c.match(/(\d+) (day|night|passenger|adult|pax)/i);
+        if (match) { ctx.push(`👥 ${match[1]} ${match[2]}(s)`); break; }
+      }
+    }
+    return ctx;
+  })() : [];
+
   return (
     <div className="flex flex-col h-full bg-[#0a0f1d]">
+      {/* Developer Debug Panel Overlay */}
+      {showDebug && (
+        <DebugPanel
+          sessionId={sessionId}
+          token={authToken}
+          onClose={() => setShowDebug(false)}
+        />
+      )}
+
+      {/* AI Context Memory Strip */}
+      <div className="flex items-center gap-2 px-4 md:px-8 py-2 border-b border-slate-900/60 bg-slate-950/60 backdrop-blur">
+        <div className="flex items-center gap-1.5">
+          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">AI Memory Active</span>
+        </div>
+        {activeContext.length > 0 && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {activeContext.map((ctx, i) => (
+              <span key={i} className="text-[9px] bg-blue-950/40 text-blue-300 border border-blue-900/30 px-1.5 py-0.5 rounded-full font-bold">{ctx}</span>
+            ))}
+          </div>
+        )}
+        {activeContext.length === 0 && (
+          <span className="text-[9px] text-slate-600">No active trip context yet — start a conversation to build your travel profile</span>
+        )}
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => setShowDebug(prev => !prev)}
+            className={`text-[9px] border px-2 py-0.5 rounded-full transition-all cursor-pointer ${
+              showDebug
+                ? 'text-emerald-300 border-emerald-700 bg-emerald-950/30'
+                : 'text-slate-500 hover:text-slate-300 border-slate-800 hover:border-slate-700'
+            }`}
+            title="Toggle developer debug panel (Ctrl+Shift+D)"
+          >
+            ⚙ Debug
+          </button>
+          <button
+            onClick={() => triggerSendMessage('RESET_SESSION')}
+            className="text-[9px] text-slate-500 hover:text-slate-300 border border-slate-800 hover:border-slate-700 px-2 py-0.5 rounded-full transition-all cursor-pointer"
+            title="Start a new chat session"
+          >
+            + New Chat
+          </button>
+        </div>
+      </div>
       <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 space-y-4 md:space-y-6">
         {messages.map((msg, index) => (
           <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -5818,11 +6704,30 @@ function ChatView({
               {msg.role === 'assistant' && (msg.status || msg.flights || msg.hotels || msg.itinerary) && (
                 <ReasoningPanel status={msg.status} isDone={!msg.status} />
               )}
-              {(!msg.status || msg.content) && (
-                <div className="whitespace-pre-wrap leading-relaxed text-sm">
-                  {msg.content}
-                </div>
-              )}
+              {(!msg.status || msg.content) && (() => {
+                // Split off the AI Explainability block for separate rendering
+                const raw = msg.content || '';
+                const explainSep = '---\n**🧠 AI Recommendation Rationale**';
+                const explainIdx = raw.indexOf(explainSep);
+                const mainText = explainIdx >= 0 ? raw.slice(0, explainIdx).trim() : raw;
+                const explainText = explainIdx >= 0 ? raw.slice(explainIdx + explainSep.length).trim() : '';
+                return (
+                  <>
+                    <div className="whitespace-pre-wrap leading-relaxed text-sm">{mainText}</div>
+                    {explainText && (
+                      <details className="mt-3 group" open={false}>
+                        <summary className="cursor-pointer text-[10px] text-purple-400 font-black uppercase tracking-wider flex items-center gap-1.5 list-none select-none">
+                          <span className="group-open:rotate-90 transition-transform inline-block">▶</span>
+                          🧠 Why this recommendation?
+                        </summary>
+                        <div className="mt-2 bg-purple-950/20 border border-purple-900/30 rounded-xl p-3 text-[11px] text-slate-300 leading-relaxed whitespace-pre-wrap">
+                          {explainText}
+                        </div>
+                      </details>
+                    )}
+                  </>
+                );
+              })()}
 
               {msg.flights && Array.isArray(msg.flights) && (
                 <div className="mt-4 space-y-3 border-t border-slate-800 pt-4">
@@ -6205,16 +7110,38 @@ function ChatView({
         ))}
 
         {messages.length <= 1 && (
-          <div className="max-w-2xl mx-auto space-y-3 pt-6">
-            <h4 className="text-xs text-slate-400 font-extrabold uppercase tracking-widest text-center">Suggested Prompts & Starters</h4>
-            <div className="grid grid-cols-2 gap-3">
-              {suggestedPrompts.map((p, idx) => (
+          <div className="max-w-2xl mx-auto space-y-4 pt-6">
+            <div className="text-center">
+              <div className="text-2xl mb-1">🤖</div>
+              <h4 className="text-xs text-slate-300 font-extrabold uppercase tracking-widest">World's Best Autonomous Travel OS</h4>
+              <p className="text-[10px] text-slate-500 mt-1">Powered by LangGraph multi-agent orchestration • WebSocket streaming • Enterprise memory</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {[
+                { emoji: '🚀', label: 'Full Trip Package', text: 'I have ₹70,000. Delhi to Goa. 4 days. Nightlife. December 15th.', badge: 'AI PLANNER' },
+                { emoji: '✈️', label: 'Search Flights', text: 'Show me Business class flights from Delhi to Dubai on December 20th.', badge: 'FLIGHT SEARCH' },
+                { emoji: '🏨', label: 'Luxury Hotels', text: 'Find 5-star hotels in Udaipur for 3 nights from December 25th.', badge: 'HOTEL SEARCH' },
+                { emoji: '📋', label: 'Visa Requirements', text: 'What are the visa requirements for an Indian passport holder visiting Thailand?', badge: 'VISA AGENT' },
+                { emoji: '🌦️', label: 'Weather & Packing', text: 'What is the weather like in Goa in December? What should I pack?', badge: 'WEATHER AGENT' },
+                { emoji: '💰', label: 'Budget Planner', text: 'I have ₹1,20,000 for a Europe trip. Plan a 10-day budget breakdown for Paris, Amsterdam, and Berlin.', badge: 'BUDGET AGENT' },
+                { emoji: '🛡️', label: 'Travel Insurance', text: 'What travel insurance should I get for a 7-day international trip to Bali?', badge: 'INSURANCE' },
+                { emoji: '🆘', label: 'Emergency Contacts', text: 'What are the emergency helplines and embassy contacts for travelers visiting Thailand?', badge: 'EMERGENCY' }
+              ].map((p, idx) => (
                 <button
                   key={idx}
                   onClick={() => triggerSendMessage(p.text)}
-                  className="p-4 bg-slate-900 border border-slate-800 hover:border-blue-500 rounded-xl text-left text-xs font-bold text-slate-200 shadow hover:bg-slate-800/80 transition-all cursor-pointer"
+                  className="p-3.5 bg-slate-900/80 border border-slate-800 hover:border-blue-500/50 rounded-xl text-left shadow hover:bg-slate-800/60 transition-all cursor-pointer group"
                 >
-                  {p.label} ➔
+                  <div className="flex items-start gap-2.5">
+                    <span className="text-lg">{p.emoji}</span>
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className="text-[10px] text-blue-400 font-black bg-blue-950/30 px-1.5 py-0.5 rounded border border-blue-900/30">{p.badge}</span>
+                      </div>
+                      <div className="text-xs font-bold text-slate-200 group-hover:text-white transition-colors">{p.label}</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5 line-clamp-2 leading-relaxed">{p.text}</div>
+                    </div>
+                  </div>
                 </button>
               ))}
             </div>
@@ -6395,6 +7322,47 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
             <span className="text-[10px] text-slate-400 font-bold uppercase">Carbon Footprint</span>
             <span className="text-xl font-black text-white mt-2">1.2 Tons CO2</span>
             <span className="text-[9px] text-yellow-500 mt-1">Offset program recommended</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Ledger & Travel Credits Section */}
+      <div className="glass-card p-6 rounded-2xl border border-slate-800 space-y-4">
+        <h4 className="font-bold text-slate-200 flex items-center gap-2">📑 TRANSACTION HISTORY & TRAVEL CREDITS</h4>
+        <div className="space-y-3">
+          <div className="flex justify-between items-center bg-slate-900/60 p-3 rounded-lg border border-slate-800">
+            <div>
+              <span className="text-[9px] bg-emerald-950 text-emerald-400 font-extrabold px-1.5 py-0.5 rounded border border-emerald-500/20">CASHBACK CREDITED</span>
+              <span className="text-xs text-slate-300 font-bold block mt-1">₹2,500 Cashback from Goa Package Booking</span>
+            </div>
+            <span className="text-xs font-black text-emerald-400">+₹2,500</span>
+          </div>
+
+          <div className="flex justify-between items-center bg-slate-900/60 p-3 rounded-lg border border-slate-800">
+            <div>
+              <span className="text-[9px] bg-blue-950 text-blue-400 font-extrabold px-1.5 py-0.5 rounded border border-blue-500/20">REFUND PROCESSED</span>
+              <span className="text-xs text-slate-300 font-bold block mt-1">Refund for Flight booking cancellation #TX-1092</span>
+            </div>
+            <div className="text-right">
+              <span className="text-xs font-black text-blue-400">+₹5,200</span>
+              <span className="text-[8px] text-slate-500 block mt-0.5">Cleared on 2026-08-01</span>
+            </div>
+          </div>
+
+          <div className="flex justify-between items-center bg-slate-900/60 p-3 rounded-lg border border-slate-800">
+            <div>
+              <span className="text-[9px] bg-purple-950 text-purple-400 font-extrabold px-1.5 py-0.5 rounded border border-purple-500/20">TRAVEL VOUCHER CREDIT</span>
+              <span className="text-xs text-slate-300 font-bold block mt-1">Airline cancel voucher compensation #UK-902-CR</span>
+            </div>
+            <span className="text-xs font-black text-purple-400">+₹4,000</span>
+          </div>
+
+          <div className="flex justify-between items-center bg-slate-900/60 p-3 rounded-lg border border-slate-800">
+            <div>
+              <span className="text-[9px] bg-slate-950 text-slate-400 font-extrabold px-1.5 py-0.5 rounded border border-slate-800">DEBITED ORDER</span>
+              <span className="text-xs text-slate-300 font-bold block mt-1">Payment for hotel booking #HT-20384</span>
+            </div>
+            <span className="text-xs font-black text-red-400">-₹12,400</span>
           </div>
         </div>
       </div>
@@ -7702,44 +8670,91 @@ function AccountProfileModal({ userProfile, setUserProfile, onClose, onLogout }:
     setSavedTravelers(prev => prev.filter((_, i) => i !== idx));
   };
 
+  // Spending data for chart
+  const spendData = [
+    { month: "Jan", amt: 12000 },
+    { month: "Feb", amt: 18000 },
+    { month: "Mar", amt: 8000 },
+    { month: "Apr", amt: 25000 },
+    { month: "May", amt: 15000 },
+    { month: "Jun", amt: 32000 },
+  ];
+  const maxAmt = Math.max(...spendData.map(d => d.amt));
+
   return (
     <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white border-4 border-black p-6 max-w-md w-full space-y-4 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] text-black rounded-2xl text-left">
-        <div className="flex justify-between items-center border-b-3 border-black pb-2">
-          <h3 className="font-black text-base uppercase tracking-wider flex items-center gap-1.5">👤 Personal Traveler Profile</h3>
-          <button onClick={onClose} className="font-extrabold text-sm hover:text-red-500 font-bold cursor-pointer">✕</button>
+      <div className="bg-[#0f172a] border-4 border-black p-6 max-w-xl w-full space-y-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] text-white rounded-2xl text-left">
+        <div className="flex justify-between items-center border-b-2 border-slate-800 pb-2">
+          <h3 className="font-black text-base uppercase tracking-wider flex items-center gap-1.5 text-yellow-400">👤 User Travel Profile</h3>
+          <button onClick={onClose} className="font-extrabold text-sm hover:text-red-500 font-bold cursor-pointer bg-transparent border-none text-white">✕</button>
         </div>
 
-        {/* KYC Verification status */}
-        <div className="bg-emerald-50 border-2 border-emerald-600 p-2.5 rounded text-emerald-800 flex justify-between items-center text-xs font-bold">
-          <span>✓ KYC Identity Verification Status:</span>
-          <span className="bg-emerald-600 text-white font-black text-[9px] px-2 py-0.5 rounded">VERIFIED</span>
+        {/* Dynamic Stats Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-left">
+          <div className="bg-[#1e293b] border border-slate-700 p-3 rounded-xl">
+            <span className="text-[8px] text-slate-400 uppercase block font-black">Trips Booked</span>
+            <span className="text-base font-black text-white mt-1 block">14 Trips</span>
+          </div>
+          <div className="bg-[#1e293b] border border-slate-700 p-3 rounded-xl">
+            <span className="text-[8px] text-slate-400 uppercase block font-black">AI Money Saved</span>
+            <span className="text-base font-black text-emerald-400 mt-1 block">₹18,450</span>
+          </div>
+          <div className="bg-[#1e293b] border border-slate-700 p-3 rounded-xl">
+            <span className="text-[8px] text-slate-400 uppercase block font-black">Carbon Footprint</span>
+            <span className="text-base font-black text-teal-400 mt-1 block">1.2t CO2e</span>
+          </div>
+          <div className="bg-[#1e293b] border border-slate-700 p-3 rounded-xl">
+            <span className="text-[8px] text-slate-400 uppercase block font-black">Loyalty Rating</span>
+            <span className="text-base font-black text-yellow-400 mt-1 block">Gold Tier</span>
+          </div>
+        </div>
+
+        {/* Spending Analytics Chart (SVG) */}
+        <div className="bg-[#1e293b] border border-slate-700 p-4 rounded-xl space-y-3">
+          <span className="text-[9px] uppercase font-black text-slate-400 block">Monthly Spend Analytics (INR)</span>
+          <div className="h-28 w-full flex items-end justify-between gap-2 pt-4">
+            {spendData.map((d, i) => {
+              const heightPct = (d.amt / maxAmt) * 100;
+              return (
+                <div key={i} className="flex-1 flex flex-col items-center gap-1 group cursor-pointer">
+                  <div className="relative w-full flex justify-center">
+                    <span className="absolute -top-6 text-[8px] font-bold text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 px-1 py-0.5 rounded border border-slate-700">₹{d.amt / 1000}k</span>
+                    <div 
+                      style={{ height: `${heightPct}%` }} 
+                      className="w-full sm:w-6 bg-gradient-to-t from-indigo-600 to-purple-400 hover:from-indigo-500 hover:to-purple-300 rounded-t-md transition-all border border-indigo-400/20"
+                    />
+                  </div>
+                  <span className="text-[9px] text-slate-400 font-bold uppercase">{d.month}</span>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* Account Info Form */}
         <div className="space-y-3">
           <div>
-            <label className="text-[10px] uppercase font-black text-slate-500">Email Address</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-white border-2 border-black rounded px-3 py-1.5 text-xs font-bold" />
+            <label className="text-[10px] uppercase font-black text-slate-400 block mb-1">Email Address</label>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-[#1e293b] border-2 border-black rounded px-3 py-2 text-xs font-bold text-white outline-none focus:border-yellow-400" />
           </div>
           <div className="flex gap-2">
-            <button onClick={handleSave} className="bg-slate-900 text-white text-[10px] font-black border-2 border-black px-4 py-2 rounded-lg cursor-pointer uppercase">Save Profile</button>
-            <button onClick={onLogout} className="bg-red-600 text-white hover:bg-red-700 text-[10px] font-black border-2 border-black px-4 py-2 rounded-lg cursor-pointer uppercase ml-auto">Log Out</button>
+            <button onClick={handleSave} className="bg-slate-800 text-white hover:bg-slate-700 text-[10px] font-black border-2 border-black px-4 py-2 rounded-lg cursor-pointer uppercase transition-all">Save Profile</button>
+            <button onClick={onLogout} className="bg-red-600 text-white hover:bg-red-700 text-[10px] font-black border-2 border-black px-4 py-2 rounded-lg cursor-pointer uppercase ml-auto transition-all">Log Out</button>
           </div>
         </div>
 
-        {/* Saved Travelers CRUD */}
-        <div className="border-t-2 border-black pt-3 space-y-2">
-          <span className="text-[10px] uppercase font-black text-slate-500 block">Manage Saved Travelers:</span>
+        {/* Saved Travelers */}
+        <div className="border-t border-slate-800 pt-3 space-y-2">
+          <span className="text-[10px] uppercase font-black text-slate-400 block">Manage Saved Companions:</span>
           <div className="flex gap-2">
-            <input type="text" placeholder="Name (Age)" value={newTraveler} onChange={(e) => setNewTraveler(e.target.value)} className="bg-white border-2 border-black rounded px-3 py-1 text-xs font-bold flex-1" />
-            <button onClick={handleAddTraveler} className="bg-yellow-300 text-[10px] font-black border-2 border-black px-3 py-1 rounded cursor-pointer uppercase">Add</button>
+            <input type="text" placeholder="Name (Age)" value={newTraveler} onChange={(e) => setNewTraveler(e.target.value)} className="bg-[#1e293b] border-2 border-black rounded px-3 py-1.5 text-xs font-bold text-white outline-none" />
+            <button onClick={handleAddTraveler} className="bg-yellow-400 text-black hover:bg-yellow-300 text-[10px] font-black border-2 border-black px-3 py-1.5 rounded cursor-pointer uppercase transition-all">Add</button>
           </div>
           <div className="space-y-1 mt-2">
             {savedTravelers.map((name, idx) => (
-              <div key={idx} className="flex justify-between items-center bg-slate-50 border border-slate-300 p-1.5 rounded text-xs font-bold">
+              <div key={idx} className="flex justify-between items-center bg-[#1e293b]/60 border border-slate-700 p-2 rounded text-xs font-bold text-slate-200">
                 <span>{name}</span>
-                <button onClick={() => handleRemoveTraveler(idx)} className="text-red-600 hover:text-red-800 font-bold text-[10px] uppercase cursor-pointer">Remove</button>
+                <button onClick={() => handleRemoveTraveler(idx)} className="text-red-400 hover:text-red-300 font-bold text-[10px] uppercase cursor-pointer bg-transparent border-none">Remove</button>
               </div>
             ))}
           </div>

@@ -48,6 +48,20 @@ def get_chat_history(session_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Failed to fetch chat history")
 
 
+@router.get("/preferences")
+def get_user_preferences(
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        from app.models.agents import UserPreferenceEmbedding
+        results = db.query(UserPreferenceEmbedding).filter(UserPreferenceEmbedding.user_id == user.id).all()
+        return {"preferences": [r.summary_text for r in results]}
+    except Exception as e:
+        logger.error(f"Error fetching preferences: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch user preferences")
+
+
 @router.websocket("/chat/ws/{session_id}")
 async def chat_ws_endpoint(websocket: WebSocket, session_id: str, db: Session = Depends(get_db)):
     # 1. Accept WebSocket Connection
@@ -135,3 +149,94 @@ async def chat_ws_endpoint(websocket: WebSocket, session_id: str, db: Session = 
         logger.info(f"WebSocket session disconnected: {session_id}")
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
+
+
+@router.delete("/session/{session_id}/reset")
+def reset_session(session_id: str, user=Depends(get_current_user)):
+    """Clears the active session context and history for a fresh chat start."""
+    try:
+        MemoryManager.clear_active_context(session_id)
+        return {"message": f"Session {session_id} has been reset successfully."}
+    except Exception as e:
+        logger.error(f"Error resetting session: {e}")
+        raise HTTPException(status_code=500, detail="Failed to reset session")
+
+
+@router.get("/preferences/categories")
+def get_preferences_by_category(
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Returns all preferences organized by category (airlines, hotels, dietary, travel_style, budget, general)."""
+    try:
+        categorized = MemoryManager.get_all_user_preferences(user_id=user.id)
+        total = sum(len(v) for v in categorized.values())
+        return {
+            "user_id": user.id,
+            "total_preferences": total,
+            "categories": categorized
+        }
+    except Exception as e:
+        logger.error(f"Error fetching categorized preferences: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch categorized preferences")
+
+
+@router.get("/debug/{session_id}")
+def get_debug_telemetry(session_id: str, user=Depends(get_current_user)):
+    """Returns the debug telemetry from the last agent execution for a session.
+    Includes: agent_route, memory_hits, total_latency_ms, pref_summary, rag_used, tool_calls.
+    """
+    try:
+        active_ctx = MemoryManager.get_active_context(session_id)
+        telemetry = active_ctx.get("last_debug_telemetry", {})
+
+        # Supplement with AgentExecutionLog from DB for the most recent trace
+        from app.models.agents import AgentExecutionLog
+        from app.database import SessionLocal
+        db_local = SessionLocal()
+        try:
+            # Get recent execution logs for this session
+            trace_prefix = f"trace_{session_id}_"
+            recent_logs = db_local.query(AgentExecutionLog).filter(
+                AgentExecutionLog.trace_id.like(f"{trace_prefix}%")
+            ).order_by(AgentExecutionLog.created_at.desc()).limit(20).all()
+
+            db_agent_route = []
+            total_tokens = 0
+            for log in recent_logs:
+                db_agent_route.append({
+                    "agent": log.agent_name,
+                    "status": log.status,
+                    "latency_ms": log.latency_ms,
+                    "tokens_used": log.tokens_used,
+                    "provider": log.llm_provider_used,
+                    "timestamp": log.created_at.isoformat() if log.created_at else None
+                })
+                total_tokens += log.tokens_used or 0
+
+            if db_agent_route:
+                telemetry["db_agent_route"] = db_agent_route
+                telemetry["total_tokens_used"] = total_tokens
+        except Exception as db_ex:
+            logger.warning(f"Could not read AgentExecutionLog: {db_ex}")
+        finally:
+            db_local.close()
+
+        # Enrich with preference summary
+        try:
+            categorized = MemoryManager.get_all_user_preferences(user_id=user.id)
+            telemetry["preference_categories"] = {k: len(v) for k, v in categorized.items()}
+            telemetry["total_preferences_loaded"] = sum(len(v) for v in categorized.values())
+        except Exception:
+            pass
+
+        return {
+            "session_id": session_id,
+            "user_id": user.id,
+            "telemetry": telemetry
+        }
+    except Exception as e:
+        logger.error(f"Error fetching debug telemetry: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch debug telemetry")
+
+
