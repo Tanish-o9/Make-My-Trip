@@ -3,9 +3,9 @@
 
 @layer base {
   body {
-    background-color: var(--color-obsidian) !important;
-    color: var(--color-ivory) !important;
-    font-family: var(--font-body) !important;
+    background-color: var(--color-obsidian);
+    color: var(--color-ivory);
+    font-family: var(--font-body);
     margin: 0;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -13,12 +13,12 @@
 
   /* Headings typography reset with Impact italic retro comic style */
   h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-display) !important;
-    color: var(--color-ivory) !important;
-    font-weight: 900 !important;
-    font-style: italic !important;
-    text-transform: uppercase !important;
-    letter-spacing: 0.05em !important;
+    font-family: var(--font-display);
+    color: var(--color-ivory);
+    font-weight: 900;
+    font-style: italic;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   /* Interactive Elements Focus Ring */
