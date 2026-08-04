@@ -1888,8 +1888,8 @@ function FlightsSearchForm({ currency, onBook, onDetailClick, onTrackFlight }: {
                         {/* Connection Line */}
                         <div className="flex flex-col items-center min-w-[60px] relative px-1">
                           <span className="text-[9px] text-slate-400 font-semibold">{duration}</span>
-                          <div className="w-full h-0.5 bg-slate-800 relative flex items-center justify-center">
-                            <div className="w-1.5 h-1.5 rounded-full bg-slate-500"></div>
+                          <div className="w-full h-0.5 relative flex items-center justify-center" style={{ backgroundColor: '#475569' }}>
+                            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#94a3b8' }}></div>
                           </div>
                           <span className="text-[9px] text-slate-400 font-medium mt-0.5">{stops}</span>
                         </div>
@@ -5854,8 +5854,8 @@ function ChatView({
                               
                               <div className="flex flex-col items-center min-w-[50px] relative px-1">
                                 <span className="text-[8px] text-slate-400 font-semibold">{duration}</span>
-                                <div className="w-full h-0.5 bg-slate-800 relative flex items-center justify-center">
-                                  <div className="w-1 h-1 rounded-full bg-slate-500"></div>
+                                <div className="w-full h-0.5 relative flex items-center justify-center" style={{ backgroundColor: '#475569' }}>
+                                  <div className="w-1 h-1 rounded-full" style={{ backgroundColor: '#94a3b8' }}></div>
                                 </div>
                                 <span className="text-[8px] text-slate-400 font-medium mt-0.5">{stops}</span>
                               </div>

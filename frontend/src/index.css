@@ -656,15 +656,63 @@ h3[class*="text-slate-200"] {
   color: #f1f5f9 !important; /* Force white text */
 }
 
-/* Specificity matching overrides to defeat neobrutalist boarding pass overrides */
-.boarding-pass-container .dark-card-override span:not([class*="text-[var(--color-gold)]"]):not([class*="text-[var(--color-teal)]"]):not([class*="text-emerald"]):not([class*="text-teal"]):not([class*="text-gold"]),
-.dark-card-override span:not([class*="text-[var(--color-gold)]"]):not([class*="text-[var(--color-teal)]"]):not([class*="text-emerald"]):not([class*="text-teal"]):not([class*="text-gold"]) {
-  color: #f1f5f9 !important;
+/* Specificity booster overrides to force white text inside dark cards */
+.boarding-pass-container .dark-card-override.dark-card-override.dark-card-override.dark-card-override.dark-card-override.dark-card-override span,
+.boarding-pass-container .dark-card-override.dark-card-override.dark-card-override.dark-card-override.dark-card-override.dark-card-override div,
+.boarding-pass-container .dark-card-override.dark-card-override.dark-card-override.dark-card-override.dark-card-override.dark-card-override p,
+.boarding-pass-container .dark-card-override.dark-card-override.dark-card-override.dark-card-override.dark-card-override.dark-card-override h4,
+.boarding-pass-container .dark-card-override.dark-card-override.dark-card-override.dark-card-override.dark-card-override.dark-card-override h3,
+.boarding-pass-container .dark-card-override.dark-card-override.dark-card-override.dark-card-override.dark-card-override.dark-card-override a,
+.boarding-pass-container .dark-card-override.dark-card-override.dark-card-override.dark-card-override.dark-card-override.dark-card-override font,
+.dark-card-override span,
+.dark-card-override div,
+.dark-card-override p,
+.dark-card-override h4,
+.dark-card-override h3,
+.dark-card-override a,
+.dark-card-override font {
+  color: #ffffff !important; /* Force primary white text */
 }
 
-.boarding-pass-container .dark-card-override div:not([class*="bg-teal"]):not([class*="bg-emerald"]):not([class*="bg-gold"]):not([class*="bg-indigo"]),
-.dark-card-override div:not([class*="bg-teal"]):not([class*="bg-emerald"]):not([class*="bg-gold"]):not([class*="bg-indigo"]) {
-  color: #f1f5f9 !important;
+/* Specific colored labels overrides with specificity booster */
+.boarding-pass-container .dark-card-override.dark-card-override.dark-card-override.dark-card-override.dark-card-override.dark-card-override .text-emerald-400,
+.dark-card-override .text-emerald-400 {
+  color: #34d399 !important; /* green for price */
+}
+
+.boarding-pass-container .dark-card-override.dark-card-override.dark-card-override.dark-card-override.dark-card-override.dark-card-override .text-blue-300,
+.dark-card-override .text-blue-300 {
+  color: #93c5fd !important; /* blue for flight number badge */
+}
+
+.boarding-pass-container .dark-card-override.dark-card-override.dark-card-override.dark-card-override.dark-card-override.dark-card-override .text-blue-400,
+.dark-card-override .text-blue-400 {
+  color: #60a5fa !important; /* selection links */
+}
+
+.boarding-pass-container .dark-card-override.dark-card-override.dark-card-override.dark-card-override.dark-card-override.dark-card-override .text-yellow-400,
+.dark-card-override .text-yellow-400 {
+  color: #fbbf24 !important; /* yellow stars */
+}
+
+.boarding-pass-container .dark-card-override.dark-card-override.dark-card-override.dark-card-override.dark-card-override.dark-card-override .text-amber-400,
+.dark-card-override .text-amber-400 {
+  color: #f87171 !important; /* light red/amber for non-refundable */
+}
+
+.boarding-pass-container .dark-card-override.dark-card-override.dark-card-override.dark-card-override.dark-card-override.dark-card-override .text-slate-400,
+.dark-card-override .text-slate-400 {
+  color: #d1d5db !important; /* light gray (#D1D5DB) for secondary information */
+}
+
+.boarding-pass-container .dark-card-override.dark-card-override.dark-card-override.dark-card-override.dark-card-override.dark-card-override .text-slate-500,
+.dark-card-override .text-slate-500 {
+  color: #e5e7eb !important; /* light gray (#E5E7EB) for secondary information */
+}
+
+.boarding-pass-container .dark-card-override.dark-card-override.dark-card-override.dark-card-override.dark-card-override.dark-card-override .text-purple-300,
+.dark-card-override .text-purple-300 {
+  color: #d8b4fe !important;
 }
 
 
