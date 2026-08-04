@@ -15,7 +15,24 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     # Audit: Log path and header keys
     logger.info(f"AUDIT get_current_user path: {request.url.path}, headers: {list(request.headers.keys())}")
     
+    from app.auth.jwt import JWT_SECRET, ALGORITHM
+    from jose import jwt, JWTError
+    
+    # 4. Print which SECRET_KEY is used (masked)
+    secret_prefix = JWT_SECRET[:4] if JWT_SECRET else "None"
+    print(f"4. SECRET_KEY used: '{secret_prefix}...' (len={len(JWT_SECRET)})")
+    
+    # 5. Print which ALGORITHM is used
+    print(f"5. ALGORITHM used: '{ALGORITHM}'")
+    
+    # 6. Verify login endpoint uses EXACTLY the same config
+    print("6. Verification: Both login endpoint and dependency import config from app.auth.jwt.")
+    
     auth_header = request.headers.get("Authorization") or request.headers.get("authorization")
+    
+    # 1. Print Raw Authorization Header
+    print(f"1. Raw Authorization Header: '{auth_header}'")
+    
     if not auth_header:
         logger.warning(f"AUDIT get_current_user: Missing Authorization header. Available: {list(request.headers.keys())}")
         raise HTTPException(
@@ -31,49 +48,64 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
         )
         
     token = auth_header.split(" ")[1]
-    logger.info(f"AUDIT get_current_user: Token len={len(token)}")
+    
+    # 2. Print Extracted Bearer Token
+    print(f"2. Extracted Bearer Token: '{token[:10]}...' (len={len(token)})")
     
     if is_token_blacklisted(token):
         logger.warning("AUDIT get_current_user: Token is blacklisted")
         raise HTTPException(status_code=401, detail="Token is blacklisted")
-        
-    from app.auth.jwt import JWT_SECRET, ALGORITHM
-    from jose import jwt, JWTError
     
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM])
-        logger.info(f"AUDIT get_current_user: Decoded JWT payload: {payload}")
+        
+        # 8. After jwt.decode(), print payload
+        print(f"8. Payload: {payload}")
+        
+        # 3. Decoded JWT Payload fields
+        print(f"3. Decoded JWT Payload - sub: '{payload.get('sub')}', role: '{payload.get('role')}', type: '{payload.get('type')}', exp: {payload.get('exp')}")
+        
     except JWTError as e:
-        logger.error(f"AUDIT get_current_user: JWT Decode Error: {e}")
-        secret_prefix = JWT_SECRET[:4] if JWT_SECRET else "None"
+        exception_name = type(e).__name__
+        # 7. Print real exception
+        print(f"7. Exception inside get_current_user: {exception_name} - {str(e)}")
         raise HTTPException(
             status_code=401,
-            detail=f"JWT Decode Error: {str(e)} (Secret prefix: {secret_prefix}, Token len: {len(token)})"
+            detail=f"JWT Decode Error ({exception_name}): {str(e)} (Secret prefix: {secret_prefix}, Token len: {len(token)})"
         )
     except Exception as e:
-        logger.error(f"AUDIT get_current_user: JWT Decode Unhandled Exception: {e}")
-        raise HTTPException(status_code=401, detail=f"JWT Decode Unhandled Exception: {str(e)}")
+        exception_name = type(e).__name__
+        print(f"7. Exception inside get_current_user: {exception_name} - {str(e)}")
+        raise HTTPException(
+            status_code=401,
+            detail=f"JWT Decode Unhandled Exception ({exception_name}): {str(e)}"
+        )
         
     if not payload.get("type") == "access":
-        logger.warning(f"AUDIT get_current_user: Invalid token type: {payload.get('type')}")
-        raise HTTPException(status_code=401, detail=f"Invalid token type: {payload.get('type')}")
+        print(f"7. Exception inside get_current_user: InvalidTokenType - expected 'access', got '{payload.get('type')}'")
+        raise HTTPException(status_code=401, detail=f"InvalidTokenType: expected 'access', got '{payload.get('type')}'")
     
     email: str = payload.get("sub")
     if email is None:
-        logger.warning("AUDIT get_current_user: Token payload missing 'sub'")
-        raise HTTPException(status_code=401, detail="Token payload missing 'sub'")
+        print("7. Exception inside get_current_user: TokenPayloadMissingSub")
+        raise HTTPException(status_code=401, detail="TokenPayloadMissingSub: Token payload missing 'sub'")
         
     user = db.query(User).filter(User.email == email).first()
+    
+    # 9. After database lookup, print user found/not found
     if user is None:
+        print(f"9. Database lookup for email '{email}': User not found")
         driver = db.bind.url.drivername if db.bind else "unknown"
         db_url = str(db.bind.url) if db.bind else "unknown"
         if "@" in db_url:
             db_url = db_url.split("@")[1]
-        logger.warning(f"AUDIT get_current_user: User '{email}' not found in DB.")
+        print(f"7. Exception inside get_current_user: UserNotFound - '{email}' not found in DB")
         raise HTTPException(
             status_code=401, 
-            detail=f"Authenticated user '{email}' not found in database (Engine: {driver}, Host: {db_url})"
+            detail=f"UserNotFound: Authenticated user '{email}' not found in database (Engine: {driver}, Host: {db_url})"
         )
+    else:
+        print(f"9. Database lookup for email '{email}': User found (id={user.id}, role={user.role})")
         
     logger.info(f"AUDIT get_current_user: Successfully resolved user: id={user.id}, email={user.email}, role={user.role}")
         
