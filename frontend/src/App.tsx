@@ -3748,7 +3748,7 @@ function CheckoutModal({ data, onClose, userProfile, onConfirm }: { data: any, o
         )}
 
         <div className="flex justify-between items-center border-b-3 border-black pb-2 text-left">
-          <h3 className="font-black text-xl italic uppercase tracking-wider">
+          <h3 className="font-bold text-xl tracking-wide">
             {step === 1 && "Step 1: Review Itinerary"}
             {step === 2 && "Step 2: Secure Checkout"}
             {step === 3 && "Step 3: Booking Confirmed!"}
@@ -5826,7 +5826,7 @@ function PromoBannerStrip({ onNavigate }: { onNavigate?: (path: string) => void 
           <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://travelos.com" alt="QR" className="w-full h-full object-cover" />
         </div>
         <div>
-          <h3 className="font-serif italic text-lg md:text-xl text-[var(--color-ivory)] uppercase leading-snug">
+          <h3 className="font-bold text-lg md:text-xl text-[var(--color-ivory)] leading-snug">
             Southeast Asia's Go-To App for Direct Wallet Bookings
           </h3>
           <p className="text-[10px] font-mono text-[var(--color-gold)] uppercase tracking-wider mt-1">Scan QR or Click below to get Travel OS App</p>
@@ -5912,7 +5912,7 @@ function SEOMegaFooter({ onNavigate }: { onNavigate?: (path: string) => void }) 
         <div className="hidden md:grid grid-cols-4 gap-8">
           {footerData.map((section, idx) => (
             <div key={idx} className="space-y-4">
-              <h5 className="font-semibold text-xs text-[var(--color-ivory)] border-b border-slate-800/80 pb-2 text-left uppercase tracking-wider">{section.title}</h5>
+              <h5 className="font-bold text-xs text-[var(--color-ivory)] border-b border-slate-800/80 pb-2 text-left tracking-wider">{section.title}</h5>
               <nav>
                 <ul className="space-y-2 text-left">
                   {section.links.map((link, lIdx) => (
@@ -5945,7 +5945,7 @@ function SEOMegaFooter({ onNavigate }: { onNavigate?: (path: string) => void }) 
               <div key={idx} className="border border-slate-800/80 rounded-[var(--radius-card)] bg-[var(--color-surface)] overflow-hidden">
                 <button 
                   onClick={() => toggleSection(idx)}
-                  className="w-full p-4 flex justify-between items-center font-bold text-xs uppercase text-[var(--color-ivory)] bg-[var(--color-surface-raised)] border-none"
+                  className="w-full p-4 flex justify-between items-center font-bold text-xs text-[var(--color-ivory)] bg-[var(--color-surface-raised)] border-none"
                 >
                   <span>{section.title}</span>
                   <span className="font-bold text-sm">{isExpanded ? "−" : "+"}</span>
@@ -6128,7 +6128,7 @@ function ProductDetailModal({ vertical, item, currency, onBook, onClose, wishlis
         <div className="flex justify-between items-center border-b-3 border-black pb-3">
           <div>
             <span className="text-[10px] bg-slate-900 text-white px-2 py-0.5 rounded font-black uppercase tracking-wider">{vertical} Details</span>
-            <h3 className="font-black text-xl italic uppercase tracking-wider mt-1">{itemName}</h3>
+            <h3 className="font-bold text-xl tracking-wide mt-1">{itemName}</h3>
           </div>
           <div className="flex items-center gap-2">
             <button 

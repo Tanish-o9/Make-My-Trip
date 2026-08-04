@@ -330,7 +330,7 @@ export function CheckoutPage({ bookingId, onNavigate, token }: CheckoutPageProps
             <ArrowLeft size={16} /> Return to Explore
           </button>
           
-          <h1 className="text-3xl font-black italic uppercase tracking-wider bg-yellow-300 border-3 border-black px-4 py-1.5 rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+          <h1 className="text-2xl font-bold bg-yellow-300 border-3 border-black px-4 py-1.5 rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
             SECURE CHECKOUT
           </h1>
           
@@ -366,7 +366,7 @@ export function CheckoutPage({ bookingId, onNavigate, token }: CheckoutPageProps
 
             {/* Payment Method Selector Tabs */}
             <div className="bg-white border-4 border-black rounded-2xl p-4 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
-              <h3 className="font-black uppercase text-sm tracking-wide mb-3 italic">Select Payment Mode:</h3>
+              <h3 className="font-bold text-sm tracking-wide mb-3">Select Payment Mode:</h3>
               <div className="grid grid-cols-4 gap-2">
                 <button
                   onClick={() => handleTabChange("card")}
@@ -516,7 +516,7 @@ export function CheckoutPage({ bookingId, onNavigate, token }: CheckoutPageProps
           {/* Right Panel: Booking Summary */}
           <div className="md:col-span-4 space-y-6">
             <div className="bg-[#eae5d9] border-4 border-black p-4 rounded-2xl shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] space-y-4 text-left">
-              <h3 className="font-black text-lg italic uppercase tracking-wide border-b-2 border-black pb-2">
+              <h3 className="font-bold text-lg tracking-wide border-b-2 border-black pb-2">
                 Booking Summary
               </h3>
               
