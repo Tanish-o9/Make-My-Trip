@@ -172,11 +172,11 @@ def startup_db_seed():
 
     # Check if database is unseeded, and if so, run full seeding sequence automatically!
     from app.database import SessionLocal
-    from app.models.search_entities import City
+    from app.models.search_entities import City, HotelProperty
     db_init = SessionLocal()
     try:
-        if db_init.query(City).count() == 0:
-            logger.info("Database is empty. Triggering automatic database seeding...")
+        if db_init.query(City).count() == 0 or db_init.query(HotelProperty).count() == 0:
+            logger.info("Database is empty or missing hotel properties. Triggering automatic database seeding...")
             from app.commands.seed import (
                 run_reference, run_locations, run_flights, run_hotels,
                 run_villas, run_packages, run_trains, run_buses, run_cabs,
@@ -301,7 +301,7 @@ def startup_db_seed():
             # 2. High-value Payout Case
             vp = VendorPayout(
                 vendor_id="host_premium",
-                gross_bookings_amount=Decimal("35000.00"),
+                gross_bookings_amount=Decimal("3500.00"),
                 commission_deducted=Decimal("3500.00"),
                 net_payout_amount=Decimal("31500.00"),
                 period="2026-31",
@@ -389,6 +389,25 @@ def get_metrics():
     from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
     from fastapi import Response
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+@app.get("/api/v1/debug/db-stats", tags=["monitoring"])
+def get_db_stats():
+    """Debug route returning current database counts"""
+    from app.database import SessionLocal
+    from app.models.search_entities import City, HotelProperty, HotelRoom, FlightRoute, VillaProperty
+    db = SessionLocal()
+    try:
+        return {
+            "cities": db.query(City).count(),
+            "hotels": db.query(HotelProperty).count(),
+            "rooms": db.query(HotelRoom).count(),
+            "flights": db.query(FlightRoute).count(),
+            "villas": db.query(VillaProperty).count()
+        }
+    except Exception as e:
+        return {"error": str(e)}
+    finally:
+        db.close()
 
 # Helper import inside function or use standard text
 from sqlalchemy import text
