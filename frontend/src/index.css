@@ -552,16 +552,16 @@ h3[class*="text-slate-200"] {
 
 
 /* Boarding pass light theme text color overrides for readability */
-.boarding-pass-container,
-.boarding-pass-container p,
-.boarding-pass-container label,
-.boarding-pass-container h4,
-.boarding-pass-container h5,
-.boarding-pass-container div:not([class*="bg-teal"]):not([class*="bg-emerald"]):not([class*="bg-gold"]):not([class*="bg-indigo"]) {
+.boarding-pass-container:not(.dark-card-override),
+.boarding-pass-container p:not(.dark-card-override *),
+.boarding-pass-container label:not(.dark-card-override *),
+.boarding-pass-container h4:not(.dark-card-override *),
+.boarding-pass-container h5:not(.dark-card-override *),
+.boarding-pass-container div:not([class*="bg-teal"]):not([class*="bg-emerald"]):not([class*="bg-gold"]):not([class*="bg-indigo"]):not(.dark-card-override):not(.dark-card-override *) {
   color: #000000 !important;
 }
 
-.boarding-pass-container span:not([class*="text-[var(--color-gold)]"]):not([class*="text-[var(--color-teal)]"]):not([class*="text-emerald"]):not([class*="text-teal"]):not([class*="text-gold"]) {
+.boarding-pass-container span:not([class*="text-[var(--color-gold)]"]):not([class*="text-[var(--color-teal)]"]):not([class*="text-emerald"]):not([class*="text-teal"]):not([class*="text-gold"]):not(.dark-card-override *):not(.dark-card-override) {
   color: #000000 !important;
 }
 
@@ -604,3 +604,81 @@ h3[class*="text-slate-200"] {
 .explore-pill-card:nth-child(5n) {
   background-color: #F3E5F5 !important; /* Light Purple */
 }
+
+/* Dark card text color overrides to bypass global neobrutalist black-text overrides */
+.dark-card-override,
+.dark-card-override * {
+  color: inherit;
+}
+
+/* Ultra high specificity overrides to defeat global neobrutalist black text rules */
+.bg-slate-900 .dark-card-override [class*="text-slate-"],
+.bg-slate-900 .dark-card-override [class*="text-gray-"],
+.bg-slate-900 .dark-card-override .text-white,
+.bg-slate-900 .dark-card-override span,
+.bg-slate-900 .dark-card-override div,
+.bg-slate-900 .dark-card-override p,
+.bg-slate-800 .dark-card-override [class*="text-slate-"],
+.bg-slate-800 .dark-card-override [class*="text-gray-"],
+.bg-slate-800 .dark-card-override .text-white,
+.bg-slate-800 .dark-card-override span,
+.bg-slate-800 .dark-card-override div,
+.bg-slate-800 .dark-card-override p,
+.bg-gray-900 .dark-card-override [class*="text-slate-"],
+.bg-gray-900 .dark-card-override [class*="text-gray-"],
+.bg-gray-900 .dark-card-override .text-white,
+.bg-gray-900 .dark-card-override span,
+.bg-gray-900 .dark-card-override div,
+.bg-gray-900 .dark-card-override p,
+[class*="bg-slate-"] .dark-card-override [class*="text-slate-"],
+[class*="bg-slate-"] .dark-card-override [class*="text-gray-"],
+[class*="bg-slate-"] .dark-card-override .text-white,
+[class*="bg-slate-"] .dark-card-override span,
+[class*="bg-slate-"] .dark-card-override div,
+[class*="bg-slate-"] .dark-card-override p {
+  color: #f1f5f9 !important;
+}
+
+/* Specific colors overrides with high specificity */
+.bg-slate-900 .dark-card-override .text-emerald-400,
+.bg-slate-800 .dark-card-override .text-emerald-400,
+[class*="bg-slate-"] .dark-card-override .text-emerald-400 {
+  color: #34d399 !important;
+}
+
+.bg-slate-900 .dark-card-override .text-blue-300,
+.bg-slate-800 .dark-card-override .text-blue-300,
+[class*="bg-slate-"] .dark-card-override .text-blue-300 {
+  color: #93c5fd !important;
+}
+
+.bg-slate-900 .dark-card-override .text-blue-400,
+.bg-slate-800 .dark-card-override .text-blue-400,
+[class*="bg-slate-"] .dark-card-override .text-blue-400 {
+  color: #60a5fa !important;
+}
+
+.bg-slate-900 .dark-card-override .text-yellow-400,
+.bg-slate-800 .dark-card-override .text-yellow-400,
+[class*="bg-slate-"] .dark-card-override .text-yellow-400 {
+  color: #fbbf24 !important;
+}
+
+.bg-slate-900 .dark-card-override .text-slate-400,
+.bg-slate-800 .dark-card-override .text-slate-400,
+[class*="bg-slate-"] .dark-card-override .text-slate-400 {
+  color: #94a3b8 !important;
+}
+
+.bg-slate-900 .dark-card-override .text-slate-500,
+.bg-slate-800 .dark-card-override .text-slate-500,
+[class*="bg-slate-"] .dark-card-override .text-slate-500 {
+  color: #64748b !important;
+}
+
+.bg-slate-900 .dark-card-override .text-purple-300,
+.bg-slate-800 .dark-card-override .text-purple-300,
+[class*="bg-slate-"] .dark-card-override .text-purple-300 {
+  color: #d8b4fe !important;
+}
+

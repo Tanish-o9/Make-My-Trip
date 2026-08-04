@@ -1824,64 +1824,152 @@ function FlightsSearchForm({ currency, onBook, onDetailClick, onTrackFlight }: {
                   : "Comparing simulated inventory (Amadeus & TBO sandbox)"}
               </span>
             </h4>
-            {results.map((res, index) => (
-              <div key={index} className="bg-[#121c33] p-5 rounded-2xl flex justify-between items-center border border-slate-800 hover:border-slate-700 transition-all relative">
-                {index === 0 && (
-                  <div className="absolute -top-2 left-4 bg-gradient-to-r from-emerald-500 to-teal-400 text-[9px] text-white font-black px-2.5 py-0.5 rounded-full shadow-lg shadow-emerald-500/20 animate-pulse">🏆 BEST PRICE</div>
-                )}
-                <div onClick={() => onDetailClick("flights", { ...res, fromCity, toCity, cabin, passengers, depDate })} className="cursor-pointer flex-1 text-left">
-                  <div className="flex items-center gap-2">
-                    <Plane size={14} className="text-blue-500" />
-                    <span className="font-bold text-sm">{res.airline}</span>
-                    <span className="text-[10px] bg-blue-900/40 text-blue-300 px-1.5 py-0.5 rounded">{res.flight_ref || res.raw_provider_ref}</span>
-                    {res.provider_name && !res.is_simulated && (
-                      <span className="text-[9px] bg-purple-900/40 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/20">via {res.provider_name}</span>
+            {(() => {
+              const AIRLINE_MAP: Record<string, string> = {
+                "6E": "IndiGo",
+                "AI": "Air India",
+                "UK": "Vistara",
+                "QP": "Akasa Air",
+                "SG": "SpiceJet",
+                "G8": "Go First",
+                "AA": "American Airlines",
+                "DL": "Delta Air Lines",
+                "UA": "United Airlines",
+                "LH": "Lufthansa",
+                "EK": "Emirates",
+                "EY": "Etihad Airways",
+                "QR": "Qatar Airways"
+              };
+              return results.map((res, index) => {
+                const airlineCode = (res.airline || "6E").trim().toUpperCase();
+                const airlineName = AIRLINE_MAP[airlineCode] || airlineCode;
+                const flightNumber = res.flight_number || res.raw_provider_ref || `${airlineCode}-100`;
+                const origin = res.origin || fromCity;
+                const destination = res.destination || toCity;
+                const depTime = res.dep || "08:30";
+                const arrTime = res.arr || "10:45";
+                const duration = res.duration || "2h 15m";
+                const cabinClass = res.cabin_class || cabin || "ECONOMY";
+                const stops = res.layovers && res.layovers.length > 0 ? `${res.layovers.length} stop(s)` : "Non-stop";
+                const isBusiness = cabinClass.toUpperCase() === "BUSINESS" || cabinClass.toUpperCase() === "FIRST";
+                const baggageAllowance = res.baggage || (isBusiness ? "35 kg check-in / 7 kg cabin" : "15 kg check-in / 7 kg cabin");
+                const isRefundable = res.cancellation_policy && !res.cancellation_policy.toLowerCase().includes("non-refundable");
+                const cancellationText = res.cancellation_policy || "Refundable";
+
+                return (
+                  <div key={index} className="dark-card-override bg-[#0f192e] p-5 rounded-2xl flex flex-col md:flex-row gap-5 justify-between items-start md:items-center border border-slate-800 hover:border-slate-700 hover:shadow-xl transition-all relative">
+                    {index === 0 && (
+                      <div className="absolute -top-2.5 left-4 bg-gradient-to-r from-emerald-500 to-teal-400 text-[9px] text-white font-black px-2.5 py-0.5 rounded-full shadow-lg shadow-emerald-500/20 animate-pulse">🏆 BEST PRICE</div>
                     )}
-                  </div>
-                  <div className="text-xs text-slate-300 mt-2">
-                    {res.dep} ➔ {res.arr} <span className="text-slate-500 font-normal">({res.duration})</span>
-                  </div>
-                  {res.alternatives && res.alternatives.filter((alt: any) => !alt.is_simulated).length > 0 && (
-                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                      <span className="text-[9px] text-slate-500">Also on:</span>
-                      {res.alternatives.filter((alt: any) => !alt.is_simulated).map((alt: any, ai: number) => (
-                        <span key={ai} className="text-[9px] bg-slate-800/80 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700">
-                          {alt.provider_name} ₹{Number(alt.price).toLocaleString()}
-                        </span>
-                      ))}
+                    
+                    {/* Left Section: Flight Details */}
+                    <div className="flex-1 w-full space-y-3">
+                      {/* Line 1: Airline & Flight Info */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="w-6 h-6 bg-slate-800 rounded-full flex items-center justify-center border border-slate-700">
+                          <Plane size={12} className="text-blue-400 rotate-45" />
+                        </div>
+                        <span className="font-extrabold text-sm text-slate-100 tracking-tight">{airlineName}</span>
+                        <span className="text-[10px] font-mono bg-blue-950/85 text-blue-300 px-2 py-0.5 rounded border border-blue-900/50">{flightNumber}</span>
+                        <span className="text-[9px] font-bold uppercase tracking-wider bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700">{cabinClass}</span>
+                        {res.provider_name && !res.is_simulated && (
+                          <span className="text-[9px] font-semibold bg-purple-950/60 text-purple-300 px-2 py-0.5 rounded border border-purple-900/30">via {res.provider_name}</span>
+                        )}
+                      </div>
+
+                      {/* Line 2: Route, Times & Stops */}
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-200">
+                        {/* Departure */}
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="font-black text-base text-white">{depTime}</span>
+                          <span className="text-xs font-bold text-slate-400 uppercase">{origin.split(" ")[0]}</span>
+                        </div>
+                        
+                        {/* Connection Line */}
+                        <div className="flex flex-col items-center min-w-[60px] relative px-1">
+                          <span className="text-[9px] text-slate-400 font-semibold">{duration}</span>
+                          <div className="w-full h-0.5 bg-slate-800 relative flex items-center justify-center">
+                            <div className="w-1.5 h-1.5 rounded-full bg-slate-500"></div>
+                          </div>
+                          <span className="text-[9px] text-slate-400 font-medium mt-0.5">{stops}</span>
+                        </div>
+                        
+                        {/* Arrival */}
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="font-black text-base text-white">{arrTime}</span>
+                          <span className="text-xs font-bold text-slate-400 uppercase">{destination.split(" ")[0]}</span>
+                        </div>
+                      </div>
+
+                      {/* Line 3: Bags & Cancellation Badges */}
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        {/* Baggage Badge */}
+                        <div className="text-[10px] text-slate-300 bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700 flex items-center gap-1">
+                          <span>💼 Baggage:</span>
+                          <span className="font-semibold text-slate-200">{baggageAllowance}</span>
+                        </div>
+                        
+                        {/* Cancellation Policy Badge */}
+                        <div className={`text-[10px] px-2 py-0.5 rounded border flex items-center gap-1 ${
+                          isRefundable 
+                            ? "bg-emerald-950/40 text-emerald-400 border-emerald-900/40" 
+                            : "bg-amber-950/40 text-amber-400 border-amber-900/40"
+                        }`}>
+                          <span>{isRefundable ? "✓ Refundable" : "✕ Non-Refundable"}</span>
+                          {cancellationText !== "Refundable" && cancellationText !== "Non-Refundable" && (
+                            <span className="opacity-90 font-medium">({cancellationText})</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Alternatives Row */}
+                      {res.alternatives && res.alternatives.filter((alt: any) => !alt.is_simulated).length > 0 && (
+                        <div className="flex items-center gap-1.5 mt-2 pt-1 border-t border-slate-800/40 flex-wrap">
+                          <span className="text-[9px] text-slate-500 font-semibold uppercase tracking-wider">Also on:</span>
+                          {res.alternatives.filter((alt: any) => !alt.is_simulated).map((alt: any, ai: number) => (
+                            <span key={ai} className="text-[9px] bg-slate-800/60 text-slate-400 px-2 py-0.5 rounded border border-slate-700 flex items-center gap-1">
+                              <span className="font-medium">{alt.provider_name}:</span>
+                              <span className="font-bold text-emerald-400">₹{Number(alt.price).toLocaleString()}</span>
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  )}
-                  <span className="text-[10px] text-blue-400 font-bold block mt-2 hover:underline">View details & seat selection ➔</span>
-                </div>
-                <div className="text-right">
-                  <div className="font-black text-emerald-400 text-base">₹{(res.price_per_passenger || res.price || 0).toLocaleString()}</div>
-                  {res.price_per_passenger && passengers > 1 && (
-                    <div className="text-[9px] text-slate-500">Total: ₹{(res.total_price || res.price_per_passenger * passengers).toLocaleString()}</div>
-                  )}
-                  <button 
-                    onClick={() => onBook({
-                      vertical: "flights",
-                      amount: res.total_price || res.price,
-                      details: {
-                        origin: fromCity.split(" ")[0],
-                        destination: toCity.split(" ")[0],
-                        airline_code: (res.flight_ref || res.raw_provider_ref || "6E-502").split("-")[0],
-                        flight_number: (res.flight_ref || res.raw_provider_ref || "6E-502").split("-")[1],
-                        cabin_class: cabin.toUpperCase(),
-                        passengers: [{ name: "Traveler Guest", age: 32 }],
-                        provider_name: res.provider_name,
-                        offer_id: res.offer_id
-                      },
-                      title: `${res.airline} ${res.flight_ref || res.raw_provider_ref}`,
-                      subtitle: `${fromCity} ➔ ${toCity}`
-                    })}
-                    className="mt-2 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black px-3.5 py-1.5 rounded-lg flex items-center gap-1 shadow-md shadow-blue-500/10 cursor-pointer"
-                  >
-                    Book Flight <ArrowRight size={10} />
-                  </button>
-                </div>
-              </div>
-            ))}
+
+                    {/* Right Section: Price and Book Button */}
+                    <div className="text-right w-full md:w-auto flex md:flex-col justify-between md:justify-center items-center md:items-end gap-3 border-t md:border-t-0 border-slate-800/60 pt-3 md:pt-0">
+                      <div>
+                        <div className="font-black text-emerald-400 text-lg md:text-xl tracking-tight">₹{(res.price_per_passenger || res.price || 0).toLocaleString()}</div>
+                        {res.price_per_passenger && passengers > 1 && (
+                          <div className="text-[10px] text-slate-400 font-semibold">Total: ₹{(res.total_price || res.price_per_passenger * passengers).toLocaleString()}</div>
+                        )}
+                      </div>
+                      <button 
+                        onClick={() => onBook({
+                          vertical: "flights",
+                          amount: res.total_price || res.price,
+                          details: {
+                            origin: origin.split(" ")[0],
+                            destination: destination.split(" ")[0],
+                            airline_code: airlineCode,
+                            flight_number: flightNumber.split("-")[1] || flightNumber,
+                            cabin_class: cabinClass.toUpperCase(),
+                            passengers: Array.from({ length: passengers }, (_, i) => ({ name: `Traveler Guest ${i+1}`, age: 32 })),
+                            provider_name: res.provider_name,
+                            offer_id: res.offer_id
+                          },
+                          title: `${airlineName} ${flightNumber}`,
+                          subtitle: `${origin.split(" ")[0]} ➔ ${destination.split(" ")[0]}`
+                        })}
+                        className="bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-[11px] font-extrabold px-4 py-2 rounded-xl flex items-center gap-1 shadow-lg shadow-blue-600/10 cursor-pointer transition-all"
+                      >
+                        Book Flight <ArrowRight size={12} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              });
+            })()}
           </div>
         )}
       </div>
@@ -2124,7 +2212,7 @@ function HotelsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {results.map((res, index) => (
-              <div key={index} className="bg-[#121c33] p-4 rounded-2xl border border-slate-800 hover:border-slate-700 transition-all flex flex-col justify-between gap-4 relative">
+              <div key={index} className="dark-card-override bg-[#121c33] p-4 rounded-2xl border border-slate-800 hover:border-slate-700 transition-all flex flex-col justify-between gap-4 relative">
                 {index === 0 && (
                   <div className="absolute -top-2 left-4 bg-gradient-to-r from-emerald-500 to-teal-400 text-[9px] text-white font-black px-2.5 py-0.5 rounded-full shadow-lg shadow-emerald-500/20 animate-pulse z-10">🏆 BEST PRICE</div>
                 )}
@@ -5681,47 +5769,137 @@ function ChatView({
               )}
 
               {msg.flights && Array.isArray(msg.flights) && (
-                <div className="mt-4 space-y-2 border-t border-slate-800 pt-4">
+                <div className="mt-4 space-y-3 border-t border-slate-800 pt-4">
                   <h4 className="text-xs text-slate-400 font-semibold mb-2">FOUND FLIGHT SELECTIONS:</h4>
-                  {msg.flights.map((fl: any, i: number) => {
-                    if (!fl) return null;
-                    const isBooked = bookedItems[fl.flight_number];
-                    return (
-                      <div key={i} className="bg-[#121c33] p-4 rounded-xl flex justify-between items-center border border-slate-800 hover:border-slate-700 transition-all">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <Plane size={14} className="text-blue-500" />
-                            <span className="font-bold text-xs">{fl.airline}</span>
-                            <span className="text-[10px] bg-blue-900/40 text-blue-300 px-1.5 py-0.5 rounded">{fl.flight_number}</span>
-                            {isBooked && (
-                              <span className="text-[9px] bg-emerald-950/40 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded flex items-center gap-0.5"><CheckCircle size={8} /> Booked</span>
+                  {(() => {
+                    const AIRLINE_MAP: Record<string, string> = {
+                      "6E": "IndiGo",
+                      "AI": "Air India",
+                      "UK": "Vistara",
+                      "QP": "Akasa Air",
+                      "SG": "SpiceJet",
+                      "G8": "Go First",
+                      "AA": "American Airlines",
+                      "DL": "Delta Air Lines",
+                      "UA": "United Airlines",
+                      "LH": "Lufthansa",
+                      "EK": "Emirates",
+                      "EY": "Etihad Airways",
+                      "QR": "Qatar Airways"
+                    };
+                    
+                    const parseFlightTimeAndCode = (val: string, fallbackCode: string, fallbackTime: string) => {
+                      if (!val) return { code: fallbackCode, time: fallbackTime };
+                      const parts = val.trim().split(/\s+/);
+                      if (parts.length >= 2) {
+                        return { code: parts[0], time: parts[1] };
+                      } else if (parts.length === 1) {
+                        if (parts[0].includes(":")) {
+                          return { code: fallbackCode, time: parts[0] };
+                        } else {
+                          return { code: parts[0], time: fallbackTime };
+                        }
+                      }
+                      return { code: fallbackCode, time: fallbackTime };
+                    };
+
+                    const formatDuration = (val: any) => {
+                      if (typeof val === 'number') {
+                        return `${Math.floor(val / 60)}h ${val % 60}m`;
+                      }
+                      return String(val || "2h 15m");
+                    };
+
+                    return msg.flights.map((fl: any, i: number) => {
+                      if (!fl) return null;
+                      
+                      const airlineCode = (fl.airline || "6E").trim().toUpperCase();
+                      const airlineName = AIRLINE_MAP[airlineCode] || airlineCode;
+                      const flightNumber = fl.flight_number || `${airlineCode}-101`;
+                      
+                      const depInfo = parseFlightTimeAndCode(fl.dep, "DEL", "08:00");
+                      const arrInfo = parseFlightTimeAndCode(fl.arr, "GOI", "10:30");
+                      const duration = formatDuration(fl.duration);
+                      const cabinClass = fl.cabin_class || "ECONOMY";
+                      const stops = fl.layovers && fl.layovers.length > 0 ? `${fl.layovers.length} stop(s)` : "Non-stop";
+                      
+                      const isBusiness = cabinClass.toUpperCase() === "BUSINESS" || cabinClass.toUpperCase() === "FIRST";
+                      const baggageAllowance = fl.baggage || (isBusiness ? "35 kg check-in / 7 kg cabin" : "15 kg check-in / 7 kg cabin");
+                      
+                      const isRefundable = fl.cancellation_policy && !fl.cancellation_policy.toLowerCase().includes("non-refundable");
+                      const cancellationText = fl.cancellation_policy || "Refundable";
+                      const isBooked = bookedItems[flightNumber];
+                      
+                      return (
+                        <div key={i} className="dark-card-override bg-[#0f192e] p-4 rounded-xl flex flex-col md:flex-row gap-4 justify-between items-start md:items-center border border-slate-800 hover:border-slate-700 hover:shadow-lg transition-all relative">
+                          {/* Left Section: Flight details */}
+                          <div className="flex-1 w-full space-y-2">
+                            {/* Airline, flight number, cabin */}
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Plane size={12} className="text-blue-400 rotate-45" />
+                              <span className="font-extrabold text-xs text-slate-100">{airlineName}</span>
+                              <span className="text-[9px] font-mono bg-blue-950/80 text-blue-300 px-1.5 py-0.5 rounded border border-blue-900/40">{flightNumber}</span>
+                              <span className="text-[9px] font-bold uppercase tracking-wider bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700">{cabinClass}</span>
+                              {isBooked && (
+                                <span className="text-[9px] bg-emerald-950/40 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded flex items-center gap-0.5"><CheckCircle size={8} /> Booked</span>
+                              )}
+                            </div>
+
+                            {/* Route, Times, Duration */}
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-200">
+                              <div className="flex items-baseline gap-1">
+                                <span className="font-black text-sm text-white">{depInfo.time}</span>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase">{depInfo.code}</span>
+                              </div>
+                              
+                              <div className="flex flex-col items-center min-w-[50px] relative px-1">
+                                <span className="text-[8px] text-slate-400 font-semibold">{duration}</span>
+                                <div className="w-full h-0.5 bg-slate-800 relative flex items-center justify-center">
+                                  <div className="w-1 h-1 rounded-full bg-slate-500"></div>
+                                </div>
+                                <span className="text-[8px] text-slate-400 font-medium mt-0.5">{stops}</span>
+                              </div>
+                              
+                              <div className="flex items-baseline gap-1">
+                                <span className="font-black text-sm text-white">{arrInfo.time}</span>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase">{arrInfo.code}</span>
+                              </div>
+                            </div>
+
+                            {/* Baggage & Refundability badges */}
+                            <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                              <span className="text-[9px] text-slate-300 bg-slate-800/80 px-1.5 py-0.5 rounded border border-slate-700">💼 {baggageAllowance}</span>
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded border ${
+                                isRefundable 
+                                  ? "bg-emerald-950/40 text-emerald-400 border-emerald-900/40" 
+                                  : "bg-amber-950/40 text-amber-400 border-amber-900/40"
+                              }`}>{isRefundable ? "✓ Refundable" : "✕ Non-Refundable"}</span>
+                            </div>
+                          </div>
+
+                          {/* Right Section: Price & Book button */}
+                          <div className="text-right w-full md:w-auto flex md:flex-col justify-between md:justify-center items-center md:items-end gap-2 border-t md:border-t-0 border-slate-800/60 pt-2 md:pt-0">
+                            <div className="font-black text-emerald-400 text-sm md:text-base">₹{Number(fl.price || 0).toLocaleString()}</div>
+                            {isBooked ? (
+                              <button 
+                                onClick={() => handleCancel(flightNumber, airlineName, Number(fl.price || 0))}
+                                className="bg-red-950/40 border border-red-500/30 hover:bg-red-900/30 text-red-400 text-[10px] font-bold px-2.5 py-1 rounded transition-all cursor-pointer"
+                              >
+                                Cancel Booking
+                              </button>
+                            ) : (
+                              <button 
+                                onClick={() => handleBook(flightNumber, airlineName, Number(fl.price || 0))}
+                                className="bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all cursor-pointer"
+                              >
+                                Book Now
+                              </button>
                             )}
                           </div>
-                          <div className="text-xs font-semibold text-slate-300 mt-1">
-                            {fl.dep} ➔ {fl.arr}
-                          </div>
                         </div>
-                        <div className="text-right">
-                          <div className="font-extrabold text-sm text-emerald-400 font-sans">₹{Number(fl.price || 0).toLocaleString()}</div>
-                          {isBooked ? (
-                            <button 
-                              onClick={() => handleCancel(fl.flight_number, fl.airline, Number(fl.price || 0))}
-                              className="mt-1 bg-red-950/40 border border-red-500/30 hover:bg-red-900/30 text-red-400 text-[10px] font-bold px-2.5 py-1 rounded"
-                            >
-                              Cancel Booking
-                            </button>
-                          ) : (
-                            <button 
-                              onClick={() => handleBook(fl.flight_number, fl.airline, Number(fl.price || 0))}
-                              className="mt-1 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold px-2.5 py-1 rounded"
-                            >
-                              Book Now
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    });
+                  })()}
                 </div>
               )}
 
