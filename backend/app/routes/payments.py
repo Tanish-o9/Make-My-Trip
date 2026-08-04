@@ -836,3 +836,12 @@ async def get_payment_status(
         "qr_code_id": payment.qr_code_id
     }
 
+@router.get("/key-check")
+def check_active_key():
+    import os
+    from app.payments.config import settings
+    return {
+        "key_id": settings.RAZORPAY_KEY_ID,
+        "env_key_id": os.getenv("RAZORPAY_KEY_ID")
+    }
+
