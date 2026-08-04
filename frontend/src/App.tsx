@@ -1866,17 +1866,17 @@ function FlightsSearchForm({ currency, onBook, onDetailClick, onTrackFlight }: {
                     <div className="flex-1 w-full space-y-3">
                       {/* Line 1: Airline & Flight Info */}
                       <div className="flex flex-wrap items-center gap-2">
-                        <div className="w-6 h-6 bg-slate-800 rounded-full flex items-center justify-center border border-slate-700">
+                        <div className="w-6 h-6 rounded-full flex items-center justify-center border border-slate-700" style={{ backgroundColor: '#1e293b' }}>
                           <Plane size={12} className="text-blue-400 rotate-45" />
                         </div>
                         <span className="font-extrabold text-sm text-slate-100 tracking-tight">{airlineName}</span>
                         <span className="text-[10px] font-mono bg-blue-950/85 text-blue-300 px-2 py-0.5 rounded border border-blue-900/50">{flightNumber}</span>
-                        <span className="text-[9px] font-bold uppercase tracking-wider bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700">{cabinClass}</span>
+                        <span className="dark-card-badge text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded">{cabinClass}</span>
                         {res.provider_name && !res.is_simulated && (
                           <span className="text-[9px] font-semibold bg-purple-950/60 text-purple-300 px-2 py-0.5 rounded border border-purple-900/30">via {res.provider_name}</span>
                         )}
                       </div>
-
+ 
                       {/* Line 2: Route, Times & Stops */}
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-200">
                         {/* Departure */}
@@ -1900,11 +1900,11 @@ function FlightsSearchForm({ currency, onBook, onDetailClick, onTrackFlight }: {
                           <span className="text-xs font-bold text-slate-400 uppercase">{destination.split(" ")[0]}</span>
                         </div>
                       </div>
-
+ 
                       {/* Line 3: Bags & Cancellation Badges */}
                       <div className="flex flex-wrap items-center gap-2 pt-1">
                         {/* Baggage Badge */}
-                        <div className="text-[10px] text-slate-300 bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700 flex items-center gap-1">
+                        <div className="dark-card-badge text-[10px] px-2 py-0.5 rounded flex items-center gap-1">
                           <span>💼 Baggage:</span>
                           <span className="font-semibold text-slate-200">{baggageAllowance}</span>
                         </div>
@@ -5839,7 +5839,7 @@ function ChatView({
                               <Plane size={12} className="text-blue-400 rotate-45" />
                               <span className="font-extrabold text-xs text-slate-100">{airlineName}</span>
                               <span className="text-[9px] font-mono bg-blue-950/80 text-blue-300 px-1.5 py-0.5 rounded border border-blue-900/40">{flightNumber}</span>
-                              <span className="text-[9px] font-bold uppercase tracking-wider bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700">{cabinClass}</span>
+                              <span className="dark-card-badge text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded">{cabinClass}</span>
                               {isBooked && (
                                 <span className="text-[9px] bg-emerald-950/40 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded flex items-center gap-0.5"><CheckCircle size={8} /> Booked</span>
                               )}
@@ -5868,7 +5868,7 @@ function ChatView({
 
                             {/* Baggage & Refundability badges */}
                             <div className="flex flex-wrap items-center gap-2 pt-0.5">
-                              <span className="text-[9px] text-slate-300 bg-slate-800/80 px-1.5 py-0.5 rounded border border-slate-700">💼 {baggageAllowance}</span>
+                              <span className="dark-card-badge text-[9px] px-1.5 py-0.5 rounded">💼 {baggageAllowance}</span>
                               <span className={`text-[9px] px-1.5 py-0.5 rounded border ${
                                 isRefundable 
                                   ? "bg-emerald-950/40 text-emerald-400 border-emerald-900/40" 

@@ -552,16 +552,16 @@ h3[class*="text-slate-200"] {
 
 
 /* Boarding pass light theme text color overrides for readability */
-.boarding-pass-container:not(.dark-card-override),
-.boarding-pass-container p:not(.dark-card-override *),
-.boarding-pass-container label:not(.dark-card-override *),
-.boarding-pass-container h4:not(.dark-card-override *),
-.boarding-pass-container h5:not(.dark-card-override *),
-.boarding-pass-container div:not([class*="bg-teal"]):not([class*="bg-emerald"]):not([class*="bg-gold"]):not([class*="bg-indigo"]):not(.dark-card-override):not(.dark-card-override *) {
+.boarding-pass-container,
+.boarding-pass-container p,
+.boarding-pass-container label,
+.boarding-pass-container h4,
+.boarding-pass-container h5,
+.boarding-pass-container div:not([class*="bg-teal"]):not([class*="bg-emerald"]):not([class*="bg-gold"]):not([class*="bg-indigo"]) {
   color: #000000 !important;
 }
 
-.boarding-pass-container span:not([class*="text-[var(--color-gold)]"]):not([class*="text-[var(--color-teal)]"]):not([class*="text-emerald"]):not([class*="text-teal"]):not([class*="text-gold"]):not(.dark-card-override *):not(.dark-card-override) {
+.boarding-pass-container span:not([class*="text-[var(--color-gold)]"]):not([class*="text-[var(--color-teal)]"]):not([class*="text-emerald"]):not([class*="text-teal"]):not([class*="text-gold"]) {
   color: #000000 !important;
 }
 
@@ -605,80 +605,55 @@ h3[class*="text-slate-200"] {
   background-color: #F3E5F5 !important; /* Light Purple */
 }
 
-/* Dark card text color overrides to bypass global neobrutalist black-text overrides */
+/* HIGH-PRIORITY DIRECT OVERRIDES FOR DARK CONTAINER CARDS */
 .dark-card-override,
-.dark-card-override * {
-  color: inherit;
+.dark-card-override span,
+.dark-card-override div,
+.dark-card-override p,
+.dark-card-override h4,
+.dark-card-override h3,
+.dark-card-override a,
+.dark-card-override font {
+  color: #f1f5f9 !important; /* Bright slate-200 white */
 }
 
-/* Ultra high specificity overrides to defeat global neobrutalist black text rules */
-.bg-slate-900 .dark-card-override [class*="text-slate-"],
-.bg-slate-900 .dark-card-override [class*="text-gray-"],
-.bg-slate-900 .dark-card-override .text-white,
-.bg-slate-900 .dark-card-override span,
-.bg-slate-900 .dark-card-override div,
-.bg-slate-900 .dark-card-override p,
-.bg-slate-800 .dark-card-override [class*="text-slate-"],
-.bg-slate-800 .dark-card-override [class*="text-gray-"],
-.bg-slate-800 .dark-card-override .text-white,
-.bg-slate-800 .dark-card-override span,
-.bg-slate-800 .dark-card-override div,
-.bg-slate-800 .dark-card-override p,
-.bg-gray-900 .dark-card-override [class*="text-slate-"],
-.bg-gray-900 .dark-card-override [class*="text-gray-"],
-.bg-gray-900 .dark-card-override .text-white,
-.bg-gray-900 .dark-card-override span,
-.bg-gray-900 .dark-card-override div,
-.bg-gray-900 .dark-card-override p,
-[class*="bg-slate-"] .dark-card-override [class*="text-slate-"],
-[class*="bg-slate-"] .dark-card-override [class*="text-gray-"],
-[class*="bg-slate-"] .dark-card-override .text-white,
-[class*="bg-slate-"] .dark-card-override span,
-[class*="bg-slate-"] .dark-card-override div,
-[class*="bg-slate-"] .dark-card-override p {
-  color: #f1f5f9 !important;
+.dark-card-override .text-white {
+  color: #ffffff !important;
 }
 
-/* Specific colors overrides with high specificity */
-.bg-slate-900 .dark-card-override .text-emerald-400,
-.bg-slate-800 .dark-card-override .text-emerald-400,
-[class*="bg-slate-"] .dark-card-override .text-emerald-400 {
-  color: #34d399 !important;
+.dark-card-override .text-emerald-400 {
+  color: #34d399 !important; /* Emerald green for price */
 }
 
-.bg-slate-900 .dark-card-override .text-blue-300,
-.bg-slate-800 .dark-card-override .text-blue-300,
-[class*="bg-slate-"] .dark-card-override .text-blue-300 {
-  color: #93c5fd !important;
+.dark-card-override .text-blue-300 {
+  color: #93c5fd !important; /* Soft blue for flight number badge */
 }
 
-.bg-slate-900 .dark-card-override .text-blue-400,
-.bg-slate-800 .dark-card-override .text-blue-400,
-[class*="bg-slate-"] .dark-card-override .text-blue-400 {
-  color: #60a5fa !important;
+.dark-card-override .text-blue-400 {
+  color: #60a5fa !important; /* Sky blue for selection links */
 }
 
-.bg-slate-900 .dark-card-override .text-yellow-400,
-.bg-slate-800 .dark-card-override .text-yellow-400,
-[class*="bg-slate-"] .dark-card-override .text-yellow-400 {
-  color: #fbbf24 !important;
+.dark-card-override .text-yellow-400 {
+  color: #fbbf24 !important; /* Amber yellow for reviews/stars */
 }
 
-.bg-slate-900 .dark-card-override .text-slate-400,
-.bg-slate-800 .dark-card-override .text-slate-400,
-[class*="bg-slate-"] .dark-card-override .text-slate-400 {
-  color: #94a3b8 !important;
+.dark-card-override .text-slate-400 {
+  color: #94a3b8 !important; /* Medium gray */
 }
 
-.bg-slate-900 .dark-card-override .text-slate-500,
-.bg-slate-800 .dark-card-override .text-slate-500,
-[class*="bg-slate-"] .dark-card-override .text-slate-500 {
-  color: #64748b !important;
+.dark-card-override .text-slate-500 {
+  color: #64748b !important; /* Darker gray for layouts */
 }
 
-.bg-slate-900 .dark-card-override .text-purple-300,
-.bg-slate-800 .dark-card-override .text-purple-300,
-[class*="bg-slate-"] .dark-card-override .text-purple-300 {
-  color: #d8b4fe !important;
+.dark-card-override .text-purple-300 {
+  color: #d8b4fe !important; /* Soft purple for provider names */
 }
+
+.dark-card-badge {
+  background-color: rgba(30, 41, 59, 0.85) !important; /* slate-800 equivalent */
+  border: 1px solid rgba(71, 85, 105, 0.3) !important; /* border-slate-700 equivalent */
+  box-shadow: none !important;
+  color: #f1f5f9 !important; /* Force white text */
+}
+
 
