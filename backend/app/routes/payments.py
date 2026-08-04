@@ -367,7 +367,7 @@ def create_payment_order(
 
     # 9. Return response containing public key and order details
     from app.payments.config import settings
-    return {
+    res_payload = {
         "razorpay_order_id": razorpay_order_id,
         "amount": actual_amount,
         "currency": req.currency.upper(),
@@ -375,6 +375,9 @@ def create_payment_order(
         "qr_code_url": qr_code_url,
         "qr_code_id": qr_code_id
     }
+    print(f"LOG: create-order final response payload: {res_payload}")
+    logger.info(f"LOG: create-order final response payload: {res_payload}")
+    return res_payload
 
 
 # Simulated webhook signature validation secrets
