@@ -440,7 +440,11 @@ h3[class*="text-slate-200"] {
 .info-highlight-card *,
 .offer-card-item *,
 .collection-card-item *,
-.partner-card-item * {
+.partner-card-item *,
+.info-highlight-card h1, .info-highlight-card h2, .info-highlight-card h3, .info-highlight-card h4, .info-highlight-card h5, .info-highlight-card h6, .info-highlight-card p, .info-highlight-card span,
+.offer-card-item h1, .offer-card-item h2, .offer-card-item h3, .offer-card-item h4, .offer-card-item h5, .offer-card-item h6, .offer-card-item p, .offer-card-item span,
+.collection-card-item h1, .collection-card-item h2, .collection-card-item h3, .collection-card-item h4, .collection-card-item h5, .collection-card-item h6, .collection-card-item p, .collection-card-item span,
+.partner-card-item h1, .partner-card-item h2, .partner-card-item h3, .partner-card-item h4, .partner-card-item h5, .partner-card-item h6, .partner-card-item p, .partner-card-item span {
   color: #000000 !important;
 }
 
@@ -548,3 +552,18 @@ h3[class*="text-slate-200"] {
 
 
 
+
+
+/* Boarding pass light theme text color overrides for readability */
+.boarding-pass-container,
+.boarding-pass-container p,
+.boarding-pass-container label,
+.boarding-pass-container h4,
+.boarding-pass-container h5,
+.boarding-pass-container div:not([class*="bg-teal"]):not([class*="bg-emerald"]):not([class*="bg-gold"]):not([class*="bg-indigo"]) {
+  color: #000000 !important;
+}
+
+.boarding-pass-container span:not([class*="text-[var(--color-gold)]"]):not([class*="text-[var(--color-teal)]"]):not([class*="text-emerald"]):not([class*="text-teal"]):not([class*="text-gold"]) {
+  color: #000000 !important;
+}

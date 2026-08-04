@@ -781,7 +781,7 @@ function ExploreView({
         </div>
 
         {/* Boarding Pass Ticket Layout Container */}
-        <div className="max-w-7xl mx-auto bg-[var(--color-surface)] border border-slate-800 rounded-[var(--radius-card)] shadow-2xl relative z-10 animate-scalein flex flex-col md:flex-row overflow-hidden">
+        <div className="boarding-pass-container max-w-7xl mx-auto bg-[var(--color-surface)] border border-slate-800 rounded-[var(--radius-card)] shadow-2xl relative z-10 animate-scalein flex flex-col md:flex-row overflow-hidden">
           
           {/* Main Ticket Stub (Left Form Section - 75% width) */}
           <div className="flex-1 p-4 sm:p-8 md:p-10">
