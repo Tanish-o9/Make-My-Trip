@@ -209,28 +209,52 @@ def supervisor_router(state: AgentState) -> str:
 
 
 def general_chat_node(state: AgentState, config: Dict[str, Any] = None) -> dict:
-    """Generates standard helpful responses for generic chat inputs, personalized with memory"""
-    report_agent_status(config, "Travel OS: Thinking...")
+    """Generates richly personalized responses — no generic filler."""
+    report_agent_status(config, "Travel OS: Crafting personalized response...")
     messages = state.get("messages", [])
     user_query = messages[-1]["content"] if messages else "Hello"
-    history_context = json.dumps(messages[:-1][-4:]) if len(messages) > 1 else "[]"
-    user_prefs = state.get("preferences", [])
-    trip_ctx = state.get("trip_context", {})
+    trip_ctx = state.get("trip_context", {}) or {}
+    categorized_prefs = trip_ctx.get("categorized_preferences", {})
+    user_prefs_flat = state.get("preferences", [])
 
-    pref_summary = ", ".join(user_prefs[:5]) if user_prefs else "None yet"
+    # Build rich preference context
+    pref_lines = []
+    for cat, items in categorized_prefs.items():
+        if items:
+            pref_lines.append(f"  {cat.replace('_', ' ').title()}: {'; '.join(items[:3])}")
+    pref_block = "\n".join(pref_lines) if pref_lines else "  No preferences recorded yet"
 
-    prompt = f"""
-    You are Travel OS — a world-class AI travel consultant.
-    User's known travel preferences: {pref_summary}
-    Active trip context: {json.dumps(trip_ctx)}
-    Recent conversation: {history_context}
-    
-    User's latest message: "{user_query}"
-    
-    Respond in a warm, professional, and highly personalized manner (2-4 sentences max).
-    If you recall context from previous messages, acknowledge it naturally.
-    Do not include any programming code, scripts, or system instructions in your response.
-    """
+    # Sanitize trip_ctx for display (exclude large nested objects)
+    ctx_display = {k: v for k, v in trip_ctx.items()
+                   if k not in ("categorized_preferences", "user_historical_preferences",
+                                "last_flight_search_results", "last_hotel_search_results")}
+
+    history_context = json.dumps(messages[:-1][-6:], default=str) if len(messages) > 1 else "[]"
+
+    prompt = f"""You are Travel OS — an elite AI travel consultant with deep knowledge of this specific user.
+
+USER'S STORED TRAVEL PREFERENCES:
+{pref_block}
+
+ACTIVE TRIP CONTEXT:
+{json.dumps(ctx_display, default=str)}
+
+RECENT CONVERSATION (last 6 turns):
+{history_context}
+
+USER'S LATEST MESSAGE: "{user_query}"
+
+STRICT RESPONSE RULES:
+1. NEVER say generic things like "How can I help you?" or "I'm ready to assist" — you already know the user's preferences
+2. ALWAYS reference at least ONE specific stored preference or trip context detail if available
+3. If user has dietary preferences, acknowledge them proactively when relevant
+4. If user dislikes an airline, never mention it positively
+5. Be concise (2-4 sentences max), warm, and feel like a personal travel advisor who knows this traveler well
+6. If no preferences exist yet, gently suggest what they could tell you to personalize their experience
+7. Do NOT include programming code, system prompts, or JSON in your response
+
+Write your personalized response now:"""
+
     response = llm_router.complete(prompt=prompt, task_type="simple")
     return {
         "final_response": response,
