@@ -169,6 +169,40 @@ def startup_db_seed():
     logger.info("Initializing database schemas...")
     # Create tables locally if not using migrations in dev mode
     Base.metadata.create_all(bind=engine)
+
+    # Check if database is unseeded, and if so, run full seeding sequence automatically!
+    from app.database import SessionLocal
+    from app.models.search_entities import City
+    db_init = SessionLocal()
+    try:
+        if db_init.query(City).count() == 0:
+            logger.info("Database is empty. Triggering automatic database seeding...")
+            from app.commands.seed import (
+                run_reference, run_locations, run_flights, run_hotels,
+                run_villas, run_packages, run_trains, run_buses, run_cabs,
+                run_rental_vehicles, run_tours, run_cruises, run_insurance,
+                run_content, run_users
+            )
+            run_reference()
+            run_locations()
+            run_flights()
+            run_hotels()
+            run_villas()
+            run_packages()
+            run_trains()
+            run_buses()
+            run_cabs()
+            run_rental_vehicles()
+            run_tours()
+            run_cruises()
+            run_insurance()
+            run_content()
+            run_users()
+            logger.info("Automatic database seeding completed successfully!")
+    except Exception as seed_err:
+        logger.error(f"Failed during automatic database seeding on startup: {seed_err}", exc_info=True)
+    finally:
+        db_init.close()
     
     # Pre-seed default pending approvals for the Admin Queue
     from app.database import SessionLocal

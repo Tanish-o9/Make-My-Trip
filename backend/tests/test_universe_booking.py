@@ -40,6 +40,9 @@ def test_user_and_wallet():
 
 def test_booking_holds_and_state_transitions(test_user_and_wallet):
     user, wallet = test_user_and_wallet
+    from app.auth.jwt import create_access_token
+    token = create_access_token(data={"sub": user.email, "role": "user"})
+    headers = {"Authorization": f"Bearer {token}"}
     
     # 1. Post hold for cab booking
     hold_payload = {
@@ -53,7 +56,7 @@ def test_booking_holds_and_state_transitions(test_user_and_wallet):
             "drop_address": "Connaught Place, Delhi"
         }
     }
-    response = client.post("/api/v1/bookings/hold", json=hold_payload)
+    response = client.post("/api/v1/bookings/hold", json=hold_payload, headers=headers)
     assert response.status_code == 200
     data = response.json()
     ref = data["booking_reference"]
@@ -67,7 +70,8 @@ def test_booking_holds_and_state_transitions(test_user_and_wallet):
         "payment_method": "wallet"
     }
     response_confirm = client.post(
-        f"/api/v1/bookings/confirm?booking_reference={ref}&vertical=cabs&payment_method=wallet"
+        f"/api/v1/bookings/confirm?booking_reference={ref}&vertical=cabs&payment_method=wallet",
+        headers=headers
     )
     assert response_confirm.status_code == 200
     confirm_data = response_confirm.json()
@@ -163,6 +167,9 @@ def test_promotions_offers_codes(test_user_and_wallet):
 
 def test_mybiz_policy_budgets(test_user_and_wallet):
     user, _ = test_user_and_wallet
+    from app.auth.jwt import create_access_token
+    token = create_access_token(data={"sub": user.email, "role": "user"})
+    headers = {"Authorization": f"Bearer {token}"}
     
     # 1. Onboard Organization & Link traveler
     db = SessionLocal()
@@ -192,12 +199,13 @@ def test_mybiz_policy_budgets(test_user_and_wallet):
             "drop_address": "Outstation Client"
         }
     }
-    response = client.post("/api/v1/bookings/hold", json=hold_payload)
+    response = client.post("/api/v1/bookings/hold", json=hold_payload, headers=headers)
     ref = response.json()["booking_reference"]
 
     # 3. Confirm using corporate billing method
     response_confirm = client.post(
-        f"/api/v1/bookings/confirm?booking_reference={ref}&vertical=cabs&payment_method=corporate_billing"
+        f"/api/v1/bookings/confirm?booking_reference={ref}&vertical=cabs&payment_method=corporate_billing",
+        headers=headers
     )
     assert response_confirm.status_code == 200
     confirm_data = response_confirm.json()
@@ -207,7 +215,8 @@ def test_mybiz_policy_budgets(test_user_and_wallet):
 
     # 4. Approver submits approval verdict
     approval_resp = client.post(
-        f"/api/v1/mybiz/approvals/verdict?booking_reference={ref}&vertical=cabs&verdict=approve"
+        f"/api/v1/mybiz/approvals/verdict?booking_reference={ref}&vertical=cabs&verdict=approve",
+        headers=headers
     )
     assert approval_resp.status_code == 200
     assert approval_resp.json()["status"] == "confirmed"

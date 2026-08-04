@@ -51,6 +51,9 @@ def test_search_endpoint_and_rate_limiting():
 
 def test_e2e_booking_hold_payment_flow(clean_user_db):
     user = clean_user_db
+    from app.auth.jwt import create_access_token
+    token = create_access_token(data={"sub": user.email, "role": "user"})
+    headers = {"Authorization": f"Bearer {token}"}
     
     # 1. Search flight results
     res = client.get("/api/v1/search?vertical=flights&origin=DEL&destination=GOI&date=2026-12-15")
@@ -77,7 +80,7 @@ def test_e2e_booking_hold_payment_flow(clean_user_db):
         }
     }
     
-    hold_res = client.post("/api/v1/bookings/hold", json=hold_payload)
+    hold_res = client.post("/api/v1/bookings/hold", json=hold_payload, headers=headers)
     assert hold_res.status_code == 200 or hold_res.status_code == 201
     hold_data = hold_res.json()
     assert "booking_reference" in hold_data
@@ -85,7 +88,8 @@ def test_e2e_booking_hold_payment_flow(clean_user_db):
     
     # 3. Simulate wallet payment transaction via confirm endpoint
     pay_res = client.post(
-        f"/api/v1/bookings/confirm?booking_reference={booking_ref}&vertical=flights&payment_method=wallet"
+        f"/api/v1/bookings/confirm?booking_reference={booking_ref}&vertical=flights&payment_method=wallet",
+        headers=headers
     )
     assert pay_res.status_code == 200
     pay_data = pay_res.json()
