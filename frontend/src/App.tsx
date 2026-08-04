@@ -889,38 +889,6 @@ function ExploreView({
         <HotelBrandsShowcase onPartnerClick={(name) => onPartnerClick('hotel', name)} />
       </div>
 
-      {/* HIGHLIGHTS & BANNER */}
-      <div className="max-w-6xl mx-auto px-8">
-        <InfoHighlightRow onNavigate={(path) => {
-          if (path === '/wallet') {
-            onShowProfile();
-          } else {
-            // Select related vertical
-            if (path.includes('explore')) {
-              setActiveVertical('tours');
-            }
-          }
-        }} />
-        <PromoBannerStrip />
-      </div>
-
-      {/* SEO MEGA FOOTER */}
-      <SEOMegaFooter onNavigate={(path) => {
-        if (path === '/mybiz') {
-          onShowMyBiz();
-        } else if (path === '/admin') {
-          onNavigate('/admin');
-        } else {
-          const vert = path.replace('/', '');
-          const validVerticals = ['flights', 'hotels', 'trains', 'cabs', 'visa', 'forex', 'insurance', 'tours', 'cruises', 'villas', 'holidays', 'rent-a-ride'];
-          if (validVerticals.includes(vert)) {
-            let mapped = vert;
-            if (mapped === 'holidays') mapped = 'holiday-packages';
-            setActiveVertical(mapped);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }
-        }
-      }} />
     </div>
   );
 }
