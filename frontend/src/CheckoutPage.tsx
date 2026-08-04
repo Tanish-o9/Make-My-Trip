@@ -90,7 +90,8 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
       });
       if (statusRes.status === 401) {
         console.warn("LOG: Status check returned 401 Unauthorized.");
-        setError("Your session has expired. Please log in again to complete checkout.");
+        const errData = await statusRes.json().catch(() => ({}));
+        setError(errData.detail || errData.message || "Your session has expired. Please log in again to complete checkout.");
         return;
       }
       if (statusRes.ok) {
@@ -109,7 +110,8 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
         headers: token ? { "Authorization": `Bearer ${token}` } : {}
       });
       if (detailsRes.status === 401) {
-        setError("Your session has expired or unauthorized. Please log in again.");
+        const errData = await detailsRes.json().catch(() => ({}));
+        setError(errData.detail || errData.message || "Your session has expired or unauthorized. Please log in again.");
         return;
       }
       if (detailsRes.ok) {
@@ -187,13 +189,9 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
       });
       
       console.log("LOG: create-order (UPI) response status:", res.status);
-      if (res.status === 401) {
-        setError("Your session has expired or unauthorized. Please log in again to retry.");
-        return;
-      }
       if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.detail || "Failed to generate UPI QR");
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || errData.message || `Payment initialization failed with status ${res.status}`);
       }
       
       const data = await res.json();
@@ -255,13 +253,9 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
       });
       
       console.log("LOG: create-order response status:", orderRes.status);
-      if (orderRes.status === 401) {
-        setError("Your session has expired or unauthorized. Please log in again to retry.");
-        return;
-      }
       if (!orderRes.ok) {
-        const errData = await orderRes.json();
-        throw new Error(errData.detail || "Failed to initiate payment");
+        const errData = await orderRes.json().catch(() => ({}));
+        throw new Error(errData.detail || errData.message || `Payment initialization failed with status ${orderRes.status}`);
       }
       
       const orderData = await orderRes.json();

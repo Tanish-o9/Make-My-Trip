@@ -17,20 +17,24 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     
     auth_header = request.headers.get("Authorization") or request.headers.get("authorization")
     if not auth_header:
+        logger.warning(f"AUDIT get_current_user: Missing Authorization header. Available: {list(request.headers.keys())}")
         raise HTTPException(
             status_code=401,
             detail=f"Missing Authorization Header. Received headers: {list(request.headers.keys())}"
         )
         
     if not auth_header.startswith("Bearer "):
+        logger.warning(f"AUDIT get_current_user: Invalid format for header: {auth_header[:15]}")
         raise HTTPException(
             status_code=401,
             detail=f"Invalid Authorization Header format. Must start with 'Bearer '. Value starts with: '{auth_header[:15]}'"
         )
         
     token = auth_header.split(" ")[1]
+    logger.info(f"AUDIT get_current_user: Token len={len(token)}")
     
     if is_token_blacklisted(token):
+        logger.warning("AUDIT get_current_user: Token is blacklisted")
         raise HTTPException(status_code=401, detail="Token is blacklisted")
         
     from app.auth.jwt import JWT_SECRET, ALGORITHM
@@ -38,22 +42,25 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM])
+        logger.info(f"AUDIT get_current_user: Decoded JWT payload: {payload}")
     except JWTError as e:
-        logger.error(f"JWT Decode Error on token: {e}")
+        logger.error(f"AUDIT get_current_user: JWT Decode Error: {e}")
         secret_prefix = JWT_SECRET[:4] if JWT_SECRET else "None"
         raise HTTPException(
             status_code=401,
             detail=f"JWT Decode Error: {str(e)} (Secret prefix: {secret_prefix}, Token len: {len(token)})"
         )
     except Exception as e:
-        logger.error(f"JWT Decode Unhandled Exception: {e}")
+        logger.error(f"AUDIT get_current_user: JWT Decode Unhandled Exception: {e}")
         raise HTTPException(status_code=401, detail=f"JWT Decode Unhandled Exception: {str(e)}")
         
     if not payload.get("type") == "access":
+        logger.warning(f"AUDIT get_current_user: Invalid token type: {payload.get('type')}")
         raise HTTPException(status_code=401, detail=f"Invalid token type: {payload.get('type')}")
     
     email: str = payload.get("sub")
     if email is None:
+        logger.warning("AUDIT get_current_user: Token payload missing 'sub'")
         raise HTTPException(status_code=401, detail="Token payload missing 'sub'")
         
     user = db.query(User).filter(User.email == email).first()
@@ -62,10 +69,13 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
         db_url = str(db.bind.url) if db.bind else "unknown"
         if "@" in db_url:
             db_url = db_url.split("@")[1]
+        logger.warning(f"AUDIT get_current_user: User '{email}' not found in DB.")
         raise HTTPException(
             status_code=401, 
             detail=f"Authenticated user '{email}' not found in database (Engine: {driver}, Host: {db_url})"
         )
+        
+    logger.info(f"AUDIT get_current_user: Successfully resolved user: id={user.id}, email={user.email}, role={user.role}")
         
     from app.utils.logging_config import user_id_ctx_var
     user_id_ctx_var.set(str(user.id))
