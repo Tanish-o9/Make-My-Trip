@@ -195,10 +195,11 @@ class GroqProvider(BaseLLMProvider):
         if stream:
             return self._generate_stream(url, headers, payload)
         else:
-            with httpx.Client(timeout=10.0) as client:
+            with httpx.Client(timeout=30.0) as client:  # increased from 10s
                 resp = client.post(url, headers=headers, json=payload)
                 resp.raise_for_status()
                 return resp.json()["choices"][0]["message"]["content"]
+
 
     def _generate_stream(self, url: str, headers: dict, payload: dict) -> Generator[str, None, None]:
         with httpx.Client(timeout=10.0) as client:
@@ -483,10 +484,36 @@ class LLMRouter:
                     return result
 
             except Exception as e:
-                logger.error(f"Provider {provider_name} failed: {e}")
-                self._record_failure(provider_name)
+                err_str = str(e)
+                is_rate_limit = "429" in err_str or "Too Many Requests" in err_str or "rate_limit" in err_str.lower()
+
+                if is_rate_limit:
+                    # Groq/other free-tier rate limit: wait and retry same provider (up to 2 retries)
+                    logger.warning(f"Provider {provider_name} rate-limited (429). Waiting before retry...")
+                    retry_wait = 5  # seconds
+                    for attempt in range(2):
+                        time.sleep(retry_wait)
+                        retry_wait *= 2  # 5s, 10s
+                        try:
+                            retry_result = provider.generate(prompt, system_prompt=system_prompt, stream=stream, **kwargs)
+                            latency = (time.time() - start_time) * 1000
+                            self._record_success(provider_name, latency)
+                            logger.info(f"Provider {provider_name} succeeded after rate-limit retry {attempt+1}")
+                            return retry_result
+                        except Exception as retry_e:
+                            if "429" not in str(retry_e):
+                                # Different error on retry — stop retrying this provider
+                                last_error = retry_e
+                                break
+                            logger.warning(f"Still rate-limited on retry {attempt+1}. Waiting {retry_wait}s...")
+                            last_error = retry_e
+                    # All retries exhausted — do NOT trip circuit breaker for rate limits
+                    logger.error(f"Provider {provider_name} rate-limit retries exhausted. Trying next provider.")
+                else:
+                    logger.error(f"Provider {provider_name} failed: {e}")
+                    self._record_failure(provider_name)  # only trip circuit for non-429 errors
+
                 last_error = e
-                # Update DB log with error
                 if db and decision_log:
                     try:
                         decision_log.error_message = str(e)

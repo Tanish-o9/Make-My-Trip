@@ -65,8 +65,8 @@ def supervisor_node(state: AgentState, config: Dict[str, Any] = None) -> dict:
         memory_hits = sum(len(v) for v in categorized_prefs.values()) if categorized_prefs else 0
         logger.info(f"[SUPERVISOR] Memory loaded: {memory_hits} preferences across {len(categorized_prefs)} categories")
 
-        # === Phase 2: Fuzzy Reference Resolution (with preference awareness) ===
-        report_agent_status(config, "Supervisor Agent: Classifying intent and resolving context references...")
+        # === Phase 2+3: Combined — Context Resolution + Intent Routing (single LLM call) ===
+        report_agent_status(config, "Supervisor: Resolving context and routing to specialists...")
 
         # Build a concise preference summary for the prompt
         pref_lines = []
@@ -75,99 +75,62 @@ def supervisor_node(state: AgentState, config: Dict[str, Any] = None) -> dict:
                 pref_lines.append(f"  {cat}: {'; '.join(items[:3])}")
         pref_block = "\n".join(pref_lines) if pref_lines else "  None recorded yet"
 
-        enrich_prompt = f"""You are resolving contextual references in a travel request.
+        combined_prompt = f"""You are a travel AI supervisor. Do TWO tasks and return ONE JSON object.
 
-Active Trip Context:
+ACTIVE TRIP CONTEXT:
 {json.dumps(trip_context, default=str)}
 
-User's Known Preferences:
+USER PREFERENCES:
 {pref_block}
 
-Conversation History (last 6 turns):
-{json.dumps(messages[:-1][-6:], default=str)}
+CONVERSATION (last 4 turns):
+{json.dumps(messages[:-1][-4:], default=str)}
 
-User's Latest Query:
-"{user_message}"
+USER QUERY: "{user_message}"
 
-Task: Rewrite the user's query to be FULLY SELF-CONTAINED and EXPLICIT.
-Replace ALL relative references with their resolved values:
-- "same hotel" → the specific hotel name from context
-- "previous flight" / "that flight" → the specific flight number from context
-- "same dates" → the specific departure/return dates from context
-- "same destination" / "there" → the specific city from context
-- "book that" / "reserve it" → specify exactly what to book
-- "change budget to X" → preserve all other context, only update budget
-- "change destination to Y" → preserve dates/budget/passengers, only update destination
+TASK 1 — Resolve references: Rewrite the query to be fully explicit.
+Replace: "same hotel"→hotel name, "that flight"→flight number, "there"→city, "same dates"→actual dates.
 
-Output ONLY the reconstructed query text. No explanations."""
-
-        try:
-            reconstructed_query = llm_router.complete(prompt=enrich_prompt, task_type="simple").strip()
-            # Sanity: if reconstruction is empty or identical to original, use original
-            if not reconstructed_query or len(reconstructed_query) < 5:
-                reconstructed_query = user_message
-            logger.info(f"[SUPERVISOR] Reconstructed: {reconstructed_query[:200]}")
-        except Exception as e:
-            logger.warning(f"Context reconstruction failed: {e}")
-            reconstructed_query = user_message
-
-        # === Phase 3: Intent Routing (preference-aware) ===
-        routing_prompt = f"""Analyze this self-contained travel request and select the specialist agents needed.
-
-Request: "{reconstructed_query}"
-
-User's ACTIVE preferences to consider for routing:
-- Airlines: {', '.join(categorized_prefs.get('airlines', ['None'])) or 'None'}
-- Hotels: {', '.join(categorized_prefs.get('hotels', ['None'])) or 'None'}
-- Dietary: {', '.join(categorized_prefs.get('dietary', ['None'])) or 'None'}
-- Travel Style: {', '.join(categorized_prefs.get('travel_style', ['None'])) or 'None'}
-- Budget Level: {', '.join(categorized_prefs.get('budget', ['None'])) or 'None'}
-
-Available specialists:
-- flight_search: flight search, booking, deals, price comparison
-- hotel_search: hotel accommodations, stays, resort booking
-- budget_planning: budget analysis, cost breakdown, money optimization
-- itinerary_generator: day-by-day sightseeing and activity plans
-- visa_assistant: visa requirements, entry rules, passport info
-- weather_info: weather forecast, packing guide, climate
-- local_guide: local attractions, hidden gems, sightseeing
-- currency_conversion: forex, currency exchange rates
-- restaurant_recommendation: restaurants, dining, food spots
-- travel_safety: safety advisories, alerts, crime index
-- customer_support: booking history, complaints, escalations
-- payment_assistant: payment failures, refunds, wallet help
-- insurance_assistant: travel insurance options and coverage
-- emergency_assistant: emergency contacts, embassy numbers
-- general_chat: greetings, simple questions, help
+TASK 2 — Select agents. Choose from:
+flight_search, hotel_search, budget_planning, itinerary_generator, visa_assistant,
+weather_info, local_guide, currency_conversion, restaurant_recommendation, travel_safety,
+customer_support, payment_assistant, trip_planner, insurance_assistant, emergency_assistant, general_chat
 
 Rules:
-- For full trip/vacation planning requests → ALWAYS include ["budget_planning", "flight_search", "hotel_search", "weather_info", "local_guide", "itinerary_generator"]
-- For flight-only requests → ["flight_search"]
-- For hotel-only requests → ["hotel_search"]
-- For insurance mentions → add "insurance_assistant"
-- Keep the list minimal but complete
+- Full trip/vacation plan → ["budget_planning", "flight_search", "hotel_search", "weather_info", "itinerary_generator"]
+- Flight only → ["flight_search"]
+- Hotel only → ["hotel_search"]
+- Greeting/simple question → ["general_chat"]
+- Budget question → ["budget_planning"]
+- Weather question → ["weather_info"]
 
-Output ONLY a valid JSON array. Example: ["flight_search", "hotel_search"]
-JSON:"""
+Return ONLY this JSON (no markdown, no explanation):
+{{"query": "<rewritten query>", "agents": ["agent1", "agent2"]}}"""
 
         try:
-            route_str = llm_router.complete(prompt=routing_prompt, task_type="simple").strip()
+            combined_str = llm_router.complete(prompt=combined_prompt, task_type="simple").strip()
             import re
-            match = re.search(r"(\[[\s\S]*?\])", route_str)
-            pending = json.loads(match.group(1)) if match else json.loads(route_str)
-            # Validate all agent names
+            match = re.search(r"(\{[\s\S]*?\})", combined_str)
+            combined_result = json.loads(match.group(1)) if match else json.loads(combined_str)
+            reconstructed_query = combined_result.get("query", user_message) or user_message
+            if len(reconstructed_query) < 5:
+                reconstructed_query = user_message
+            pending = combined_result.get("agents", [])
             valid = {"flight_search", "hotel_search", "budget_planning", "itinerary_generator",
                      "visa_assistant", "weather_info", "local_guide", "currency_conversion",
                      "restaurant_recommendation", "travel_safety", "customer_support",
                      "payment_assistant", "trip_planner", "insurance_assistant",
                      "emergency_assistant", "general_chat"}
             pending = [a for a in pending if a in valid]
+            logger.info(f"[SUPERVISOR] Combined call → query: {reconstructed_query[:100]} | agents: {pending}")
         except Exception as e:
-            logger.warning(f"Routing failed: {e}")
+            logger.warning(f"Combined supervisor call failed: {e}. Defaulting to general_chat.")
+            reconstructed_query = user_message
             pending = ["general_chat"]
 
         if not pending:
             pending = ["general_chat"]
+
 
         # Announce which agents will run
         report_agent_status(config, f"Supervisor: Scheduling {len(pending)} agents → {' → '.join(pending)}")
@@ -479,43 +442,49 @@ class SupervisorAgent:
         budget_constraints = active_context.get("budget_constraints", {})
 
         # === Phase 9: Dynamic Preference Learning ===
-        # Detect and persist any newly expressed preferences
-        try:
-            pref_prompt = f"""
-Analyze this user message and detect any explicitly stated permanent travel preferences.
-Examples: "I hate Indigo", "I always fly Business Class", "I'm vegetarian", "I prefer Taj hotels", "I never book cheap hostels".
+        # Only run if the message contains preference-indicating keywords (saves 1 LLM call for normal requests)
+        PREF_KEYWORDS = ["hate", "love", "prefer", "always", "never", "dislike", "avoid",
+                         "vegetarian", "vegan", "halal", "gluten", "business class", "first class",
+                         "taj", "marriott", "oberoi", "indigo", "vistara", "air india", "akasa",
+                         "favourite", "favorite", "don't like", "can't stand", "always book"]
+        message_lower = message.lower()
+        has_pref_signal = any(kw in message_lower for kw in PREF_KEYWORDS)
+
+        if has_pref_signal:
+            try:
+                pref_prompt = f"""Analyze this user message and detect any explicitly stated permanent travel preferences.
+Examples: "I hate Indigo", "I always fly Business Class", "I'm vegetarian", "I prefer Taj hotels".
 
 Message: "{message}"
 
-If a clear preference is detected, output a short, clean summary sentence (e.g. "Hates Indigo airlines", "Always travels Business Class", "Vegetarian dietary requirement").
-If NO permanent preference is stated, output ONLY the word: NONE
-"""
-            pref_stmt = llm_router.complete(prompt=pref_prompt, task_type="simple").strip()
-            if pref_stmt and pref_stmt.upper() not in ("NONE", "NONE.", ""):
-                # Categorize intelligently
-                p_lower = pref_stmt.lower()
-                if any(k in p_lower for k in ["vegan", "vegetarian", "halal", "gluten", "food", "diet"]):
-                    pref_cat = "dietary"
-                elif any(k in p_lower for k in ["indigo", "vistara", "air india", "akasa", "airline", "flight", "cabin", "business class", "economy"]):
-                    pref_cat = "airline"
-                elif any(k in p_lower for k in ["taj", "hotel", "resort", "marriott", "oberoi", "hilton", "stay"]):
-                    pref_cat = "hotel"
-                elif any(k in p_lower for k in ["budget", "cheap", "luxury", "affordable", "spend"]):
-                    pref_cat = "budget"
-                elif any(k in p_lower for k in ["solo", "family", "adventure", "luxury", "style", "backpack"]):
-                    pref_cat = "travel_style"
-                else:
-                    pref_cat = "preference"
+If a clear preference is detected, output a short summary sentence (e.g. "Hates Indigo airlines").
+If NO permanent preference is stated, output ONLY the word: NONE"""
+                pref_stmt = llm_router.complete(prompt=pref_prompt, task_type="simple").strip()
+                if pref_stmt and pref_stmt.upper() not in ("NONE", "NONE.", ""):
+                    p_lower = pref_stmt.lower()
+                    if any(k in p_lower for k in ["vegan", "vegetarian", "halal", "gluten", "food", "diet"]):
+                        pref_cat = "dietary"
+                    elif any(k in p_lower for k in ["indigo", "vistara", "air india", "akasa", "airline", "flight", "cabin", "business class", "economy"]):
+                        pref_cat = "airline"
+                    elif any(k in p_lower for k in ["taj", "hotel", "resort", "marriott", "oberoi", "hilton", "stay"]):
+                        pref_cat = "hotel"
+                    elif any(k in p_lower for k in ["budget", "cheap", "luxury", "affordable", "spend"]):
+                        pref_cat = "budget"
+                    elif any(k in p_lower for k in ["solo", "family", "adventure", "luxury", "style", "backpack"]):
+                        pref_cat = "travel_style"
+                    else:
+                        pref_cat = "preference"
+                    MemoryManager.save_user_preference(user_id=user_id, preference_text=pref_stmt, category=pref_cat)
+                    logger.info(f"Learned preference [{pref_cat}]: {pref_stmt}")
+                    if "user_historical_preferences" not in trip_context:
+                        trip_context["user_historical_preferences"] = []
+                    if pref_stmt not in trip_context["user_historical_preferences"]:
+                        trip_context["user_historical_preferences"].append(pref_stmt)
+            except Exception as e:
+                logger.error(f"Preference capture error: {e}")
+        else:
+            logger.debug(f"[PREF-GATE] No preference keywords in message — skipping preference-learning call")
 
-                MemoryManager.save_user_preference(user_id=user_id, preference_text=pref_stmt, category=pref_cat)
-                logger.info(f"Learned preference [{pref_cat}]: {pref_stmt}")
-
-                if "user_historical_preferences" not in trip_context:
-                    trip_context["user_historical_preferences"] = []
-                if pref_stmt not in trip_context["user_historical_preferences"]:
-                    trip_context["user_historical_preferences"].append(pref_stmt)
-        except Exception as e:
-            logger.error(f"Preference capture error: {e}")
 
         # === Phase 1: Load ALL categorized long-term preferences from DB ===
         try:
@@ -568,54 +537,52 @@ If NO permanent preference is stated, output ONLY the word: NONE
             user_id, session_id, message
         )
 
-        # 2. Parameter extraction from conversation history
-        context_prompt = f"""
-Analyze the conversation and extract all travel parameters. Use context clues from earlier messages too.
+        # 2. Fast regex-based parameter extraction (no LLM call — saves rate limit quota)
+        import re as _re
+        # Dates: YYYY-MM-DD or DD/MM/YYYY
+        date_matches = _re.findall(r'\b(\d{4}-\d{2}-\d{2})\b', message)
+        if date_matches and not trip_context.get("departure_date"):
+            trip_context["departure_date"] = date_matches[0]
+        # Budget: ₹50000 / Rs 50000 / 50000 rupees / 50k
+        budget_match = _re.search(r'(?:₹|rs\.?\s*|inr\s*)(\d[\d,]*(?:\.\d+)?)\s*(?:k\b)?|(\d[\d,]*(?:\.\d+)?)\s*(?:k\b)?\s*(?:rupees?|inr)', message, _re.IGNORECASE)
+        if budget_match and not budget_constraints.get("total_budget"):
+            raw = (budget_match.group(1) or budget_match.group(2) or "").replace(",", "")
+            try:
+                val = float(raw)
+                if "k" in message[budget_match.start():budget_match.end()+2].lower():
+                    val *= 1000
+                if val > 100:
+                    budget_constraints["total_budget"] = val
+            except Exception:
+                pass
+        # Passengers
+        pax_match = _re.search(r'(\d+)\s+(?:passengers?|people|persons?|adults?|travelers?|pax)', message, _re.IGNORECASE)
+        if pax_match and not trip_context.get("passengers"):
+            trip_context["passengers"] = int(pax_match.group(1))
+        # Duration
+        dur_match = _re.search(r'(\d+)\s+(?:days?|nights?)', message, _re.IGNORECASE)
+        if dur_match and not trip_context.get("duration_days"):
+            trip_context["duration_days"] = int(dur_match.group(1))
+        # Origin/Destination: "from X to Y" pattern
+        route_match = _re.search(r'\bfrom\s+([A-Za-z ]{2,20}?)\s+to\s+([A-Za-z ]{2,20})\b', message, _re.IGNORECASE)
+        if route_match:
+            orig_raw = route_match.group(1).strip().upper()
+            dest_raw = route_match.group(2).strip()
+            IATA_MAP = {"DELHI": "DEL", "NEW DELHI": "DEL", "MUMBAI": "BOM", "BOMBAY": "BOM",
+                        "BANGALORE": "BLR", "BENGALURU": "BLR", "CHENNAI": "MAA", "KOLKATA": "CCU",
+                        "HYDERABAD": "HYD", "PUNE": "PNQ", "AHMEDABAD": "AMD", "JAIPUR": "JAI",
+                        "GOA": "GOI", "BALI": "DPS", "DUBAI": "DXB", "LONDON": "LHR", "PARIS": "CDG"}
+            if not trip_context.get("origin"):
+                trip_context["origin"] = IATA_MAP.get(orig_raw, orig_raw[:3])
+            if not trip_context.get("destination"):
+                trip_context["destination"] = dest_raw.capitalize()
+        # Travel style
+        for style in ["luxury", "business", "family", "solo", "adventure", "honeymoon"]:
+            if style in message.lower() and not trip_context.get("travel_style"):
+                trip_context["travel_style"] = style.capitalize()
+                break
+        logger.debug(f"[REGEX-EXTRACT] trip_context={trip_context}, budget={budget_constraints}")
 
-Conversation History:
-{json.dumps(history[-8:])}
-
-User long-term preferences:
-{json.dumps(trip_context.get('categorized_preferences', {}))}
-
-Extract these fields if mentioned (leave blank/null if genuinely unknown):
-- origin (IATA code, e.g. DEL, BOM, BLR, CCU)
-- destination (city name, e.g. Goa, Paris, Dubai)
-- departure_date (YYYY-MM-DD)
-- return_date (YYYY-MM-DD)
-- duration_days (integer nights)
-- total_budget (float, INR)
-- passengers (integer)
-- travel_style (Solo/Family/HoneyMoon/Adventure/Luxury/Business)
-- cabin_class (ECONOMY/BUSINESS/FIRST — use preferences if stated)
-- hotel_tier (BUDGET/MIDRANGE/LUXURY — use preferences if stated)
-- dietary_preferences (Vegan/Vegetarian/Halal/None)
-- target_currency (USD/EUR/AED etc., if mentioned)
-
-Output ONLY valid JSON, no code blocks:
-{{
-  "origin": null, "destination": null, "departure_date": null,
-  "return_date": null, "duration_days": null, "total_budget": null,
-  "passengers": null, "travel_style": null, "cabin_class": null,
-  "hotel_tier": null, "dietary_preferences": null, "target_currency": null
-}}
-"""
-        try:
-            extraction_str = llm_router.complete(prompt=context_prompt, task_type="simple")
-            import re
-            match = re.search(r"(\{[\s\S]*?\})", extraction_str)
-            extracted = json.loads(match.group(1)) if match else json.loads(extraction_str.strip())
-            for k, v in extracted.items():
-                if v and v not in ("...", "None", "null", None, ""):
-                    if k == "total_budget":
-                        budget_constraints["total_budget"] = float(v)
-                    elif k == "hotel_tier":
-                        budget_constraints["tier"] = str(v).upper()
-                        trip_context[k] = str(v).upper()
-                    else:
-                        trip_context[k] = v
-        except Exception as e:
-            logger.error(f"Context extraction error: {e}")
 
         # Initialize State
         state = {
@@ -658,54 +625,45 @@ Output ONLY valid JSON, no code blocks:
             user_id, session_id, message
         )
 
-        # 2. Parameter extraction from conversation history (same as sync path)
-        context_prompt = f"""
-Analyze the conversation and extract all travel parameters. Use context clues from earlier messages too.
+        # 2. Fast regex-based parameter extraction (no LLM call — saves rate limit quota)
+        import re as _re
+        date_matches = _re.findall(r'\b(\d{4}-\d{2}-\d{2})\b', message)
+        if date_matches and not trip_context.get("departure_date"):
+            trip_context["departure_date"] = date_matches[0]
+        budget_match = _re.search(r'(?:₹|rs\.?\s*|inr\s*)(\d[\d,]*(?:\.\d+)?)\s*(?:k\b)?|(\d[\d,]*(?:\.\d+)?)\s*(?:k\b)?\s*(?:rupees?|inr)', message, _re.IGNORECASE)
+        if budget_match and not budget_constraints.get("total_budget"):
+            raw = (budget_match.group(1) or budget_match.group(2) or "").replace(",", "")
+            try:
+                val = float(raw)
+                if "k" in message[budget_match.start():budget_match.end()+2].lower():
+                    val *= 1000
+                if val > 100:
+                    budget_constraints["total_budget"] = val
+            except Exception:
+                pass
+        pax_match = _re.search(r'(\d+)\s+(?:passengers?|people|persons?|adults?|travelers?|pax)', message, _re.IGNORECASE)
+        if pax_match and not trip_context.get("passengers"):
+            trip_context["passengers"] = int(pax_match.group(1))
+        dur_match = _re.search(r'(\d+)\s+(?:days?|nights?)', message, _re.IGNORECASE)
+        if dur_match and not trip_context.get("duration_days"):
+            trip_context["duration_days"] = int(dur_match.group(1))
+        route_match = _re.search(r'\bfrom\s+([A-Za-z ]{2,20}?)\s+to\s+([A-Za-z ]{2,20})\b', message, _re.IGNORECASE)
+        if route_match:
+            orig_raw = route_match.group(1).strip().upper()
+            dest_raw = route_match.group(2).strip()
+            IATA_MAP = {"DELHI": "DEL", "NEW DELHI": "DEL", "MUMBAI": "BOM", "BOMBAY": "BOM",
+                        "BANGALORE": "BLR", "BENGALURU": "BLR", "CHENNAI": "MAA", "KOLKATA": "CCU",
+                        "HYDERABAD": "HYD", "PUNE": "PNQ", "AHMEDABAD": "AMD", "JAIPUR": "JAI",
+                        "GOA": "GOI", "BALI": "DPS", "DUBAI": "DXB", "LONDON": "LHR", "PARIS": "CDG"}
+            if not trip_context.get("origin"):
+                trip_context["origin"] = IATA_MAP.get(orig_raw, orig_raw[:3])
+            if not trip_context.get("destination"):
+                trip_context["destination"] = dest_raw.capitalize()
+        for style in ["luxury", "business", "family", "solo", "adventure", "honeymoon"]:
+            if style in message.lower() and not trip_context.get("travel_style"):
+                trip_context["travel_style"] = style.capitalize()
+                break
 
-Conversation History:
-{json.dumps(history[-8:])}
-
-User long-term preferences:
-{json.dumps(trip_context.get('categorized_preferences', {}))}
-
-Extract these fields if mentioned (leave blank/null if genuinely unknown):
-- origin (IATA code, e.g. DEL, BOM, BLR, CCU)
-- destination (city name, e.g. Goa, Paris, Dubai)
-- departure_date (YYYY-MM-DD)
-- return_date (YYYY-MM-DD)
-- duration_days (integer nights)
-- total_budget (float, INR)
-- passengers (integer)
-- travel_style (Solo/Family/HoneyMoon/Adventure/Luxury/Business)
-- cabin_class (ECONOMY/BUSINESS/FIRST — use preferences if stated)
-- hotel_tier (BUDGET/MIDRANGE/LUXURY — use preferences if stated)
-- dietary_preferences (Vegan/Vegetarian/Halal/None)
-- target_currency (USD/EUR/AED etc., if mentioned)
-
-Output ONLY valid JSON, no code blocks:
-{{
-  "origin": null, "destination": null, "departure_date": null,
-  "return_date": null, "duration_days": null, "total_budget": null,
-  "passengers": null, "travel_style": null, "cabin_class": null,
-  "hotel_tier": null, "dietary_preferences": null, "target_currency": null
-}}
-"""
-        try:
-            extraction_str = llm_router.complete(prompt=context_prompt, task_type="simple")
-            import re
-            match = re.search(r"(\{[\s\S]*?\})", extraction_str)
-            extracted = json.loads(match.group(1)) if match else json.loads(extraction_str.strip())
-            for k, v in extracted.items():
-                if v and v not in ("...", "None", "null", None, ""):
-                    if k == "total_budget":
-                        budget_constraints["total_budget"] = float(v)
-                    elif k == "hotel_tier":
-                        budget_constraints["tier"] = str(v).upper()
-                        trip_context[k] = str(v).upper()
-                    else:
-                        trip_context[k] = v
-        except Exception as e:
-            logger.error(f"Context extraction error: {e}")
 
         # Initialize State
         state = {
