@@ -757,6 +757,7 @@ class RefundRequest(BaseModel):
 async def refund_payment(
     payment_id: int,
     req: RefundRequest,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -766,6 +767,12 @@ async def refund_payment(
     if not payment:
         raise HTTPException(status_code=404, detail="Payment record not found")
         
+    if payment.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: Payment record does not belong to the requesting user."
+        )
+
     if payment.status != PaymentStatus.CAPTURED:
         raise HTTPException(status_code=400, detail="Only captured payments can be refunded")
         
@@ -816,6 +823,7 @@ async def refund_payment(
 @router.get("/status/{booking_reference}")
 async def get_payment_status(
     booking_reference: str,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -826,7 +834,18 @@ async def get_payment_status(
         booking = find_booking_by_reference(db, booking_reference)
         if not booking:
             raise HTTPException(status_code=404, detail="Booking not found")
+        if booking.user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: Booking does not belong to the requesting user."
+            )
         return {"status": "none", "booking_status": booking.status.value}
+        
+    if payment.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: Payment record does not belong to the requesting user."
+        )
         
     return {
         "status": payment.status.value,

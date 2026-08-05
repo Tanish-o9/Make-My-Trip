@@ -32,10 +32,11 @@ def init_db():
     db.commit()
     db.close()
     
-    # Bypass admin authentication in these tests
-    from app.auth.dependencies import get_current_admin
+    # Bypass admin and user authentication in these tests
+    from app.auth.dependencies import get_current_admin, get_current_user
     from app.models.core import User
     app.dependency_overrides[get_current_admin] = lambda: User(id=1, email="admin@travelos.com", role="super_admin")
+    app.dependency_overrides[get_current_user] = lambda: User(id=1, email="payment_test@travelos.com", role="user")
     
     yield
     # Clean up test transactions/ledger entries after run
@@ -77,6 +78,9 @@ def seeder():
         wallet.balance = Decimal("8000.00")
     db.commit()
     db.refresh(wallet)
+    
+    from app.auth.dependencies import get_current_user
+    app.dependency_overrides[get_current_user] = lambda: user
     
     yield user, wallet
     db.close()

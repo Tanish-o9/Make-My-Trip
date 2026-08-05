@@ -142,9 +142,33 @@ Return ONLY this JSON:
             pending = [a for a in pending if a in valid]
             logger.info(f"[SUPERVISOR] Combined call → query: {reconstructed_query[:100]} | agents: {pending}")
         except Exception as e:
-            logger.warning(f"Combined supervisor call failed: {e}. Defaulting to general_chat.")
+            logger.warning(f"Supervisor LLM call failed ({type(e).__name__}): {e}. Using keyword fallback router.")
             reconstructed_query = user_message
-            pending = ["general_chat"]
+            # Keyword-based fallback router — works even when Groq is rate-limited
+            msg_l = user_message.lower()
+            if any(w in msg_l for w in ["plan a trip", "plan trip", "travel package", "vacation plan",
+                                          "trip plan", "plan my trip", "book a trip", "arrange a trip"]):
+                pending = ["trip_planner"]
+            elif any(w in msg_l for w in ["flight", "fly", "airline", "airfare", "ticket"]):
+                pending = ["flight_search"]
+            elif any(w in msg_l for w in ["hotel", "stay", "accommodation", "hostel", "resort", "room"]):
+                pending = ["hotel_search"]
+            elif any(w in msg_l for w in ["budget", "cost", "how much", "price", "afford", "expensive", "cheap"]):
+                pending = ["budget_planning"]
+            elif any(w in msg_l for w in ["weather", "climate", "temperature", "rain", "season"]):
+                pending = ["weather_info"]
+            elif any(w in msg_l for w in ["visa", "passport", "document", "entry requirement"]):
+                pending = ["visa_assistant"]
+            elif any(w in msg_l for w in ["restaurant", "food", "eat", "dining", "cuisine"]):
+                pending = ["restaurant_recommendation"]
+            elif any(w in msg_l for w in ["currency", "exchange rate", "convert", "usd", "eur", "gbp"]):
+                pending = ["currency_conversion"]
+            elif any(w in msg_l for w in ["insurance", "cover", "medical", "emergency"]):
+                pending = ["insurance_assistant"]
+            else:
+                pending = ["general_chat"]
+            logger.info(f"[SUPERVISOR-FALLBACK] Keyword routing → {pending}")
+
 
 
         if not pending:

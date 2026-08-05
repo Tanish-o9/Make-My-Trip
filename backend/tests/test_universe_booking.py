@@ -34,7 +34,12 @@ def test_user_and_wallet():
     db.commit()
     db.refresh(wallet)
     
+    # Override get_current_user dependency for testing
+    from app.auth.dependencies import get_current_user
+    app.dependency_overrides[get_current_user] = lambda: user
+    
     yield user, wallet
+    app.dependency_overrides.clear()
     db.close()
 
 

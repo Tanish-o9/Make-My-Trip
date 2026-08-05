@@ -48,10 +48,21 @@ def chat_turn(
 
 
 @router.get("/chat/history/{session_id}")
-def get_chat_history(session_id: str, db: Session = Depends(get_db)):
+def get_chat_history(
+    session_id: str,
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     try:
+        from app.models.agents import ConversationSession
+        sess = db.query(ConversationSession).filter(ConversationSession.session_id == session_id).first()
+        if sess and sess.user_id != user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied: Conversation session does not belong to the requesting user.")
+            
         history = MemoryManager.get_conversation_history(session_id)
         return {"history": history}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error fetching chat history: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch chat history")

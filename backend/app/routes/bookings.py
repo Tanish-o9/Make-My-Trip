@@ -3,7 +3,7 @@ import uuid
 import asyncio
 from typing import Dict, Any, List
 from decimal import Decimal
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.bookings import (
@@ -238,6 +238,7 @@ def confirm_booking(
     vertical: str,
     payment_method: str = "wallet",
     card_number: str = None,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Captures payment and transitions booking from HOLD to CONFIRMED"""
@@ -256,6 +257,12 @@ def confirm_booking(
     booking = db.query(model_cls).filter(model_cls.booking_reference == booking_reference).first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking reference not found.")
+
+    if booking.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: Booking does not belong to the requesting user."
+        )
 
     if booking.status != BookingStatus.HOLD:
         raise HTTPException(status_code=400, detail="Booking is not on hold status.")
@@ -426,6 +433,7 @@ def cancel_booking(
     is_goodwill: bool = False,
     custom_amount: float = None,
     action_type: str = "cancel",
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Calculates refund policies and cancels any booking vertical using RefundManager"""
@@ -443,6 +451,12 @@ def cancel_booking(
     booking = db.query(model_cls).filter(model_cls.booking_reference == booking_reference).first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking reference not found.")
+ 
+    if booking.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: Booking does not belong to the requesting user."
+        )
  
     if booking.status not in [BookingStatus.CONFIRMED, BookingStatus.PENDING_APPROVAL, BookingStatus.CANCELLATION_REQUEST_SENT, BookingStatus.REFUND_REQUEST_SENT]:
         raise HTTPException(status_code=400, detail="Only active reservations can be cancelled or refunded.")
@@ -464,6 +478,7 @@ def cancel_booking(
 def get_booking_invoice(
     booking_reference: str,
     vertical: str,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Retrieves and generates itemized receipt summary invoice"""
@@ -482,6 +497,12 @@ def get_booking_invoice(
     booking = db.query(model_cls).filter(model_cls.booking_reference == booking_reference).first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking reference not found.")
+
+    if booking.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: Booking does not belong to the requesting user."
+        )
 
     desc = "Travel Booking"
     if vertical == "flights":
@@ -521,8 +542,17 @@ def get_booking_invoice(
 
 
 @router.get("/user/{user_id}")
-def get_user_bookings(user_id: int, db: Session = Depends(get_db)):
+def get_user_bookings(
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """Consolidates booking records across all 12 verticals for travel dashboard"""
+    if current_user.id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: Cannot fetch bookings for another user."
+        )
     results = []
     
     models_mapping = {
@@ -649,7 +679,11 @@ def get_user_bookings(user_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/details/{booking_reference}")
-def get_booking_details(booking_reference: str, db: Session = Depends(get_db)):
+def get_booking_details(
+    booking_reference: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """Retrieves full details of a specific booking across all 13 verticals"""
     models_mapping = {
         "flights": FlightBooking, "hotels": HotelBooking, "trains": TrainBooking,
@@ -669,6 +703,12 @@ def get_booking_details(booking_reference: str, db: Session = Depends(get_db)):
             
     if not booking:
         raise HTTPException(status_code=404, detail="Booking reference not found.")
+        
+    if booking.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: Booking does not belong to the requesting user."
+        )
         
     details = {
         "booking_reference": booking.booking_reference,

@@ -119,6 +119,185 @@ export default function App() {
     };
   }, []);
 
+  // Global fetch interceptor to handle token refresh and automatic Authorization header insertion
+  useEffect(() => {
+    const originalFetch = window.fetch;
+    let isRefreshing = false;
+    let refreshQueue: Array<{ resolve: (token: string | null) => void }> = [];
+    
+    const executeRefresh = async (): Promise<string | null> => {
+      const refreshToken = localStorage.getItem('refresh_token');
+      if (!refreshToken) return null;
+      
+      try {
+        const resp = await originalFetch(`${API_URL}/auth/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh_token: refreshToken })
+        });
+        
+        if (resp.ok) {
+          const data = await resp.json();
+          localStorage.setItem('token', data.access_token);
+          localStorage.setItem('refresh_token', data.refresh_token);
+          setToken(data.access_token);
+          const decoded = decodeJwt(data.access_token);
+          if (decoded && decoded.role) {
+            setUserRole(decoded.role);
+            localStorage.setItem('user_role', decoded.role);
+            setUserProfile((prev: any) => ({
+              ...prev,
+              email: decoded.sub || prev.email,
+              id: decoded.id
+            }));
+          }
+          return data.access_token;
+        } else {
+          return null;
+        }
+      } catch (err) {
+        return null;
+      }
+    };
+
+    const processQueue = (newToken: string | null) => {
+      refreshQueue.forEach(prom => prom.resolve(newToken));
+      refreshQueue = [];
+    };
+
+    window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const urlStr = typeof input === 'string' ? input : (input instanceof URL ? input.href : input.url);
+      const isBackendReq = urlStr.includes(API_URL) || urlStr.startsWith('/api/') || urlStr.startsWith(API_URL);
+      const isAuthRoute = urlStr.includes('/auth/token') || urlStr.includes('/auth/signup') || urlStr.includes('/auth/refresh');
+      
+      let currentToken = localStorage.getItem('token');
+      
+      if (isBackendReq && !isAuthRoute && currentToken) {
+        init = init || {};
+        init.headers = init.headers || {};
+        
+        if (init.headers instanceof Headers) {
+          init.headers.set('Authorization', `Bearer ${currentToken}`);
+        } else if (Array.isArray(init.headers)) {
+          const hasAuth = init.headers.some(([k]) => k.toLowerCase() === 'authorization');
+          if (!hasAuth) {
+            init.headers.push(['Authorization', `Bearer ${currentToken}`]);
+          }
+        } else {
+          const headersRecord = init.headers as Record<string, string>;
+          const keys = Object.keys(headersRecord);
+          const authKey = keys.find(k => k.toLowerCase() === 'authorization') || 'Authorization';
+          if (!headersRecord[authKey]) {
+            headersRecord[authKey] = `Bearer ${currentToken}`;
+          }
+        }
+        
+        const decoded = decodeJwt(currentToken);
+        const nowSeconds = Math.floor(Date.now() / 1000);
+        
+        if (decoded && decoded.exp && decoded.exp - nowSeconds <= 10) {
+          if (isRefreshing) {
+            const newToken = await new Promise<string | null>((resolve) => {
+              refreshQueue.push({ resolve });
+            });
+            if (newToken) {
+              currentToken = newToken;
+              if (init.headers instanceof Headers) {
+                init.headers.set('Authorization', `Bearer ${currentToken}`);
+              } else if (Array.isArray(init.headers)) {
+                const idx = init.headers.findIndex(([k]) => k.toLowerCase() === 'authorization');
+                if (idx !== -1) init.headers[idx] = ['Authorization', `Bearer ${currentToken}`];
+              } else {
+                const headersRecord = init.headers as Record<string, string>;
+                const authKey = Object.keys(headersRecord).find(k => k.toLowerCase() === 'authorization') || 'Authorization';
+                headersRecord[authKey] = `Bearer ${currentToken}`;
+              }
+            } else {
+              handleLogout();
+              return new Response(JSON.stringify({ detail: "Session Expired" }), { status: 401 });
+            }
+          } else {
+            isRefreshing = true;
+            const newToken = await executeRefresh();
+            isRefreshing = false;
+            processQueue(newToken);
+            
+            if (newToken) {
+              currentToken = newToken;
+              if (init.headers instanceof Headers) {
+                init.headers.set('Authorization', `Bearer ${currentToken}`);
+              } else if (Array.isArray(init.headers)) {
+                const idx = init.headers.findIndex(([k]) => k.toLowerCase() === 'authorization');
+                if (idx !== -1) init.headers[idx] = ['Authorization', `Bearer ${currentToken}`];
+              } else {
+                const headersRecord = init.headers as Record<string, string>;
+                const authKey = Object.keys(headersRecord).find(k => k.toLowerCase() === 'authorization') || 'Authorization';
+                headersRecord[authKey] = `Bearer ${currentToken}`;
+              }
+            } else {
+              handleLogout();
+              return new Response(JSON.stringify({ detail: "Session Expired" }), { status: 401 });
+            }
+          }
+        }
+      }
+      
+      let response = await originalFetch(input, init);
+      
+      if (response.status === 401 && isBackendReq && !isAuthRoute && localStorage.getItem('refresh_token')) {
+        if (isRefreshing) {
+          const newToken = await new Promise<string | null>((resolve) => {
+            refreshQueue.push({ resolve });
+          });
+          if (newToken) {
+            if (init && init.headers) {
+              if (init.headers instanceof Headers) {
+                init.headers.set('Authorization', `Bearer ${newToken}`);
+              } else if (Array.isArray(init.headers)) {
+                const idx = init.headers.findIndex(([k]) => k.toLowerCase() === 'authorization');
+                if (idx !== -1) init.headers[idx] = ['Authorization', `Bearer ${newToken}`];
+              } else {
+                const headersRecord = init.headers as Record<string, string>;
+                const authKey = Object.keys(headersRecord).find(k => k.toLowerCase() === 'authorization') || 'Authorization';
+                headersRecord[authKey] = `Bearer ${newToken}`;
+              }
+            }
+            return originalFetch(input, init);
+          }
+        } else {
+          isRefreshing = true;
+          const newToken = await executeRefresh();
+          isRefreshing = false;
+          processQueue(newToken);
+          
+          if (newToken) {
+            if (init && init.headers) {
+              if (init.headers instanceof Headers) {
+                init.headers.set('Authorization', `Bearer ${newToken}`);
+              } else if (Array.isArray(init.headers)) {
+                const idx = init.headers.findIndex(([k]) => k.toLowerCase() === 'authorization');
+                if (idx !== -1) init.headers[idx] = ['Authorization', `Bearer ${newToken}`];
+              } else {
+                const headersRecord = init.headers as Record<string, string>;
+                const authKey = Object.keys(headersRecord).find(k => k.toLowerCase() === 'authorization') || 'Authorization';
+                headersRecord[authKey] = `Bearer ${newToken}`;
+              }
+            }
+            return originalFetch(input, init);
+          } else {
+            handleLogout();
+          }
+        }
+      }
+      
+      return response;
+    };
+    
+    return () => {
+      window.fetch = originalFetch;
+    };
+  }, [token]);
+
   // Token parsing and session sync using single-use exchange code
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -229,8 +408,9 @@ export default function App() {
     }
   }, [currentPath, token, userRole, userProfile.email]);
 
-  const handleLogin = (accessToken: string, role: string, email: string) => {
+  const handleLogin = (accessToken: string, refreshToken: string, role: string, email: string) => {
     localStorage.setItem('token', accessToken);
+    localStorage.setItem('refresh_token', refreshToken);
     localStorage.setItem('user_role', role);
     setToken(accessToken);
     setUserRole(role);
@@ -248,6 +428,7 @@ export default function App() {
 
   const handleLogout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('refresh_token');
     localStorage.removeItem('user_role');
     setToken(null);
     setUserRole(null);
@@ -3018,7 +3199,7 @@ function TripPlannerForm({ onBook, onDetailClick, setPrefilledMessage, setActive
             {activeSubTab === 'overview' && (
               <div className="space-y-4">
                 <h3 className="font-extrabold text-lg text-white">📋 Travel Guide Summary</h3>
-                <div className="text-slate-300 text-sm whitespace-pre-wrap leading-relaxed font-sans prose prose-invert max-w-none">
+                <div className="text-sm whitespace-pre-wrap leading-relaxed font-sans max-w-none" style={{ color: '#ffffff' }}>
                   {packageData.text}
                 </div>
               </div>
@@ -5108,7 +5289,10 @@ function MyTripsView({ userProfile, setActiveTab, setPrefilledMessage }: { userP
 
   const fetchTrips = () => {
     setLoading(true);
-    fetch(`${API_URL}/bookings/user/1`)
+    const savedToken = localStorage.getItem('token');
+    const decoded = savedToken ? decodeJwt(savedToken) : null;
+    const userId = decoded?.id || 1;
+    fetch(`${API_URL}/bookings/user/${userId}`)
       .then(res => res.json())
       .then(data => {
         setTrips(data);
@@ -7665,7 +7849,10 @@ function CollectionCarousel({ slug, onDestinationClick }: { slug: string, onDest
   const carouselRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetch(`${API_URL}/showcase/collections/${slug}?user_id=1`)
+    const savedToken = localStorage.getItem('token');
+    const decoded = savedToken ? decodeJwt(savedToken) : null;
+    const userId = decoded?.id || 1;
+    fetch(`${API_URL}/showcase/collections/${slug}?user_id=${userId}`)
       .then(res => res.json())
       .then(data => {
         if (data && Array.isArray(data.items)) {
@@ -9964,7 +10151,7 @@ function ActiveRentalManager({ bookingReference, fetchTrips, setSelectedTrip }: 
 }
 
 
-function LoginScreen({ onLogin }: { onLogin: (token: string, role: string, email: string) => void }) {
+function LoginScreen({ onLogin }: { onLogin: (token: string, refreshToken: string, role: string, email: string) => void }) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -10021,7 +10208,7 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, role: string, email
         throw new Error("Could not parse login token.");
       }
 
-      onLogin(accessToken, decoded.role || "user", decoded.sub || email);
+      onLogin(accessToken, loginData.refresh_token, decoded.role || "user", decoded.sub || email);
     } catch (err: any) {
       setErrorMsg(err.message || "Something went wrong.");
     } finally {

@@ -98,8 +98,8 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
                     headers={"WWW-Authenticate": "Bearer"},
                 )
             
-        access_token = create_access_token(data={"sub": user.email, "role": user.role})
-        refresh_token = create_refresh_token(data={"sub": user.email, "role": user.role})
+        access_token = create_access_token(data={"sub": user.email, "role": user.role, "id": user.id})
+        refresh_token = create_refresh_token(data={"sub": user.email, "role": user.role, "id": user.id})
         return {"access_token": access_token, "refresh_token": refresh_token}
     except HTTPException:
         raise
@@ -123,8 +123,8 @@ def refresh_token(payload: TokenRefreshRequest, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
         
-    access_token = create_access_token(data={"sub": user.email, "role": user.role})
-    new_refresh = create_refresh_token(data={"sub": user.email, "role": user.role})
+    access_token = create_access_token(data={"sub": user.email, "role": user.role, "id": user.id})
+    new_refresh = create_refresh_token(data={"sub": user.email, "role": user.role, "id": user.id})
     return {"access_token": access_token, "refresh_token": new_refresh}
 
 @router.post("/logout")
@@ -164,8 +164,8 @@ def google_callback(code: str, code_verifier: str, db: Session = Depends(get_db)
         db.add(loyalty)
         db.commit()
         
-    access_token = create_access_token(data={"sub": user.email, "role": user.role})
-    refresh_token = create_refresh_token(data={"sub": user.email, "role": user.role})
+    access_token = create_access_token(data={"sub": user.email, "role": user.role, "id": user.id})
+    refresh_token = create_refresh_token(data={"sub": user.email, "role": user.role, "id": user.id})
     return {"access_token": access_token, "refresh_token": refresh_token}
 
 import time
