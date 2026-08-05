@@ -145,10 +145,26 @@ async def chat_ws_endpoint(websocket: WebSocket, session_id: str, db: Session = 
                 }))
 
             except Exception as e:
-                logger.error(f"Error in WebSocket execution: {e}")
+                import traceback
+                tb = traceback.format_exc()
+                err_str = str(e)
+                logger.error(f"[WS] Agent execution error for session {session_id}: {err_str}\n{tb}")
+
+                # Classify the error for a useful user-facing message
+                if "429" in err_str or "Too Many Requests" in err_str or "rate_limit" in err_str.lower():
+                    user_msg = "AI rate limit reached. Please wait a moment and try again."
+                elif "No LLM provider" in err_str or "GROQ_API_KEY" in err_str:
+                    user_msg = "AI is not configured. Please contact support."
+                elif "Connection refused" in err_str or "ConnectionRefused" in err_str:
+                    user_msg = "AI service unreachable. Please try again in a few seconds."
+                elif "timeout" in err_str.lower():
+                    user_msg = "AI request timed out. Please try a simpler query or try again."
+                else:
+                    user_msg = f"Agent error: {err_str[:200]}"
+
                 await websocket.send_text(json.dumps({
                     "type": "error",
-                    "message": "Error occurred during agent compilation."
+                    "message": user_msg
                 }))
                 
     except WebSocketDisconnect:
