@@ -25,36 +25,32 @@ def budget_planning_node(state: AgentState, config: Dict[str, Any] = None) -> di
     messages = state.get("messages", [])
     user_query = messages[-1]["content"] if messages else ""
 
-    # Parse constraints
-    extraction_prompt = f"""
-    You are an extractor. Extract budget details from the user prompt.
-    Prompt: "{user_query}"
-    Current Context: {json.dumps(state.get("trip_context", {}))}
-    
-    Output ONLY a valid JSON string with these keys. Do NOT write Python code, scripts, or markdown blocks:
-    {{
-      "destination": "Goa",
-      "duration_days": 5,
-      "total_budget": 25000.0
-    }}
-    
-    JSON:
-    """
-    extraction_str = llm_router.complete(prompt=extraction_prompt, task_type="simple")
-    try:
-        import re
-        match = re.search(r"(\{[\s\S]*?\})", extraction_str)
-        if match:
-            params = json.loads(match.group(1))
-        else:
-            clean_json = extraction_str.strip().strip("```json").strip("```").strip()
-            params = json.loads(clean_json)
-    except Exception:
-        params = {}
+    # Parse constraints from trip_context (no LLM call)
+    import re as _re
+    trip_ctx = state.get("trip_context", {})
+    budget_c = state.get("budget_constraints", {})
 
-    destination = params.get("destination") or state.get("trip_context", {}).get("destination") or "Goa"
-    duration_days = params.get("duration_days") or state.get("trip_context", {}).get("duration_days") or 5
-    total_budget = params.get("total_budget") or state.get("budget_constraints", {}).get("total_budget") or 25000.0
+    destination = trip_ctx.get("destination") or "Goa"
+    duration_days = trip_ctx.get("duration_days")
+    if not duration_days:
+        m = _re.search(r'(\d+)\s+(?:days?|nights?)', user_query, _re.IGNORECASE)
+        duration_days = int(m.group(1)) if m else 5
+    duration_days = int(duration_days)
+
+    total_budget = budget_c.get("total_budget")
+    if not total_budget:
+        m = _re.search(r'(?:₹|rs\.?\s*|inr\s*)(\d[\d,]*)|([\d,]+)\s*(?:rupees?|inr)', user_query, _re.IGNORECASE)
+        if m:
+            raw = (m.group(1) or m.group(2) or "").replace(",", "")
+            try:
+                total_budget = float(raw)
+            except Exception:
+                total_budget = 25000.0
+        else:
+            total_budget = 25000.0
+    total_budget = float(total_budget)
+
+
 
     # Look up baseline costs
     dest_key = destination.lower().strip()

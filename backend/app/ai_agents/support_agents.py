@@ -17,32 +17,11 @@ def visa_assistant_node(state: AgentState, config: Dict[str, Any] = None) -> dic
     messages = state.get("messages", [])
     user_query = messages[-1]["content"] if messages else ""
 
-    # Classify nationality & target country via router
-    extraction_prompt = f"""
-Identify the destination country and user's citizenship from the prompt:
-Prompt: "{user_query}"
-Current Context: {json.dumps(state.get("trip_context", {}))}
+    # Extract destination from trip_context (no LLM call)
+    trip_ctx = state.get("trip_context", {})
+    dest_country = trip_ctx.get("destination") or "Schengen"
+    citizenship = "India"  # Default for this app's target market
 
-Output ONLY a JSON block:
-- destination_country (e.g. Schengen, USA, Thailand)
-- citizenship (e.g. Indian, Canadian)
-
-JSON:
-"""
-    extraction_str = llm_router.complete(prompt=extraction_prompt, task_type="simple")
-    try:
-        import re
-        match = re.search(r"(\{[\s\S]*?\})", extraction_str)
-        if match:
-            params = json.loads(match.group(1))
-        else:
-            clean_json = extraction_str.strip().strip("```json").strip("```").strip()
-            params = json.loads(clean_json)
-    except Exception:
-        params = {}
-
-    dest_country = params.get("destination_country") or "Schengen"
-    citizenship = params.get("citizenship") or "India"
     
     # Query RAG
     rag_result = rag_system.rag_query(

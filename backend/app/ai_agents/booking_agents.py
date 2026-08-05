@@ -14,43 +14,40 @@ def flight_search_node(state: AgentState, config: Dict[str, Any] = None) -> dict
     from app.ai_agents.supervisor import report_agent_status
     messages = state.get("messages", [])
     user_query = messages[-1]["content"] if messages else ""
-    
-    # 1. Parameter extraction via LLM Router (simple profile)
-    extraction_prompt = f"""
-    You are an extractor. Extract parameters for a flight search from the user query.
-    User Query: "{user_query}"
-    Current Trip Context: {json.dumps(state.get("trip_context", {}))}
-    
-    Output ONLY a valid JSON string with these keys. Do NOT write Python code, scripts, or markdown blocks: 
-    {{
-      "origin": "DEL",
-      "destination": "GOI",
-      "departure_date": "2026-12-15",
-      "passengers": 1,
-      "cabin_class": "ECONOMY"
-    }}
-    
-    JSON:
-    """
-    extraction_str = llm_router.complete(prompt=extraction_prompt, task_type="simple")
-    try:
-        import re
-        match = re.search(r"(\{[\s\S]*?\})", extraction_str)
-        if match:
-            params = json.loads(match.group(1))
-        else:
-            clean_json = extraction_str.strip().strip("```json").strip("```").strip()
-            params = json.loads(clean_json)
-    except Exception:
-        logger.warning(f"Failed to parse extracted parameters: {extraction_str}")
-        params = {}
+    trip_ctx = state.get("trip_context", {})
 
-    # Read from state trip_context if missing
-    origin = params.get("origin") or state.get("trip_context", {}).get("origin") or "DEL"
-    destination = params.get("destination") or state.get("trip_context", {}).get("destination") or "GOI"
-    departure_date = params.get("departure_date") or state.get("trip_context", {}).get("departure_date") or "2026-12-15"
-    passengers = params.get("passengers") or state.get("trip_context", {}).get("passengers") or 1
-    cabin_class = params.get("cabin_class") or state.get("trip_context", {}).get("cabin_class") or "ECONOMY"
+    # 1. Fast regex-based extraction (no LLM call)
+    import re as _re
+    IATA_MAP = {"DELHI": "DEL", "NEW DELHI": "DEL", "MUMBAI": "BOM", "BOMBAY": "BOM",
+                "BANGALORE": "BLR", "BENGALURU": "BLR", "CHENNAI": "MAA", "KOLKATA": "CCU",
+                "HYDERABAD": "HYD", "PUNE": "PNQ", "AHMEDABAD": "AMD", "JAIPUR": "JAI",
+                "GOA": "GOI", "BALI": "DPS", "DUBAI": "DXB", "LONDON": "LHR", "PARIS": "CDG"}
+
+    # Origin
+    origin = trip_ctx.get("origin")
+    if not origin:
+        m = _re.search(r'\bfrom\s+([A-Za-z ]{2,20}?)\s+to\s+', user_query, _re.IGNORECASE)
+        if m:
+            raw = m.group(1).strip().upper()
+            origin = IATA_MAP.get(raw, raw[:3])
+    origin = origin or "DEL"
+
+    # Destination
+    destination = trip_ctx.get("destination")
+    if not destination:
+        m = _re.search(r'\bto\s+([A-Za-z ]{2,20})\b', user_query, _re.IGNORECASE)
+        if m:
+            destination = m.group(1).strip()
+    destination_iata = IATA_MAP.get((destination or "GOA").upper(), "GOI")
+
+    departure_date = trip_ctx.get("departure_date")
+    if not departure_date:
+        m = _re.search(r'\b(\d{4}-\d{2}-\d{2})\b', user_query)
+        departure_date = m.group(1) if m else "2026-12-15"
+
+    passengers = trip_ctx.get("passengers") or 1
+    cabin_class = trip_ctx.get("cabin_class") or "ECONOMY"
+
 
     # Pull categorized preferences for precise filtering
     categorized_prefs = state.get("trip_context", {}).get("categorized_preferences", {})
@@ -78,10 +75,10 @@ def flight_search_node(state: AgentState, config: Dict[str, Any] = None) -> dict
 
 
     # 2. Call Flight Search Tool with Self-Correction Retry (Phase 11)
-    report_agent_status(config, f"Flight Search Agent: Searching {cabin_class} flights from {origin} to {destination} on {departure_date}...")
+    report_agent_status(config, f"Flight Search Agent: Searching {cabin_class} flights from {origin} to {destination_iata} on {departure_date}...")
     search_results = flight_search_tool(
         origin=origin,
-        destination=destination,
+        destination=destination_iata,
         departure_date=departure_date,
         passengers=passengers,
         cabin_class=cabin_class
@@ -94,12 +91,13 @@ def flight_search_node(state: AgentState, config: Dict[str, Any] = None) -> dict
         report_agent_status(config, f"Flight Search: No options in {cabin_class}. Retrying with ECONOMY...")
         search_results = flight_search_tool(
             origin=origin,
-            destination=destination,
+            destination=destination_iata,
             departure_date=departure_date,
             passengers=passengers,
             cabin_class="ECONOMY"
         )
         raw_flights = search_results.get("results", [])
+
 
     # Self-Correction: If still empty, try +1 day
     if not raw_flights:
@@ -232,41 +230,37 @@ def hotel_search_node(state: AgentState, config: Dict[str, Any] = None) -> dict:
     from app.ai_agents.supervisor import report_agent_status
     messages = state.get("messages", [])
     user_query = messages[-1]["content"] if messages else ""
+    trip_ctx = state.get("trip_context", {})
 
-    # 1. Parameter extraction
-    extraction_prompt = f"""
-    You are an extractor. Extract parameters for a hotel search from the user query.
-    User Query: "{user_query}"
-    Current Trip Context: {json.dumps(state.get("trip_context", {}))}
-    
-    Output ONLY a valid JSON string with these keys. Do NOT write Python code, scripts, or markdown blocks:
-    {{
-      "destination": "Goa",
-      "check_in": "2026-12-15",
-      "check_out": "2026-12-20",
-      "guests": 1,
-      "budget_tier": "MIDRANGE"
-    }}
-    
-    JSON:
-    """
-    extraction_str = llm_router.complete(prompt=extraction_prompt, task_type="simple")
-    try:
-        import re
-        match = re.search(r"(\{[\s\S]*?\})", extraction_str)
-        if match:
-            params = json.loads(match.group(1))
-        else:
-            clean_json = extraction_str.strip().strip("```json").strip("```").strip()
-            params = json.loads(clean_json)
-    except Exception:
-        params = {}
+    # 1. Fast regex-based extraction (no LLM call)
+    import re as _re
 
-    destination = params.get("destination") or state.get("trip_context", {}).get("destination") or "Goa"
-    check_in = params.get("check_in") or state.get("trip_context", {}).get("departure_date") or "2026-12-15"
-    check_out = params.get("check_out") or state.get("trip_context", {}).get("return_date") or "2026-12-20"
-    guests = params.get("guests") or state.get("trip_context", {}).get("passengers") or 1
-    budget_tier = params.get("budget_tier") or state.get("budget_constraints", {}).get("tier") or "MIDRANGE"
+    destination = trip_ctx.get("destination")
+    if not destination:
+        m = _re.search(r'\bto\s+([A-Za-z ]{2,20})\b', user_query, _re.IGNORECASE)
+        destination = m.group(1).strip() if m else "Goa"
+    destination = destination or "Goa"
+
+    check_in = trip_ctx.get("departure_date")
+    if not check_in:
+        m = _re.search(r'\b(\d{4}-\d{2}-\d{2})\b', user_query)
+        check_in = m.group(1) if m else "2026-12-15"
+    check_in = check_in or "2026-12-15"
+
+    # Check-out: departure + duration, or departure + 4 days default
+    check_out = trip_ctx.get("return_date")
+    if not check_out:
+        try:
+            from datetime import datetime, timedelta
+            duration = int(trip_ctx.get("duration_days") or 4)
+            base = datetime.strptime(check_in, "%Y-%m-%d")
+            check_out = (base + timedelta(days=duration)).strftime("%Y-%m-%d")
+        except Exception:
+            check_out = "2026-12-20"
+
+    guests = trip_ctx.get("passengers") or 1
+    budget_tier = trip_ctx.get("hotel_tier") or state.get("budget_constraints", {}).get("tier") or "MIDRANGE"
+
 
     # Pull categorized preferences for hotel filtering
     categorized_prefs = state.get("trip_context", {}).get("categorized_preferences", {})
