@@ -1,5 +1,6 @@
 import json
 import logging
+from decimal import Decimal
 from typing import Dict, Any, List
 from langgraph.graph import StateGraph, END
 
@@ -28,6 +29,21 @@ from app.ai_agents.specialists import (
 logger = logging.getLogger(__name__)
 
 import asyncio
+
+
+def decimal_safe(obj):
+    """Recursively convert Decimal to float so the object is JSON-serializable.
+    LangGraph serializes state as JSON internally — any Decimal from SQLAlchemy
+    numeric columns will crash the entire graph without this."""
+    if isinstance(obj, Decimal):
+        return float(obj)
+    if isinstance(obj, dict):
+        return {k: decimal_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [decimal_safe(i) for i in obj]
+    return obj
+
+
 
 def report_agent_status(config, status_msg: str):
     """Reports agent execution status to WebSocket via config status_callback"""
@@ -110,7 +126,11 @@ Return ONLY this JSON (no markdown, no explanation):
         try:
             combined_str = llm_router.complete(prompt=combined_prompt, task_type="simple").strip()
             import re
-            match = re.search(r"(\{[\s\S]*?\})", combined_str)
+            # Strip markdown code fences if present
+            combined_str = re.sub(r'^```[a-z]*\n?', '', combined_str, flags=re.MULTILINE)
+            combined_str = combined_str.replace('```', '').strip()
+            # Use greedy match to capture the FULL JSON object (not stop at first })
+            match = re.search(r'(\{[\s\S]*\})', combined_str)
             combined_result = json.loads(match.group(1)) if match else json.loads(combined_str)
             reconstructed_query = combined_result.get("query", user_message) or user_message
             if len(reconstructed_query) < 5:
@@ -127,6 +147,7 @@ Return ONLY this JSON (no markdown, no explanation):
             logger.warning(f"Combined supervisor call failed: {e}. Defaulting to general_chat.")
             reconstructed_query = user_message
             pending = ["general_chat"]
+
 
         if not pending:
             pending = ["general_chat"]
@@ -584,6 +605,11 @@ If NO permanent preference is stated, output ONLY the word: NONE"""
         logger.debug(f"[REGEX-EXTRACT] trip_context={trip_context}, budget={budget_constraints}")
 
 
+        # Sanitize: convert Decimal values from DB (SQLAlchemy numeric columns) to float
+        # LangGraph serializes state as JSON internally — Decimal causes immediate crash
+        trip_context = decimal_safe(trip_context)
+        budget_constraints = decimal_safe(budget_constraints)
+
         # Initialize State
         state = {
             "user_id": user_id,
@@ -600,6 +626,7 @@ If NO permanent preference is stated, output ONLY the word: NONE"""
             "preferences": trip_context.get("user_historical_preferences", []),
             "debug_telemetry": {"session_id": session_id, "user_id": user_id, "turn": len(history)}
         }
+
 
         result = supervisor_graph.invoke(state)
 
@@ -665,6 +692,10 @@ If NO permanent preference is stated, output ONLY the word: NONE"""
                 break
 
 
+        # Sanitize Decimals before state entry (LangGraph JSON-serializes state internally)
+        trip_context = decimal_safe(trip_context)
+        budget_constraints = decimal_safe(budget_constraints)
+
         # Initialize State
         state = {
             "user_id": user_id,
@@ -681,6 +712,7 @@ If NO permanent preference is stated, output ONLY the word: NONE"""
             "preferences": trip_context.get("user_historical_preferences", []),
             "debug_telemetry": {"session_id": session_id, "user_id": user_id, "turn": len(history)}
         }
+
 
         # Pass status_callback in configuration
         config = {"configurable": {"status_callback": status_callback}}

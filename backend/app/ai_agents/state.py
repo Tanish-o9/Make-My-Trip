@@ -34,12 +34,12 @@ def log_agent_execution(agent_name: str):
         def wrapper(state: AgentState, *args, **kwargs):
             start_time = time.time()
             trace_id = state.get("trace_id") or str(uuid.uuid4())
-            db: Session = SessionLocal()
             status = "success"
             output_str = ""
             tokens_count = 0
             provider_used = "router"
             result = None
+            db = None
 
             try:
                 result = func(state, *args, **kwargs)
@@ -73,8 +73,9 @@ def log_agent_execution(agent_name: str):
                     telemetry["total_latency_ms"] = telemetry.get("total_latency_ms", 0) + latency
                     result["debug_telemetry"] = telemetry
 
-                # === Write to DB ===
+                # === Write to DB (non-fatal: agent must not crash if DB fails) ===
                 try:
+                    db = SessionLocal()
                     log_entry = AgentExecutionLog(
                         trace_id=trace_id,
                         agent_name=agent_name,
@@ -90,11 +91,17 @@ def log_agent_execution(agent_name: str):
                 except Exception as ex:
                     logger.error(f"Failed to write AgentExecutionLog for {agent_name}: {ex}")
                     try:
-                        db.rollback()
+                        if db:
+                            db.rollback()
                     except Exception:
                         pass
                 finally:
-                    db.close()
+                    try:
+                        if db:
+                            db.close()
+                    except Exception:
+                        pass
+
 
         return wrapper
     return decorator
