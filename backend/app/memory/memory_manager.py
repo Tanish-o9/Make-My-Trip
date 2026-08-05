@@ -93,7 +93,7 @@ class MemoryManager:
                 # Cache back in Redis for next access
                 if r:
                     try:
-                        r.setex(f"chat:history:{session_id}", 3600, json.dumps(sess.messages_json))
+                        r.setex(f"chat:history:{session_id}", 3600, json.dumps(sess.messages_json, default=str))
                     except Exception:
                         pass
                 return sess.messages_json or []
