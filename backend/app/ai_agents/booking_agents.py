@@ -174,27 +174,33 @@ def flight_search_node(state: AgentState, config: Dict[str, Any] = None) -> dict
         explanation_parts.append(f"Results sorted by price for {cabin_class} class from {origin} to {destination}")
     explanation_rationale = "; ".join(explanation_parts)
 
-    report_agent_status(config, f"Flight Search: Found {len(mapped_flights)} option(s). Generating personalized summary...")
+    report_agent_status(config, f"Flight Search: Found {len(mapped_flights)} option(s). Preparing summary...")
 
-    summary_prompt = f"""You are the Flight Search Agent for Travel OS.
+    # Template-based summary — no LLM call, saves 1 Groq API call
+    if mapped_flights:
+        top = mapped_flights[0]
+        airline = top.get("airline", "Airline")
+        fnum = top.get("flight_number", "")
+        dep_t = (top.get("departure_time") or "")[:16].replace("T", " ")
+        arr_t = (top.get("arrival_time") or "")[:16].replace("T", " ")
+        price = top.get("price_per_passenger") or top.get("total_price") or top.get("price", 0)
+        cabin = top.get("cabin_class", cabin_class)
+        pref_note = f" {pref_context.strip()}" if pref_context.strip() else ""
+        summary = (
+            f"✈️ I found **{len(mapped_flights)} flight option(s)** from {origin} to {destination}.{pref_note}\n\n"
+            f"**Best Option:** {airline} {fnum} ({cabin}) — ₹{float(price):,.0f}/person\n"
+            f"Departs: {dep_t or 'As scheduled'} → Arrives: {arr_t or 'On time'}"
+        )
+        if len(mapped_flights) > 1:
+            alt = mapped_flights[1]
+            alt_price = alt.get("price_per_passenger") or alt.get("total_price") or alt.get("price", 0)
+            summary += f"\n\n**Alternative:** {alt.get('airline','Another airline')} {alt.get('flight_number','')} — ₹{float(alt_price):,.0f}/person."
+    else:
+        summary = f"No flights found from {origin} to {destination} on {departure_date}. Try adjusting dates."
 
-You found these flight options after applying user preference filters:
-{json.dumps(mapped_flights, indent=2, default=str)}
+    # Append flights-data block for frontend rendering
+    summary += f"\n\n```flights-data\n{json.dumps(mapped_flights, indent=2, default=str)}\n```"
 
-User Preferences Applied:
-{pref_context or 'No specific airline preferences stored.'}
-
-Task: Write a SHORT (2-3 sentences), PERSONALIZED summary. 
-Mention specific airline names, prices, and why options were chosen or excluded.
-Do NOT write generic phrases like 'here are your options' or 'I found some flights'.
-Reference user preferences explicitly if any were applied.
-Do not include JSON blocks or code."""
-    summary = llm_router.complete(prompt=summary_prompt, task_type="simple")
-
-    
-    # Ensure flights-data block exists in the summary
-    if "```flights-data" not in summary:
-        summary += f"\n\n```flights-data\n{json.dumps(mapped_flights, indent=2, default=str)}\n```"
 
     # Update state context — only overwrite non-null values
     updated_context = dict(state.get("trip_context", {}))
@@ -376,27 +382,33 @@ def hotel_search_node(state: AgentState, config: Dict[str, Any] = None) -> dict:
     if dietary_prefs:
         pref_ctx += f"\nDietary needs: {', '.join(dietary_prefs[:2])}."
 
-    report_agent_status(config, f"Hotel Search: Found {len(mapped_hotels)} option(s). Generating personalized recommendation...")
+    report_agent_status(config, f"Hotel Search: Found {len(mapped_hotels)} option(s). Preparing recommendations...")
 
-    summary_prompt = f"""You are the Hotel Recommendation Agent for Travel OS.
+    # Build template-based summary (no LLM call needed — saves 1 Groq API call)
+    if mapped_hotels:
+        top = mapped_hotels[0]
+        name = top.get("name", "Premium Hotel")
+        rating = top.get("rating", "4.5")
+        price = top.get("price_per_night") or top.get("price", 0)
+        nights = top.get("nights", 1)
+        total = top.get("total_price", float(price) * int(nights) if price else 0)
+        amenities = ", ".join((top.get("amenities") or [])[:3]) or "WiFi, AC"
+        pref_note = f" {pref_ctx.strip()}" if pref_ctx.strip() else ""
+        summary = (
+            f"🏨 I found **{len(mapped_hotels)} hotel option(s)** in {destination}.{pref_note}\n\n"
+            f"**Top Pick:** {name} ({rating}★) — ₹{price:,.0f}/night × {nights} nights = **₹{total:,.0f} total**\n"
+            f"Amenities: {amenities}."
+        )
+        if len(mapped_hotels) > 1:
+            alt = mapped_hotels[1]
+            alt_price = alt.get("price_per_night") or alt.get("price", 0)
+            summary += f"\n\n**Alternative:** {alt.get('name', 'Another option')} ({alt.get('rating','4.0')}★) — ₹{alt_price:,.0f}/night."
+    else:
+        summary = f"I searched for hotels in {destination} but no results matched your criteria. Try adjusting your dates or budget."
 
-You found these hotel options in {destination} after applying user preference filters:
-{json.dumps(mapped_hotels, indent=2, default=str)}
+    # Append hotels-data block for frontend rendering
+    summary += f"\n\n```hotels-data\n{json.dumps(mapped_hotels, indent=2, default=str)}\n```"
 
-User Preferences Applied:
-{pref_ctx or 'No specific hotel preferences stored.'}
-
-Task: Write a SHORT (2-3 sentences), PERSONALIZED recommendation. 
-Mention specific hotel names, star ratings, and prices.
-If user has brand preferences or dietary needs, acknowledge them explicitly.
-Do NOT use generic phrases like 'here are some hotels' or 'I found accommodations'.
-Do not include JSON blocks or code."""
-
-    summary = llm_router.complete(prompt=summary_prompt, task_type="simple")
-
-    # Ensure hotels-data block exists
-    if "```hotels-data" not in summary:
-        summary += f"\n\n```hotels-data\n{json.dumps(mapped_hotels, indent=2, default=str)}\n```"
 
     # Context update — only overwrite non-null values
     updated_context = dict(state.get("trip_context", {}))
