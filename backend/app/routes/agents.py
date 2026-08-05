@@ -34,8 +34,10 @@ def chat_turn(
         )
         return {"response": response}
     except Exception as e:
-        logger.error(f"Error in chat endpoint: {e}")
-        raise HTTPException(status_code=500, detail="Internal agent execution error")
+        import traceback
+        tb = traceback.format_exc()
+        logger.error(f"Error in chat endpoint: {e}\nTraceback:\n{tb}")
+        raise HTTPException(status_code=500, detail=f"Agent error: {str(e)[:500]}")
 
 
 @router.get("/chat/history/{session_id}")
