@@ -3199,7 +3199,7 @@ function TripPlannerForm({ onBook, onDetailClick, setPrefilledMessage, setActive
             {activeSubTab === 'overview' && (
               <div className="space-y-4">
                 <h3 className="font-extrabold text-lg text-white">📋 Travel Guide Summary</h3>
-                <div className="text-sm whitespace-pre-wrap leading-relaxed font-sans max-w-none" style={{ color: '#ffffff' }}>
+                <div className="text-sm whitespace-pre-wrap leading-relaxed font-sans max-w-none dark-card-override" style={{ color: '#ffffff' }}>
                   {packageData.text}
                 </div>
               </div>
