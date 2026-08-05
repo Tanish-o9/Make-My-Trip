@@ -179,7 +179,7 @@ def flight_search_node(state: AgentState, config: Dict[str, Any] = None) -> dict
     summary_prompt = f"""You are the Flight Search Agent for Travel OS.
 
 You found these flight options after applying user preference filters:
-{json.dumps(mapped_flights, indent=2)}
+{json.dumps(mapped_flights, indent=2, default=str)}
 
 User Preferences Applied:
 {pref_context or 'No specific airline preferences stored.'}
@@ -194,7 +194,7 @@ Do not include JSON blocks or code."""
     
     # Ensure flights-data block exists in the summary
     if "```flights-data" not in summary:
-        summary += f"\n\n```flights-data\n{json.dumps(mapped_flights, indent=2)}\n```"
+        summary += f"\n\n```flights-data\n{json.dumps(mapped_flights, indent=2, default=str)}\n```"
 
     # Update state context — only overwrite non-null values
     updated_context = dict(state.get("trip_context", {}))
@@ -381,7 +381,7 @@ def hotel_search_node(state: AgentState, config: Dict[str, Any] = None) -> dict:
     summary_prompt = f"""You are the Hotel Recommendation Agent for Travel OS.
 
 You found these hotel options in {destination} after applying user preference filters:
-{json.dumps(mapped_hotels, indent=2)}
+{json.dumps(mapped_hotels, indent=2, default=str)}
 
 User Preferences Applied:
 {pref_ctx or 'No specific hotel preferences stored.'}
@@ -396,7 +396,7 @@ Do not include JSON blocks or code."""
 
     # Ensure hotels-data block exists
     if "```hotels-data" not in summary:
-        summary += f"\n\n```hotels-data\n{json.dumps(mapped_hotels, indent=2)}\n```"
+        summary += f"\n\n```hotels-data\n{json.dumps(mapped_hotels, indent=2, default=str)}\n```"
 
     # Context update — only overwrite non-null values
     updated_context = dict(state.get("trip_context", {}))

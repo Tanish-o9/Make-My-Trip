@@ -97,7 +97,7 @@ def restaurant_recommendation_node(state: AgentState, config: Dict[str, Any] = N
     prompt = f"""
 Format a restaurant guide for {destination}.
 Dietary preference requested: {dietary}.
-Matches found: {json.dumps(filtered)}.
+Matches found: {json.dumps(filtered, default=str)}.
 Provide a recommendation list with brief descriptions. Keep it very concise, warm, and direct. Do not include any programming code, python scripts, or system reasoning in your conversational text.
 """
     response = llm_router.complete(prompt=prompt, task_type="simple")
@@ -237,7 +237,7 @@ def analytics_node(state: AgentState, config: Dict[str, Any] = None) -> dict:
             "total_token_spend": int(tot_tokens),
             "provider_breakdown": provider_stats
         }
-        response_text = f"Analytics generated. Stats: {json.dumps(metrics)}"
+        response_text = f"Analytics generated. Stats: {json.dumps(metrics, default=str)}"
     except Exception as e:
         response_text = f"Failed to calculate logs statistics: {e}"
     finally:

@@ -57,7 +57,7 @@ def price_prediction_node(state: AgentState) -> dict:
     prompt = f"""
 Extract details of flight or hotel search.
 Query: "{user_query}"
-Current Context: {json.dumps(state.get("trip_context", {}))}
+Current Context: {json.dumps(state.get("trip_context", {}), default=str)}
 Identify route and base price. Recommend Wait/Book. Output JSON:
 - price (float)
 - recommendation (BOOK_NOW, WAIT)

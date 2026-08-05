@@ -244,8 +244,8 @@ Once you give me this information, I will instantly fetch everything for you.
     Travel Style: {travel_style}
     
     Here are the search details:
-    - Flights: {json.dumps(mapped_flights)}
-    - Hotels: {json.dumps(mapped_hotels)}
+    - Flights: {json.dumps(mapped_flights, default=str)}
+    - Hotels: {json.dumps(mapped_hotels, default=str)}
     - Weather: {weather_res.get("forecast_description")}
     - Itinerary Details: {itin_text}
     
@@ -259,8 +259,8 @@ Once you give me this information, I will instantly fetch everything for you.
     final_response = llm_router.complete(prompt=package_synthesis_prompt, task_type="reasoning")
 
     # Inject metadata blocks
-    final_response += f"\n\n```flights-data\n{json.dumps(mapped_flights, indent=2)}\n```"
-    final_response += f"\n\n```hotels-data\n{json.dumps(mapped_hotels, indent=2)}\n```"
+    final_response += f"\n\n```flights-data\n{json.dumps(mapped_flights, indent=2, default=str)}\n```"
+    final_response += f"\n\n```hotels-data\n{json.dumps(mapped_hotels, indent=2, default=str)}\n```"
 
     itin_arr = []
     for d in range(1, n_days + 1):
@@ -271,7 +271,7 @@ Once you give me this information, I will instantly fetch everything for you.
             "afternoon": "Enjoy local lunch and shopping.",
             "evening": "Wind down with dinner and sunset views."
         })
-    final_response += f"\n\n```itinerary-data\n{json.dumps(itin_arr, indent=2)}\n```"
+    final_response += f"\n\n```itinerary-data\n{json.dumps(itin_arr, indent=2, default=str)}\n```"
 
     updated_context = dict(state.get("trip_context", {}))
     updated_context.update({
