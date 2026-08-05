@@ -153,7 +153,7 @@ class MemoryManager:
             if sess and sess.active_agent_context:
                 if r:
                     try:
-                        r.setex(f"chat:context:{session_id}", 3600, json.dumps(sess.active_agent_context))
+                        r.setex(f"chat:context:{session_id}", 3600, json.dumps(sess.active_agent_context, default=str))
                     except Exception:
                         pass
                 return sess.active_agent_context
@@ -167,7 +167,8 @@ class MemoryManager:
         r = cls._get_redis()
         if r:
             try:
-                r.setex(f"chat:context:{session_id}", 3600, json.dumps(context))
+                r.setex(f"chat:context:{session_id}", 3600, json.dumps(context, default=str))
+
             except Exception as e:
                 logger.error(f"Error saving active context to Redis: {e}")
 
