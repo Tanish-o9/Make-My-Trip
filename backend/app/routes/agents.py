@@ -40,8 +40,9 @@ def chat_turn(
     except Exception as e:
         import traceback
         tb = traceback.format_exc()
-        logger.error(f"Agent execution error: {e}\n{tb}")
-        raise HTTPException(status_code=500, detail=f"DIAG: {type(e).__name__}: {str(e)[:300]} | TB: {tb[-400:]}")
+        logger.error(f"Agent execution error: {type(e).__name__}: {e}\n{tb}")
+        raise HTTPException(status_code=500, detail="Internal agent execution error")
+
 
 
 
