@@ -330,37 +330,61 @@ class LLMRouter:
             pass
         return 1000.0
 
-    def _rank_providers(self, task_type: str) -> List[str]:
-        # Selection logic based on task_type
-        # task_type options: "simple" (classification), "reasoning" (deep logic), "creative" (itinerary writing)
-        if task_type == "simple":
-            order = ["groq", "gemini", "openai", "anthropic", "ollama"]
-        elif task_type == "reasoning":
-            order = ["openai", "anthropic", "gemini", "groq", "ollama"]
-        elif task_type == "creative":
-            order = ["anthropic", "openai", "gemini", "groq", "ollama"]
-        else:
-            order = ["openai", "gemini", "anthropic", "groq", "ollama"]
+    # Placeholder/dummy key patterns that should be treated as unconfigured
+    _PLACEHOLDER_PATTERNS = (
+        "your-", "your_", "sk-proj-your", "placeholder", "example",
+        "changeme", "<", ">", "REPLACE", "TODO", "xxx", "test-key"
+    )
 
-        # Filter out circuit-broken or misconfigured (missing keys) providers
+    def _is_real_key(self, key: Optional[str]) -> bool:
+        """Returns True only if key looks like a real API key (not a placeholder)."""
+        if not key or len(key) < 10:
+            return False
+        key_lower = key.lower()
+        for pattern in self._PLACEHOLDER_PATTERNS:
+            if pattern.lower() in key_lower:
+                return False
+        return True
+
+    def _rank_providers(self, task_type: str) -> List[str]:
+        """Returns an ordered list of providers that have valid API keys and open circuits."""
+        # Groq-first ordering since it's free, fast (Llama 3.1), and most likely configured
+        if task_type == "simple":
+            order = ["groq", "gemini", "openai", "anthropic"]
+        elif task_type == "reasoning":
+            order = ["groq", "gemini", "openai", "anthropic"]
+        elif task_type == "creative":
+            order = ["groq", "gemini", "anthropic", "openai"]
+        else:
+            order = ["groq", "gemini", "openai", "anthropic"]
+
+        # Only add Ollama if explicitly configured with a non-default endpoint
+        ollama_ep = os.getenv("OLLAMA_ENDPOINT", "")
+        if ollama_ep and ollama_ep != "http://localhost:11434" and "localhost" not in ollama_ep:
+            order.append("ollama")
+
         active_providers = []
         for name in order:
-            # Check config key
-            if name == "openai" and not os.getenv("OPENAI_API_KEY"):
-                continue
-            if name == "gemini" and not os.getenv("GEMINI_API_KEY"):
-                continue
-            if name == "anthropic" and not os.getenv("ANTHROPIC_API_KEY"):
-                continue
-            if name == "groq" and not os.getenv("GROQ_API_KEY"):
-                continue
+            key_env_map = {
+                "openai": "OPENAI_API_KEY",
+                "gemini": "GEMINI_API_KEY",
+                "anthropic": "ANTHROPIC_API_KEY",
+                "groq": "GROQ_API_KEY",
+            }
+            if name in key_env_map:
+                key = os.getenv(key_env_map[name], "")
+                if not self._is_real_key(key):
+                    logger.debug(f"Skipping provider {name}: key missing or placeholder")
+                    continue
 
             if not self._is_circuit_open(name):
                 active_providers.append(name)
 
-        # Fallback to whatever is left or always Ollama
-        if "ollama" not in active_providers:
-            active_providers.append("ollama")
+        if not active_providers:
+            logger.error(
+                "No LLM providers are configured with real API keys. "
+                "Set GROQ_API_KEY (free at console.groq.com) in your environment variables."
+            )
 
         return active_providers
 
@@ -376,6 +400,13 @@ class LLMRouter:
         ranked = self._rank_providers(task_type)
         logger.info(f"Router ranked providers for {task_type}: {ranked}")
 
+        if not ranked:
+            raise RuntimeError(
+                "No LLM provider is configured with a real API key. "
+                "Please set GROQ_API_KEY in Railway environment variables. "
+                "Get a free key at https://console.groq.com"
+            )
+
         db = None
         try:
             db = SessionLocal()
@@ -386,6 +417,7 @@ class LLMRouter:
 
         for idx, provider_name in enumerate(ranked):
             provider = self.providers[provider_name]
+
             start_time = time.time()
             decision_log = None
             

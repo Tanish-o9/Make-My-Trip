@@ -33,11 +33,15 @@ def chat_turn(
             message=req.message
         )
         return {"response": response}
+    except RuntimeError as e:
+        # Known configuration errors (e.g. missing LLM API keys)
+        import traceback
+        logger.error(f"Agent config error: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
         import traceback
-        tb = traceback.format_exc()
-        logger.error(f"Error in chat endpoint: {e}\nTraceback:\n{tb}")
-        raise HTTPException(status_code=500, detail=f"Agent error: {str(e)[:500]}")
+        logger.error(f"Agent execution error: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail="Internal agent execution error")
 
 
 @router.get("/chat/history/{session_id}")

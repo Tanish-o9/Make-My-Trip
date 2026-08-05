@@ -2843,11 +2843,14 @@ function TripPlannerForm({ onBook, onDetailClick, setPrefilledMessage, setActive
   const [style, setStyle] = useState("Solo");
   const [loading, setLoading] = useState(false);
   const [packageData, setPackageData] = useState<any | null>(null);
+  const [plannerError, setPlannerError] = useState<{code: number|string, message: string, detail: string} | null>(null);
   const [activeSubTab, setActiveSubTab] = useState<'overview' | 'flights' | 'hotels' | 'itinerary' | 'budget'>('overview');
+
 
   const handleGenerate = () => {
     setLoading(true);
     setPackageData(null);
+    setPlannerError(null);
     const message = `Plan a trip from ${origin} to ${destination} for ${duration} days on ${departureDate} with a total budget of ₹${budget} and travel style: ${style}.`;
     
     fetch(`${API_URL}/agents/chat`, {
@@ -2861,9 +2864,25 @@ function TripPlannerForm({ onBook, onDetailClick, setPrefilledMessage, setActive
         message: message
       })
     })
-    .then(res => {
-      if (!res.ok) throw new Error("Plan generation failed");
-      return res.json();
+    .then(async res => {
+      const body = await res.json().catch(() => ({ message: res.statusText }));
+      if (!res.ok) {
+        const statusMessages: Record<number, { message: string; detail: string }> = {
+          401: { message: "Session Expired", detail: "Your login session has expired. Please log out and log in again to continue." },
+          403: { message: "Permission Denied", detail: "You don't have permission to use the AI Trip Planner. Please contact support." },
+          404: { message: "Planner Endpoint Missing", detail: "The AI planner route could not be found. This is a backend configuration issue." },
+          422: { message: "Invalid Planner Request", detail: `The request was rejected: ${body?.detail || body?.message || 'Invalid parameters'}` },
+          429: { message: "AI Rate Limit Reached", detail: "The AI service is rate limited. Please wait 30 seconds and try again." },
+          500: { message: "AI Backend Error", detail: body?.detail || body?.message || "Internal server error. Check Railway logs for details." },
+          503: { message: "AI Service Unavailable", detail: "The AI service is temporarily unavailable. Please try again in a few minutes." },
+        };
+        const errorInfo = statusMessages[res.status] || {
+          message: `HTTP ${res.status} Error`,
+          detail: body?.detail || body?.message || "An unexpected error occurred."
+        };
+        throw Object.assign(new Error(errorInfo.message), { code: res.status, ...errorInfo });
+      }
+      return body;
     })
     .then(data => {
       setLoading(false);
@@ -2873,10 +2892,16 @@ function TripPlannerForm({ onBook, onDetailClick, setPrefilledMessage, setActive
         setActiveSubTab('overview');
       }
     })
-    .catch(err => {
-      console.error(err);
+    .catch((err: any) => {
+      console.error('[TripPlanner] Error:', err);
       setLoading(false);
-      alert("Failed to generate AI package. Please check backend is running.");
+      setPlannerError({
+        code: err.code || 'NETWORK',
+        message: err.message || 'Connection Failed',
+        detail: err.detail || (err.name === 'TypeError'
+          ? 'Cannot reach the backend. Check your network connection or ensure the Railway server is running.'
+          : err.message)
+      });
     });
   };
 
@@ -2906,6 +2931,27 @@ function TripPlannerForm({ onBook, onDetailClick, setPrefilledMessage, setActive
 
   return (
     <div className="space-y-6 text-left">
+      {/* ── Error Panel ───────────────────────────────────────── */}
+      {plannerError && (
+        <div className="border-3 border-red-500 bg-red-950/40 p-5 shadow-[4px_4px_0px_0px_#ef4444] flex items-start gap-4">
+          <div className="text-red-400 text-2xl mt-0.5">⚠</div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-3 mb-1">
+              <span className="bg-red-500 text-white text-[10px] font-black px-2 py-0.5 uppercase tracking-wider">
+                {plannerError.code}
+              </span>
+              <span className="text-red-300 font-black text-sm">{plannerError.message}</span>
+            </div>
+            <p className="text-slate-300 text-xs leading-relaxed">{plannerError.detail}</p>
+            {plannerError.code === 500 && (
+              <p className="text-slate-500 text-xs mt-2">
+                💡 If this says "No LLM provider configured" — a valid GROQ_API_KEY needs to be set in Railway environment variables.
+              </p>
+            )}
+          </div>
+          <button onClick={() => setPlannerError(null)} className="text-slate-500 hover:text-white text-lg ml-2 shrink-0" title="Dismiss">✕</button>
+        </div>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-6 gap-4 bg-slate-950/20 p-6 border-3 border-black shadow-[6px_6px_0px_0px_#000000]">
         <div className="space-y-1.5 md:col-span-1">
           <span className="text-[10px] text-slate-400 font-extrabold uppercase block">Origin</span>
