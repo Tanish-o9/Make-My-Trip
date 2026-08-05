@@ -233,30 +233,33 @@ Once you give me this information, I will instantly fetch everything for you.
     """
     itin_text = llm_router.complete(prompt=itin_generation_prompt, task_type="creative")
 
+    # Trim to 2 results with essential fields only to keep prompt under Groq token limit
+    def _trim_for_prompt(items, keys, n=2):
+        trimmed = []
+        for item in (items or [])[:n]:
+            trimmed.append({k: item.get(k) for k in keys if item.get(k) is not None})
+        return trimmed
+
+    flights_summary = _trim_for_prompt(mapped_flights,
+        ["airline", "flight_number", "origin", "destination", "departure_time", "arrival_time", "price", "cabin_class"])
+    hotels_summary = _trim_for_prompt(mapped_hotels,
+        ["name", "rating", "price", "total_price", "amenities", "address", "breakfast_included"])
+
     # Synthesize the final comprehensive response
-    package_synthesis_prompt = f"""
-    You are a senior travel consultant compiling a complete travel package for the user.
-    Destination: {destination}
-    Origin: {origin}
-    Dates: {departure_date} to {return_date} ({n_days} Days)
-    Budget: ₹{total_budget:,}
-    Passengers: {passengers}
-    Travel Style: {travel_style}
-    
-    Here are the search details:
-    - Flights: {json.dumps(mapped_flights, default=str)}
-    - Hotels: {json.dumps(mapped_hotels, default=str)}
-    - Weather: {weather_res.get("forecast_description")}
-    - Itinerary Details: {itin_text}
-    
-    Write a professional, highly detailed travel proposal. 
-    Include sections with icons:
-    - 🗺️ Itinerary Highlights & Local Tips
-    - ☀️ Weather & Packing Guide
-    - 💰 Budget Optimization & Breakdown
-    - 💎 Hidden Gems & Dinings (recommend local restaurants)
-    """
+    package_synthesis_prompt = f"""You are a senior travel consultant compiling a complete travel package.
+Destination: {destination} | Origin: {origin} | Dates: {departure_date} to {return_date} ({n_days} Days)
+Budget: ₹{total_budget:,} | Passengers: {passengers} | Style: {travel_style}
+
+Top Flights: {json.dumps(flights_summary, default=str)}
+Top Hotels: {json.dumps(hotels_summary, default=str)}
+Weather: {str(weather_res.get("forecast_description", ""))[:200]}
+Itinerary: {itin_text[:800]}
+
+Write a professional travel proposal with these sections (use icons):
+🗺️ Itinerary Highlights | ☀️ Weather & Packing | 💰 Budget Breakdown | 💎 Local Tips & Dining
+Keep it detailed but concise. No code blocks in your response."""
     final_response = llm_router.complete(prompt=package_synthesis_prompt, task_type="reasoning")
+
 
     # Inject metadata blocks
     final_response += f"\n\n```flights-data\n{json.dumps(mapped_flights, indent=2, default=str)}\n```"

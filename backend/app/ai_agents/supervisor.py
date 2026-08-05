@@ -91,37 +91,35 @@ def supervisor_node(state: AgentState, config: Dict[str, Any] = None) -> dict:
                 pref_lines.append(f"  {cat}: {'; '.join(items[:3])}")
         pref_block = "\n".join(pref_lines) if pref_lines else "  None recorded yet"
 
-        combined_prompt = f"""You are a travel AI supervisor. Do TWO tasks and return ONE JSON object.
+        # Trim trip_context to essentials only to keep prompt small (prevent 413)
+        ctx_minimal = {k: trip_context.get(k) for k in
+            ["destination", "origin", "departure_date", "return_date", "passengers",
+             "duration_days", "travel_style"] if trip_context.get(k)}
 
-ACTIVE TRIP CONTEXT:
-{json.dumps(trip_context, default=str)}
+        combined_prompt = f"""You are a travel AI supervisor. Return ONE JSON object.
 
-USER PREFERENCES:
-{pref_block}
+TRIP CONTEXT: {json.dumps(ctx_minimal, default=str)}
+USER PREFERENCES (top 3): {pref_block[:300]}
+LAST 2 TURNS: {json.dumps(messages[:-1][-2:], default=str)[:400]}
+USER QUERY: "{user_message[:300]}"
 
-CONVERSATION (last 4 turns):
-{json.dumps(messages[:-1][-4:], default=str)}
+SELECT agents from this list:
+flight_search, hotel_search, budget_planning, trip_planner, visa_assistant,
+weather_info, local_guide, general_chat, restaurant_recommendation, travel_safety,
+currency_conversion, payment_assistant, insurance_assistant, emergency_assistant
 
-USER QUERY: "{user_message}"
-
-TASK 1 — Resolve references: Rewrite the query to be fully explicit.
-Replace: "same hotel"→hotel name, "that flight"→flight number, "there"→city, "same dates"→actual dates.
-
-TASK 2 — Select agents. Choose from:
-flight_search, hotel_search, budget_planning, itinerary_generator, visa_assistant,
-weather_info, local_guide, currency_conversion, restaurant_recommendation, travel_safety,
-customer_support, payment_assistant, trip_planner, insurance_assistant, emergency_assistant, general_chat
-
-Rules:
-- Full trip/vacation plan → ["budget_planning", "flight_search", "hotel_search", "weather_info", "itinerary_generator"]
+Rules (IMPORTANT - minimize agents to save API calls):
+- Full trip/vacation/package → ["trip_planner"] ONLY (handles flights+hotels+itinerary in one call)
 - Flight only → ["flight_search"]
 - Hotel only → ["hotel_search"]
-- Greeting/simple question → ["general_chat"]
-- Budget question → ["budget_planning"]
+- Budget/cost question → ["budget_planning"]
 - Weather question → ["weather_info"]
+- Greeting/simple → ["general_chat"]
+- Visa question → ["visa_assistant"]
 
-Return ONLY this JSON (no markdown, no explanation):
-{{"query": "<rewritten query>", "agents": ["agent1", "agent2"]}}"""
+Return ONLY this JSON:
+{{"query": "<rewritten explicit query>", "agents": ["agent1"]}}"""
+
 
         try:
             combined_str = llm_router.complete(prompt=combined_prompt, task_type="simple").strip()
