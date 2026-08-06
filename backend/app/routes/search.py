@@ -808,10 +808,12 @@ async def unified_vertical_search(
         }
 
     elif v == "forex":
+        from app.providers.registry import provider_registry
+        rate = await provider_registry.currency_manager.get_conversion_rate("USD", "INR")
         return {
             "vertical": "forex",
             "currency_pair": "USD_INR",
-            "rate": 84.50,
+            "rate": rate,
             "lock_ttl_seconds": 600,
             "kyc_required": True,
             "delivery_modes": ["Home Delivery", "Branch Pickup"]
@@ -844,6 +846,29 @@ async def unified_vertical_search(
                 {"provider_name": "Tata AIG", "policy_name": "Travel Guard Basic", "price": 950, "coverage_amount": 5000000, "details": "Covers medical emergencies, baggage loss, trip delays."},
                 {"provider_name": "HDFC Ergo", "policy_name": "Travel Shield Premium", "price": 1800, "coverage_amount": 10000000, "details": "Covers adventure sports, dental treatments, passport loss."}
             ]
+        }
+    elif v == "weather":
+        from app.providers.registry import provider_registry
+        weather_data = await provider_registry.weather_manager.get_weather_for_city(destination or "Goa")
+        return {
+            "vertical": "weather",
+            "results": [weather_data]
+        }
+
+    elif v == "directions":
+        from app.providers.registry import provider_registry
+        route_data = await provider_registry.maps_manager.get_route_directions(origin or "Delhi", destination or "Goa")
+        return {
+            "vertical": "directions",
+            "results": [route_data]
+        }
+
+    elif v == "nearby":
+        from app.providers.registry import provider_registry
+        spots = await provider_registry.maps_manager.search_nearby(destination or "Goa", category or "restaurant")
+        return {
+            "vertical": "nearby",
+            "results": spots
         }
         
     else:

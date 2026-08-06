@@ -123,12 +123,13 @@ from sqlalchemy.orm import Session
 from typing import Optional, List
 
 @router.get("/realtime")
-def get_realtime_updates(
+async def get_realtime_updates(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """REST polling fallback for real-time services alerts"""
     from app.models.bookings import FlightBooking
+    from app.providers.registry import provider_registry
     
     flights = db.query(FlightBooking).filter(
         FlightBooking.user_id == current_user.id
@@ -149,11 +150,12 @@ def get_realtime_updates(
     })
     
     # 2. Currency fluctuation
+    rate = await provider_registry.currency_manager.get_conversion_rate("USD", "INR")
     alerts.append({
         "id": "realtime_poll_currency",
         "category": "Wallet",
         "title": "💵 Currency Fluctuation Alert",
-        "msg": "INR strengthened against USD by 0.35%. Good time to convert!",
+        "msg": f"USD/INR is trading at {rate:.2f}. Ideal time to lock exchange rate!",
         "priority": "low",
         "time": "Just now",
         "read": False,
@@ -161,11 +163,14 @@ def get_realtime_updates(
     })
     
     # 3. Weather Alert
+    weather = await provider_registry.weather_manager.get_weather_for_city("Goa")
+    temp = weather.get("temperature", 27.0)
+    desc = weather.get("forecast", [{}])[0].get("desc", "overcast with occasional light rain")
     alerts.append({
         "id": "realtime_poll_weather",
         "category": "Emergency",
         "title": "⛈️ Weather Update",
-        "msg": "Goa forecast: Overcast with occasional light rain. 27°C.",
+        "msg": f"Goa forecast: {desc.capitalize()} | {temp}°C.",
         "priority": "medium",
         "time": "Just now",
         "read": False,

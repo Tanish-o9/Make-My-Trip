@@ -61,16 +61,11 @@ class PriceCompareAgent:
             except Exception as ce:
                 logger.warning(f"Failed to read from Redis cache: {ce}")
 
-        providers = provider_registry.get_flight_providers()
-        tasks = [provider.search(origin, destination, date) for provider in providers]
-        results = []
         try:
-            completed_tasks = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=8.0)
-            for task_res in completed_tasks:
-                if not isinstance(task_res, Exception) and isinstance(task_res, list):
-                    results.extend(task_res)
+            results = await asyncio.wait_for(provider_registry.flight_manager.search_all(origin, destination, date), timeout=8.0)
         except asyncio.TimeoutError:
             logger.warning("Flight search parallel gather timed out!")
+            results = []
 
         if not results:
             return []
@@ -122,16 +117,11 @@ class PriceCompareAgent:
             except Exception as ce:
                 logger.warning(f"Redis cache read error: {ce}")
 
-        providers = provider_registry.get_hotel_providers()
-        tasks = [provider.search(destination, check_in, check_out) for provider in providers]
-        results = []
         try:
-            completed_tasks = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=8.0)
-            for task_res in completed_tasks:
-                if not isinstance(task_res, Exception) and isinstance(task_res, list):
-                    results.extend(task_res)
+            results = await asyncio.wait_for(provider_registry.hotel_manager.search_all(destination, check_in, check_out), timeout=8.0)
         except asyncio.TimeoutError:
             logger.warning("Hotel search parallel gather timed out!")
+            results = []
 
         if not results:
             return []

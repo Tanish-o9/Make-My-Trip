@@ -7,6 +7,12 @@ from app.providers.hotels.hotelbeds import HotelBedsProvider
 from app.providers.hotels.expedia import ExpediaProvider
 from app.providers.vehicles.first_party import FirstPartyVehicleProvider
 
+from app.providers.flights.manager import FlightProviderManager
+from app.providers.hotels.manager import HotelProviderManager
+from app.providers.weather.manager import WeatherManager
+from app.providers.maps.manager import MapsManager
+from app.providers.currency.manager import CurrencyManager
+
 class ProviderRegistry:
     def __init__(self):
         self.flights = {
@@ -20,6 +26,11 @@ class ProviderRegistry:
         self.vehicles = {
             "firstparty": FirstPartyVehicleProvider()
         }
+        self.flight_manager = FlightProviderManager()
+        self.hotel_manager = HotelProviderManager()
+        self.weather_manager = WeatherManager()
+        self.maps_manager = MapsManager()
+        self.currency_manager = CurrencyManager()
 
     def get_flight_providers(self) -> List[Any]:
         return list(self.flights.values())
