@@ -38,7 +38,7 @@ class TokenResponse(BaseModel):
 class TokenRefreshRequest(BaseModel):
     refresh_token: str
 
-@router.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(auth_limiter)])
 def signup(user_data: UserSignUp, db: Session = Depends(get_db)):
     db_user = db.query(User).filter(User.email == user_data.email).first()
     if db_user:
@@ -65,7 +65,7 @@ def signup(user_data: UserSignUp, db: Session = Depends(get_db)):
     
     return user
 
-@router.post("/token", response_model=TokenResponse)
+@router.post("/token", response_model=TokenResponse, dependencies=[Depends(auth_limiter)])
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     try:
         user = db.query(User).filter(User.email == form_data.username).first()

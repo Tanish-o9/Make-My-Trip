@@ -63,6 +63,19 @@ async def restrict_admin_origin_middleware(request, call_next):
                 )
     return await call_next(request)
 
+# Secure Headers Middleware
+@app.middleware("http")
+async def add_secure_headers_middleware(request, call_next):
+    response = await call_next(request)
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Content-Security-Policy"] = "default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data:; frame-ancestors 'none';"
+    if request.url.scheme == "https":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
+
 # Request ID, Context and Metrics Middleware
 @app.middleware("http")
 async def request_id_middleware(request, call_next):

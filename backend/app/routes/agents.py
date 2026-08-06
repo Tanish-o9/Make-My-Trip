@@ -20,12 +20,33 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     response: str
 
+def check_prompt_injection(message: str) -> bool:
+    dangerous_keywords = [
+        "ignore previous instructions",
+        "ignore the instructions above",
+        "system override",
+        "override system prompt",
+        "you are now in developer mode",
+        "jailbreak",
+        "do anything now",
+        "dan mode"
+    ]
+    msg_lower = message.lower()
+    for kw in dangerous_keywords:
+        if kw in msg_lower:
+            return True
+    return False
+
+
 @router.post("/chat", response_model=ChatResponse)
 def chat_turn(
     req: ChatRequest,
     user=Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    if check_prompt_injection(req.message):
+        raise HTTPException(status_code=400, detail="Potential prompt injection detected. Input restricted.")
+        
     try:
         response = SupervisorAgent.execute_chat_turn(
             user_id=user.id,
@@ -112,6 +133,10 @@ async def chat_ws_endpoint(websocket: WebSocket, session_id: str, db: Session = 
 
             if not message_text:
                 await websocket.send_text(json.dumps({"error": "Empty message"}))
+                continue
+                
+            if check_prompt_injection(message_text):
+                await websocket.send_text(json.dumps({"error": "Potential prompt injection detected. Input restricted."}))
                 continue
                 
             # Send initial progress state
