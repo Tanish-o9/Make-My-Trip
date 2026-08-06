@@ -4,6 +4,7 @@ from typing import List, Dict, Any
 from app.providers.base import BaseFlightProvider, NormalizedOffer
 from app.providers.flights.amadeus import AmadeusProvider
 from app.providers.flights.skyscanner_rapid import SkyscannerRapidProvider
+from app.providers.flights.booking_dot_com import BookingDotComFlightProvider
 
 logger = logging.getLogger(__name__)
 
@@ -17,9 +18,13 @@ def _amadeus_is_configured() -> bool:
 
 class FlightProviderManager:
     def __init__(self):
-        # Priority 1: Skyscanner via RapidAPI (uses existing RAPIDAPI_KEY)
-        # Priority 2: Amadeus (only if real credentials are configured)
-        self.providers: List[BaseFlightProvider] = [SkyscannerRapidProvider()]
+        # Priority 1: Booking.com Flights via RapidAPI (uses subscribed RAPIDAPI_KEY)
+        # Priority 2: Skyscanner via RapidAPI (uses existing RAPIDAPI_KEY)
+        # Priority 3: Amadeus (only if real credentials are configured)
+        self.providers: List[BaseFlightProvider] = [
+            BookingDotComFlightProvider(),
+            SkyscannerRapidProvider()
+        ]
         if _amadeus_is_configured():
             self.providers.append(AmadeusProvider())
             logger.info("FlightProviderManager: Amadeus provider added (real credentials detected).")
@@ -42,6 +47,7 @@ class FlightProviderManager:
         # All providers failed — surface a clear diagnostic error
         raise last_error or ValueError(
             "No flight providers returned results. "
-            "Check RAPIDAPI_KEY in backend/.env and ensure sky-scrapper.p.rapidapi.com is subscribed."
+            "Check RAPIDAPI_KEY in backend/.env and ensure booking-com15.p.rapidapi.com is subscribed."
         )
+
 

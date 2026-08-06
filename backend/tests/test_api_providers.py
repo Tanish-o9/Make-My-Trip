@@ -5,8 +5,9 @@ from app.providers.registry import provider_registry
 async def test_flight_provider_manager_fallback():
     results = await provider_registry.flight_manager.search_all("DEL", "GOI", "2026-12-15")
     assert len(results) > 0
-    assert results[0].provider_name in ["MockFlight", "Amadeus", "AviationStack", "Skyscanner"]
+    assert results[0].provider_name in ["MockFlight", "Amadeus", "AviationStack", "Skyscanner", "Booking.com"]
     assert results[0].details["flight_number"] is not None
+
 
 @pytest.mark.anyio
 async def test_hotel_provider_manager_fallback():
