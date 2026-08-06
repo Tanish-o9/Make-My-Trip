@@ -484,6 +484,53 @@ class SupervisorAgent:
         trip_context = active_context.get("trip_context", {})
         budget_constraints = active_context.get("budget_constraints", {})
 
+        # === Phase 14: Dynamic Booking & Profile Context Enrichment ===
+        from app.database import SessionLocal
+        db = SessionLocal()
+        bookings_summary = []
+        try:
+            from app.models.bookings import FlightBooking, HotelBooking, TrainBooking, BusBooking, CabBooking, HolidayPackageBooking, VillaBooking, ActivityBooking, CruiseBooking
+            from app.models.core import UserProfile, EmergencyContact, Documents
+            
+            # Flights
+            flights = db.query(FlightBooking).filter(FlightBooking.user_id == user_id).all()
+            for f in flights:
+                bookings_summary.append(f"Flight Booking {f.booking_reference}: {f.airline_code}-{f.flight_number} from {f.origin} to {f.destination} on {f.departure_time.strftime('%Y-%m-%d %H:%M')} (Status: {f.status.value}, Passengers: {len(f.passenger_details or [])})")
+            
+            # Hotels
+            hotels = db.query(HotelBooking).filter(HotelBooking.user_id == user_id).all()
+            for h in hotels:
+                bookings_summary.append(f"Hotel Booking {h.booking_reference}: {h.hotel_name} in {h.city_name} from {h.check_in_date} to {h.check_out_date} (Status: {h.status.value}, Room: {h.room_type})")
+            
+            # Cabs
+            cabs = db.query(CabBooking).filter(CabBooking.user_id == user_id).all()
+            for c in cabs:
+                bookings_summary.append(f"Cab Booking {c.booking_reference}: {c.vehicle_model} in {c.city_name} on {c.pickup_time.strftime('%Y-%m-%d %H:%M')} (Status: {c.status.value})")
+
+            # Packages
+            pkgs = db.query(HolidayPackageBooking).filter(HolidayPackageBooking.user_id == user_id).all()
+            for p in pkgs:
+                bookings_summary.append(f"Holiday Package Booking {p.booking_reference}: {p.package_title} (Status: {p.status.value})")
+                
+            # Profile & emergency details
+            prof = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
+            if prof:
+                bookings_summary.append(f"User Profile Details: Full Name: {prof.full_name}, Email: {prof.email}, Mobile: {prof.mobile_number}, Nationality: {prof.nationality}, Passport: {prof.passport_number}")
+            
+            emergencies = db.query(EmergencyContact).filter(EmergencyContact.user_id == user_id).all()
+            for em in emergencies:
+                bookings_summary.append(f"Emergency Contact: {em.contact_name} ({em.relationship}) - Phone: {em.phone_number}")
+                
+            docs = db.query(Documents).filter(Documents.user_id == user_id).all()
+            for doc in docs:
+                bookings_summary.append(f"Uploaded Document: {doc.document_type} (Verified: {doc.verified})")
+        except Exception as e:
+            logger.error(f"Error querying active bookings in supervisor: {e}")
+        finally:
+            db.close()
+            
+        trip_context["active_bookings_summary"] = bookings_summary
+
         # === Phase 9: Dynamic Preference Learning ===
         # Only run if the message contains preference-indicating keywords (saves 1 LLM call for normal requests)
         PREF_KEYWORDS = ["hate", "love", "prefer", "always", "never", "dislike", "avoid",

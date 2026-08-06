@@ -1191,6 +1191,15 @@ class ModifyBookingRequest(BaseModel):
     passenger_name: Optional[str] = None
     meal: Optional[str] = None
     seat: Optional[str] = None
+    
+    # New options (Phase 17)
+    dates: Optional[str] = None
+    seat_class_upgrade: Optional[str] = None
+    room_type_upgrade: Optional[str] = None
+    add_baggage_kg: Optional[int] = None
+    purchase_insurance: Optional[bool] = None
+    book_airport_cab: Optional[str] = None
+    book_activities: Optional[str] = None
 
 
 @router.post("/{booking_reference}/modify")
@@ -1200,7 +1209,11 @@ def modify_booking_details(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    from app.models.bookings import BookingTicket, BookingEvent
+    from app.models.bookings import BookingTicket, BookingEvent, BookingInvoice
+    from app.services.wallet_loyalty import WalletService, InsufficientWalletBalance
+    from decimal import Decimal
+    from app.memory.memory_manager import MemoryManager
+    
     booking = find_booking_by_reference(db, booking_reference)
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found.")
@@ -1211,7 +1224,75 @@ def modify_booking_details(
     if not ticket:
         raise HTTPException(status_code=404, detail="No ticket record found to modify.")
         
-    # Update passenger details
+    # 1. Calculate modification/upgrade fees
+    fee = 0.0
+    mod_logs = []
+    
+    if req.passenger_name and (not ticket.passenger_details or ticket.passenger_details[0].get("name") != req.passenger_name):
+        mod_logs.append(f"Passenger name updated to: {req.passenger_name}")
+    if req.meal:
+        mod_logs.append(f"Meal preference updated to: {req.meal}")
+        MemoryManager.save_user_preference(user_id=current_user.id, preference_text=f"Preferred meal: {req.meal}", category="dietary")
+    if req.seat:
+        mod_logs.append(f"Seat preference updated to: {req.seat}")
+        MemoryManager.save_user_preference(user_id=current_user.id, preference_text=f"Preferred seat: {req.seat}", category="airlines")
+        
+    # Date modifications (Fee: ₹1000)
+    if req.dates:
+        fee += 1000.0
+        mod_logs.append(f"Travel dates rescheduled to: {req.dates}")
+        booking.check_in_date = req.dates
+        if hasattr(booking, "departure_time"):
+            try:
+                booking.departure_time = datetime.datetime.strptime(req.dates.split(" to ")[0], "%Y-%m-%d")
+            except:
+                pass
+                
+    # Seat Class Upgrade (Fee: ₹2500)
+    if req.seat_class_upgrade:
+        fee += 2500.0
+        mod_logs.append(f"Seat upgraded to cabin class: {req.seat_class_upgrade}")
+        MemoryManager.save_user_preference(user_id=current_user.id, preference_text=f"Prefers cabin class: {req.seat_class_upgrade}", category="airlines")
+        
+    # Room Type Upgrade (Fee: ₹3000)
+    if req.room_type_upgrade:
+        fee += 3000.0
+        mod_logs.append(f"Hotel room upgraded to: {req.room_type_upgrade}")
+        MemoryManager.save_user_preference(user_id=current_user.id, preference_text=f"Prefers room type: {req.room_type_upgrade}", category="hotels")
+        
+    # Baggage add-on (Fee: ₹500)
+    if req.add_baggage_kg:
+        fee += 500.0
+        mod_logs.append(f"Added baggage allowance: +{req.add_baggage_kg} kg")
+        
+    # Insurance (Fee: ₹499)
+    if req.purchase_insurance:
+        fee += 499.0
+        mod_logs.append("Purchased travel insurance coverage")
+        
+    # Cab Booking (Fee: ₹999)
+    if req.book_airport_cab:
+        fee += 999.0
+        mod_logs.append(f"Booked airport transfer cab: {req.book_airport_cab}")
+        
+    # Activity booking (Fee: ₹2499)
+    if req.book_activities:
+        fee += 2499.0
+        mod_logs.append(f"Booked tour activity slot: {req.book_activities}")
+        
+    # 2. Charge wallet if fees are greater than zero
+    if fee > 0.0:
+        try:
+            WalletService.debit_for_booking(db, user_id=current_user.id, amount=Decimal(str(fee)), booking_ref=f"MOD-{booking_reference}")
+        except InsufficientWalletBalance:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Insufficient wallet balance to cover modification fees. Required: ₹{fee:.2f}."
+            )
+            
+        booking.total_amount = float(booking.total_amount) + fee
+        
+    # 3. Apply basic updates to ticket details
     if req.passenger_name:
         p_details = list(ticket.passenger_details or [])
         if len(p_details) > 0:
@@ -1220,28 +1301,48 @@ def modify_booking_details(
             p_details = [{"name": req.passenger_name, "age": 30}]
         ticket.passenger_details = p_details
         
-    # Update extra info
     extra = dict(ticket.extra_info or {})
     if req.meal:
         extra["meal"] = req.meal
     if req.seat:
         extra["seat"] = req.seat
+    if req.seat_class_upgrade:
+        extra["seat_class"] = req.seat_class_upgrade
+    if req.room_type_upgrade:
+        extra["room_type"] = req.room_type_upgrade
+    if req.add_baggage_kg:
+        extra["baggage_allowance"] = f"+{req.add_baggage_kg} kg"
+    if req.purchase_insurance:
+        extra["insurance_purchased"] = True
+    if req.book_airport_cab:
+        extra["airport_cab"] = req.book_airport_cab
+    if req.book_activities:
+        extra["booked_activity"] = req.book_activities
     ticket.extra_info = extra
     
-    # Save modification log
-    db.add(BookingEvent(
-        booking_reference=booking_reference,
-        event_type="booking_modified",
-        description=f"Booking details updated: Passenger name/meal/seat settings updated by owner."
-    ))
-    
-    # Recompile PDF dynamically
-    from app.models.bookings import BookingInvoice
+    # 4. Save events logs to database (Timeline tracker)
+    for log_msg in mod_logs:
+        db.add(BookingEvent(
+            booking_reference=booking_reference,
+            event_type="booking_modified",
+            description=log_msg
+        ))
+        
+    # 5. Recompile Invoice and PDF document
     invoice = db.query(BookingInvoice).filter(BookingInvoice.booking_reference == booking_reference).first()
     if invoice:
+        invoice.final_amount = float(invoice.final_amount) + fee
+        if fee > 0.0:
+            invoice.wallet_used = float(invoice.wallet_used) + fee
+            
         from app.utils.booking_helpers import generate_booking_pdf
         vertical = getattr(booking, "__tablename__", "").replace("_bookings", "")
         generate_booking_pdf(booking, ticket, invoice, current_user, vertical)
         
     db.commit()
-    return {"success": True, "message": "Booking modified and E-Ticket regenerated successfully."}
+    return {
+        "success": True, 
+        "message": "Booking modified, wallet charged, and invoice PDF regenerated successfully.",
+        "fee_charged": fee,
+        "new_total": booking.total_amount
+    }

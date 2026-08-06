@@ -39,6 +39,15 @@ export function BookingDetailPage({ bookingId, onNavigate, token }: BookingDetai
   const [modSeat, setModSeat] = useState("");
   const [modMeal, setModMeal] = useState("");
   const [modLoading, setModLoading] = useState(false);
+  
+  // Upgrades & Add-ons Form States (Phase 17)
+  const [modDates, setModDates] = useState("");
+  const [modSeatClass, setModSeatClass] = useState("");
+  const [modRoomType, setModRoomType] = useState("");
+  const [modBaggage, setModBaggage] = useState<number>(0);
+  const [modInsurance, setModInsurance] = useState(false);
+  const [modCab, setModCab] = useState("");
+  const [modActivity, setModActivity] = useState("");
 
   const [toast, setToast] = useState<{ show: boolean; message: string }>({ show: false, message: "" });
 
@@ -177,15 +186,23 @@ export function BookingDetailPage({ bookingId, onNavigate, token }: BookingDetai
       body: JSON.stringify({
         passenger_name: modName,
         meal: modMeal,
-        seat: modSeat
+        seat: modSeat,
+        dates: modDates || undefined,
+        seat_class_upgrade: modSeatClass || undefined,
+        room_type_upgrade: modRoomType || undefined,
+        add_baggage_kg: modBaggage || undefined,
+        purchase_insurance: modInsurance || undefined,
+        book_airport_cab: modCab || undefined,
+        book_activities: modActivity || undefined
       })
     })
-      .then(res => {
-        if (!res.ok) throw new Error("Failed to modify booking.");
-        return res.json();
+      .then(async res => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Failed to modify booking.");
+        return data;
       })
-      .then(() => {
-        showToast("✏️ Booking modified and ticket regenerated successfully!");
+      .then((data) => {
+        showToast(`✏️ Booking modified successfully! Fee charged: ₹${data.fee_charged || 0}`);
         setEditMode(false);
         loadBookingDetails();
       })
@@ -412,6 +429,97 @@ export function BookingDetailPage({ bookingId, onNavigate, token }: BookingDetai
                             onChange={(e) => setModMeal(e.target.value)}
                             className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white focus:border-blue-500 focus:outline-none"
                           />
+                        </div>
+                      </div>
+
+                      {/* Dates modification */}
+                      <div className="space-y-1">
+                        <label className="text-[9px] text-slate-500 font-bold block">RESCHEDULE DATES (Fee: ₹1,000)</label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g. 2026-12-16 to 2026-12-20"
+                          value={modDates} 
+                          onChange={(e) => setModDates(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white focus:border-blue-500 focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        {details?.vertical === "flights" ? (
+                          <div className="space-y-1">
+                            <label className="text-[9px] text-slate-500 font-bold block">SEAT CLASS UPGRADE (Fee: ₹2,500)</label>
+                            <select 
+                              value={modSeatClass} 
+                              onChange={(e) => setModSeatClass(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white focus:border-blue-500 focus:outline-none"
+                            >
+                              <option value="">No Class Upgrade</option>
+                              <option value="BUSINESS">Business Class (+₹2,500)</option>
+                              <option value="FIRST">First Class (+₹2,500)</option>
+                            </select>
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            <label className="text-[9px] text-slate-500 font-bold block">ROOM UPGRADE (Fee: ₹3,000)</label>
+                            <select 
+                              value={modRoomType} 
+                              onChange={(e) => setModRoomType(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white focus:border-blue-500 focus:outline-none"
+                            >
+                              <option value="">No Room Upgrade</option>
+                              <option value="Deluxe Suite">Deluxe Suite (+₹3,000)</option>
+                              <option value="Presidential Suite">Presidential Suite (+₹3,000)</option>
+                            </select>
+                          </div>
+                        )}
+
+                        <div className="space-y-1">
+                          <label className="text-[9px] text-slate-500 font-bold block">ADD BAGGAGE (Fee: ₹500)</label>
+                          <select 
+                            value={modBaggage} 
+                            onChange={(e) => setModBaggage(parseInt(e.target.value) || 0)}
+                            className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white focus:border-blue-500 focus:outline-none"
+                          >
+                            <option value="0">No Extra Baggage</option>
+                            <option value="15">+15 kg Baggage (+₹500)</option>
+                            <option value="25">+25 kg Baggage (+₹500)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Add-ons Checklist */}
+                      <div className="space-y-2 border-t border-slate-800 pt-2 mt-2">
+                        <label className="text-[9px] text-slate-500 font-bold block">PREMIUM ADD-ONS</label>
+                        <div className="grid grid-cols-1 gap-2">
+                          <label className="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white">
+                            <input 
+                              type="checkbox" 
+                              checked={modInsurance} 
+                              onChange={(e) => setModInsurance(e.target.checked)}
+                              className="accent-yellow-400"
+                            />
+                            <span>Purchase Travel Insurance coverage (+₹499)</span>
+                          </label>
+                          
+                          <label className="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white">
+                            <input 
+                              type="checkbox" 
+                              checked={!!modCab} 
+                              onChange={(e) => setModCab(e.target.checked ? "Airport Transfer Requested" : "")}
+                              className="accent-yellow-400"
+                            />
+                            <span>Book Premium Airport transfer cab (+₹999)</span>
+                          </label>
+
+                          <label className="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white">
+                            <input 
+                              type="checkbox" 
+                              checked={!!modActivity} 
+                              onChange={(e) => setModActivity(e.target.checked ? "Guided Tour Excursion" : "")}
+                              className="accent-yellow-400"
+                            />
+                            <span>Book Guided tour activities & experiences (+₹2,499)</span>
+                          </label>
                         </div>
                       </div>
                       <button 

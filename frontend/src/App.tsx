@@ -84,11 +84,13 @@ export default function App() {
   const [loadingVerticals, setLoadingVerticals] = useState<Record<string, boolean>>({});
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [notificationFilter, setNotificationFilter] = useState("All");
+  const [notificationSearch, setNotificationSearch] = useState("");
   const [notifications, setNotifications] = useState<any[]>([
-    { id: 1, title: "✈️ Flight Delay Alert", msg: "Flight AI-312 from Delhi is delayed by 20 minutes due to congestion.", time: "10 mins ago", read: false },
-    { id: 2, title: "📉 Price Drop Alert", msg: "Goa hotels in your wishlist dropped by 15% for December dates!", time: "2 hours ago", read: false },
-    { id: 3, title: "☀️ Weather Warning", msg: "Goa: Heavy rain forecast on 2026-12-16. Pack an umbrella!", time: "1 day ago", read: true },
-    { id: 4, title: "🛂 Visa Verification", msg: "Your Thailand visa request has been approved and issued.", time: "3 days ago", read: true }
+    { id: 1, category: "Flights", title: "✈️ Flight Delay Alert", msg: "Flight AI-312 from Delhi is delayed by 20 minutes due to congestion.", time: "10 mins ago", read: false, priority: "high", deepLink: "/" },
+    { id: 2, category: "Hotels", title: "📉 Price Drop Alert", msg: "Goa hotels in your wishlist dropped by 15% for December dates!", time: "2 hours ago", read: false, priority: "medium", deepLink: "/" },
+    { id: 3, category: "Emergency", title: "☀️ Weather Warning", msg: "Goa: Heavy rain forecast on 2026-12-16. Pack an umbrella!", time: "1 day ago", read: true, priority: "high", deepLink: "/" },
+    { id: 4, category: "Visa", title: "🛂 Visa Verification", msg: "Your Thailand visa request has been approved and issued.", time: "3 days ago", read: true, priority: "medium", deepLink: "/profile" }
   ]);
 
   const [currency, setCurrency] = useState<'INR' | 'USD' | 'EUR'>('INR');
@@ -128,6 +130,71 @@ export default function App() {
         }
       })
       .catch(() => {});
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    
+    const wsUrl = `${WS_BASE}/v1/tracker/ws/realtime?token=${token}`;
+    console.log("LOG: Connecting to Real-Time WebSocket:", wsUrl);
+    let socket = new WebSocket(wsUrl);
+    let pollingInterval: any = null;
+    
+    const handleWsMessage = (event: MessageEvent) => {
+      try {
+        const payload = JSON.parse(event.data);
+        if (payload.event === "realtime_alerts" && payload.alerts) {
+          setNotifications(prev => {
+            const merged = [...prev];
+            payload.alerts.forEach((newAlert: any) => {
+              if (!merged.some(n => n.id === newAlert.id)) {
+                merged.unshift({
+                  ...newAlert,
+                  time: "Just now"
+                });
+              }
+            });
+            return merged.slice(0, 50);
+          });
+        }
+      } catch (err) {
+        console.warn("WS Message parse failed:", err);
+      }
+    };
+    
+    const handleWsClose = () => {
+      console.warn("WS disconnected. Falling back to REST polling...");
+      pollingInterval = setInterval(() => {
+        fetch(`${API_URL}/tracker/realtime`, {
+          headers: { "Authorization": `Bearer ${token}` }
+        })
+          .then(res => res.json())
+          .then(data => {
+            if (data.alerts) {
+              setNotifications(prev => {
+                const merged = [...prev];
+                data.alerts.forEach((newAlert: any) => {
+                  if (!merged.some(n => n.id === newAlert.id)) {
+                    merged.unshift(newAlert);
+                  }
+                });
+                return merged.slice(0, 50);
+              });
+            }
+          })
+          .catch(err => console.warn("Polling fallback failed:", err));
+      }, 10000);
+    };
+    
+    socket.addEventListener("message", handleWsMessage);
+    socket.addEventListener("close", handleWsClose);
+    
+    return () => {
+      socket.removeEventListener("message", handleWsMessage);
+      socket.removeEventListener("close", handleWsClose);
+      socket.close();
+      if (pollingInterval) clearInterval(pollingInterval);
+    };
   }, [token]);
 
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -820,32 +887,133 @@ export default function App() {
               </button>
 
               {showNotifications && (
-                <div className="absolute right-0 mt-3 w-80 bg-[#0f172a] border-3 border-black p-4 rounded-xl shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] text-white z-50 space-y-3 max-h-96 overflow-y-auto">
-                  <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                    <span className="text-xs font-black uppercase tracking-wider text-yellow-400">🔔 Real-Time Alerts Hub</span>
+                <div className="absolute right-0 mt-3 w-96 bg-[#0c111d] border-4 border-black p-5 rounded-2xl shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] text-white z-50 space-y-4 max-h-[500px] overflow-y-auto font-sans scrollbar-thin">
+                  {/* Header */}
+                  <div className="flex justify-between items-center border-b-2 border-slate-800 pb-3">
+                    <div>
+                      <h3 className="text-sm font-black uppercase tracking-wider text-yellow-400">🔔 Real-Time alerts hub</h3>
+                      <span className="text-[9px] text-slate-400 font-bold block mt-0.5">Live telemetry notifications center</span>
+                    </div>
                     <button 
                       onClick={() => setNotifications(prev => prev.map(n => ({...n, read: true})))}
-                      className="text-[9px] bg-slate-800 text-slate-300 font-bold px-2.5 py-1 rounded hover:bg-slate-700 cursor-pointer border-none"
+                      className="text-[9px] bg-slate-800 hover:bg-slate-700 text-slate-200 font-black px-2.5 py-1.5 border border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-none transition-all cursor-pointer uppercase"
                     >
                       Clear Unread
                     </button>
                   </div>
+
+                  {/* Search and Category filters */}
                   <div className="space-y-2">
-                    {notifications.map(n => (
-                      <div 
-                        key={n.id} 
-                        onClick={() => setNotifications(prev => prev.map(item => item.id === n.id ? {...item, read: true} : item))}
-                        className={`p-2.5 rounded-lg border text-left cursor-pointer transition-all hover:bg-slate-800/80 ${
-                          n.read ? 'bg-slate-950/20 border-slate-900 opacity-60' : 'bg-[#1e293b]/70 border-blue-500/25'
-                        }`}
-                      >
-                        <div className="flex justify-between items-start gap-2">
-                          <span className="text-[10px] font-black uppercase text-slate-100">{n.title}</span>
-                          <span className="text-[8px] text-slate-500 font-bold whitespace-nowrap">{n.time}</span>
+                    <input 
+                      type="text" 
+                      placeholder="Search alerts..." 
+                      value={notificationSearch}
+                      onChange={(e) => setNotificationSearch(e.target.value)}
+                      className="w-full bg-[#161f30] text-xs px-3 py-2 border-2 border-slate-700 rounded-lg focus:outline-none focus:border-yellow-400 text-slate-200 font-semibold"
+                    />
+                    
+                    <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                      {["All", "Flights", "Hotels", "Payments", "Wallet", "AI", "Emergency"].map(cat => (
+                        <button
+                          key={cat}
+                          onClick={() => setNotificationFilter(cat)}
+                          className={`text-[9px] px-2 py-1 rounded font-black uppercase border whitespace-nowrap cursor-pointer transition-all ${
+                            notificationFilter === cat
+                              ? "bg-yellow-400 text-black border-black font-extrabold shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]"
+                              : "bg-slate-900 text-slate-400 border-slate-800 hover:text-white"
+                          }`}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Notifications list */}
+                  <div className="space-y-2.5">
+                    {(() => {
+                      const filtered = notifications.filter(n => {
+                        const matchesCategory = notificationFilter === "All" || n.category === notificationFilter;
+                        const matchesSearch = !notificationSearch || 
+                          n.title.toLowerCase().includes(notificationSearch.toLowerCase()) ||
+                          n.msg.toLowerCase().includes(notificationSearch.toLowerCase());
+                        return matchesCategory && matchesSearch;
+                      });
+
+                      if (filtered.length === 0) {
+                        return (
+                          <div className="py-8 text-center space-y-2 border border-dashed border-slate-800 rounded-xl">
+                            <span className="text-2xl">✨</span>
+                            <h4 className="text-[10px] font-black uppercase text-slate-400">Zero active alerts</h4>
+                            <p className="text-[9px] text-slate-500 font-semibold">Your travel OS terminal gate is clean</p>
+                          </div>
+                        );
+                      }
+
+                      return filtered.map(n => (
+                        <div 
+                          key={n.id} 
+                          className={`p-3 rounded-xl border-2 text-left transition-all relative ${
+                            n.read 
+                              ? 'bg-slate-950/30 border-slate-900 opacity-60' 
+                              : n.priority === 'high'
+                                ? 'bg-red-950/20 border-red-800/80 shadow-[4px_4px_0px_0px_rgba(239,68,68,0.1)]'
+                                : n.priority === 'medium'
+                                  ? 'bg-yellow-950/10 border-yellow-800/80 shadow-[4px_4px_0px_0px_rgba(234,179,8,0.1)]'
+                                  : 'bg-slate-900/60 border-slate-800'
+                          }`}
+                        >
+                          {/* Priority badge */}
+                          <div className="flex justify-between items-start gap-2">
+                            <div className="flex items-center gap-1.5">
+                              {n.priority === 'high' && <span className="bg-red-600 text-white text-[7px] font-black px-1 py-0.5 rounded uppercase">CRITICAL</span>}
+                              {n.priority === 'medium' && <span className="bg-yellow-500 text-black text-[7px] font-black px-1 py-0.5 rounded uppercase">WARNING</span>}
+                              <span className="text-[9px] font-black uppercase text-slate-200 tracking-wide">{n.title}</span>
+                            </div>
+                            <span className="text-[8px] text-slate-500 font-black whitespace-nowrap">{n.time}</span>
+                          </div>
+
+                          <p className="text-xs text-slate-300 mt-1 leading-snug font-medium pr-14">{n.msg}</p>
+
+                          {/* Quick Actions overlay */}
+                          <div className="absolute right-2.5 bottom-2.5 flex items-center gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setNotifications(prev => prev.map(item => item.id === n.id ? {...item, read: !item.read} : item));
+                              }}
+                              title={n.read ? "Mark Unread" : "Mark Read"}
+                              className="text-[10px] bg-slate-900 border border-slate-800 text-slate-400 hover:text-white p-1 rounded hover:bg-slate-800 cursor-pointer"
+                            >
+                              <Check size={11} />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setNotifications(prev => prev.filter(item => item.id !== n.id));
+                              }}
+                              title="Delete"
+                              className="text-[10px] bg-slate-900 border border-slate-800 text-slate-400 hover:text-rose-500 p-1 rounded hover:bg-slate-800 cursor-pointer"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                            {n.deepLink && n.deepLink !== "/" && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowNotifications(false);
+                                  navigate(n.deepLink);
+                                }}
+                                title="Go to details"
+                                className="text-[10px] bg-yellow-400 border border-black text-black font-black p-1 rounded hover:bg-yellow-300 cursor-pointer"
+                              >
+                                <ArrowRight size={11} />
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        <p className="text-xs text-slate-300 mt-1 leading-snug">{n.msg}</p>
-                      </div>
-                    ))}
+                      ));
+                    })()}
                   </div>
                 </div>
               )}
@@ -5426,9 +5594,21 @@ function MyTripsView({ userProfile, setActiveTab, onNavigate, setPrefilledMessag
       .then(res => res.json())
       .then(data => {
         setTrips(data);
+        localStorage.setItem('offline:trips_list', JSON.stringify(data));
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((err) => {
+        console.warn("Fetch trips failed, loading from cache...", err);
+        const cached = localStorage.getItem('offline:trips_list');
+        if (cached) {
+          try {
+            setTrips(JSON.parse(cached));
+          } catch {
+            setTrips([]);
+          }
+        }
+        setLoading(false);
+      });
   };
 
   useEffect(() => {

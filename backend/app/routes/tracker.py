@@ -111,3 +111,176 @@ async def flight_tracker_websocket(websocket: WebSocket):
             await websocket.close()
         except:
             pass
+
+# --- REAL-TIME SERVICES HUB (Phase 13) ---
+import datetime
+import asyncio
+from fastapi import Depends
+from app.auth.dependencies import get_current_user
+from app.models.core import User
+from app.database import get_db
+from sqlalchemy.orm import Session
+from typing import Optional, List
+
+@router.get("/realtime")
+def get_realtime_updates(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """REST polling fallback for real-time services alerts"""
+    from app.models.bookings import FlightBooking
+    
+    flights = db.query(FlightBooking).filter(
+        FlightBooking.user_id == current_user.id
+    ).all()
+    
+    alerts = []
+    
+    # 1. Price drop alert
+    alerts.append({
+        "id": "realtime_poll_price",
+        "category": "Wallet",
+        "title": "📉 Price Drop Alert",
+        "msg": "Hotels in your wishlist dropped by 15%!",
+        "priority": "medium",
+        "time": "Just now",
+        "read": False,
+        "deepLink": "/"
+    })
+    
+    # 2. Currency fluctuation
+    alerts.append({
+        "id": "realtime_poll_currency",
+        "category": "Wallet",
+        "title": "💵 Currency Fluctuation Alert",
+        "msg": "INR strengthened against USD by 0.35%. Good time to convert!",
+        "priority": "low",
+        "time": "Just now",
+        "read": False,
+        "deepLink": "/wallet"
+    })
+    
+    # 3. Weather Alert
+    alerts.append({
+        "id": "realtime_poll_weather",
+        "category": "Emergency",
+        "title": "⛈️ Weather Update",
+        "msg": "Goa forecast: Overcast with occasional light rain. 27°C.",
+        "priority": "medium",
+        "time": "Just now",
+        "read": False,
+        "deepLink": "/"
+    })
+
+    # 4. Flight Status
+    for f in flights:
+        alerts.append({
+            "id": f"realtime_poll_flight_{f.booking_reference}",
+            "category": "Flights",
+            "title": f"✈️ Live Status: {f.airline_code}-{f.flight_number}",
+            "msg": f"Status: Boarding | Gate: T3-Gate 14A. Boarding reminder dispatched.",
+            "priority": "high",
+            "time": "Just now",
+            "read": False,
+            "deepLink": f"/booking/{f.booking_reference}"
+        })
+        
+    return {"alerts": alerts, "server_time": datetime.datetime.utcnow().isoformat()}
+
+
+@router.websocket("/ws/realtime")
+async def realtime_alerts_websocket(websocket: WebSocket, token: Optional[str] = Query(None)):
+    """WebSocket connection for real-time alerts hub with auto fallback"""
+    await websocket.accept()
+    logger.info("Real-Time Services WebSocket connected.")
+    
+    # Validate token if provided
+    user_id = 1
+    if token:
+        from app.auth.jwt import decode_token
+        payload = decode_token(token)
+        if payload and "id" in payload:
+            user_id = payload["id"]
+            
+    try:
+        counter = 0
+        while True:
+            # Check db stats inside loop dynamically
+            from app.database import SessionLocal
+            from app.models.bookings import FlightBooking
+            db = SessionLocal()
+            
+            alerts = []
+            try:
+                flights = db.query(FlightBooking).filter(FlightBooking.user_id == user_id).all()
+                
+                # Base simulated alerts
+                alerts.append({
+                    "id": f"realtime_ws_price_{counter}",
+                    "category": "Wallet",
+                    "title": "📉 Price Drop Alert",
+                    "msg": "Hotels in your wishlist dropped by 15%!",
+                    "priority": "medium",
+                    "time": "Just now",
+                    "read": False,
+                    "deepLink": "/"
+                })
+                
+                # Currency alert
+                alerts.append({
+                    "id": f"realtime_ws_curr_{counter}",
+                    "category": "Wallet",
+                    "title": "💵 Currency Fluctuation Alert",
+                    "msg": f"INR strengthened against USD by {0.2 + (counter * 0.05):.2f}%. Good time to convert!",
+                    "priority": "low",
+                    "time": "Just now",
+                    "read": False,
+                    "deepLink": "/wallet"
+                })
+                
+                # Weather alert
+                alerts.append({
+                    "id": f"realtime_ws_weather_{counter}",
+                    "category": "Emergency",
+                    "title": "⛈️ Weather Update",
+                    "msg": "Goa forecast: Overcast with occasional light rain. 27°C.",
+                    "priority": "medium",
+                    "time": "Just now",
+                    "read": False,
+                    "deepLink": "/"
+                })
+                
+                for f in flights:
+                    # Alternating gate and delay statuses
+                    gate = "T3-Gate 14" if counter % 2 == 0 else "T3-Gate 19B"
+                    status = "On Time" if counter % 3 == 0 else "Boarding"
+                    alerts.append({
+                        "id": f"realtime_ws_flight_{f.booking_reference}_{counter}",
+                        "category": "Flights",
+                        "title": f"✈️ Live Status: {f.airline_code}-{f.flight_number}",
+                        "msg": f"Status: {status} | Gate: {gate} | Boarding reminder dispatched.",
+                        "priority": "high",
+                        "time": "Just now",
+                        "read": False,
+                        "deepLink": f"/booking/{f.booking_reference}"
+                    })
+            finally:
+                db.close()
+                
+            await websocket.send_text(json.dumps({
+                "event": "realtime_alerts",
+                "alerts": alerts,
+                "server_time": datetime.datetime.utcnow().isoformat()
+            }))
+            
+            counter += 1
+            await asyncio.sleep(8)
+            
+    except WebSocketDisconnect:
+        logger.info("Real-Time Services WebSocket disconnected.")
+    except Exception as e:
+        logger.error(f"Real-Time Services WebSocket error: {e}")
+        try:
+            await websocket.close()
+        except:
+            pass
