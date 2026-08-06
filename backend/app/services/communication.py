@@ -44,24 +44,53 @@ class TwilioClient:
 
 class SendGridClient:
     def __init__(self):
-        self.api_key = os.getenv("SENDGRID_API_KEY")
-        self.from_email = os.getenv("SENDGRID_FROM_EMAIL", "noreply@travelos.com")
+        self.sendgrid_api_key = os.getenv("SENDGRID_API_KEY")
+        self.resend_api_key = os.getenv("RESEND_API_KEY")
+        self.from_email = os.getenv("SENDGRID_FROM_EMAIL") or os.getenv("RESEND_FROM_EMAIL") or "onboarding@resend.dev"
 
     @retry_with_backoff(max_retries=2, initial_delay=0.5)
     def send_email(self, to_email: str, subject: str, body: str) -> Dict[str, Any]:
-        if not self.api_key:
-            logger.info(f"SendGrid Email sandbox dispatch to {to_email} with subject [{subject}]")
-            return {"success": True, "email_id": "sg_mock_12345", "gateway": "sendgrid_simulated"}
+        if not self.resend_api_key and not self.sendgrid_api_key:
+            logger.info(f"Email sandbox mock dispatch to {to_email} with subject [{subject}]")
+            return {"success": True, "email_id": "mock_email_12345", "gateway": "simulated"}
 
+        if self.resend_api_key:
+            def execute_resend_email():
+                url = "https://api.resend.com/emails"
+                headers = {
+                    "Authorization": f"Bearer {self.resend_api_key}",
+                    "Content-Type": "application/json"
+                }
+                # Default Resend sandbox sender must be onboarding@resend.dev unless domain verified
+                sender = self.from_email if "@" in self.from_email and not self.from_email.endswith("travelos.com") else "onboarding@resend.dev"
+                payload = {
+                    "from": f"Travel OS <{sender}>",
+                    "to": [to_email],
+                    "subject": subject,
+                    "text": body
+                }
+                resp = httpx.post(url, headers=headers, json=payload, timeout=5.0)
+                resp.raise_for_status()
+                return resp.json()
+
+            try:
+                res = sendgrid_breaker.call(execute_resend_email)
+                return {"success": True, "email_id": res.get("id"), "gateway": "resend"}
+            except Exception as e:
+                logger.error(f"Resend Email delivery failed: {e}")
+                if not self.sendgrid_api_key:
+                    return {"success": False, "error": str(e), "gateway": "resend"}
+
+        # Fallback to SendGrid
         def execute_sendgrid_email():
             url = "https://api.sendgrid.com/v3/mail/send"
             headers = {
-                "Authorization": f"Bearer {self.api_key}",
+                "Authorization": f"Bearer {self.sendgrid_api_key}",
                 "Content-Type": "application/json"
             }
             payload = {
                 "personalizations": [{"to": [{"email": to_email}]}],
-                "from": {"email": self.from_email},
+                "from": {"email": "noreply@travelos.com"},
                 "subject": subject,
                 "content": [{"type": "text/plain", "value": body}]
             }
