@@ -130,12 +130,24 @@ export default function App() {
       .catch(() => {});
   }, [token]);
 
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
   useEffect(() => {
     const handlePopState = () => {
       setCurrentPath(window.location.pathname);
     };
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
     window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
   }, []);
 
   const navigate = (path: string) => {
@@ -608,10 +620,44 @@ export default function App() {
     return <DesignTokensPage onNavigate={navigate} />;
   }
 
+  // 404 Page (Phase 17)
+  const validPaths = ["/", "/profile", "/design-tokens"];
+  const isMatch = 
+    validPaths.includes(currentPath) || 
+    !!checkoutMatch || 
+    !!confirmationMatch || 
+    !!bookingDetailMatch || 
+    !!rentARideMatch;
+
+  if (!isMatch) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-[#0a0f1d] text-white font-sans text-center">
+        <div className="max-w-md w-full p-8 bg-[#111827] border-4 border-black shadow-[8px_8px_0px_0px_#facc15] space-y-6">
+          <h1 className="text-6xl font-black text-yellow-300">404</h1>
+          <h2 className="text-xl font-black uppercase text-slate-100">PAGE NOT FOUND</h2>
+          <p className="text-xs text-slate-400 font-semibold leading-relaxed">
+            The page you are looking for does not exist or has been relocated to another terminal gate.
+          </p>
+          <button
+            onClick={() => navigate("/")}
+            className="w-full py-2.5 bg-yellow-300 hover:bg-yellow-400 text-black font-black border-2 border-black shadow-[4px_4px_0px_0px_#000000] active:translate-y-0.5 active:shadow-[2px_2px_0px_0px_#000000] transition-all cursor-pointer text-xs uppercase"
+          >
+            Return to Explore Gate ➔
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const isAdmin = userRole === 'admin' || userRole === 'super_admin' || userRole === 'finance_admin' || userRole === 'booking_approver';
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
+      {!isOnline && (
+        <div className="w-full bg-rose-600 text-white text-xs font-black py-2.5 text-center animate-pulse border-b-2 border-black flex justify-center items-center gap-2 z-50">
+          <AlertTriangle size={14} className="text-yellow-300" /> YOU ARE CURRENTLY OFFLINE. LIVE BOOKING & AI PLANS MAY BE UNAVAILABLE.
+        </div>
+      )}
       {isAdmin && (
         <div className="bg-yellow-300 text-black px-4 py-2.5 text-xs font-black uppercase flex items-center justify-between border-b-3 border-black shadow-[0_2px_4px_rgba(0,0,0,0.15)] z-50">
           <div className="flex items-center gap-2">
