@@ -6215,7 +6215,14 @@ function ReasoningPanel({ status, isDone }: { status?: string, isDone: boolean }
   );
 }
 
-const renderRichAIResponse = (text: string, compact: boolean = false) => {
+const renderRichAIResponse = (
+  text: string,
+  compact: boolean = false,
+  onFollowUpClick?: (text: string) => void,
+  bookedItems?: Record<string, boolean>,
+  handleBook?: (id: string, name: string, price: number) => void,
+  handleCancel?: (id: string, name: string, price: number) => void
+) => {
   if (!text) return null;
 
   const sectionKeywords = [
@@ -6290,11 +6297,82 @@ const renderRichAIResponse = (text: string, compact: boolean = false) => {
 
   const renderMarkdownBlock = (blockLines: string[], blockKey: string) => {
     const elements: React.ReactNode[] = [];
-    let listItems: string[] = [];
+    let listItems: React.ReactNode[] = [];
     let listType: 'ul' | 'ol' | null = null;
     let tableRows: string[][] = [];
     let inCodeBlock = false;
     let codeContent: string[] = [];
+
+    const AIRLINE_MAP: Record<string, string> = {
+      "6E": "IndiGo",
+      "AI": "Air India",
+      "UK": "Vistara",
+      "QP": "Akasa Air",
+      "SG": "SpiceJet",
+      "G8": "Go First",
+      "AA": "American Airlines",
+      "DL": "Delta Air Lines",
+      "UA": "United Airlines",
+      "LH": "Lufthansa",
+      "EK": "Emirates",
+      "EY": "Etihad Airways",
+      "QR": "Qatar Airways"
+    };
+
+    const parseFlightLine = (lineStr: string) => {
+      const trimmed = lineStr.trim().replace(/^(\*\s+|-\s+|•\s+)/, '');
+      if (!trimmed.toLowerCase().startsWith("flight:")) return null;
+      // Format: Flight: Airline FlightNumber | DepCode DepTime - ArrCode ArrTime | Duration | Price
+      // Example: Flight: Vistara UK-951 | DEL 08:00 - GOI 10:30 | 2h 30m | ₹7,500
+      const content = trimmed.substring(7).trim();
+      const parts = content.split("|").map(p => p.trim());
+      if (parts.length < 3) return null;
+
+      const airlineParts = parts[0].split(/\s+/);
+      const airline = airlineParts[0] || "6E";
+      const flightNumber = airlineParts[1] || `${airline}-101`;
+
+      const routeParts = parts[1].split("-").map(r => r.trim());
+      const depParts = routeParts[0]?.split(/\s+/) || ["DEL", "08:00"];
+      const arrParts = routeParts[1]?.split(/\s+/) || ["GOI", "10:30"];
+
+      const duration = parts[2] || "2h 30m";
+      const priceStr = parts[3]?.replace(/[^\d]/g, '') || "5000";
+      const price = parseInt(priceStr, 10);
+
+      return {
+        airline,
+        flight_number: flightNumber,
+        dep: `${depParts[0]} ${depParts[1]}`,
+        arr: `${arrParts[0]} ${arrParts[1]}`,
+        duration,
+        price,
+        cabin_class: "Economy",
+        layovers: []
+      };
+    };
+
+    const parseHotelLine = (lineStr: string) => {
+      const trimmed = lineStr.trim().replace(/^(\*\s+|-\s+|•\s+)/, '');
+      if (!trimmed.toLowerCase().startsWith("hotel:")) return null;
+      // Format: Hotel: HotelName | Rating | Price
+      // Example: Hotel: Taj Exotica Resort | 4.8 ★ | ₹15,000/night
+      const content = trimmed.substring(6).trim();
+      const parts = content.split("|").map(p => p.trim());
+      if (parts.length < 3) return null;
+
+      const name = parts[0];
+      const rating = parts[1] || "4.5 ★";
+      const priceStr = parts[2]?.replace(/[^\d]/g, '') || "8000";
+      const price = parseInt(priceStr, 10);
+
+      return {
+        name,
+        rating,
+        price,
+        amenities: ["Free Wifi", "Pool", "Spa"]
+      };
+    };
 
     const flushList = (key: string) => {
       if (listItems.length > 0 && listType) {
@@ -6303,7 +6381,7 @@ const renderRichAIResponse = (text: string, compact: boolean = false) => {
           <Comp key={key} className={compact ? "my-1 pl-4 text-xs list-disc" : "my-2 pl-6 list-disc"}>
             {listItems.map((item, itemIdx) => (
               <li key={itemIdx} className="mb-1 leading-relaxed">
-                {parseInlineMarkdown(item)}
+                {item}
               </li>
             ))}
           </Comp>
@@ -6358,10 +6436,25 @@ const renderRichAIResponse = (text: string, compact: boolean = false) => {
 
       if (trimmed.startsWith("```")) {
         if (inCodeBlock) {
+          const codeText = codeContent.join("\n");
+          const blockId = `code-block-${i}`;
           elements.push(
-            <pre key={`code-${i}`} className="bg-slate-950/40 p-3 rounded-lg border border-slate-800 my-2 overflow-x-auto font-mono text-xs text-yellow-400">
-              <code>{codeContent.join("\n")}</code>
-            </pre>
+            <div key={blockId} className="relative group my-4">
+              <button
+                onClick={(e) => {
+                  navigator.clipboard.writeText(codeText);
+                  const btn = e.currentTarget;
+                  btn.innerText = "Copied!";
+                  setTimeout(() => { btn.innerText = "Copy"; }, 2000);
+                }}
+                className="absolute right-3 top-3 bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-[10px] font-bold px-2 py-1 rounded border border-slate-700 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-10"
+              >
+                Copy
+              </button>
+              <pre className="bg-slate-950/40 p-4 rounded-xl border border-slate-800 overflow-x-auto font-mono text-xs text-yellow-400">
+                <code>{codeText}</code>
+              </pre>
+            </div>
           );
           codeContent = [];
           inCodeBlock = false;
@@ -6373,6 +6466,118 @@ const renderRichAIResponse = (text: string, compact: boolean = false) => {
 
       if (inCodeBlock) {
         codeContent.push(line);
+        continue;
+      }
+
+      // Check inline flight recommendation card
+      const parsedFlight = parseFlightLine(trimmed);
+      if (parsedFlight) {
+        flushList(`list-${elCounter++}`);
+        flushTable(`table-${elCounter++}`);
+        const fl = parsedFlight;
+        const airlineCode = fl.airline.toUpperCase();
+        const airlineName = AIRLINE_MAP[airlineCode] || airlineCode;
+        const flightNumber = fl.flight_number;
+        const depInfo = { code: fl.dep.split(/\s+/)[0], time: fl.dep.split(/\s+/)[1] };
+        const arrInfo = { code: fl.arr.split(/\s+/)[0], time: fl.arr.split(/\s+/)[1] };
+        const isBooked = bookedItems ? bookedItems[flightNumber] : false;
+
+        elements.push(
+          <div key={`inline-flight-${i}`} className="dark-card-override bg-[#0f192e] p-4 rounded-xl flex flex-col md:flex-row gap-4 justify-between items-start md:items-center border border-slate-800 hover:border-slate-700 transition-all relative my-3">
+            <div className="flex-1 w-full space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-extrabold text-xs text-slate-100">{airlineName}</span>
+                <span className="text-[9px] font-mono bg-blue-950/80 text-blue-300 px-1.5 py-0.5 rounded border border-blue-900/40">{flightNumber}</span>
+                <span className="dark-card-badge text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded">ECONOMY</span>
+                {isBooked && (
+                  <span className="text-[9px] bg-emerald-950/40 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded flex items-center gap-0.5">Booked</span>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-200">
+                <div className="flex items-baseline gap-1">
+                  <span className="font-black text-sm text-white">{depInfo.time}</span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">{depInfo.code}</span>
+                </div>
+                <div className="flex flex-col items-center min-w-[50px] relative px-1">
+                  <span className="text-[8px] text-slate-400 font-semibold">{fl.duration}</span>
+                  <div className="w-full h-0.5 relative flex items-center justify-center bg-slate-600">
+                    <div className="w-1 h-1 rounded-full bg-slate-400"></div>
+                  </div>
+                  <span className="text-[8px] text-slate-400 font-medium mt-0.5">Non-stop</span>
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span className="font-black text-sm text-white">{arrInfo.time}</span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">{arrInfo.code}</span>
+                </div>
+              </div>
+            </div>
+            <div className="text-right w-full md:w-auto flex md:flex-col justify-between md:justify-center items-center md:items-end gap-2 border-t md:border-t-0 border-slate-800/60 pt-2 md:pt-0">
+              <div className="font-black text-emerald-400 text-sm md:text-base">₹{fl.price.toLocaleString()}</div>
+              {isBooked ? (
+                <button 
+                  onClick={() => handleCancel && handleCancel(flightNumber, airlineName, fl.price)}
+                  className="bg-red-950/40 border border-red-500/30 hover:bg-red-900/30 text-red-400 text-[10px] font-bold px-2.5 py-1 rounded transition-all cursor-pointer"
+                >
+                  Cancel Booking
+                </button>
+              ) : (
+                <button 
+                  onClick={() => handleBook && handleBook(flightNumber, airlineName, fl.price)}
+                  className="bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all cursor-pointer"
+                >
+                  Book Now
+                </button>
+              )}
+            </div>
+          </div>
+        );
+        continue;
+      }
+
+      // Check inline hotel recommendation card
+      const parsedHotel = parseHotelLine(trimmed);
+      if (parsedHotel) {
+        flushList(`list-${elCounter++}`);
+        flushTable(`table-${elCounter++}`);
+        const ht = parsedHotel;
+        const isBooked = bookedItems ? bookedItems[ht.name] : false;
+
+        elements.push(
+          <div key={`inline-hotel-${i}`} className="bg-[#121c33] p-4 rounded-xl flex justify-between items-center border border-slate-800 hover:border-slate-700 transition-all my-3">
+            <div className="w-2/3">
+              <div className="font-bold text-xs text-slate-200 flex items-center gap-1.5">
+                {ht.name}
+                {isBooked && (
+                  <span className="text-[9px] bg-emerald-950/40 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded flex items-center gap-0.5">Reserved</span>
+                )}
+              </div>
+              <div className="text-[10px] text-yellow-400 font-semibold mt-0.5">{ht.rating} ★ Rating</div>
+              <div className="flex flex-wrap gap-1 mt-2">
+                {ht.amenities.map((am, idx) => (
+                  <span key={idx} className="text-[9px] bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded">{am}</span>
+                ))}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="font-extrabold text-sm text-emerald-400">₹{ht.price.toLocaleString()}/N</div>
+              {isBooked ? (
+                <button 
+                  onClick={() => handleCancel && handleCancel(ht.name, ht.name, ht.price)}
+                  className="mt-1 bg-red-950/40 border border-red-500/30 hover:bg-red-900/30 text-red-400 text-[10px] font-bold px-2.5 py-1 rounded cursor-pointer"
+                >
+                  Cancel Stay
+                </button>
+              ) : (
+                <button 
+                  onClick={() => handleBook && handleBook(ht.name, ht.name, ht.price)}
+                  className="mt-1 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold px-2.5 py-1 rounded cursor-pointer"
+                >
+                  Reserve Room
+                </button>
+              )}
+            </div>
+          </div>
+        );
         continue;
       }
 
@@ -6425,7 +6630,7 @@ const renderRichAIResponse = (text: string, compact: boolean = false) => {
         }
 
         listType = currentType;
-        listItems.push(listText);
+        listItems.push(parseInlineMarkdown(listText));
         continue;
       }
 
@@ -6457,6 +6662,213 @@ const renderRichAIResponse = (text: string, compact: boolean = false) => {
     return elements;
   };
 
+  const renderSection = (sec: { title: string; emoji: string; content: string[] }, idx: number) => {
+    const titleLower = sec.title.toLowerCase();
+
+    // 1. Weather Section
+    if (titleLower.includes("weather")) {
+      const weatherCards: React.ReactNode[] = [];
+      sec.content.forEach((line, lineIdx) => {
+        const trimmed = line.trim().replace(/^(\*\s+|-\s+|•\s+|\d+\.\s+)/, '');
+        if (!trimmed) return;
+        const parts = trimmed.split(/[:|-]/);
+        const place = parts[0]?.trim() || "Destination";
+        const weatherDetail = parts.slice(1).join(" ").trim() || "Sunny, 28°C";
+        
+        let icon = "☀️";
+        if (weatherDetail.toLowerCase().includes("rain")) icon = "🌧️";
+        else if (weatherDetail.toLowerCase().includes("cloud")) icon = "⛅";
+        else if (weatherDetail.toLowerCase().includes("snow")) icon = "❄️";
+        else if (weatherDetail.toLowerCase().includes("wind")) icon = "💨";
+        else if (weatherDetail.toLowerCase().includes("storm")) icon = "⛈️";
+
+        weatherCards.push(
+          <div key={lineIdx} className="weather-day-card dark-card-override">
+            <div className="text-3xl mb-2">{icon}</div>
+            <div className="font-extrabold text-sm text-white truncate">{place}</div>
+            <div className="text-xs text-slate-300 mt-1">{weatherDetail}</div>
+          </div>
+        );
+      });
+
+      return (
+        <div key={idx} className="ai-section-card dark-card-override">
+          <div className="ai-section-header">
+            <span className="text-lg">{sec.emoji}</span>
+            <h4 className="ai-section-title">{sec.title}</h4>
+          </div>
+          <div className="weather-card-container">
+            {weatherCards}
+          </div>
+        </div>
+      );
+    }
+
+    // 2. Budget Section
+    if (titleLower.includes("budget")) {
+      const budgetBars: React.ReactNode[] = [];
+      sec.content.forEach((line, lineIdx) => {
+        const trimmed = line.trim().replace(/^(\*\s+|-\s+|•\s+|\d+\.\s+)/, '');
+        if (!trimmed) return;
+        const match = trimmed.match(/^(.*?)(?:[:|-]\s*)?₹?([\d,]+)(.*)$/);
+        if (match) {
+          const category = match[1].trim();
+          const amountStr = match[2].replace(/,/g, '');
+          const amount = parseInt(amountStr, 10);
+          const extra = match[3]?.trim();
+          
+          let pct = 40;
+          const catLower = category.toLowerCase();
+          if (catLower.includes("flight")) pct = 50;
+          else if (catLower.includes("hotel") || catLower.includes("stay") || catLower.includes("accommodation")) pct = 35;
+          else if (catLower.includes("activity") || catLower.includes("sight") || catLower.includes("tour")) pct = 15;
+          else if (catLower.includes("food") || catLower.includes("din") || catLower.includes("restau")) pct = 10;
+          else if (catLower.includes("total")) pct = 100;
+
+          budgetBars.push(
+            <div key={lineIdx} className="budget-progress-container">
+              <div className="budget-bar-label">
+                <span>{category} {extra}</span>
+                <span>₹{amount.toLocaleString()}</span>
+              </div>
+              <div className="budget-bar-track">
+                <div className="budget-bar-fill" style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+          );
+        } else {
+          budgetBars.push(<p key={lineIdx} className="text-xs text-slate-400 mb-1">{parseInlineMarkdown(trimmed)}</p>);
+        }
+      });
+
+      return (
+        <div key={idx} className="ai-section-card dark-card-override">
+          <div className="ai-section-header">
+            <span className="text-lg">{sec.emoji}</span>
+            <h4 className="ai-section-title">{sec.title}</h4>
+          </div>
+          <div className="space-y-3">
+            {budgetBars}
+          </div>
+        </div>
+      );
+    }
+
+    // 3. Packing List Section
+    if (titleLower.includes("packing")) {
+      const checklistItems: React.ReactNode[] = [];
+      sec.content.forEach((line, lineIdx) => {
+        const trimmed = line.trim().replace(/^(\*\s+|-\s+|•\s+|\d+\.\s+)/, '');
+        if (!trimmed) return;
+        checklistItems.push(
+          <div key={lineIdx} className="packing-checklist-item">
+            <span className="packing-checklist-tick">✓</span>
+            <span className="text-sm text-slate-300">{parseInlineMarkdown(trimmed)}</span>
+          </div>
+        );
+      });
+
+      return (
+        <div key={idx} className="ai-section-card dark-card-override">
+          <div className="ai-section-header">
+            <span className="text-lg">{sec.emoji}</span>
+            <h4 className="ai-section-title">{sec.title}</h4>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 my-2">
+            {checklistItems}
+          </div>
+        </div>
+      );
+    }
+
+    // 4. Itinerary Section
+    if (titleLower.includes("itinerary")) {
+      const dayBlocks: Array<{ title: string; content: string[] }> = [];
+      let currentDay: { title: string; content: string[] } | null = null;
+      const itinIntro: string[] = [];
+
+      sec.content.forEach((line) => {
+        const trimmed = line.trim();
+        if (trimmed.toLowerCase().startsWith("day ") || trimmed.toLowerCase().startsWith("### day ")) {
+          const title = trimmed.replace(/^(###\s*)/, '').trim();
+          currentDay = { title, content: [] };
+          dayBlocks.push(currentDay);
+        } else {
+          if (currentDay) {
+            currentDay.content.push(line);
+          } else {
+            if (trimmed !== "") {
+              itinIntro.push(line);
+            }
+          }
+        }
+      });
+
+      return (
+        <div key={idx} className="ai-section-card dark-card-override">
+          <div className="ai-section-header">
+            <span className="text-lg">{sec.emoji}</span>
+            <h4 className="ai-section-title">{sec.title}</h4>
+          </div>
+          {itinIntro.length > 0 && (
+            <div className="mb-4">
+              {renderMarkdownBlock(itinIntro, `itin-intro-${idx}`)}
+            </div>
+          )}
+          <div className="space-y-2 mt-2">
+            {dayBlocks.map((db, dbIdx) => (
+              <div key={dbIdx} className="itinerary-timeline-day dark-card-override">
+                <div className="font-extrabold text-blue-400 text-base mb-2">{db.title}</div>
+                <div className="space-y-1 text-sm text-slate-300">
+                  {renderMarkdownBlock(db.content, `itin-day-${dbIdx}`)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // Default Section Card
+    return (
+      <div key={idx} className="ai-section-card dark-card-override">
+        <div className="ai-section-header">
+          <span className="text-lg">{sec.emoji}</span>
+          <h4 className="ai-section-title">{sec.title}</h4>
+        </div>
+        <div className="ai-section-body text-slate-300 text-sm whitespace-pre-wrap leading-relaxed">
+          {renderMarkdownBlock(sec.content, `sec-${idx}`)}
+        </div>
+      </div>
+    );
+  };
+
+  const renderFollowUpChips = () => {
+    if (compact || !onFollowUpClick) return null;
+    
+    const followUps = [
+      { label: "Find cheaper hotels", text: "Find cheaper hotels" },
+      { label: "Business class", text: "Show business class options" },
+      { label: "Add sightseeing", text: "Add sightseeing options to my plan" },
+      { label: "Add restaurants", text: "Add top-rated restaurants to my plan" },
+      { label: "Show visa requirements", text: "What are the visa requirements?" }
+    ];
+
+    return (
+      <div className="chat-chips-container">
+        {followUps.map((chip, idx) => (
+          <button
+            key={idx}
+            onClick={() => onFollowUpClick(chip.text)}
+            className="chat-followup-chip cursor-pointer"
+          >
+            ➜ {chip.label}
+          </button>
+        ))}
+      </div>
+    );
+  };
+
   if (sections.length > 0) {
     return (
       <div className="space-y-4">
@@ -6465,22 +6877,18 @@ const renderRichAIResponse = (text: string, compact: boolean = false) => {
             {renderMarkdownBlock(genericIntro, "intro")}
           </div>
         )}
-        {sections.map((sec, idx) => (
-          <div key={idx} className="ai-section-card dark-card-override">
-            <div className="ai-section-header">
-              <span className="text-lg">{sec.emoji}</span>
-              <h4 className="ai-section-title">{sec.title}</h4>
-            </div>
-            <div className="ai-section-body text-slate-300 text-sm whitespace-pre-wrap leading-relaxed">
-              {renderMarkdownBlock(sec.content, `sec-${idx}`)}
-            </div>
-          </div>
-        ))}
+        {sections.map((sec, idx) => renderSection(sec, idx))}
+        {renderFollowUpChips()}
       </div>
     );
   }
 
-  return renderMarkdownBlock(lines, "all");
+  return (
+    <>
+      {renderMarkdownBlock(lines, "all")}
+      {renderFollowUpChips()}
+    </>
+  );
 };
 
 function ChatView({ 
@@ -7211,7 +7619,7 @@ function ChatView({
                 const explainText = explainIdx >= 0 ? raw.slice(explainIdx + explainSep.length).trim() : '';
                 return (
                   <>
-                    <div className="rich-ai-response">{renderRichAIResponse(mainText)}</div>
+                    <div className="rich-ai-response">{renderRichAIResponse(mainText, false, triggerSendMessage, bookedItems, handleBook, handleCancel)}</div>
                     {explainText && (
                       <details className="mt-3 group" open={false}>
                         <summary className="cursor-pointer text-[10px] text-purple-400 font-black uppercase tracking-wider flex items-center gap-1.5 list-none select-none">
@@ -7219,7 +7627,7 @@ function ChatView({
                           🧠 Why this recommendation?
                         </summary>
                         <div className="mt-2 bg-purple-950/20 border border-purple-900/30 rounded-xl p-3 text-[11px] leading-relaxed whitespace-pre-wrap rich-ai-response">
-                          {renderRichAIResponse(explainText, true)}
+                          {renderRichAIResponse(explainText, true, triggerSendMessage, bookedItems, handleBook, handleCancel)}
                         </div>
                       </details>
                     )}
