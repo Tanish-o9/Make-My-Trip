@@ -2206,6 +2206,39 @@ function FlightsSearchForm({ currency, onBook, onDetailClick, onTrackFlight }: {
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useTabLoading('flights');
   const [showPayoutModal, setShowPayoutModal] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const getIATACode = (cityInput: string): string => {
+    if (!cityInput) return "";
+    const match = cityInput.match(/\(([^)]+)\)/);
+    if (match && match[1] && match[1].trim().length === 3) {
+      return match[1].trim().toUpperCase();
+    }
+    const clean = cityInput.trim().toLowerCase();
+    const mapping: Record<string, string> = {
+      "delhi": "DEL",
+      "new delhi": "DEL",
+      "mumbai": "BOM",
+      "bombay": "BOM",
+      "goa": "GOI",
+      "bangalore": "BLR",
+      "bengaluru": "BLR",
+      "hyderabad": "HYD",
+      "chennai": "MAA",
+      "kolkata": "CCU",
+      "calcutta": "CCU",
+      "ahmedabad": "AMD",
+      "pune": "PNQ",
+      "jaipur": "JAI",
+      "kochi": "COK",
+      "cochin": "COK",
+      "lucknow": "LKO",
+      "patna": "PAT"
+    };
+    if (mapping[clean]) return mapping[clean];
+    if (clean.length === 3) return clean.toUpperCase();
+    return clean.substring(0, 3).toUpperCase();
+  };
 
   const [sortBy, setSortBy] = useState("price_asc");
   const [stops, setStops] = useState("all");
@@ -2236,8 +2269,12 @@ function FlightsSearchForm({ currency, onBook, onDetailClick, onTrackFlight }: {
     }
     setLoading(true);
     setResults([]);
+    setError(null);
     
-    let url = `${API_URL}/search?vertical=flights&origin=${encodeURIComponent(fromCity)}&destination=${encodeURIComponent(toCity)}&date=${encodeURIComponent(depDate)}&passengers=${passengers}`;
+    const fromCode = getIATACode(fromCity);
+    const toCode = getIATACode(toCity);
+    
+    let url = `${API_URL}/flights/search?from=${encodeURIComponent(fromCode)}&to=${encodeURIComponent(toCode)}&passengers=${passengers}`;
     if (overrideSort) url += `&sort_by=${overrideSort}`;
     if (overrideStops && overrideStops !== "all") url += `&stops=${overrideStops}`;
     if (overrideCarrier) url += `&carrier=${encodeURIComponent(overrideCarrier)}`;
@@ -2248,11 +2285,12 @@ function FlightsSearchForm({ currency, onBook, onDetailClick, onTrackFlight }: {
         return res.json();
       })
       .then(data => {
-        setResults(data.results);
+        setResults(data);
         setLoading(false);
       })
       .catch(err => {
         console.error(err);
+        setError("Failed to fetch flights. Please try again.");
         setResults([]);
         setLoading(false);
       });
@@ -2423,8 +2461,26 @@ function FlightsSearchForm({ currency, onBook, onDetailClick, onTrackFlight }: {
             ))}
           </div>
         )}
+        {error && (
+          <div className="bg-red-950/40 border border-red-800 text-red-200 p-5 rounded-2xl text-center space-y-3 max-w-md mx-auto my-6 shadow-xl">
+            <p className="text-xs font-bold">{error}</p>
+            <button 
+              onClick={() => handleSearch()} 
+              className="bg-red-800 hover:bg-red-700 text-white text-[10px] font-black uppercase tracking-wider px-4 py-2 rounded-xl cursor-pointer border border-red-700 active:scale-95 transition-all"
+            >
+              Retry Search
+            </button>
+          </div>
+        )}
 
-        {!loading && results.length > 0 && (
+        {!loading && !error && results.length === 0 && (
+          <div className="bg-slate-900/40 border border-slate-800 text-slate-400 p-8 rounded-2xl text-center max-w-md mx-auto my-6">
+            <p className="text-xs font-bold uppercase tracking-wider">No flights found matching your query.</p>
+            <p className="text-[10px] text-slate-500 mt-1">Make sure you are searching with standard Indian airport codes or names (e.g. Delhi, Mumbai, Goa).</p>
+          </div>
+        )}
+
+        {!loading && !error && results.length > 0 && (
           <div className="space-y-3 mt-6">
             <VehicleRentalCrossSell destinationCity={toCity} dateRange={{ start: depDate }} />
             <SearchRouteMap vertical="flights" origin={fromCity} destination={toCity} />
