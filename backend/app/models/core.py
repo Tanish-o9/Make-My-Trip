@@ -1,5 +1,5 @@
 import datetime
-from sqlalchemy import String, Integer, Numeric, DateTime, ForeignKey, Date
+from sqlalchemy import String, Integer, Numeric, DateTime, ForeignKey, Date, Boolean
 from typing import Optional
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
@@ -140,3 +140,86 @@ class WalletTransaction(Base):
     seed_batch_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
     account = relationship("WalletAccount", back_populates="transactions")
+
+
+class UserProfile(Base):
+    __tablename__ = "user_profiles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), unique=True, index=True, nullable=False)
+    full_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    dob: Mapped[Optional[datetime.date]] = mapped_column(Date, nullable=True)
+    gender: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    nationality: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    mobile_number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    alternate_phone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    
+    # ID Details
+    passport_number: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    passport_expiry: Mapped[Optional[datetime.date]] = mapped_column(Date, nullable=True)
+    pan_card: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    aadhaar: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    
+    # Address
+    country: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    state: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    city: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    postal_code: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+
+
+class Traveller(Base):
+    __tablename__ = "travellers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    age: Mapped[int] = mapped_column(Integer, nullable=False)
+    gender: Mapped[str] = mapped_column(String(20), nullable=False)
+    passport: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    nationality: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    meal: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    seat: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+
+
+class EmergencyContact(Base):
+    __tablename__ = "emergency_contacts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), unique=True, index=True, nullable=False)
+    name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    relationship: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+
+
+class TravelPreference(Base):
+    __tablename__ = "travel_preferences"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), unique=True, index=True, nullable=False)
+    preferred_airline: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    preferred_hotel_chain: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    preferred_cabin_class: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    meal_preference: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    seat_preference: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    travel_style: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+
+
+class Documents(Base):
+    __tablename__ = "documents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True, nullable=False)
+    document_type: Mapped[str] = mapped_column(String(100), nullable=False)  # Passport, PAN, Aadhaar, etc.
+    document_number: Mapped[str] = mapped_column(String(100), nullable=False)
+    expiry_date: Mapped[Optional[datetime.date]] = mapped_column(Date, nullable=True)
+
+
+class NotificationPreference(Base):
+    __tablename__ = "notification_preferences"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), unique=True, index=True, nullable=False)
+    email_alerts: Mapped[bool] = mapped_column(Boolean, default=True)
+    sms_alerts: Mapped[bool] = mapped_column(Boolean, default=True)
+    whatsapp_alerts: Mapped[bool] = mapped_column(Boolean, default=True)

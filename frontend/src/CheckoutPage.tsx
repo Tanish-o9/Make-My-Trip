@@ -45,10 +45,58 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
   const [holdTimeLeft, setHoldTimeLeft] = useState(600); // 10 minutes booking hold
   const [paymentStatus, setPaymentStatus] = useState<string>("none"); // none, pending, captured, failed, expired
   const [humanApproved, setHumanApproved] = useState(false);
+
+  // Profile prefill and validation states (Phase 5 & 6)
+  const [profile, setProfile] = useState<any>(null);
+  const [travellers, setTravellers] = useState<any[]>([]);
+  const [selectedTravellerId, setSelectedTravellerId] = useState<string>("self");
+  const [profileIncomplete, setProfileIncomplete] = useState(false);
+  const [missingFields, setMissingFields] = useState<string[]>([]);
   
   const pollingIntervalRef = useRef<any>(null);
   const qrExpiryIntervalRef = useRef<any>(null);
   const holdExpiryIntervalRef = useRef<any>(null);
+
+  // Fetch profile and travellers on load (Phase 5)
+  useEffect(() => {
+    if (!token) return;
+    fetch(`${API_URL}/profile`, {
+      headers: { "Authorization": `Bearer ${token}` }
+    })
+      .then(res => {
+        if (!res.ok) throw new Error("Failed to load profile.");
+        return res.json();
+      })
+      .then(data => {
+        setProfile(data);
+        
+        // Validate required fields (Phase 6)
+        const missing = [];
+        if (!data.full_name) missing.push("Full Name");
+        if (!data.email) missing.push("Email Address");
+        if (!data.mobile_number) missing.push("Mobile Number");
+        if (!data.dob) missing.push("Date of Birth");
+        if (!data.nationality) missing.push("Nationality");
+        if (!data.country) missing.push("Country");
+        
+        if (missing.length > 0) {
+          setProfileIncomplete(true);
+          setMissingFields(missing);
+        }
+      })
+      .catch(() => {});
+
+    fetch(`${API_URL}/profile/travellers`, {
+      headers: { "Authorization": `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setTravellers(data);
+        }
+      })
+      .catch(() => {});
+  }, [token]);
 
   // 1. Fetch booking details on mount
   useEffect(() => {
@@ -319,9 +367,11 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
           }
         },
         prefill: {
-          name: "Traveler",
-          email: "traveler@travelos.com",
-          contact: "9876543210"
+          name: selectedTravellerId === "self" 
+            ? (profile?.full_name || "Traveler") 
+            : (travellers.find(t => t.id.toString() === selectedTravellerId)?.name || "Traveler"),
+          email: profile?.email || "traveler@travelos.com",
+          contact: profile?.mobile_number || "9876543210"
         },
         theme: {
           color: "#facc15"
@@ -391,6 +441,91 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
           {/* Left Panel: Payment Methods */}
           <div className="md:col-span-8 space-y-6">
             
+            {/* Profile incomplete banner (Phase 6) */}
+            {profileIncomplete ? (
+              <div className="bg-rose-50 border-4 border-rose-600 rounded-2xl p-5 shadow-[5px_5px_0px_0px_rgba(225,29,72,1)] text-left space-y-3">
+                <div className="flex items-center gap-2 text-rose-600 font-black uppercase text-xs">
+                  <ShieldAlert size={16} /> Complete your profile to continue
+                </div>
+                <p className="text-[11px] text-rose-700 font-semibold leading-relaxed">
+                  Guest checkouts are disabled to prevent invalid bookings. The following mandatory fields are missing from your profile: <strong className="text-rose-800">{missingFields.join(", ")}</strong>.
+                </p>
+                <button 
+                  onClick={() => {
+                    window.history.pushState(null, '', '/profile');
+                    window.dispatchEvent(new PopStateEvent('popstate'));
+                  }}
+                  className="bg-rose-600 hover:bg-rose-700 text-white font-black text-[10px] uppercase px-4 py-2.5 border-2 border-black rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
+                >
+                  Go to Profile Setup ➔
+                </button>
+              </div>
+            ) : (
+              <div className="bg-white border-4 border-black rounded-2xl p-5 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] text-left space-y-4">
+                <div className="flex justify-between items-center border-b-2 border-slate-100 pb-2 flex-wrap gap-2">
+                  <h3 className="font-black text-sm uppercase flex items-center gap-1.5 text-slate-800">👤 Traveler Information</h3>
+                  {travellers.length > 0 && (
+                    <div className="flex items-center gap-1.5">
+                      <label className="text-[9px] font-bold text-slate-500 uppercase">Select Passenger:</label>
+                      <select
+                        value={selectedTravellerId}
+                        onChange={(e) => setSelectedTravellerId(e.target.value)}
+                        className="bg-slate-50 border-2 border-black rounded px-2 py-0.5 text-[10px] font-black outline-none cursor-pointer"
+                      >
+                        <option value="self">Myself ({profile?.full_name})</option>
+                        {travellers.map(t => (
+                          <option key={t.id} value={t.id.toString()}>{t.name} ({t.age} y/o)</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                {/* Prefilled Traveler Details display (Phase 5) */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-semibold">
+                  <div>
+                    <span className="text-[9px] text-slate-400 block uppercase">Name</span>
+                    <span className="text-slate-800">
+                      {selectedTravellerId === "self" ? profile?.full_name : travellers.find(t => t.id.toString() === selectedTravellerId)?.name}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-slate-400 block uppercase">DOB / Age</span>
+                    <span className="text-slate-800 text-slate-700 font-mono">
+                      {selectedTravellerId === "self" ? (profile?.dob || "N/A") : `${travellers.find(t => t.id.toString() === selectedTravellerId)?.age} Years`}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-slate-400 block uppercase">Nationality</span>
+                    <span className="text-slate-800">
+                      {selectedTravellerId === "self" ? (profile?.nationality || "N/A") : (travellers.find(t => t.id.toString() === selectedTravellerId)?.nationality || "N/A")}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-slate-400 block uppercase">Passport No.</span>
+                    <span className="text-slate-850 font-mono text-slate-600">
+                      {selectedTravellerId === "self" ? (profile?.passport_number || "N/A") : (travellers.find(t => t.id.toString() === selectedTravellerId)?.passport || "N/A")}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 text-xs font-semibold border-t border-slate-100 pt-3">
+                  <div>
+                    <span className="text-[9px] text-slate-400 block uppercase">Meal Preference</span>
+                    <span className="text-slate-850">
+                      {selectedTravellerId === "self" ? (profile?.meal_preference || "Standard Meal") : (travellers.find(t => t.id.toString() === selectedTravellerId)?.meal || "Standard Meal")}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-slate-400 block uppercase">Seat Preference</span>
+                    <span className="text-slate-850">
+                      {selectedTravellerId === "self" ? (profile?.seat_preference || "Standard Seat") : (travellers.find(t => t.id.toString() === selectedTravellerId)?.seat || "Standard Seat")}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Human Payment Approval Checkpoint */}
             <div className="bg-yellow-50 border-4 border-black rounded-2xl p-4 shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] text-left">
               <div className="flex gap-3">
@@ -478,7 +613,7 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                       </p>
                       <button
                         onClick={initUpiQr}
-                        disabled={paymentLoading || !humanApproved}
+                        disabled={paymentLoading || !humanApproved || profileIncomplete}
                         className="bg-emerald-400 hover:bg-emerald-500 disabled:bg-emerald-200 border-3 border-black px-6 py-3 font-black text-sm uppercase rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer flex items-center justify-center gap-2 mx-auto"
                       >
                         {paymentLoading ? "Generating QR Code..." : "Generate UPI QR Code"}
@@ -533,7 +668,7 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                   
                   <button
                     onClick={payWithRazorpay}
-                    disabled={paymentLoading || !humanApproved}
+                    disabled={paymentLoading || !humanApproved || profileIncomplete}
                     className="bg-emerald-400 hover:bg-emerald-500 disabled:bg-emerald-200 border-3 border-black px-8 py-3.5 font-black text-sm uppercase rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer flex items-center justify-center gap-2 mx-auto"
                   >
                     {paymentLoading ? (

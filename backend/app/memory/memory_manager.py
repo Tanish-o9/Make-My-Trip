@@ -283,6 +283,26 @@ class MemoryManager:
             "general": []
         }
         try:
+            # Query explicitly saved user profile preferences (Phase 9)
+            try:
+                from app.models.core import TravelPreference
+                pref = db.query(TravelPreference).filter(TravelPreference.user_id == user_id).first()
+                if pref:
+                    if pref.preferred_airline:
+                        categorized["airlines"].append(f"Prefers airline: {pref.preferred_airline}")
+                    if pref.preferred_cabin_class:
+                        categorized["airlines"].append(f"Prefers cabin class: {pref.preferred_cabin_class}")
+                    if pref.meal_preference:
+                        categorized["dietary"].append(f"Preferred meal: {pref.meal_preference}")
+                    if pref.seat_preference:
+                        categorized["airlines"].append(f"Preferred seat: {pref.seat_preference}")
+                    if pref.preferred_hotel_chain:
+                        categorized["hotels"].append(f"Prefers hotel chain: {pref.preferred_hotel_chain}")
+                    if pref.travel_style:
+                        categorized["travel_style"].append(f"Travel style: {pref.travel_style}")
+            except Exception as pe:
+                logger.error(f"Failed to fetch profile TravelPreference: {pe}")
+
             results = db.query(UserPreferenceEmbedding).filter(
                 UserPreferenceEmbedding.user_id == user_id
             ).order_by(UserPreferenceEmbedding.id.desc()).limit(50).all()

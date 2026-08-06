@@ -7,6 +7,7 @@ from app.auth.jwt import (
     create_access_token, create_refresh_token, decode_token,
     verify_token_type, hash_password, verify_password
 )
+from typing import Optional
 from pydantic import BaseModel, EmailStr
 from app.utils.rate_limiter import RateLimiter
 from app.auth.dependencies import oauth2_scheme, get_current_admin
@@ -15,9 +16,11 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 auth_limiter = RateLimiter(max_requests=10, window_seconds=60, scope="auth_exchange")
 
 class UserSignUp(BaseModel):
+    full_name: str
     email: EmailStr
     password: str
-    phone: str = None
+    phone: str
+    country: Optional[str] = None
     preferred_language: str = "en"
     preferred_currency: str = "INR"
 
@@ -55,6 +58,17 @@ def signup(user_data: UserSignUp, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    # Initialize UserProfile row automatically (Phase 1)
+    from app.models.core import UserProfile
+    profile = UserProfile(
+        user_id=user.id,
+        full_name=user_data.full_name,
+        email=user_data.email,
+        mobile_number=user_data.phone,
+        country=user_data.country
+    )
+    db.add(profile)
 
     # Initialize wallet and loyalty accounts for user
     wallet = WalletAccount(user_id=user.id, balance=0.00, currency=user.preferred_currency)

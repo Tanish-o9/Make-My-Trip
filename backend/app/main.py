@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.database import engine, Base, get_db
 from app.models import search_entities, payments
-from app.routes import auth, wallet, agents, voice, showcase, bookings, search, tracker, mybiz, wishlist, admin_panel, media, rent_a_ride, localities, payments as payments_routes, webhooks
+from app.routes import auth, wallet, agents, voice, showcase, bookings, search, tracker, mybiz, wishlist, admin_panel, media, rent_a_ride, localities, payments as payments_routes, webhooks, profile
 from fastapi.staticfiles import StaticFiles
 import os
 from app.ml import fraud_model
@@ -154,6 +154,7 @@ async def unhandled_exception_handler(request, exc):
 
 # Include Route subtrees
 app.include_router(auth.router, prefix="/api/v1")
+app.include_router(profile.router, prefix="/api/v1")
 app.include_router(wallet.router, prefix="/api/v1")
 app.include_router(agents.router, prefix="/api/v1")
 app.include_router(fraud_model.router, prefix="/api/v1")

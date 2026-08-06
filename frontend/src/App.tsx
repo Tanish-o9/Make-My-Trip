@@ -12,6 +12,7 @@ import { CheckoutPage } from './CheckoutPage';
 import { ConfirmationPage } from './ConfirmationPage';
 import { BookingDetailPage } from './BookingDetailPage';
 import { DesignTokensPage } from './DesignTokensPage';
+import { ProfilePage } from './ProfilePage';
 
 const resolveApiBase = () => {
   let url = import.meta.env.VITE_API_URL || "https://make-my-trip-production.up.railway.app/api";
@@ -519,6 +520,10 @@ export default function App() {
 
   if (!token) {
     return <LoginScreen onLogin={handleLogin} />;
+  }
+
+  if (currentPath === "/profile") {
+    return <ProfilePage onNavigate={navigate} token={token} />;
   }
 
   const checkoutMatch = currentPath.match(/^\/checkout\/([^/]+)$/) || currentPath.match(/^\/payment-failed\/([^/]+)$/);
@@ -9947,9 +9952,19 @@ function AccountProfileModal({ userProfile, setUserProfile, onClose, onLogout }:
             <label className="text-[10px] uppercase font-black text-slate-400 block mb-1">Email Address</label>
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-[#1e293b] border-2 border-black rounded px-3 py-2 text-xs font-bold text-white outline-none focus:border-yellow-400" />
           </div>
-          <div className="flex gap-2">
-            <button onClick={handleSave} className="bg-slate-800 text-white hover:bg-slate-700 text-[10px] font-black border-2 border-black px-4 py-2 rounded-lg cursor-pointer uppercase transition-all">Save Profile</button>
-            <button onClick={onLogout} className="bg-red-600 text-white hover:bg-red-700 text-[10px] font-black border-2 border-black px-4 py-2 rounded-lg cursor-pointer uppercase ml-auto transition-all">Log Out</button>
+          <div className="flex gap-2 flex-wrap sm:flex-nowrap">
+            <button onClick={handleSave} className="bg-slate-800 text-white hover:bg-slate-700 text-[10px] font-black border-2 border-black px-4 py-2.5 rounded-lg cursor-pointer uppercase transition-all">Save Profile</button>
+            <button 
+              onClick={() => {
+                onClose();
+                window.history.pushState(null, '', '/profile');
+                window.dispatchEvent(new PopStateEvent('popstate'));
+              }} 
+              className="bg-blue-600 text-white hover:bg-blue-500 text-[10px] font-black border-2 border-black px-4 py-2.5 rounded-lg cursor-pointer uppercase transition-all"
+            >
+              Manage Full Profile ➔
+            </button>
+            <button onClick={onLogout} className="bg-red-600 text-white hover:bg-red-700 text-[10px] font-black border-2 border-black px-4 py-2.5 rounded-lg cursor-pointer uppercase sm:ml-auto transition-all">Log Out</button>
           </div>
         </div>
 
@@ -11130,6 +11145,7 @@ function ActiveRentalManager({ bookingReference, fetchTrips, setSelectedTrip }: 
 
 function LoginScreen({ onLogin }: { onLogin: (token: string, refreshToken: string, role: string, email: string) => void }) {
   const [isSignUp, setIsSignUp] = useState(false);
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
@@ -11138,8 +11154,8 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, refreshToken: strin
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
-      setErrorMsg("Please fill in all fields.");
+    if (!email || !password || (isSignUp && (!fullName || !phone))) {
+      setErrorMsg("Please fill in all mandatory fields.");
       return;
     }
     setErrorMsg("");
@@ -11151,7 +11167,12 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, refreshToken: strin
         const signupResp = await fetch(`${API_URL}/auth/signup`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, phone: phone || undefined })
+          body: JSON.stringify({ 
+            full_name: fullName,
+            email, 
+            password, 
+            phone 
+          })
         });
         const signupData = await signupResp.json();
         if (!signupResp.ok) {
@@ -11217,6 +11238,20 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, refreshToken: strin
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4 text-left">
+          {isSignUp && (
+            <div>
+              <label className="text-[10px] uppercase font-black text-slate-600 block mb-1">Full Legal Name</label>
+              <input 
+                type="text" 
+                required
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="John Doe"
+                className="w-full bg-slate-50 border-3 border-black p-2.5 text-xs font-black placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-0 rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+              />
+            </div>
+          )}
+
           <div>
             <label className="text-[10px] uppercase font-black text-slate-600 block mb-1">Email Desk Authority</label>
             <input 
@@ -11246,6 +11281,7 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, refreshToken: strin
               <label className="text-[10px] uppercase font-black text-slate-600 block mb-1">Phone Contact</label>
               <input 
                 type="tel" 
+                required
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="+91 98765 43210"
