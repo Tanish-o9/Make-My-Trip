@@ -152,10 +152,18 @@ async def chat_ws_endpoint(websocket: WebSocket, session_id: str, db: Session = 
                     import asyncio
                     await asyncio.sleep(0.03) # smooth simulation of network streaming
                 
+                active_context = MemoryManager.get_active_context(session_id) or {}
+                telemetry = active_context.get("last_debug_telemetry", {})
+                trip_context = active_context.get("trip_context", {})
+                budget_constraints = active_context.get("budget_constraints", {})
+
                 # Send complete event
                 await websocket.send_text(json.dumps({
                     "type": "done",
-                    "full_response": response
+                    "full_response": response,
+                    "telemetry": telemetry,
+                    "trip_context": trip_context,
+                    "budget_constraints": budget_constraints
                 }))
 
             except Exception as e:
@@ -269,10 +277,55 @@ def get_debug_telemetry(session_id: str, user=Depends(get_current_user)):
         return {
             "session_id": session_id,
             "user_id": user.id,
-            "telemetry": telemetry
+            "telemetry": telemetry,
+            "trip_context": active_ctx.get("trip_context", {}),
+            "budget_constraints": active_ctx.get("budget_constraints", {})
         }
     except Exception as e:
         logger.error(f"Error fetching debug telemetry: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch debug telemetry")
+
+
+@router.post("/session/{session_id}/context")
+def update_active_context(
+    session_id: str,
+    payload: dict,
+    user=Depends(get_current_user)
+):
+    """Updates the active trip context for a session directly from the UI."""
+    try:
+        active_ctx = MemoryManager.get_active_context(session_id) or {}
+        
+        # Merge payload with existing trip_context and budget_constraints
+        trip_ctx = active_ctx.get("trip_context", {})
+        budget_c = active_ctx.get("budget_constraints", {})
+        
+        if "trip_context" in payload:
+            trip_ctx.update(payload["trip_context"])
+        if "budget_constraints" in payload:
+            budget_c.update(payload["budget_constraints"])
+            
+        active_ctx["trip_context"] = trip_ctx
+        active_ctx["budget_constraints"] = budget_c
+        
+        MemoryManager.save_active_context(session_id, active_ctx, user.id)
+        return {"message": "Context updated successfully.", "active_context": active_ctx}
+    except Exception as e:
+        logger.error(f"Error updating active context: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update active context")
+
+
+@router.delete("/preferences/clear")
+def clear_preferences(user=Depends(get_current_user), db: Session = Depends(get_db)):
+    """Clears all permanent preferences for the current user."""
+    try:
+        from app.models.agents import UserPreferenceEmbedding
+        db.query(UserPreferenceEmbedding).filter(UserPreferenceEmbedding.user_id == user.id).delete()
+        db.commit()
+        return {"message": "All preferences have been cleared."}
+    except Exception as e:
+        logger.error(f"Error clearing preferences: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to clear preferences")
 
 

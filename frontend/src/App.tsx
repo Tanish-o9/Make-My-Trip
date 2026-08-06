@@ -5936,6 +5936,7 @@ interface Message {
   weather?: any;
   budget?: any;
   map_data?: any;
+  telemetry?: any;
 }
 
 function InteractiveRouteMap({ locations }: { locations: any }) {
@@ -6148,7 +6149,7 @@ function DebugPanel({ sessionId, token, onClose }: { sessionId: string, token: s
   );
 }
 
-function ReasoningPanel({ status, isDone }: { status?: string, isDone: boolean }) {
+function ReasoningPanel({ status, isDone, telemetry }: { status?: string, isDone: boolean, telemetry?: any }) {
   const steps = [
     { key: 'understand', label: '🧠 Classifying intent & resolving context...', match: ['analyzing', 'classifying', 'understand', 'thinking', 'supervisor'] },
     { key: 'memory', label: '💾 Loading memory & preferences...', match: ['memory', 'preference', 'profile', 'loading'] },
@@ -6171,6 +6172,10 @@ function ReasoningPanel({ status, isDone }: { status?: string, isDone: boolean }
 
   const visibleSteps = isDone ? steps : steps.slice(0, Math.max(activeIndex + 3, 4));
 
+  const totalLatency = telemetry?.total_latency_ms || telemetry?.db_agent_route?.reduce((s: number, a: any) => s + (a.latency_ms || 0), 0) || 0;
+  const apiRoute = telemetry?.agent_route || telemetry?.db_agent_route || [];
+  const memoryHits = telemetry?.memory_hits ?? telemetry?.total_preferences_loaded ?? 0;
+
   return (
     <div className="bg-gradient-to-br from-slate-900/80 to-blue-950/30 backdrop-blur border border-blue-900/30 p-4 rounded-2xl mb-4 w-full">
       <div className="flex items-center gap-2 mb-3">
@@ -6190,7 +6195,7 @@ function ReasoningPanel({ status, isDone }: { status?: string, isDone: boolean }
               </span>
               <span className={`text-[11px] font-mono ${
                 completed ? 'text-slate-300 line-through' : current ? 'text-blue-200 font-bold' : 'text-slate-600'
-              }`}>
+               }`}>
                 {step.label}
               </span>
               {current && (
@@ -6207,8 +6212,13 @@ function ReasoningPanel({ status, isDone }: { status?: string, isDone: boolean }
         </div>
       )}
       {isDone && (
-        <div className="mt-3 pt-2 border-t border-slate-800/60 text-[10px] text-emerald-400 flex items-center gap-1.5 font-bold">
-          ✓ All agents completed — Travel proposal ready
+        <div className="mt-3 pt-2 border-t border-slate-800/60 text-[10px] text-emerald-400 flex flex-wrap justify-between items-center gap-1.5 font-bold">
+          <span>✓ Proposal compiled</span>
+          {totalLatency > 0 && (
+            <span className="text-[9px] font-mono text-slate-500 bg-slate-950/40 px-2 py-0.5 rounded-full border border-slate-900">
+              ⚡ {totalLatency}ms latency | {apiRoute.length} agent steps | 💾 {memoryHits} preferences
+            </span>
+          )}
         </div>
       )}
     </div>
@@ -6972,6 +6982,14 @@ function ChatView({
   const [showDebug, setShowDebug] = useState(false);
   const authToken = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token') || null;
 
+  // AI Memory Panel States
+  const [tripContext, setTripContext] = useState<any>({});
+  const [budgetConstraints, setBudgetConstraints] = useState<any>({});
+  const [userPreferences, setUserPreferences] = useState<any>({});
+  const [showMemoryEdit, setShowMemoryEdit] = useState(false);
+  const [editForm, setEditForm] = useState<any>({});
+  const [lastTelemetry, setLastTelemetry] = useState<any>({});
+
   // Ctrl+Shift+D toggles debug panel
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -7119,8 +7137,106 @@ function ChatView({
     };
   };
 
-  // Fetch session history from backend on load
+  const loadMemory = () => {
+    const headers: any = {};
+    if (authToken) {
+      headers["Authorization"] = `Bearer ${authToken}`;
+    }
+    // 1. Fetch trip context and telemetry
+    fetch(`${API_URL}/agents/debug/${sessionId}`, { headers })
+      .then(res => res.json())
+      .then(data => {
+        if (data) {
+          setTripContext(data.trip_context || {});
+          setBudgetConstraints(data.budget_constraints || {});
+          setLastTelemetry(data.telemetry || {});
+        }
+      })
+      .catch(e => console.warn("Error fetching debug active context:", e));
+
+    // 2. Fetch permanent user preferences
+    fetch(`${API_URL}/agents/preferences/categories`, { headers })
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.categories) {
+          setUserPreferences(data.categories);
+        }
+      })
+      .catch(e => console.warn("Error fetching categorized preferences:", e));
+  };
+
+  const handleOpenMemoryEdit = () => {
+    setEditForm({
+      trip_context: {
+        destination: tripContext.destination || "",
+        origin: tripContext.origin || "",
+        departure_date: tripContext.departure_date || "",
+        return_date: tripContext.return_date || "",
+        passengers: tripContext.passengers || 1,
+        cabin_class: tripContext.cabin_class || "ECONOMY",
+        travel_style: tripContext.travel_style || "General"
+      },
+      budget_constraints: {
+        total_budget: budgetConstraints.total_budget || ""
+      }
+    });
+    setShowMemoryEdit(true);
+  };
+
+  const handleSaveMemory = (e: React.FormEvent) => {
+    e.preventDefault();
+    const headers: any = { 'Content-Type': 'application/json' };
+    if (authToken) {
+      headers["Authorization"] = `Bearer ${authToken}`;
+    }
+
+    fetch(`${API_URL}/agents/session/${sessionId}/context`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(editForm)
+    })
+      .then(res => res.json())
+      .then(() => {
+        loadMemory();
+        setShowMemoryEdit(false);
+      })
+      .catch(e => console.error("Error saving memory:", e));
+  };
+
+  const handleClearMemory = () => {
+    const headers: any = {};
+    if (authToken) {
+      headers["Authorization"] = `Bearer ${authToken}`;
+    }
+
+    // 1. Clear database preferences
+    fetch(`${API_URL}/agents/preferences/clear`, {
+      method: 'DELETE',
+      headers
+    })
+      .catch(e => console.error("Error clearing preferences:", e));
+
+    // 2. Reset session active context & history
+    fetch(`${API_URL}/agents/session/${sessionId}/reset`, {
+      method: 'DELETE',
+      headers
+    })
+      .then(() => {
+        setTripContext({});
+        setBudgetConstraints({});
+        setUserPreferences({});
+        setLastTelemetry({});
+        setMessages([
+          { role: 'assistant', content: "Hello! I am your Travel OS Assistant. I can search flight reservations, suggest hotels, map out custom day-by-day itineraries, and check Schengen visa guidelines. Try asking: 'Recommend flights from Delhi to Goa on December 15th' or 'What are the visa rules for Schengen?'" }
+        ]);
+      })
+      .catch(e => console.error("Error resetting session:", e));
+  };
+
+  // Fetch session history and active memory on load
   useEffect(() => {
+    loadMemory();
+
     fetch(`${API_URL}/agents/chat/history/${sessionId}`)
       .then(res => res.json())
       .then(data => {
@@ -7146,7 +7262,7 @@ function ChatView({
         }
       })
       .catch(e => console.error("Error loading chat history:", e));
-  }, [sessionId]);
+  }, [sessionId, authToken]);
 
   // WebSocket Connection
   useEffect(() => {
@@ -7178,6 +7294,15 @@ function ChatView({
           return copy;
         });
       } else if (data.type === 'done') {
+        if (data.trip_context) {
+          setTripContext(data.trip_context);
+        }
+        if (data.budget_constraints) {
+          setBudgetConstraints(data.budget_constraints);
+        }
+        if (data.telemetry) {
+          setLastTelemetry(data.telemetry);
+        }
         setMessages(prev => {
           const copy = [...prev];
           const last = copy[copy.length - 1];
@@ -7192,9 +7317,12 @@ function ChatView({
             last.weather = parsed.weather;
             last.budget = parsed.budget;
             last.map_data = parsed.map_data;
+            last.telemetry = data.telemetry;
           }
           return copy;
         });
+        
+        loadMemory();
 
         // Vocalize text response (TTS) if speech was activated
         if (shouldSpeak) {
@@ -7562,42 +7690,208 @@ function ChatView({
         />
       )}
 
-      {/* AI Context Memory Strip */}
-      <div className="flex items-center gap-2 px-4 md:px-8 py-2 border-b border-slate-900/60 bg-slate-950/60 backdrop-blur">
-        <div className="flex items-center gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">AI Memory Active</span>
+      {/* Redesigned AI Memory Panel */}
+      <div className="border-b border-slate-900 bg-slate-950/80 backdrop-blur-md px-4 md:px-8 py-3 relative">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 mr-2">
+              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse animate-duration-1000" />
+              <span className="text-[10px] text-slate-200 font-extrabold uppercase tracking-widest">AI Remembers</span>
+            </div>
+            
+            {/* Context badges */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] bg-slate-900 border border-slate-800 text-slate-300 px-2 py-0.5 rounded font-medium">
+                📍 Destination: <strong className="text-white">{tripContext.destination || "—"}</strong>
+              </span>
+              <span className="text-[10px] bg-slate-900 border border-slate-800 text-slate-300 px-2 py-0.5 rounded font-medium">
+                💰 Budget: <strong className="text-emerald-400">{budgetConstraints.total_budget ? `₹${Number(budgetConstraints.total_budget).toLocaleString()}` : "—"}</strong>
+              </span>
+              <span className="text-[10px] bg-slate-900 border border-slate-800 text-slate-300 px-2 py-0.5 rounded font-medium">
+                👥 Passengers: <strong className="text-white">{tripContext.passengers || "—"}</strong>
+              </span>
+              <span className="text-[10px] bg-slate-900 border border-slate-800 text-slate-300 px-2 py-0.5 rounded font-medium">
+                ✈️ Cabin: <strong className="text-blue-400 uppercase">{tripContext.cabin_class || "—"}</strong>
+              </span>
+              <span className="text-[10px] bg-slate-900 border border-slate-800 text-slate-300 px-2 py-0.5 rounded font-medium">
+                🎒 Style: <strong className="text-purple-400 capitalize">{tripContext.travel_style || "—"}</strong>
+              </span>
+              {(userPreferences.airlines?.length > 0 || userPreferences.hotels?.length > 0) && (
+                <span className="text-[10px] bg-slate-900 border border-slate-800 text-slate-300 px-2 py-0.5 rounded font-medium">
+                  ⭐ Favs: <strong className="text-yellow-400">{[...(userPreferences.airlines || []), ...(userPreferences.hotels || [])].slice(0, 2).join(", ")}</strong>
+                </span>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2 ml-auto md:ml-0 shrink-0">
+            <button
+              onClick={handleOpenMemoryEdit}
+              className="text-[10px] text-slate-300 hover:text-white border border-slate-800 hover:border-slate-700 bg-slate-900/60 px-2.5 py-1 rounded transition-all cursor-pointer font-bold"
+            >
+              ✏️ Edit Memory
+            </button>
+            <button
+              onClick={handleClearMemory}
+              className="text-[10px] text-slate-400 hover:text-red-400 border border-slate-850 hover:border-red-950/40 bg-slate-950/40 px-2.5 py-1 rounded transition-all cursor-pointer font-semibold"
+              title="Clear all learned preferences and active trip context"
+            >
+              Clear Memory
+            </button>
+            <button
+              onClick={() => triggerSendMessage('RESET_SESSION')}
+              className="text-[10px] text-slate-300 hover:text-white border border-slate-800 hover:border-slate-700 bg-slate-900/60 px-2.5 py-1 rounded transition-all cursor-pointer font-bold"
+            >
+              + New Chat
+            </button>
+            <button
+              onClick={() => setShowDebug(prev => !prev)}
+              className={`text-[10px] border px-2.5 py-1 rounded transition-all cursor-pointer font-bold ${
+                showDebug
+                  ? 'text-emerald-300 border-emerald-700 bg-emerald-950/30'
+                  : 'text-slate-500 hover:text-slate-300 border-slate-800 hover:border-slate-700'
+              }`}
+            >
+              ⚙ Debug
+            </button>
+          </div>
         </div>
-        {activeContext.length > 0 && (
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {activeContext.map((ctx, i) => (
-              <span key={i} className="text-[9px] bg-blue-950/40 text-blue-300 border border-blue-900/30 px-1.5 py-0.5 rounded-full font-bold">{ctx}</span>
-            ))}
+
+        {/* Inline Memory Editor Panel drawer/overlay */}
+        {showMemoryEdit && (
+          <div className="absolute top-full left-0 right-0 z-50 bg-[#0c1224] border-b border-slate-800 shadow-2xl p-6">
+            <form onSubmit={handleSaveMemory} className="max-w-4xl mx-auto space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-800 pb-2 mb-2">
+                <span className="text-xs font-black uppercase text-blue-400 tracking-wider">Configure Travel Profile Context</span>
+                <button type="button" onClick={() => setShowMemoryEdit(false)} className="text-slate-400 hover:text-white transition-colors cursor-pointer text-lg font-bold">×</button>
+              </div>
+              
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                <div className="space-y-1">
+                  <label className="text-slate-400 block font-bold">Destination city</label>
+                  <input
+                    type="text"
+                    value={editForm.trip_context?.destination || ""}
+                    onChange={(e) => setEditForm({
+                      ...editForm,
+                      trip_context: { ...editForm.trip_context, destination: e.target.value }
+                    })}
+                    className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:border-blue-500"
+                    placeholder="e.g. Goa"
+                  />
+                </div>
+                
+                <div className="space-y-1">
+                  <label className="text-slate-400 block font-bold">Origin city</label>
+                  <input
+                    type="text"
+                    value={editForm.trip_context?.origin || ""}
+                    onChange={(e) => setEditForm({
+                      ...editForm,
+                      trip_context: { ...editForm.trip_context, origin: e.target.value }
+                    })}
+                    className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:border-blue-500"
+                    placeholder="e.g. DEL"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-slate-400 block font-bold">Departure Date</label>
+                  <input
+                    type="date"
+                    value={editForm.trip_context?.departure_date || ""}
+                    onChange={(e) => setEditForm({
+                      ...editForm,
+                      trip_context: { ...editForm.trip_context, departure_date: e.target.value }
+                    })}
+                    className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-slate-400 block font-bold">Return Date</label>
+                  <input
+                    type="date"
+                    value={editForm.trip_context?.return_date || ""}
+                    onChange={(e) => setEditForm({
+                      ...editForm,
+                      trip_context: { ...editForm.trip_context, return_date: e.target.value }
+                    })}
+                    className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-slate-400 block font-bold">Passengers</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={editForm.trip_context?.passengers || 1}
+                    onChange={(e) => setEditForm({
+                      ...editForm,
+                      trip_context: { ...editForm.trip_context, passengers: parseInt(e.target.value) || 1 }
+                    })}
+                    className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-slate-400 block font-bold">Cabin Class</label>
+                  <select
+                    value={editForm.trip_context?.cabin_class || "ECONOMY"}
+                    onChange={(e) => setEditForm({
+                      ...editForm,
+                      trip_context: { ...editForm.trip_context, cabin_class: e.target.value }
+                    })}
+                    className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="ECONOMY">ECONOMY</option>
+                    <option value="BUSINESS">BUSINESS</option>
+                    <option value="FIRST">FIRST</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-slate-400 block font-bold">Travel Style</label>
+                  <select
+                    value={editForm.trip_context?.travel_style || "General"}
+                    onChange={(e) => setEditForm({
+                      ...editForm,
+                      trip_context: { ...editForm.trip_context, travel_style: e.target.value }
+                    })}
+                    className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="General">General</option>
+                    <option value="Luxury">Luxury</option>
+                    <option value="Budget">Budget</option>
+                    <option value="Adventure">Adventure</option>
+                    <option value="Family">Family</option>
+                    <option value="Solo">Solo</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-slate-400 block font-bold">Total Budget (INR)</label>
+                  <input
+                    type="number"
+                    value={editForm.budget_constraints?.total_budget || ""}
+                    onChange={(e) => setEditForm({
+                      ...editForm,
+                      budget_constraints: { ...editForm.budget_constraints, total_budget: parseFloat(e.target.value) || "" }
+                    })}
+                    className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:border-blue-500"
+                    placeholder="e.g. 50000"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-800/60">
+                <button type="button" onClick={() => setShowMemoryEdit(false)} className="bg-slate-900 hover:bg-slate-850 text-slate-300 font-bold px-4 py-2 rounded-lg cursor-pointer">Cancel</button>
+                <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2 rounded-lg cursor-pointer">Save Memory Profile</button>
+              </div>
+            </form>
           </div>
         )}
-        {activeContext.length === 0 && (
-          <span className="text-[9px] text-slate-600">No active trip context yet — start a conversation to build your travel profile</span>
-        )}
-        <div className="ml-auto flex items-center gap-2">
-          <button
-            onClick={() => setShowDebug(prev => !prev)}
-            className={`text-[9px] border px-2 py-0.5 rounded-full transition-all cursor-pointer ${
-              showDebug
-                ? 'text-emerald-300 border-emerald-700 bg-emerald-950/30'
-                : 'text-slate-500 hover:text-slate-300 border-slate-800 hover:border-slate-700'
-            }`}
-            title="Toggle developer debug panel (Ctrl+Shift+D)"
-          >
-            ⚙ Debug
-          </button>
-          <button
-            onClick={() => triggerSendMessage('RESET_SESSION')}
-            className="text-[9px] text-slate-500 hover:text-slate-300 border border-slate-800 hover:border-slate-700 px-2 py-0.5 rounded-full transition-all cursor-pointer"
-            title="Start a new chat session"
-          >
-            + New Chat
-          </button>
-        </div>
       </div>
       <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 space-y-4 md:space-y-6">
         {messages.map((msg, index) => (
@@ -7608,7 +7902,7 @@ function ChatView({
                 : 'glass-card assistant-bubble-theme rounded-tl-none border border-slate-800'
             }`}>
               {msg.role === 'assistant' && (msg.status || msg.flights || msg.hotels || msg.itinerary) && (
-                <ReasoningPanel status={msg.status} isDone={!msg.status} />
+                <ReasoningPanel status={msg.status} isDone={!msg.status} telemetry={msg.telemetry} />
               )}
               {(!msg.status || msg.content) && (() => {
                 // Split off the AI Explainability block for separate rendering
