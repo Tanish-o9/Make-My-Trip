@@ -109,7 +109,7 @@ weather_info, local_guide, general_chat, restaurant_recommendation, travel_safet
 currency_conversion, payment_assistant, insurance_assistant, emergency_assistant
 
 Rules (IMPORTANT - minimize agents to save API calls):
-- Full trip/vacation/package → ["trip_planner"] ONLY (handles flights+hotels+itinerary in one call)
+- Full trip/vacation/package → ["trip_planner", "budget_planning"]
 - Flight only → ["flight_search"]
 - Hotel only → ["hotel_search"]
 - Budget/cost question → ["budget_planning"]
@@ -147,8 +147,8 @@ Return ONLY this JSON:
             # Keyword-based fallback router — works even when Groq is rate-limited
             msg_l = user_message.lower()
             if any(w in msg_l for w in ["plan a trip", "plan trip", "travel package", "vacation plan",
-                                          "trip plan", "plan my trip", "book a trip", "arrange a trip"]):
-                pending = ["trip_planner"]
+                                          "trip plan", "plan my trip", "book a trip", "arrange a trip"]) or ("plan" in msg_l and "trip" in msg_l):
+                pending = ["trip_planner", "budget_planning"]
             elif any(w in msg_l for w in ["flight", "fly", "airline", "airfare", "ticket"]):
                 pending = ["flight_search"]
             elif any(w in msg_l for w in ["hotel", "stay", "accommodation", "hostel", "resort", "room"]):

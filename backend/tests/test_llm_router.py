@@ -24,6 +24,7 @@ def test_router_failover_success(mock_ollama, mock_openai):
     # Setup OpenAI to fail, Ollama to succeed
     mock_openai.side_effect = Exception("OpenAI API Down")
     mock_ollama.return_value = "Hello from local Llama"
+    os.environ["OLLAMA_ENDPOINT"] = "http://mock-ollama-remote"
 
     router = LLMRouter()
     # Mock Redis client to avoid dependency on local Redis server in unit tests
