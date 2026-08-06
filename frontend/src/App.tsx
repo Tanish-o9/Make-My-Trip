@@ -6215,6 +6215,274 @@ function ReasoningPanel({ status, isDone }: { status?: string, isDone: boolean }
   );
 }
 
+const renderRichAIResponse = (text: string, compact: boolean = false) => {
+  if (!text) return null;
+
+  const sectionKeywords = [
+    "destination overview",
+    "flights",
+    "hotels",
+    "weather",
+    "budget",
+    "restaurants",
+    "activities",
+    "packing list",
+    "safety tips",
+    "summary",
+    "ai recommendation rationale"
+  ];
+
+  const getEmojiAndTitle = (lineStr: string) => {
+    const cleaned = lineStr.replace(/^(###\s*|\*+\s*)/, '').trim();
+    const emojiMatch = cleaned.match(/^([^\w\s\d,.:;|'"()]+)/);
+    const emoji = emojiMatch ? emojiMatch[1].trim() : "📝";
+    const title = cleaned.replace(/^([^\w\s\d,.:;|'"()]+)/, '').trim();
+    return { emoji, title };
+  };
+
+  const isSectionHeader = (lineStr: string) => {
+    const cleaned = lineStr.replace(/^(###\s*|\*+\s*)/, '').trim().toLowerCase();
+    return sectionKeywords.some(kw => cleaned.includes(kw));
+  };
+
+  const lines = text.split("\n");
+  const sections: Array<{ title: string; emoji: string; content: string[] }> = [];
+  let currentSection: { title: string; emoji: string; content: string[] } | null = null;
+  let genericIntro: string[] = [];
+
+  for (let line of lines) {
+    if (isSectionHeader(line)) {
+      const { emoji, title } = getEmojiAndTitle(line);
+      currentSection = { title, emoji, content: [] };
+      sections.push(currentSection);
+    } else {
+      if (currentSection) {
+        currentSection.content.push(line);
+      } else {
+        genericIntro.push(line);
+      }
+    }
+  }
+
+  const parseInlineMarkdown = (textStr: string): React.ReactNode => {
+    const regex = /(\*\*.*?\*\*|\*.*?\*|\[.*?\]\(.*?\)|`.*?`)/g;
+    const tokens = textStr.split(regex);
+
+    return tokens.map((token, idx) => {
+      if (token.startsWith("**") && token.endsWith("**")) {
+        return <strong key={idx} className="font-extrabold text-white">{token.slice(2, -2)}</strong>;
+      }
+      if (token.startsWith("*") && token.endsWith("*")) {
+        return <em key={idx} className="italic">{token.slice(1, -1)}</em>;
+      }
+      if (token.startsWith("`") && token.endsWith("`")) {
+        return <code key={idx} className="bg-slate-950/40 text-yellow-400 px-1 py-0.5 rounded font-mono text-xs border border-slate-800">{token.slice(1, -1)}</code>;
+      }
+      if (token.startsWith("[") && token.includes("](")) {
+        const linkMatch = token.match(/\[(.*?)\]\((.*?)\)/);
+        if (linkMatch) {
+          return <a key={idx} href={linkMatch[2]} target="_blank" rel="noopener noreferrer" className="text-blue-400 underline hover:text-blue-300 font-bold">{linkMatch[1]}</a>;
+        }
+      }
+      return token;
+    });
+  };
+
+  const renderMarkdownBlock = (blockLines: string[], blockKey: string) => {
+    const elements: React.ReactNode[] = [];
+    let listItems: string[] = [];
+    let listType: 'ul' | 'ol' | null = null;
+    let tableRows: string[][] = [];
+    let inCodeBlock = false;
+    let codeContent: string[] = [];
+
+    const flushList = (key: string) => {
+      if (listItems.length > 0 && listType) {
+        const Comp = listType;
+        elements.push(
+          <Comp key={key} className={compact ? "my-1 pl-4 text-xs list-disc" : "my-2 pl-6 list-disc"}>
+            {listItems.map((item, itemIdx) => (
+              <li key={itemIdx} className="mb-1 leading-relaxed">
+                {parseInlineMarkdown(item)}
+              </li>
+            ))}
+          </Comp>
+        );
+        listItems = [];
+        listType = null;
+      }
+    };
+
+    const flushTable = (key: string) => {
+      if (tableRows.length > 0) {
+        const hasSeparator = tableRows.length > 1 && tableRows[1].every(cell => cell.trim().startsWith('-') || cell.trim() === '');
+        const headerRow = hasSeparator ? tableRows[0] : null;
+        const dataRows = hasSeparator ? tableRows.slice(2) : tableRows;
+
+        elements.push(
+          <div key={key} className="overflow-x-auto my-3 border border-slate-800 rounded-lg">
+            <table className="min-w-full text-xs">
+              {headerRow && (
+                <thead>
+                  <tr>
+                    {headerRow.map((cell, idx) => (
+                      <th key={idx} className="px-3 py-2 bg-slate-900 text-white font-extrabold text-left border-b border-slate-800 uppercase">
+                        {parseInlineMarkdown(cell)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+              )}
+              <tbody>
+                {dataRows.map((row, rowIdx) => (
+                  <tr key={rowIdx} className={rowIdx % 2 === 0 ? "bg-slate-950/20" : ""}>
+                    {row.map((cell, idx) => (
+                      <td key={idx} className="px-3 py-2 border-t border-slate-800 text-slate-300">
+                        {parseInlineMarkdown(cell)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+        tableRows = [];
+      }
+    };
+
+    let elCounter = 0;
+    for (let i = 0; i < blockLines.length; i++) {
+      const line = blockLines[i];
+      const trimmed = line.trim();
+
+      if (trimmed.startsWith("```")) {
+        if (inCodeBlock) {
+          elements.push(
+            <pre key={`code-${i}`} className="bg-slate-950/40 p-3 rounded-lg border border-slate-800 my-2 overflow-x-auto font-mono text-xs text-yellow-400">
+              <code>{codeContent.join("\n")}</code>
+            </pre>
+          );
+          codeContent = [];
+          inCodeBlock = false;
+        } else {
+          inCodeBlock = true;
+        }
+        continue;
+      }
+
+      if (inCodeBlock) {
+        codeContent.push(line);
+        continue;
+      }
+
+      if (trimmed === '---') {
+        flushList(`list-${elCounter++}`);
+        flushTable(`table-${elCounter++}`);
+        elements.push(<hr key={`hr-${i}`} className="border-t border-slate-800 my-4" />);
+        continue;
+      }
+
+      if (trimmed.startsWith(">")) {
+        flushList(`list-${elCounter++}`);
+        flushTable(`table-${elCounter++}`);
+        const quoteText = line.substring(line.indexOf(">") + 1).trim();
+        elements.push(
+          <blockquote key={`quote-${i}`} className="border-l-4 border-blue-500 bg-slate-900/30 px-4 py-2 my-2 italic text-slate-300 rounded-r-lg">
+            {parseInlineMarkdown(quoteText)}
+          </blockquote>
+        );
+        continue;
+      }
+
+      if (trimmed.startsWith("#")) {
+        flushList(`list-${elCounter++}`);
+        flushTable(`table-${elCounter++}`);
+        const hashMatch = trimmed.match(/^(#{1,6})\s+(.*)$/);
+        if (hashMatch) {
+          const level = hashMatch[1].length;
+          const headingText = hashMatch[2];
+          const Tag = `h${Math.min(level + 1, 6)}` as any;
+          elements.push(
+            <Tag key={`h-${i}`} className="font-extrabold text-white mt-4 mb-2">
+              {parseInlineMarkdown(headingText)}
+            </Tag>
+          );
+          continue;
+        }
+      }
+
+      const isUnordered = trimmed.startsWith("* ") || trimmed.startsWith("- ") || trimmed.startsWith("• ");
+      const isOrdered = /^\d+\.\s+/.test(trimmed);
+
+      if (isUnordered || isOrdered) {
+        flushTable(`table-${elCounter++}`);
+        const listText = trimmed.replace(/^(\*\s+|-\s+|•\s+|\d+\.\s+)/, '').trim();
+        const currentType = isUnordered ? 'ul' : 'ol';
+
+        if (listType && listType !== currentType) {
+          flushList(`list-${elCounter++}`);
+        }
+
+        listType = currentType;
+        listItems.push(listText);
+        continue;
+      }
+
+      if (trimmed.startsWith("|")) {
+        flushList(`list-${elCounter++}`);
+        const cells = trimmed.split("|").slice(1, -1).map(c => c.trim());
+        tableRows.push(cells);
+        continue;
+      }
+
+      if (trimmed === "") {
+        flushList(`list-${elCounter++}`);
+        flushTable(`table-${elCounter++}`);
+        continue;
+      }
+
+      flushList(`list-${elCounter++}`);
+      flushTable(`table-${elCounter++}`);
+      elements.push(
+        <p key={`p-${i}`} className={compact ? "mb-1 text-xs leading-relaxed" : "mb-3 leading-relaxed"}>
+          {parseInlineMarkdown(trimmed)}
+        </p>
+      );
+    }
+
+    flushList(`list-${elCounter++}`);
+    flushTable(`table-${elCounter++}`);
+
+    return elements;
+  };
+
+  if (sections.length > 0) {
+    return (
+      <div className="space-y-4">
+        {genericIntro.length > 0 && (
+          <div className="mb-4">
+            {renderMarkdownBlock(genericIntro, "intro")}
+          </div>
+        )}
+        {sections.map((sec, idx) => (
+          <div key={idx} className="ai-section-card dark-card-override">
+            <div className="ai-section-header">
+              <span className="text-lg">{sec.emoji}</span>
+              <h4 className="ai-section-title">{sec.title}</h4>
+            </div>
+            <div className="ai-section-body text-slate-300 text-sm whitespace-pre-wrap leading-relaxed">
+              {renderMarkdownBlock(sec.content, `sec-${idx}`)}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return renderMarkdownBlock(lines, "all");
+};
+
 function ChatView({ 
   userProfile, 
   setUserProfile, 
@@ -6929,7 +7197,7 @@ function ChatView({
             <div className={`max-w-2xl rounded-2xl p-5 ${
               msg.role === 'user' 
                 ? 'bg-blue-600 text-white rounded-tr-none' 
-                : 'glass-card text-slate-100 rounded-tl-none border border-slate-800'
+                : 'glass-card assistant-bubble-theme rounded-tl-none border border-slate-800'
             }`}>
               {msg.role === 'assistant' && (msg.status || msg.flights || msg.hotels || msg.itinerary) && (
                 <ReasoningPanel status={msg.status} isDone={!msg.status} />
@@ -6943,15 +7211,15 @@ function ChatView({
                 const explainText = explainIdx >= 0 ? raw.slice(explainIdx + explainSep.length).trim() : '';
                 return (
                   <>
-                    <div className="whitespace-pre-wrap leading-relaxed text-sm">{mainText}</div>
+                    <div className="rich-ai-response">{renderRichAIResponse(mainText)}</div>
                     {explainText && (
                       <details className="mt-3 group" open={false}>
                         <summary className="cursor-pointer text-[10px] text-purple-400 font-black uppercase tracking-wider flex items-center gap-1.5 list-none select-none">
                           <span className="group-open:rotate-90 transition-transform inline-block">▶</span>
                           🧠 Why this recommendation?
                         </summary>
-                        <div className="mt-2 bg-purple-950/20 border border-purple-900/30 rounded-xl p-3 text-[11px] text-slate-300 leading-relaxed whitespace-pre-wrap">
-                          {explainText}
+                        <div className="mt-2 bg-purple-950/20 border border-purple-900/30 rounded-xl p-3 text-[11px] leading-relaxed whitespace-pre-wrap rich-ai-response">
+                          {renderRichAIResponse(explainText, true)}
                         </div>
                       </details>
                     )}

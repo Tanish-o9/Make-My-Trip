@@ -715,4 +715,271 @@ h3[class*="text-slate-200"] {
   color: #d8b4fe !important;
 }
 
+/* Theme variables for the AI Chat Bubble */
+:root {
+  --color-chat-bg: rgba(15, 23, 42, 0.7); /* Translucent dark slate */
+  --color-chat-border: #1e293b;
+  --color-chat-text: #e5e7eb;
+  --color-chat-heading: #ffffff;
+  --color-chat-secondary: #cbd5e1;
+  --color-chat-muted: #94a3b8;
+  --color-chat-link: #60a5fa;
+  --color-chat-warning: #fbbf24;
+  --color-chat-success: #22c55e;
+  --color-chat-error: #ef4444;
+  --color-chat-table-border: #334155;
+  --color-chat-table-header-bg: #1e293b;
+  --color-chat-table-row-even-bg: rgba(30, 41, 59, 0.5);
+  --color-chat-quote-bg: rgba(30, 41, 59, 0.4);
+  --color-chat-quote-border: #3b82f6;
+  --color-chat-code-bg: rgba(15, 23, 42, 0.8);
+  --color-chat-code-border: #334155;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --color-chat-bg: rgba(248, 250, 252, 0.9); /* Translucent light slate */
+    --color-chat-border: #cbd5e1;
+    --color-chat-text: #1e293b;
+    --color-chat-heading: #0f172a;
+    --color-chat-secondary: #334155;
+    --color-chat-muted: #64748b;
+    --color-chat-link: #2563eb;
+    --color-chat-warning: #d97706;
+    --color-chat-success: #15803d;
+    --color-chat-error: #b91c1c;
+    --color-chat-table-border: #cbd5e1;
+    --color-chat-table-header-bg: #f1f5f9;
+    --color-chat-table-row-even-bg: rgba(241, 245, 249, 0.6);
+    --color-chat-quote-bg: rgba(241, 245, 249, 0.8);
+    --color-chat-quote-border: #2563eb;
+    --color-chat-code-bg: rgba(241, 245, 249, 0.9);
+    --color-chat-code-border: #cbd5e1;
+  }
+}
+
+/* Also support explicit .light-mode class on body or html */
+body.light-mode,
+.light-mode {
+  --color-chat-bg: rgba(248, 250, 252, 0.9);
+  --color-chat-border: #cbd5e1;
+  --color-chat-text: #1e293b;
+  --color-chat-heading: #0f172a;
+  --color-chat-secondary: #334155;
+  --color-chat-muted: #64748b;
+  --color-chat-link: #2563eb;
+  --color-chat-warning: #d97706;
+  --color-chat-success: #15803d;
+  --color-chat-error: #b91c1c;
+  --color-chat-table-border: #cbd5e1;
+  --color-chat-table-header-bg: #f1f5f9;
+  --color-chat-table-row-even-bg: rgba(241, 245, 249, 0.6);
+  --color-chat-quote-bg: rgba(241, 245, 249, 0.8);
+  --color-chat-quote-border: #2563eb;
+  --color-chat-code-bg: rgba(241, 245, 249, 0.9);
+  --color-chat-code-border: #cbd5e1;
+}
+
+/* AI Chat Response Bubble container rules */
+.glass-card.assistant-bubble-theme {
+  background-color: var(--color-chat-bg) !important;
+  border: 1px solid var(--color-chat-border) !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+}
+
+/* Rich AI Response Typography rules */
+.rich-ai-response {
+  font-family: var(--font-body);
+  color: var(--color-chat-text) !important;
+  line-height: 1.65 !important;
+  font-size: 0.925rem !important;
+}
+
+.rich-ai-response h1,
+.rich-ai-response h2,
+.rich-ai-response h3,
+.rich-ai-response h4 {
+  color: var(--color-chat-heading) !important;
+  font-weight: 700 !important;
+  margin-top: 1.25rem !important;
+  margin-bottom: 0.5rem !important;
+  font-family: var(--font-body) !important;
+}
+
+.rich-ai-response h1 { font-size: 1.4rem !important; }
+.rich-ai-response h2 { font-size: 1.25rem !important; }
+.rich-ai-response h3 { font-size: 1.15rem !important; }
+.rich-ai-response h4 { font-size: 1.05rem !important; }
+
+.rich-ai-response p {
+  margin-bottom: 1rem !important;
+}
+
+.rich-ai-response p:last-child {
+  margin-bottom: 0 !important;
+}
+
+.rich-ai-response strong {
+  color: var(--color-chat-heading) !important;
+  font-weight: 700 !important;
+}
+
+.rich-ai-response em {
+  font-style: italic !important;
+}
+
+/* Lists styling */
+.rich-ai-response ul,
+.rich-ai-response ol {
+  margin-bottom: 1.25rem !important;
+  padding-left: 1.5rem !important;
+}
+
+.rich-ai-response ul {
+  list-style-type: disc !important;
+}
+
+.rich-ai-response ol {
+  list-style-type: decimal !important;
+}
+
+.rich-ai-response li {
+  margin-bottom: 0.5rem !important;
+  line-height: 1.6 !important;
+}
+
+.rich-ai-response li::marker {
+  color: var(--color-chat-warning) !important;
+}
+
+/* Table styling */
+.rich-ai-response table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  margin-top: 1rem !important;
+  margin-bottom: 1.25rem !important;
+  font-size: 0.85rem !important;
+}
+
+.rich-ai-response th,
+.rich-ai-response td {
+  border: 1px solid var(--color-chat-table-border) !important;
+  padding: 8px 12px !important;
+  text-align: left !important;
+}
+
+.rich-ai-response th {
+  background-color: var(--color-chat-table-header-bg) !important;
+  color: var(--color-chat-heading) !important;
+  font-weight: 700 !important;
+}
+
+.rich-ai-response tr:nth-child(even) {
+  background-color: var(--color-chat-table-row-even-bg) !important;
+}
+
+.rich-ai-response td {
+  color: var(--color-chat-secondary) !important;
+}
+
+/* Blockquotes */
+.rich-ai-response blockquote {
+  background-color: var(--color-chat-quote-bg) !important;
+  border-left: 4px solid var(--color-chat-quote-border) !important;
+  padding: 12px 16px !important;
+  margin-top: 1rem !important;
+  margin-bottom: 1.25rem !important;
+  font-style: italic !important;
+  border-radius: 0 8px 8px 0 !important;
+  color: var(--color-chat-secondary) !important;
+}
+
+/* Horizontal Rules */
+.rich-ai-response hr {
+  border: 0 !important;
+  border-top: 1px solid var(--color-chat-border) !important;
+  margin: 1.5rem 0 !important;
+}
+
+/* Code styling */
+.rich-ai-response code {
+  background-color: var(--color-chat-code-bg) !important;
+  border: 1px solid var(--color-chat-code-border) !important;
+  border-radius: 4px !important;
+  padding: 2px 5px !important;
+  font-family: var(--font-mono) !important;
+  font-size: 0.85em !important;
+  color: var(--color-chat-warning) !important;
+}
+
+.rich-ai-response pre {
+  background-color: var(--color-chat-code-bg) !important;
+  border: 1px solid var(--color-chat-code-border) !important;
+  border-radius: 8px !important;
+  padding: 14px !important;
+  overflow-x: auto !important;
+  margin-top: 1rem !important;
+  margin-bottom: 1.25rem !important;
+}
+
+.rich-ai-response pre code {
+  background-color: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  font-size: 0.825rem !important;
+  color: var(--color-chat-secondary) !important;
+}
+
+/* Link styling */
+.rich-ai-response a {
+  color: var(--color-chat-link) !important;
+  text-decoration: underline !important;
+  font-weight: 500 !important;
+}
+
+.rich-ai-response a:hover {
+  filter: brightness(1.15) !important;
+}
+
+/* Section Card styling inside AI responses (Neobrutalist cards) */
+.ai-section-card {
+  background-color: var(--color-chat-bg) !important;
+  border: 3px solid var(--color-chat-border) !important;
+  box-shadow: 4px 4px 0px 0px var(--color-chat-border) !important;
+  border-radius: 12px !important;
+  padding: 16px !important;
+  margin-bottom: 20px !important;
+  text-align: left !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+.ai-section-card:hover {
+  transform: translate(-1px, -1px) !important;
+  box-shadow: 5px 5px 0px 0px var(--color-chat-border) !important;
+}
+
+.ai-section-header {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  border-bottom: 2px solid var(--color-chat-border) !important;
+  padding-bottom: 8px !important;
+  margin-bottom: 12px !important;
+}
+
+.ai-section-title {
+  font-family: var(--font-body) !important;
+  font-weight: 950 !important;
+  text-transform: uppercase !important;
+  font-size: 0.95rem !important;
+  letter-spacing: 0.05em !important;
+  color: var(--color-chat-heading) !important;
+  margin: 0 !important;
+}
+
+.ai-section-body {
+  color: var(--color-chat-text) !important;
+}
+
 
