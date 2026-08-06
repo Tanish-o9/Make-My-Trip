@@ -31,7 +31,7 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
     total_amount: 1500, // standard test amount
     currency: "INR",
     vertical: bookingId.split("-")[1]?.toLowerCase() || "flight",
-    traveler_name: "Guest Traveler"
+    traveler_name: ""
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(initialError || "");
@@ -171,7 +171,7 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
           total_amount: detailsData.total_amount,
           currency: detailsData.currency || "INR",
           vertical: detailsData.vertical || "flight",
-          traveler_name: detailsData.traveler_name || "Guest Traveler"
+          traveler_name: detailsData.traveler_name || (profile && profile.full_name) || "Traveler"
         });
       } else {
         console.warn("Booking details fetch returned non-200. Using client-side defaults.");
@@ -370,8 +370,8 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
           name: selectedTravellerId === "self" 
             ? (profile?.full_name || "Traveler") 
             : (travellers.find(t => t.id.toString() === selectedTravellerId)?.name || "Traveler"),
-          email: profile?.email || "traveler@travelos.com",
-          contact: profile?.mobile_number || "9876543210"
+          email: profile?.email || "",
+          contact: profile?.mobile_number || ""
         },
         theme: {
           color: "#facc15"

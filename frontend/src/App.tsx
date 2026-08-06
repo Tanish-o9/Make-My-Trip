@@ -100,6 +100,36 @@ export default function App() {
     walletBalance: 24500.00
   });
 
+  const [profileName, setProfileName] = useState("");
+  const [profileCompletion, setProfileCompletion] = useState(0);
+  const [profileData, setProfileData] = useState<any>(null);
+
+  useEffect(() => {
+    if (!token) {
+      setProfileName("");
+      setProfileCompletion(0);
+      setProfileData(null);
+      return;
+    }
+    fetch(`${API_URL}/profile`, {
+      headers: { "Authorization": `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.full_name) {
+          setProfileName(data.full_name);
+          setProfileData(data);
+          const fields = [
+            data.full_name, data.dob, data.gender, data.nationality, data.mobile_number, data.email, 
+            data.country, data.city, data.emergency_name, data.emergency_phone
+          ];
+          const completed = fields.filter(f => !!f).length;
+          setProfileCompletion(Math.round((completed / fields.length) * 100));
+        }
+      })
+      .catch(() => {});
+  }, [token]);
+
   useEffect(() => {
     const handlePopState = () => {
       setCurrentPath(window.location.pathname);
@@ -803,6 +833,8 @@ export default function App() {
                 onShowProfile={() => setShowProfile(true)}
                 onNavigate={navigate}
                 setPrefilledMessage={setPrefilledMessage}
+                profileName={profileName}
+                profileData={profileData}
               />
             )}
             {activeTab === 'chat' && (
@@ -960,7 +992,9 @@ function ExploreView({
   onDetailClick, onOfferClick, onPartnerClick, 
   onDestinationClick, onTrackFlight, onShowMyBiz,
   onShowWishlist, onShowProfile, onNavigate,
-  setPrefilledMessage
+  setPrefilledMessage,
+  profileName,
+  profileData
 }: { 
   currency: string, onBook: (data: any) => void, setActiveTab: any,
   onDetailClick: (vert: string, item: any) => void,
@@ -972,7 +1006,9 @@ function ExploreView({
   onShowWishlist: () => void,
   onShowProfile: () => void,
   onNavigate: (path: string) => void,
-  setPrefilledMessage: (msg: string) => void
+  setPrefilledMessage: (msg: string) => void,
+  profileName: string,
+  profileData: any
 }) {
   const [activeVertical, setActiveVertical] = useState<string>(() => sessionStorage.getItem("active_vertical") || 'flights');
   const [loadingVerticals, setLoadingVerticals] = useState<Record<string, boolean>>({});
@@ -1002,7 +1038,7 @@ function ExploreView({
         <div className="flex items-center gap-6">
           <button onClick={() => setActiveTab('trips')} className="hover:text-white transition-all flex items-center gap-1 font-bold cursor-pointer"><FileText size={13} /> My Trips</button>
           <button onClick={onShowWishlist} className="hover:text-white transition-all flex items-center gap-1 font-bold cursor-pointer"><Heart size={13} className="text-red-500" /> Wishlist</button>
-          <div onClick={onShowProfile} className="hover:text-white transition-all flex items-center gap-1 cursor-pointer font-bold"><User size={13} /> Hi, Guest Traveler</div>
+          <div onClick={onShowProfile} className="hover:text-white transition-all flex items-center gap-1 cursor-pointer font-bold"><User size={13} /> Hi, {profileName || (profileData && profileData.email && profileData.email.split("@")[0]) || "Traveler"}</div>
         </div>
       </div>
 
@@ -1078,7 +1114,7 @@ function ExploreView({
             {activeVertical === 'cabs' && <CabsSearchForm onBook={onBook} onDetailClick={onDetailClick} />}
             {activeVertical === 'rent-a-ride' && <RentARideSearchForm onBook={onBook} onDetailClick={onDetailClick} onNavigate={onNavigate} />}
             {activeVertical === 'tours' && <ToursSearchForm onBook={onBook} onDetailClick={onDetailClick} />}
-            {activeVertical === 'visa' && <VisaSearchForm onBook={onBook} onDetailClick={onDetailClick} />}
+            {activeVertical === 'visa' && <VisaSearchForm onBook={onBook} onDetailClick={onDetailClick} profileName={profileName} profileData={profileData} />}
             {activeVertical === 'cruises' && <CruisesSearchForm onBook={onBook} onDetailClick={onDetailClick} />}
             {activeVertical === 'forex' && <ForexSearchForm onBook={onBook} onDetailClick={onDetailClick} />}
             {activeVertical === 'insurance' && <InsuranceSearchForm onBook={onBook} onDetailClick={onDetailClick} />}
@@ -1097,7 +1133,7 @@ function ExploreView({
           <div className="space-y-6">
             <div>
               <span className="text-[10px] font-mono text-[var(--color-ivory-dim)] uppercase block">PASSENGER TICKET</span>
-              <span className="text-xs font-bold text-[var(--color-ivory)] uppercase mt-0.5 block">GUEST TRAVELER</span>
+              <span className="text-xs font-bold text-[var(--color-ivory)] uppercase mt-0.5 block">{profileName ? profileName.toUpperCase() : (profileData && profileData.email && profileData.email.split("@")[0].toUpperCase()) || "TRAVELER"}</span>
             </div>
             
             <div>
@@ -4277,7 +4313,14 @@ function ToursSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => voi
   );
 }
 
-function VisaSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void, onDetailClick: (vert: string, item: any) => void }) {
+function VisaSearchForm({ 
+  onBook, onDetailClick, profileName, profileData 
+}: { 
+  onBook: (data: any) => void, 
+  onDetailClick: (vert: string, item: any) => void,
+  profileName: string,
+  profileData: any
+}) {
   const [country, setCountry] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [loading, setLoading] = useTabLoading('visa');
@@ -4389,7 +4432,7 @@ function VisaSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
                 details: {
                   country: rules.country,
                   visa_type: "Tourist",
-                  applicant: { name: "Guest Traveler", passport: "Z998271" }
+                  applicant: { name: profileName || "Traveler", passport: (profileData && profileData.passport_number) ? profileData.passport_number : "Z998271" }
                 },
                 title: `Visa Application: ${rules.country}`,
                 subtitle: `Filing Embassy Processing Slot`
@@ -4844,11 +4887,11 @@ function CheckoutModal({ data, onClose, userProfile, onConfirm }: { data: any, o
   
   const [loading, setLoading] = useTabLoading('insurance');
   const [error, setError] = useState("");
-  const [travelerName, setTravelerName] = useState("Guest Traveler");
+  const [travelerName, setTravelerName] = useState("");
   const [travelerAge, setTravelerAge] = useState("30");
-  const [travelerEmail, setTravelerEmail] = useState("guest@travelos.com");
-  const [travelerPhone, setTravelerPhone] = useState("+91 98765 43210");
-  const [cardHolderName, setCardHolderName] = useState("Guest Traveler");
+  const [travelerEmail, setTravelerEmail] = useState("");
+  const [travelerPhone, setTravelerPhone] = useState("");
+  const [cardHolderName, setCardHolderName] = useState("");
   const [cardIssuingBank, setCardIssuingBank] = useState("HDFC Bank");
   const [isStudent, setIsStudent] = useState(false);
   const [promoCode, setPromoCode] = useState("");
@@ -4857,6 +4900,35 @@ function CheckoutModal({ data, onClose, userProfile, onConfirm }: { data: any, o
   const [bookingRef, setBookingRef] = useState("");
   const [invoiceText, setInvoiceText] = useState("");
   const [timeLeft, setTimeLeft] = useState(300);
+
+  // Fetch real profile details dynamically (Phase 7)
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    fetch(`${API_URL}/profile`, {
+      headers: { "Authorization": `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.full_name) {
+          setTravelerName(data.full_name);
+          setCardHolderName(data.full_name);
+          if (data.email) setTravelerEmail(data.email);
+          if (data.mobile_number) setTravelerPhone(data.mobile_number);
+          if (data.dob) {
+            const birthDate = new Date(data.dob);
+            const today = new Date();
+            let age = today.getFullYear() - birthDate.getFullYear();
+            const m = today.getMonth() - birthDate.getMonth();
+            if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+              age--;
+            }
+            setTravelerAge(age.toString());
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (step === 3) return;
