@@ -46,21 +46,29 @@ class AmadeusClient:
             # Return high-fidelity mocked Amadeus flight data matching the v2 API schema
             return [
                 {
-                    "flight_number": "6E-2032",
+                    "flight_number": "6E-201",
                     "airline": "6E",
                     "airline_code": "6E",
                     "origin": origin,
                     "destination": destination,
                     "departure_time": f"{date}T08:30:00",
-                    "arrival_time": f"{date}T11:00:00",
-                    "duration_minutes": 150,
+                    "arrival_time": f"{date}T10:45:00",
+                    "duration": "2h 15m",
+                    "duration_minutes": 135,
                     "layovers": [],
                     "cabin_class": "ECONOMY",
+                    "cabin": "ECONOMY",
+                    "price": 5200.0,
                     "price_per_passenger": 5200.0,
                     "total_price": 5200.0,
                     "currency": "INR",
                     "seats_remaining": 9,
-                    "taxes": 420.0
+                    "taxes": 420.0,
+                    "terminal": "T3",
+                    "baggage": "15 KG Checked, 7 KG Cabin",
+                    "logo": "https://r-xx.bstatic.com/data/airlines_logo/6E.png",
+                    "provider": "Amadeus",
+                    "availability": "available"
                 },
                 {
                     "flight_number": "AI-101",
@@ -70,14 +78,22 @@ class AmadeusClient:
                     "destination": destination,
                     "departure_time": f"{date}T14:15:00",
                     "arrival_time": f"{date}T16:30:00",
+                    "duration": "2h 15m",
                     "duration_minutes": 135,
                     "layovers": [],
                     "cabin_class": "ECONOMY",
+                    "cabin": "ECONOMY",
+                    "price": 6100.0,
                     "price_per_passenger": 6100.0,
                     "total_price": 6100.0,
                     "currency": "INR",
                     "seats_remaining": 5,
-                    "taxes": 510.0
+                    "taxes": 510.0,
+                    "terminal": "T3",
+                    "baggage": "15 KG Checked, 7 KG Cabin",
+                    "logo": "https://r-xx.bstatic.com/data/airlines_logo/AI.png",
+                    "provider": "Amadeus",
+                    "availability": "available"
                 }
             ]
 
@@ -138,23 +154,33 @@ class AmadeusClient:
                 duration_minutes = parse_iso_duration(duration_str)
                 seats_remaining = int(offer.get("numberOfBookableSeats", 9))
                 taxes = max(0.0, total_price - base_price)
+                carrier_code = segment['carrierCode']
+                logo_url = f"https://r-xx.bstatic.com/data/airlines_logo/{carrier_code}.png"
 
                 flights.append({
-                    "flight_number": f"{segment['carrierCode']}-{segment['number']}",
-                    "airline": segment['carrierCode'],
-                    "airline_code": segment['carrierCode'],
+                    "flight_number": f"{carrier_code}-{segment['number']}",
+                    "airline": carrier_code,
+                    "airline_code": carrier_code,
                     "origin": origin,
                     "destination": destination,
                     "departure_time": segment['departure']['at'],
                     "arrival_time": segment['arrival']['at'],
+                    "duration": f"{duration_minutes // 60}h {duration_minutes % 60}m",
                     "duration_minutes": duration_minutes,
                     "layovers": [],
                     "cabin_class": cabin_class,
+                    "cabin": cabin_class,
+                    "price": total_price,
                     "price_per_passenger": total_price,
                     "total_price": total_price,
                     "currency": currency,
                     "seats_remaining": seats_remaining,
-                    "taxes": taxes
+                    "taxes": taxes,
+                    "terminal": segment.get("departure", {}).get("terminal", "T3"),
+                    "baggage": "15 KG Checked, 7 KG Cabin",
+                    "logo": logo_url,
+                    "provider": "Amadeus",
+                    "availability": "available"
                 })
             return flights
         except Exception as e:

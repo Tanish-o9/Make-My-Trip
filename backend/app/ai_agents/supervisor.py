@@ -510,7 +510,7 @@ class SupervisorAgent:
             # Packages
             pkgs = db.query(HolidayPackageBooking).filter(HolidayPackageBooking.user_id == user_id).all()
             for p in pkgs:
-                bookings_summary.append(f"Holiday Package Booking {p.booking_reference}: {p.package_title} (Status: {p.status.value})")
+                bookings_summary.append(f"Holiday Package Booking {p.booking_reference}: {p.package_name} (Status: {p.status.value})")
                 
             # Profile & emergency details
             prof = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()

@@ -114,7 +114,55 @@ async def unified_vertical_search(
     v = vertical.lower()
     
     if v == "flights":
-        flight_offers = await PriceCompareAgent.compare_flights(origin or "DEL", destination or "GOI", date or "2026-12-15")
+        from fastapi import HTTPException
+        if not origin or not destination:
+            raise HTTPException(
+                status_code=422,
+                detail="Origin and destination parameters are required for flight searches."
+            )
+        origin_clean = origin.strip().upper()
+        dest_clean = destination.strip().upper()
+        if len(origin_clean) != 3 or not origin_clean.isalpha():
+            raise HTTPException(
+                status_code=422,
+                detail="Origin airport IATA code must be exactly 3 alphabetic letters."
+            )
+        if len(dest_clean) != 3 or not dest_clean.isalpha():
+            raise HTTPException(
+                status_code=422,
+                detail="Destination airport IATA code must be exactly 3 alphabetic letters."
+            )
+        if not date:
+            raise HTTPException(
+                status_code=422,
+                detail="Departure date parameter is required for flight searches."
+            )
+        try:
+            datetime.datetime.strptime(date, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(
+                status_code=422,
+                detail="Departure date must be in YYYY-MM-DD format."
+            )
+
+        try:
+            flight_offers = await PriceCompareAgent.compare_flights(origin_clean, dest_clean, date)
+        except Exception as e:
+            logger.error(f"Unified search flights error: {e}")
+            err_msg = str(e)
+            if "no flights found" in err_msg.lower() or "0 offers" in err_msg.lower():
+                raise HTTPException(status_code=404, detail=err_msg)
+            raise HTTPException(
+                status_code=404,
+                detail=f"No flight offers found matching the route {origin_clean} to {dest_clean}."
+            )
+
+        if not flight_offers:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No flights found matching the route {origin_clean} to {dest_clean}."
+            )
+
         flight_res = []
         for offer in flight_offers:
             f = offer.details.copy()

@@ -34,10 +34,23 @@ async def search_flights(
 
     try:
         results = await FlightService.search_flights(from_clean, to_clean, passengers)
+        if not results:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No flights found matching the route {from_clean} to {to_clean}."
+            )
         return results
+    except HTTPException as he:
+        raise he
     except Exception as e:
         logger.error(f"Error in search_flights endpoint: {e}")
+        err_msg = str(e)
+        if "no flights found" in err_msg.lower() or "0 offers" in err_msg.lower():
+            raise HTTPException(
+                status_code=404,
+                detail=err_msg
+            )
         raise HTTPException(
             status_code=400,
-            detail=str(e)
+            detail=err_msg
         )

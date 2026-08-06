@@ -34,14 +34,18 @@ def flight_search_tool(
     """
     import asyncio
     import concurrent.futures
-    from app.services.price_compare_agent import PriceCompareAgent
+    from app.services.flight_service import FlightService
 
     origin = origin.upper().strip()
     destination = destination.upper().strip()
     cabin_class = cabin_class.upper().strip()
 
     async def get_offers():
-        return await PriceCompareAgent.compare_flights(origin, destination, departure_date)
+        try:
+            return await FlightService.search_flights(origin, destination, passengers, departure_date)
+        except Exception as e:
+            logger.error(f"flight_search_tool search failed: {e}")
+            return []
 
     try:
         loop = asyncio.get_running_loop()
@@ -51,50 +55,8 @@ def flight_search_tool(
     if loop and loop.is_running():
         with concurrent.futures.ThreadPoolExecutor() as executor:
             future = executor.submit(asyncio.run, get_offers())
-            offers = future.result()
+            results = future.result()
     else:
-        offers = asyncio.run(get_offers())
-
-    results = []
-    for offer in offers:
-        f = offer.details.copy()
-        results.append({
-            "flight_number": f.get("flight_number"),
-            "airline": f.get("airline"),
-            "airline_code": f.get("airline_code"),
-            "origin": origin,
-            "destination": destination,
-            "departure_time": f.get("departure_time"),
-            "arrival_time": f.get("arrival_time"),
-            "duration_minutes": f.get("duration_minutes", 150),
-            "layovers": f.get("layovers", []),
-            "cabin_class": cabin_class,
-            "price_per_passenger": float(offer.price),
-            "total_price": float(offer.price) * passengers,
-            "currency": "INR",
-            "alternatives": f.get("alternatives", []),
-            "cancellation_policy": offer.cancellation_policy,
-            "provider_name": offer.provider_name
-        })
-
-    # Fallback mock
-    if not results:
-        results = [{
-            "flight_number": "SA-101",
-            "airline": "Standard Air",
-            "airline_code": "SA",
-            "origin": origin,
-            "destination": destination,
-            "departure_time": f"{departure_date}T08:00:00",
-            "arrival_time": f"{departure_date}T10:30:00",
-            "duration_minutes": 150,
-            "layovers": [],
-            "cabin_class": cabin_class,
-            "price_per_passenger": 5000.0,
-            "total_price": 5000.0 * passengers,
-            "currency": "INR",
-            "cancellation_policy": "Refundable",
-            "provider_name": "TBO"
-        }]
+        results = asyncio.run(get_offers())
 
     return {"success": True, "results": results}

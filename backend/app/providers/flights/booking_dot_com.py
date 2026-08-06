@@ -1,4 +1,4 @@
-﻿import os
+import os
 import asyncio
 import datetime
 import uuid
@@ -50,15 +50,23 @@ class BookingDotComFlightProvider(BaseFlightProvider):
                         "destination": destination.upper(),
                         "departure_time": f"{date}T13:00:00",
                         "arrival_time": f"{date}T15:10:00",
+                        "duration": "2h 10m",
                         "duration_minutes": 130,
                         "layovers": [],
                         "cabin_class": "ECONOMY",
+                        "cabin": "ECONOMY",
+                        "price": 6249.0,
                         "price_per_passenger": 6249.0,
                         "total_price": 6249.0,
                         "currency": "INR",
                         "seats_remaining": 9,
                         "taxes": 1447.0,
                         "stop_count": 0,
+                        "terminal": "T3",
+                        "baggage": "15 KG Checked, 7 KG Cabin",
+                        "logo": "https://r-xx.bstatic.com/data/airlines_logo/6E.png",
+                        "provider": "Booking.com",
+                        "availability": "available",
                     },
                     is_simulated=False
                 )
@@ -161,6 +169,9 @@ class BookingDotComFlightProvider(BaseFlightProvider):
                     if tax_obj:
                         taxes = float(tax_obj.get("units", 0)) + float(tax_obj.get("nanos", 0)) / 1e9
 
+                duration_str = f"{duration_mins // 60}h {duration_mins % 60}m"
+                logo_url = carriers_data[0].get("logo", f"https://r-xx.bstatic.com/data/airlines_logo/{airline_code}.png") if carriers_data else f"https://r-xx.bstatic.com/data/airlines_logo/{airline_code}.png"
+
                 f_details = {
                     "flight_number": flight_num,
                     "airline": airline_name,
@@ -169,15 +180,23 @@ class BookingDotComFlightProvider(BaseFlightProvider):
                     "destination": destination.upper(),
                     "departure_time": dep_clean,
                     "arrival_time": arr_clean,
+                    "duration": duration_str,
                     "duration_minutes": duration_mins,
                     "layovers": layovers,
                     "cabin_class": "ECONOMY",
+                    "cabin": "ECONOMY",
+                    "price": total_price,
                     "price_per_passenger": total_price,
                     "total_price": total_price,
                     "currency": "INR",
                     "seats_remaining": 9,
                     "taxes": taxes,
                     "stop_count": stops,
+                    "terminal": "T3",
+                    "baggage": "15 KG Checked, 7 KG Cabin",
+                    "logo": logo_url,
+                    "provider": "Booking.com",
+                    "availability": "available",
                 }
 
                 offers.append(NormalizedOffer(

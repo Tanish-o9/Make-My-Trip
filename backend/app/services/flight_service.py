@@ -4,8 +4,10 @@ import time
 import asyncio
 import random
 import logging
+import json
 from typing import List, Dict, Any
 from app.services.resilience import CircuitBreaker, CircuitBreakerOpenException
+from app.utils.redis_client import redis_client
 
 logger = logging.getLogger(__name__)
 
@@ -58,21 +60,34 @@ class FlightService:
         raise last_err
 
     @classmethod
-    async def search_flights(cls, from_airport: str, to_airport: str, passengers: int = 1) -> List[Dict[str, Any]]:
+    async def search_flights(cls, from_airport: str, to_airport: str, passengers: int = 1, date_str: str = None) -> List[Dict[str, Any]]:
         from datetime import datetime, timedelta
         import sys
         is_testing = "pytest" in sys.modules
 
         # Query dynamic date default (e.g. tomorrow) to stay in window
-        date_str = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+        if not date_str:
+            date_str = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+        cache_key = f"flight_search:{from_airport.upper().strip()}:{to_airport.upper().strip()}:{date_str}:{passengers}"
 
+        # 1. Try Redis Cache
+        if redis_client and not is_testing:
+            try:
+                cached_val = redis_client.get(cache_key)
+                if cached_val:
+                    logger.info(f"Redis Cache Hit: Found cached flight results for key {cache_key}.")
+                    return json.loads(cached_val)
+            except Exception as ce:
+                logger.warning(f"Failed to read from Redis cache: {ce}")
+
+        logger.info(f"Redis Cache Miss: Querying flight providers for key {cache_key}...")
         from app.providers.registry import provider_registry
         offers = await provider_registry.flight_manager.search_all(from_airport, to_airport, date_str)
 
         results = []
         for offer in offers:
-            # Strictly filter out simulated responses
-            if offer.is_simulated and not is_testing:
+            # Strictly filter out simulated responses unless testing or database fallback is returned
+            if offer.is_simulated and not is_testing and offer.provider_name != "Local Database":
                 continue
 
             det = offer.details
@@ -96,7 +111,7 @@ class FlightService:
                 "destination": to_airport.upper(),
                 "dep": dep_time_formatted,
                 "arr": arr_time_formatted,
-                "duration": f"{duration_mins // 60}h {duration_mins % 60}m",
+                "duration": det.get("duration", f"{duration_mins // 60}h {duration_mins % 60}m"),
                 "price": offer.price,
                 "price_per_passenger": offer.price,
                 "total_price": offer.price * passengers,
@@ -105,9 +120,24 @@ class FlightService:
                 "provider_name": offer.provider_name,
                 "offer_id": offer.id,
                 "cabin_class": det.get("cabin_class", "ECONOMY"),
+                "cabin": det.get("cabin", "ECONOMY"),
                 "seats_remaining": det.get("seats_remaining", 9),
-                "taxes": det.get("taxes", 0.0)
+                "taxes": det.get("taxes", 0.0),
+                "terminal": det.get("terminal", "T3"),
+                "baggage": det.get("baggage", "15 KG Checked, 7 KG Cabin"),
+                "logo": det.get("logo", ""),
+                "provider": offer.provider_name,
+                "availability": det.get("availability", "available")
             })
+
+        # 2. Store in Redis Cache
+        if redis_client and results and not is_testing:
+            try:
+                redis_client.setex(cache_key, 3600, json.dumps(results))
+                logger.info(f"Stored search results in Redis cache for key {cache_key}.")
+            except Exception as se:
+                logger.warning(f"Failed to store in Redis cache: {se}")
+
         return results
 
     @staticmethod

@@ -91,15 +91,23 @@ class SkyscannerRapidProvider(BaseFlightProvider):
                         "destination": destination.upper(),
                         "departure_time": f"{date}T09:00:00",
                         "arrival_time": f"{date}T11:15:00",
+                        "duration": "2h 15m",
                         "duration_minutes": 135,
                         "layovers": [],
                         "cabin_class": "ECONOMY",
+                        "cabin": "ECONOMY",
+                        "price": 5400.0,
                         "price_per_passenger": 5400.0,
                         "total_price": 5400.0,
                         "currency": "INR",
                         "seats_remaining": 9,
                         "taxes": 0.0,
                         "stop_count": 0,
+                        "terminal": "T3",
+                        "baggage": "15 KG Checked, 7 KG Cabin",
+                        "logo": "https://r-xx.bstatic.com/data/airlines_logo/6E.png",
+                        "provider": "Skyscanner",
+                        "availability": "available",
                     },
                     is_simulated=False
                 )
@@ -161,6 +169,9 @@ class SkyscannerRapidProvider(BaseFlightProvider):
                 total_price = float(pricing.get("raw", 0.0) or pricing.get("amount", 0.0))
                 stops = leg.get("stopCount", 0)
                 layovers = [{"stop": i + 1} for i in range(stops)]
+                duration_str = f"{duration_mins // 60}h {duration_mins % 60}m"
+                logo_url = f"https://r-xx.bstatic.com/data/airlines_logo/{airline_code}.png"
+
                 f_details = {
                     "flight_number": flight_num,
                     "airline": airline_name,
@@ -169,15 +180,23 @@ class SkyscannerRapidProvider(BaseFlightProvider):
                     "destination": destination.upper(),
                     "departure_time": dep_clean,
                     "arrival_time": arr_clean,
+                    "duration": duration_str,
                     "duration_minutes": duration_mins,
                     "layovers": layovers,
                     "cabin_class": "ECONOMY",
+                    "cabin": "ECONOMY",
+                    "price": total_price,
                     "price_per_passenger": total_price,
                     "total_price": total_price,
                     "currency": "INR",
                     "seats_remaining": 9,
                     "taxes": 0.0,
                     "stop_count": stops,
+                    "terminal": "T3",
+                    "baggage": "15 KG Checked, 7 KG Cabin",
+                    "logo": logo_url,
+                    "provider": "Skyscanner",
+                    "availability": "available",
                 }
                 offers.append(NormalizedOffer(
                     id=f"OF-SK-{uuid.uuid4().hex[:6].upper()}",
