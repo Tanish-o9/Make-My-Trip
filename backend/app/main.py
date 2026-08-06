@@ -2,6 +2,10 @@ import logging
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from dotenv import load_dotenv
+
+# Load environment variables from .env BEFORE anything else
+load_dotenv()
 
 from app.database import engine, Base, get_db
 from app.models import search_entities, payments
