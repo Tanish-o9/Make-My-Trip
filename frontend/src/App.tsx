@@ -10215,6 +10215,54 @@ function PartnerLandingModal({ partner, onClose }: { partner: any, onClose: () =
 
 /* Landing Destination modal */
 function DestinationLandingModal({ destination, onClose, onPlanTrigger }: { destination: any, onClose: () => void, onPlanTrigger: (name: string) => void }) {
+  const [currentWeather, setCurrentWeather] = useState<any | null>(null);
+  const [forecastWeather, setForecastWeather] = useState<any[]>([]);
+  const [aqi, setAqi] = useState<any | null>(null);
+  const [travelRec, setTravelRec] = useState<any | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchWeatherDetails = () => {
+    setLoading(true);
+    setError(null);
+    const city = destination.title;
+    
+    Promise.all([
+      fetch(`${API_URL}/weather/current?city=${encodeURIComponent(city)}`).then(res => {
+        if (!res.ok) throw new Error();
+        return res.json();
+      }),
+      fetch(`${API_URL}/weather/forecast?city=${encodeURIComponent(city)}`).then(res => {
+        if (!res.ok) throw new Error();
+        return res.json();
+      }),
+      fetch(`${API_URL}/weather/air-quality?city=${encodeURIComponent(city)}`).then(res => {
+        if (!res.ok) throw new Error();
+        return res.json();
+      }),
+      fetch(`${API_URL}/weather/travel?city=${encodeURIComponent(city)}`).then(res => {
+        if (!res.ok) throw new Error();
+        return res.json();
+      })
+    ])
+    .then(([current, forecast, air, travel]) => {
+      setCurrentWeather(current);
+      setForecastWeather(forecast);
+      setAqi(air);
+      setTravelRec(travel);
+      setLoading(false);
+    })
+    .catch(err => {
+      console.error(err);
+      setError("Failed to load weather data.");
+      setLoading(false);
+    });
+  };
+
+  useEffect(() => {
+    fetchWeatherDetails();
+  }, [destination.title]);
+
   return (
     <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white border-4 border-black text-black w-full max-w-lg rounded-2xl shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-6 space-y-4 text-left">
@@ -10228,14 +10276,97 @@ function DestinationLandingModal({ destination, onClose, onPlanTrigger }: { dest
           <span className="absolute bottom-2 left-2 text-white font-black text-lg bg-black/75 px-3 py-1 rounded border border-white/10 uppercase font-sans tracking-wide">{destination.title}</span>
         </div>
 
-        {/* Weather widget intelligence agent */}
-        <div className="border-3 border-black p-3 bg-blue-50 rounded-xl flex justify-between items-center">
-          <div className="text-xs font-bold text-slate-700">
-            <div className="font-black text-slate-900 uppercase">Weather Intelligence Agent</div>
-            <div>Temp: 22°C • Clear Skies</div>
-            <div>Best Time to Visit: Oct ➔ March</div>
+        {/* Weather Intelligence Agent widget (Phase 4) */}
+        <div className="border-3 border-black p-4 bg-blue-50/80 rounded-xl space-y-3 text-slate-800">
+          <div className="flex justify-between items-center">
+            <span className="font-black text-xs uppercase tracking-wider text-slate-900">🌦️ Live Weather & Travel Guidelines</span>
+            {loading && <span className="animate-spin text-xs">⏳</span>}
           </div>
-          <span className="text-3xl">☀️</span>
+
+          {loading && (
+            <div className="space-y-2 animate-pulse">
+              <div className="h-6 bg-slate-300 rounded w-1/3"></div>
+              <div className="h-4 bg-slate-300 rounded w-2/3"></div>
+            </div>
+          )}
+
+          {error && (
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-[10px] font-bold text-red-500">{error}</span>
+              <button 
+                onClick={fetchWeatherDetails}
+                className="bg-red-800 hover:bg-red-700 text-white text-[9px] px-2 py-0.5 rounded font-bold cursor-pointer border-none"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
+          {!loading && !error && currentWeather && (
+            <div className="space-y-3 font-semibold text-xs text-left">
+              {/* Row 1: Temperature & Description */}
+              <div className="flex justify-between items-center border-b border-black/10 pb-1.5">
+                <div>
+                  <div className="text-xl font-black text-slate-900 font-mono">
+                    {currentWeather.temperature}°C
+                  </div>
+                  <div className="text-[10px] text-slate-500 uppercase tracking-tight">
+                    Feels like {currentWeather.feelsLike}°C • {currentWeather.weather}
+                  </div>
+                </div>
+                <img 
+                  src={`https://openweathermap.org/img/wn/${currentWeather.icon}@2x.png`} 
+                  alt={currentWeather.weather} 
+                  className="w-12 h-12"
+                />
+              </div>
+
+              {/* Row 2: Metrics */}
+              <div className="grid grid-cols-3 gap-2 text-[10px] bg-white/40 p-2 rounded border border-black/10">
+                <div>💧 Humidity: {currentWeather.humidity}%</div>
+                <div>🧭 Pressure: {currentWeather.pressure} hPa</div>
+                <div>💨 Wind: {currentWeather.windSpeed} m/s</div>
+                <div>👁️ Visibility: {currentWeather.visibility / 1000} km</div>
+                <div>🌅 Sunrise: {new Date(currentWeather.sunrise * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                <div>🌇 Sunset: {new Date(currentWeather.sunset * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+              </div>
+
+              {/* AQI Panel */}
+              {aqi && (
+                <div className="flex justify-between items-center text-[10px] bg-yellow-50 p-2 rounded border border-yellow-200/50">
+                  <span>🍃 Air Quality Index (AQI): <strong className="text-yellow-600">{aqi.AQI}/5</strong></span>
+                  <span>PM2.5: {aqi.PM2_5} • PM10: {aqi.PM10}</span>
+                </div>
+              )}
+
+              {/* Travel Packing Advice */}
+              {travelRec && (
+                <div className="text-[10px] space-y-1 bg-blue-100/50 p-2.5 rounded border border-blue-200/40">
+                  <div className="font-black text-slate-900 uppercase tracking-wide">💡 Travel Guidelines:</div>
+                  <div>💼 Packing: {travelRec.packingSuggestions.join(", ")}</div>
+                  <div>🧥 Dress: {travelRec.clothingRecommendation}</div>
+                  <div>☀️ UV Advice: {travelRec.uvAdvice}</div>
+                  <div>🚗 Suggestion: {travelRec.bestTimeToTravel}</div>
+                </div>
+              )}
+
+              {/* 5-Day Forecast Grid */}
+              {forecastWeather.length > 0 && (
+                <div className="space-y-1.5 pt-1.5 border-t border-black/10">
+                  <span className="text-[9px] uppercase font-black tracking-wider text-slate-400 block text-left">5-Day Forecast:</span>
+                  <div className="grid grid-cols-5 gap-1 text-[9px] text-center">
+                    {forecastWeather.slice(0, 5).map((day, dIdx) => (
+                      <div key={dIdx} className="bg-white/40 p-1 rounded border border-black/5 flex flex-col items-center">
+                        <span className="text-slate-500 font-bold">{day.date.substring(5)}</span>
+                        <img src={`https://openweathermap.org/img/wn/${day.icon}.png`} alt={day.weather} className="w-6 h-6 my-0.5" />
+                        <span className="font-extrabold text-slate-800 font-mono">{Math.round(day.temperature)}°C</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <p className="text-xs text-slate-600 font-semibold leading-normal">

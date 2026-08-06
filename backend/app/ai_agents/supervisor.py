@@ -618,6 +618,64 @@ If NO permanent preference is stated, output ONLY the word: NONE"""
         except Exception as e:
             logger.error(f"Failed semantic preference query: {e}")
 
+        # Auto-enrich destination weather context (Phase 5 - AI Integration)
+        destination = trip_context.get("destination")
+        if not destination:
+            import re as _re
+            dest_detect = _re.search(r'\b(?:to|in|at|plan|trip|visit)\s+([A-Za-z ]{3,20})\b', message, _re.IGNORECASE)
+            if dest_detect:
+                potential_dest = dest_detect.group(1).strip().capitalize()
+                if potential_dest.lower() in ["goa", "delhi", "mumbai", "paris", "london", "tokyo", "bali"]:
+                    destination = potential_dest
+
+        if destination:
+            try:
+                from app.providers.weather.manager import WeatherManager
+                import asyncio
+                from concurrent.futures import ThreadPoolExecutor
+                
+                wm = WeatherManager()
+                
+                async def fetch_weather_bundle():
+                    current_w = await wm.get_current_weather(destination)
+                    forecast_w = await wm.get_forecast(destination)
+                    travel_r = await wm.get_travel_recommendations(destination)
+                    return current_w, forecast_w, travel_r
+
+                try:
+                    loop = asyncio.get_running_loop()
+                    with ThreadPoolExecutor() as executor:
+                        future = executor.submit(asyncio.run, fetch_weather_bundle())
+                        current_weather, forecast_weather, travel_rec = future.result()
+                except RuntimeError:
+                    current_weather, forecast_weather, travel_rec = asyncio.run(fetch_weather_bundle())
+
+                trip_context["destination_weather"] = {
+                    "current": current_weather,
+                    "forecast": forecast_weather,
+                    "travel_advice": travel_rec
+                }
+
+                weather_summary = (
+                    f"Destination Weather Context for {destination}: "
+                    f"Temp: {current_weather.get('temperature')}C, Feels: {current_weather.get('feelsLike')}C. "
+                    f"Conditions: {current_weather.get('weather')}. "
+                    f"Rain probability: {travel_rec.get('rainProbability')}%. "
+                    f"Packing suggestions: {', '.join(travel_rec.get('packingSuggestions', []))}. "
+                    f"Travel recommendation: {travel_rec.get('bestTimeToTravel')}. "
+                    f"Clothing: {travel_rec.get('clothingRecommendation')}."
+                )
+
+                existing_historical = trip_context.get("user_historical_preferences", [])
+                # Remove stale weather summaries to prevent context bloat
+                existing_historical = [p for p in existing_historical if not p.startswith("Destination Weather Context")]
+                existing_historical.append(weather_summary)
+                trip_context["user_historical_preferences"] = existing_historical
+                
+                logger.info(f"Successfully injected weather memory for {destination} into AI state context.")
+            except Exception as w_err:
+                logger.error(f"Failed to auto-enrich destination weather context: {w_err}")
+
         return history, trip_context, budget_constraints
 
     @staticmethod
