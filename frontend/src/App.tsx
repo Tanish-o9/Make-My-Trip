@@ -9905,6 +9905,9 @@ function ProductDetailModal({ vertical, item, currency, onBook, onClose, wishlis
                       </div>
                     </div>
                   )}
+
+                  {/* Map Neighborhood Guide (Phases 5-6) */}
+                  <HotelMapWidget hotelName={item.title || item.name} hotelId={item.hotelId} />
                 </>
               )}
             </div>
@@ -10209,6 +10212,184 @@ function PartnerLandingModal({ partner, onClose }: { partner: any, onClose: () =
           Check Live Inventory
         </button>
       </div>
+    </div>
+  );
+}
+
+/* Hotel Live Neighborhood Map Guide Component (Phases 5-6) */
+function HotelMapWidget({ hotelName, hotelId }: { hotelName: string, hotelId: string }) {
+  const [coords, setCoords] = useState<{ latitude: number, longitude: number } | null>(null);
+  const [address, setAddress] = useState<string>("");
+  const [nearbyPlaces, setNearbyPlaces] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'all' | 'restaurant' | 'tourism' | 'airport' | 'hotel'>('all');
+  const mapRef = useRef<any>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+
+  const fetchMapData = () => {
+    setLoading(true);
+    setError(null);
+    
+    fetch(`${API_URL}/maps/hotel-location?hotelId=${encodeURIComponent(hotelName || hotelId)}`)
+      .then(res => {
+        if (!res.ok) throw new Error("Failed to load hotel location");
+        return res.json();
+      })
+      .then(data => {
+        const { coordinates, address: addr } = data;
+        setCoords(coordinates);
+        setAddress(addr);
+
+        return Promise.all([
+          fetch(`${API_URL}/maps/nearby?lat=${coordinates.latitude}&lng=${coordinates.longitude}&type=restaurant`).then(res => res.json()),
+          fetch(`${API_URL}/maps/nearby?lat=${coordinates.latitude}&lng=${coordinates.longitude}&type=tourism`).then(res => res.json()),
+          fetch(`${API_URL}/maps/nearby?lat=${coordinates.latitude}&lng=${coordinates.longitude}&type=airport`).then(res => res.json()),
+          fetch(`${API_URL}/maps/nearby?lat=${coordinates.latitude}&lng=${coordinates.longitude}&type=hotel`).then(res => res.json())
+        ]);
+      })
+      .then(([rest, tour, airp, hote]) => {
+        const combined = [
+          ...rest.map((p: any) => ({ ...p, type: 'restaurant', color: '#ef4444' })),
+          ...tour.map((p: any) => ({ ...p, type: 'tourism', color: '#a855f7' })),
+          ...airp.map((p: any) => ({ ...p, type: 'airport', color: '#3b82f6' })),
+          ...hote.map((p: any) => ({ ...p, type: 'hotel', color: '#10b981' }))
+        ];
+        setNearbyPlaces(combined);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error(err);
+        setError("Failed to resolve map coordinates or nearby spots.");
+        setLoading(false);
+      });
+  };
+
+  useEffect(() => {
+    fetchMapData();
+  }, [hotelId, hotelName]);
+
+  useEffect(() => {
+    if (!coords || !mapContainerRef.current) return;
+
+    if (mapRef.current) {
+      mapRef.current.remove();
+      mapRef.current = null;
+    }
+
+    // Dynamic import to satisfy type checker while instantiating leaflet
+    import('leaflet').then((LModule) => {
+      const L = LModule.default || LModule;
+      if (!mapContainerRef.current) return;
+      
+      const map = L.map(mapContainerRef.current).setView([coords.latitude, coords.longitude], 14);
+      mapRef.current = map;
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
+
+      const hotelIcon = L.divIcon({
+        html: `<div style="background-color: #f59e0b; width: 18px; height: 18px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 6px rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; font-size: 8px;">🏨</div>`,
+        className: 'hotel-leaflet-marker',
+        iconSize: [18, 18],
+        iconAnchor: [9, 9]
+      });
+
+      L.marker([coords.latitude, coords.longitude], { icon: hotelIcon })
+        .addTo(map)
+        .bindPopup(`<strong>🏨 ${hotelName}</strong><br/>${address}`)
+        .openPopup();
+
+      nearbyPlaces.forEach(place => {
+        if (activeTab !== 'all' && place.type !== activeTab) return;
+
+        const emoji = place.type === 'restaurant' ? '🍴' : place.type === 'tourism' ? '🎪' : place.type === 'airport' ? '✈️' : '🏢';
+        const placeIcon = L.divIcon({
+          html: `<div style="background-color: ${place.color}; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; font-size: 8px;">${emoji}</div>`,
+          className: 'place-leaflet-marker',
+          iconSize: [16, 16],
+          iconAnchor: [8, 8]
+        });
+
+        L.marker([place.latitude, place.longitude], { icon: placeIcon })
+          .addTo(map)
+          .bindPopup(`<strong>${emoji} ${place.name}</strong><br/>${place.address}<br/><span style="color: #64748b; font-size: 9px;">${Math.round(place.distance)}m away</span>`);
+      });
+    }).catch(console.error);
+
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
+  }, [coords, nearbyPlaces, activeTab]);
+
+  return (
+    <div className="border-2 border-black p-4 bg-slate-900/60 rounded-xl space-y-3 text-slate-200">
+      <div className="flex justify-between items-center">
+        <span className="text-[10px] uppercase font-black tracking-wider text-slate-400">🗺️ Live Location & Neighborhood Guide</span>
+        {loading && <span className="animate-spin text-xs">⏳</span>}
+      </div>
+
+      {loading && (
+        <div className="h-48 border-2 border-black rounded-lg bg-slate-800 animate-pulse flex items-center justify-center">
+          <span className="text-xs text-slate-400 font-bold">Pinpointing hotel neighborhood...</span>
+        </div>
+      )}
+
+      {error && (
+        <div className="flex flex-col items-center gap-2 py-4">
+          <span className="text-xs font-bold text-red-400">{error}</span>
+          <button onClick={fetchMapData} className="bg-red-800 hover:bg-red-700 text-white text-[10px] px-3 py-1 rounded font-bold cursor-pointer border-none">
+            Retry Map Load
+          </button>
+        </div>
+      )}
+
+      {!loading && !error && coords && (
+        <div className="space-y-3">
+          <div 
+            ref={mapContainerRef} 
+            className="h-56 border-2 border-black rounded-lg overflow-hidden relative z-10"
+            style={{ minHeight: '220px' }}
+          />
+
+          <div className="flex gap-1 overflow-x-auto pb-1">
+            {(['all', 'restaurant', 'tourism', 'airport', 'hotel'] as const).map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`text-[9px] px-2 py-1 rounded font-black uppercase cursor-pointer whitespace-nowrap border border-black ${
+                  activeTab === tab 
+                    ? 'bg-yellow-400 text-black' 
+                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                {tab === 'all' ? '🌐 All' : tab === 'restaurant' ? '🍴 Food' : tab === 'tourism' ? '🎪 Sights' : tab === 'airport' ? '✈️ Transport' : '🏢 Stays'}
+              </button>
+            ))}
+          </div>
+
+          <div className="space-y-1.5 max-h-32 overflow-y-auto pt-1 text-[10px]">
+            {nearbyPlaces
+              .filter(p => activeTab === 'all' || p.type === activeTab)
+              .slice(0, 5)
+              .map((place, pIdx) => (
+                <div key={pIdx} className="flex justify-between items-center bg-slate-950/40 p-1.5 rounded border border-slate-800/80">
+                  <div className="text-left font-sans">
+                    <div className="font-extrabold text-slate-100">{place.name}</div>
+                    <div className="text-[8px] text-slate-500 font-medium">{place.address}</div>
+                  </div>
+                  <span className="font-mono text-slate-400 font-bold bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
+                    {Math.round(place.distance)}m
+                  </span>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

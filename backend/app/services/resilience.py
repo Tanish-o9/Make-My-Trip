@@ -46,6 +46,32 @@ class CircuitBreaker:
                 logger.error(f"Circuit Breaker [{self.name}] TRIPPED to OPEN state. Failures: {self.failures}")
             raise e
 
+    async def call_async(self, func: Callable, *args, **kwargs) -> Any:
+        current_time = time.time()
+        
+        if self.state == "OPEN":
+            if current_time - self.last_failure_time > self.cooldown_seconds:
+                self.state = "HALF_OPEN"
+                logger.info(f"Circuit Breaker [{self.name}] entered HALF_OPEN state.")
+            else:
+                raise CircuitBreakerOpenException(f"Circuit Breaker [{self.name}] is OPEN. Blocked call.")
+
+        try:
+            result = await func(*args, **kwargs)
+            if self.state == "HALF_OPEN":
+                self.state = "CLOSED"
+                self.failures = 0
+                logger.info(f"Circuit Breaker [{self.name}] successfully CLOSED.")
+            return result
+        except Exception as e:
+            self.failures += 1
+            self.last_failure_time = time.time()
+            
+            if self.failures >= self.max_failures:
+                self.state = "OPEN"
+                logger.error(f"Circuit Breaker [{self.name}] TRIPPED to OPEN state. Failures: {self.failures}")
+            raise e
+
 
 def retry_with_backoff(max_retries: int = 3, initial_delay: float = 1.0, factor: float = 2.0):
     """Decorator to retry functions using exponential backoff with random jitter"""

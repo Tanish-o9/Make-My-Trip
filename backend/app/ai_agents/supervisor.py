@@ -631,25 +631,40 @@ If NO permanent preference is stated, output ONLY the word: NONE"""
         if destination:
             try:
                 from app.providers.weather.manager import WeatherManager
+                from app.providers.maps.manager import MapsManager
                 import asyncio
                 from concurrent.futures import ThreadPoolExecutor
                 
                 wm = WeatherManager()
+                mm = MapsManager()
                 
-                async def fetch_weather_bundle():
+                async def fetch_intelligence_bundles():
+                    # Weather
                     current_w = await wm.get_current_weather(destination)
                     forecast_w = await wm.get_forecast(destination)
                     travel_r = await wm.get_travel_recommendations(destination)
-                    return current_w, forecast_w, travel_r
+                    
+                    # Maps / Geocoding
+                    coords = await mm.convert_city_to_coordinates(destination)
+                    lat = coords.get("latitude", 15.2993)
+                    lng = coords.get("longitude", 74.1240)
+                    
+                    # Nearby locations
+                    airports = await mm.search_nearby(lat, lng, "airport")
+                    attractions = await mm.search_nearby(lat, lng, "tourism")
+                    restaurants = await mm.search_nearby(lat, lng, "restaurant")
+                    
+                    return current_w, forecast_w, travel_r, coords, airports, attractions, restaurants
 
                 try:
                     loop = asyncio.get_running_loop()
                     with ThreadPoolExecutor() as executor:
-                        future = executor.submit(asyncio.run, fetch_weather_bundle())
-                        current_weather, forecast_weather, travel_rec = future.result()
+                        future = executor.submit(asyncio.run, fetch_intelligence_bundles())
+                        current_weather, forecast_weather, travel_rec, coords_info, airports_list, attractions_list, restaurants_list = future.result()
                 except RuntimeError:
-                    current_weather, forecast_weather, travel_rec = asyncio.run(fetch_weather_bundle())
+                    current_weather, forecast_weather, travel_rec, coords_info, airports_list, attractions_list, restaurants_list = asyncio.run(fetch_intelligence_bundles())
 
+                # 1. Weather State
                 trip_context["destination_weather"] = {
                     "current": current_weather,
                     "forecast": forecast_weather,
@@ -666,15 +681,32 @@ If NO permanent preference is stated, output ONLY the word: NONE"""
                     f"Clothing: {travel_rec.get('clothingRecommendation')}."
                 )
 
+                # 2. Maps State
+                trip_context["destination_map_context"] = {
+                    "coordinates": {"latitude": coords_info.get("latitude"), "longitude": coords_info.get("longitude")},
+                    "airports": airports_list,
+                    "attractions": attractions_list,
+                    "restaurants": restaurants_list
+                }
+
+                maps_summary = (
+                    f"Destination Map Context for {destination}: "
+                    f"Coordinates: Lat {coords_info.get('latitude')}, Lng {coords_info.get('longitude')}. "
+                    f"Nearest Airports: {', '.join([a['name'] for a in airports_list[:2]])}. "
+                    f"Nearby Attractions: {', '.join([t['name'] for t in attractions_list[:3]])}. "
+                    f"Nearby Restaurants: {', '.join([r['name'] for r in restaurants_list[:3]])}."
+                )
+
                 existing_historical = trip_context.get("user_historical_preferences", [])
-                # Remove stale weather summaries to prevent context bloat
-                existing_historical = [p for p in existing_historical if not p.startswith("Destination Weather Context")]
+                # Remove stale weather and maps summaries to prevent context bloat
+                existing_historical = [p for p in existing_historical if not p.startswith("Destination Weather Context") and not p.startswith("Destination Map Context")]
                 existing_historical.append(weather_summary)
+                existing_historical.append(maps_summary)
                 trip_context["user_historical_preferences"] = existing_historical
                 
-                logger.info(f"Successfully injected weather memory for {destination} into AI state context.")
-            except Exception as w_err:
-                logger.error(f"Failed to auto-enrich destination weather context: {w_err}")
+                logger.info(f"Successfully injected weather and maps memory for {destination} into AI state context.")
+            except Exception as bundle_err:
+                logger.error(f"Failed to auto-enrich destination intelligence context: {bundle_err}")
 
         return history, trip_context, budget_constraints
 
