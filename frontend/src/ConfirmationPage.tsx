@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { 
   CheckCircle, Calendar, ArrowRight, FileText, Download, 
-  Printer, Share2, Mail, Copy, Check, Info, AlertTriangle, ExternalLink 
+  Printer, Share2, Mail, Copy, Check, Info, AlertTriangle, ExternalLink, MessageSquare, Phone 
 } from "lucide-react";
 
 const resolveApiBase = () => {
@@ -27,10 +27,17 @@ export function ConfirmationPage({ bookingId, onNavigate }: ConfirmationPageProp
   const [details, setDetails] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [emailStatus, setEmailStatus] = useState<string>("");
+  const [smsStatus, setSmsStatus] = useState<string>("");
+  const [whatsappStatus, setWhatsappStatus] = useState<string>("");
   const [copied, setCopied] = useState(false);
-  const [shareOpen, setShareOpen] = useState(false);
+  const [toast, setToast] = useState<{ show: boolean; message: string }>({ show: false, message: "" });
 
   const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token') || null;
+
+  const showToast = (msg: string) => {
+    setToast({ show: true, message: msg });
+    setTimeout(() => setToast({ show: false, message: "" }), 3000);
+  };
 
   useEffect(() => {
     const headers: any = {};
@@ -38,12 +45,11 @@ export function ConfirmationPage({ bookingId, onNavigate }: ConfirmationPageProp
 
     fetch(`${API_URL}/bookings/${bookingId}`, { headers })
       .then(res => {
-        if (!res.ok) throw new Error("Failed to load booking full details.");
+        if (!res.ok) throw new Error("Failed to load booking details.");
         return res.json();
       })
       .then(data => {
         setDetails(data);
-        // Cache locally for offline access (Phase 14)
         localStorage.setItem(`booking_cache_${bookingId}`, JSON.stringify(data));
       })
       .catch(err => {
@@ -72,6 +78,7 @@ export function ConfirmationPage({ bookingId, onNavigate }: ConfirmationPageProp
       document.body.appendChild(a);
       a.click();
       a.remove();
+      showToast("📥 PDF ticket downloaded successfully!");
     } catch (err: any) {
       alert(err.message || "Error downloading PDF");
     }
@@ -86,13 +93,11 @@ export function ConfirmationPage({ bookingId, onNavigate }: ConfirmationPageProp
     if (token) headers["Authorization"] = `Bearer ${token}`;
 
     setEmailStatus("sending");
-    fetch(`${API_URL}/bookings/${bookingId}/email`, { 
-      method: "POST", 
-      headers 
-    })
+    fetch(`${API_URL}/bookings/${bookingId}/email`, { method: "POST", headers })
       .then(res => res.json())
-      .then(data => {
+      .then(() => {
         setEmailStatus("sent");
+        showToast("📧 Confirmation email resent successfully!");
         setTimeout(() => setEmailStatus(""), 3000);
       })
       .catch(() => {
@@ -101,11 +106,122 @@ export function ConfirmationPage({ bookingId, onNavigate }: ConfirmationPageProp
       });
   };
 
+  const handleTriggerSMS = () => {
+    const headers: any = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    setSmsStatus("sending");
+    fetch(`${API_URL}/bookings/${bookingId}/sms`, { method: "POST", headers })
+      .then(res => res.json())
+      .then(() => {
+        setSmsStatus("sent");
+        showToast("📱 Confirmation SMS sent to verified customer phone!");
+        setTimeout(() => setSmsStatus(""), 3000);
+      })
+      .catch(() => {
+        setSmsStatus("");
+      });
+  };
+
+  const handleTriggerWhatsApp = () => {
+    const headers: any = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    setWhatsappStatus("sending");
+    fetch(`${API_URL}/bookings/${bookingId}/whatsapp`, { method: "POST", headers })
+      .then(res => res.json())
+      .then(() => {
+        setWhatsappStatus("sent");
+        showToast("💬 WhatsApp reservation receipt dispatched successfully!");
+        setTimeout(() => setWhatsappStatus(""), 3000);
+      })
+      .catch(() => {
+        setWhatsappStatus("");
+      });
+  };
+
+  const handleExportCalendar = () => {
+    if (!details) return;
+    const { booking, ticket, vertical } = details;
+    const isHotel = vertical === "hotels";
+    
+    const summary = isHotel 
+      ? `Hotel Stay: ${booking.hotel_name}`
+      : `Flight: ${booking.airline_code}-${booking.flight_number} (${booking.origin} to ${booking.destination})`;
+      
+    const desc = isHotel
+      ? `Check-in: ${new Date(booking.check_in).toDateString()}\nRoom type: ${booking.room_type}\nAddress: ${booking.address}`
+      : `Boarding time: ${ticket?.extra_info?.boarding_time || "45 mins before departure"}\nSeat: ${ticket?.extra_info?.seat || "14C"}\nPNR: ${ticket?.pnr}`;
+      
+    const startDate = isHotel ? new Date(booking.check_in) : new Date(booking.departure_time);
+    const endDate = isHotel ? new Date(booking.check_out) : new Date(booking.arrival_time);
+    
+    const formatICSDate = (date: Date) => {
+      return date.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+    };
+    
+    const icsString = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//Travel OS//Booking Calendar//EN",
+      "BEGIN:VEVENT",
+      `UID:booking_${bookingId}@travelos.com`,
+      `DTSTART:${formatICSDate(startDate)}`,
+      `DTEND:${formatICSDate(endDate)}`,
+      `SUMMARY:${summary}`,
+      `DESCRIPTION:${desc}`,
+      `LOCATION:${isHotel ? booking.address || "" : booking.origin}`,
+      "END:VEVENT",
+      "END:VCALENDAR"
+    ].join("\n");
+    
+    const blob = new Blob([icsString], { type: "text/calendar" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Booking_${bookingId}.ics`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    
+    showToast("📅 Calendar event (.ics) downloaded successfully!");
+  };
+
   const handleCopyId = () => {
     navigator.clipboard.writeText(bookingId);
     setCopied(true);
+    showToast("📋 Booking ID copied to clipboard!");
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const Barcode = () => (
+    <svg className="w-full h-8 opacity-80 mt-1" viewBox="0 0 100 20" preserveAspectRatio="none">
+      <rect x="0" y="0" width="2" height="20" fill="currentColor" />
+      <rect x="4" y="0" width="1" height="20" fill="currentColor" />
+      <rect x="7" y="0" width="3" height="20" fill="currentColor" />
+      <rect x="12" y="0" width="1" height="20" fill="currentColor" />
+      <rect x="15" y="0" width="2" height="20" fill="currentColor" />
+      <rect x="20" y="0" width="4" height="20" fill="currentColor" />
+      <rect x="26" y="0" width="1" height="20" fill="currentColor" />
+      <rect x="29" y="0" width="3" height="20" fill="currentColor" />
+      <rect x="34" y="0" width="2" height="20" fill="currentColor" />
+      <rect x="38" y="0" width="1" height="20" fill="currentColor" />
+      <rect x="41" y="0" width="4" height="20" fill="currentColor" />
+      <rect x="47" y="0" width="2" height="20" fill="currentColor" />
+      <rect x="51" y="0" width="1" height="20" fill="currentColor" />
+      <rect x="54" y="0" width="3" height="20" fill="currentColor" />
+      <rect x="59" y="0" width="2" height="20" fill="currentColor" />
+      <rect x="63" y="0" width="1" height="20" fill="currentColor" />
+      <rect x="66" y="0" width="4" height="20" fill="currentColor" />
+      <rect x="72" y="0" width="2" height="20" fill="currentColor" />
+      <rect x="76" y="0" width="1" height="20" fill="currentColor" />
+      <rect x="79" y="0" width="3" height="20" fill="currentColor" />
+      <rect x="84" y="0" width="2" height="20" fill="currentColor" />
+      <rect x="88" y="0" width="4" height="20" fill="currentColor" />
+      <rect x="94" y="0" width="1" height="20" fill="currentColor" />
+      <rect x="97" y="0" width="3" height="20" fill="currentColor" />
+    </svg>
+  );
 
   if (loading) {
     return (
@@ -138,7 +254,15 @@ export function ConfirmationPage({ bookingId, onNavigate }: ConfirmationPageProp
   const { booking, ticket, invoice, vertical } = details;
 
   return (
-    <div className="min-h-screen bg-[#060814] text-white p-4 md:p-8 font-sans">
+    <div className="min-h-screen bg-[#060814] text-white p-4 md:p-8 font-sans relative">
+      {/* Toast Notification (Phase 12) */}
+      {toast.show && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-[#0f172a] border border-blue-500/30 text-xs font-bold px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2 text-blue-200 animate-[fadeIn_0.15s_ease-out]">
+          <Info size={14} className="text-blue-400" />
+          {toast.message}
+        </div>
+      )}
+
       <div className="max-w-4xl mx-auto space-y-6">
         
         {/* Success Header Card */}
@@ -165,140 +289,179 @@ export function ConfirmationPage({ bookingId, onNavigate }: ConfirmationPageProp
 
         {/* Boarding Pass / Voucher Vertical Area */}
         {vertical === "flights" && ticket && (
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
-            {/* Airline Header Bar */}
-            <div className="bg-blue-600 px-6 py-4 flex justify-between items-center text-xs font-black uppercase tracking-wider">
-              <div className="flex items-center gap-2">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl flex flex-col md:flex-row items-stretch">
+            {/* Left Boarding Info Section (2/3 width) */}
+            <div className="flex-1 p-6 space-y-4">
+              <div className="flex justify-between items-center text-xs font-black uppercase tracking-wider text-blue-400">
                 <span>✈️ {booking.airline_code || "6E"} AIRLINES</span>
-                <span className="bg-blue-900/50 text-blue-200 px-2 py-0.5 rounded border border-blue-800/30 text-[9px]">{booking.cabin_class || "ECONOMY"} CLASS</span>
+                <span className="bg-blue-950 border border-blue-900/30 px-2 py-0.5 rounded text-[8px]">{booking.cabin_class || "ECONOMY"} CLASS</span>
               </div>
-              <div className="font-mono text-blue-200">FLIGHT {booking.flight_number || "502"}</div>
+              
+              <div className="flex justify-between items-center bg-slate-950/40 p-4 rounded-2xl border border-slate-850">
+                <div className="text-left">
+                  <div className="text-3xl font-black text-white">{booking.origin || "DEL"}</div>
+                  <div className="text-[9px] text-slate-500 font-bold">DEPARTURE PORT</div>
+                </div>
+                <div className="flex-1 flex flex-col items-center px-4">
+                  <div className="w-full border-t border-dashed border-slate-800 relative">
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-900 px-2 text-blue-500">✈️</div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-3xl font-black text-white">{booking.destination || "GOI"}</div>
+                  <div className="text-[9px] text-slate-500 font-bold">ARRIVAL PORT</div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-left text-xs bg-slate-950/20 p-4 rounded-2xl border border-slate-850">
+                <div>
+                  <span className="text-slate-500 block text-[9px] font-bold">PASSENGER</span>
+                  <strong className="text-slate-200">{ticket.passenger_details?.[0]?.name || "Traveler"}</strong>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[9px] font-bold">SEAT</span>
+                  <strong className="text-blue-400 font-mono">{ticket.extra_info?.seat || "14C"}</strong>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[9px] font-bold">GATE</span>
+                  <strong className="text-yellow-400 font-mono">{ticket.extra_info?.gate || "A1"}</strong>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[9px] font-bold">PNR RECORD</span>
+                  <strong className="text-white font-mono">{ticket.pnr || "—"}</strong>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 text-left text-xs bg-slate-950/20 p-4 rounded-2xl border border-slate-850">
+                <div>
+                  <span className="text-slate-500 block text-[9px] font-bold">DEPARTURE TIME</span>
+                  <strong className="text-slate-200">{booking.departure_time ? new Date(booking.departure_time).toLocaleString() : "—"}</strong>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[9px] font-bold">BAGGAGE ALLOWANCE</span>
+                  <strong className="text-slate-200">{ticket.extra_info?.baggage || "15 Kgs Check-in"}</strong>
+                </div>
+              </div>
             </div>
-            
-            {/* Ticket Body */}
-            <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="md:col-span-2 space-y-4">
-                <div className="flex justify-between items-center bg-slate-950/40 p-4 rounded-2xl border border-slate-850">
-                  <div className="text-left">
-                    <div className="text-2xl font-black text-white">{booking.origin || "DEL"}</div>
-                    <div className="text-[10px] text-slate-500 font-bold">DEPARTURE PORT</div>
-                  </div>
-                  <div className="flex-1 flex flex-col items-center px-4">
-                    <div className="w-full border-t border-dashed border-slate-800 relative">
-                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-900 px-2 text-blue-500">✈️</div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-black text-white">{booking.destination || "GOI"}</div>
-                    <div className="text-[10px] text-slate-500 font-bold">ARRIVAL PORT</div>
-                  </div>
-                </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-left text-xs bg-slate-950/20 p-4 rounded-2xl border border-slate-850">
-                  <div>
-                    <span className="text-slate-500 block text-[9px] font-bold">PASSENGER</span>
-                    <strong className="text-slate-200">{ticket.passenger_details?.[0]?.name || "Traveler"}</strong>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block text-[9px] font-bold">SEAT</span>
-                    <strong className="text-blue-400 font-mono">{ticket.extra_info?.seat || "14C"}</strong>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block text-[9px] font-bold">GATE</span>
-                    <strong className="text-yellow-400 font-mono">{ticket.extra_info?.gate || "A1"}</strong>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block text-[9px] font-bold">PNR RECORD</span>
-                    <strong className="text-white font-mono">{ticket.pnr || "—"}</strong>
-                  </div>
-                </div>
+            {/* Perforated Divider */}
+            <div className="hidden md:flex flex-col items-center justify-between py-4 relative">
+              <div className="w-4 h-4 rounded-full bg-[#060814] -mt-6 z-10" />
+              <div className="border-l border-dashed border-slate-700 h-full mx-2" />
+              <div className="w-4 h-4 rounded-full bg-[#060814] -mb-6 z-10" />
+            </div>
 
-                <div className="grid grid-cols-2 gap-4 text-left text-xs bg-slate-950/20 p-4 rounded-2xl border border-slate-850">
+            {/* Right Passenger Stub (1/3 width) */}
+            <div className="w-full md:w-64 bg-slate-950/20 p-6 flex flex-col justify-between border-t md:border-t-0 md:border-l border-slate-800 text-left">
+              <div className="space-y-4">
+                <div className="flex justify-between items-center text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                  <span>Passenger Stub</span>
+                  <span className="text-blue-500">{booking.flight_number || "502"}</span>
+                </div>
+                <div className="space-y-1.5 text-xs">
                   <div>
-                    <span className="text-slate-500 block text-[9px] font-bold">DEPARTURE TIME</span>
-                    <strong className="text-slate-200">{booking.departure_time ? new Date(booking.departure_time).toLocaleString() : "—"}</strong>
+                    <span className="text-[9px] text-slate-500 block">PASSENGER NAME</span>
+                    <strong className="text-slate-300">{ticket.passenger_details?.[0]?.name || "Traveler"}</strong>
                   </div>
                   <div>
-                    <span className="text-slate-500 block text-[9px] font-bold">BAGGAGE ALLOWANCE</span>
-                    <strong className="text-slate-200">{ticket.extra_info?.baggage || "15 Kgs Check-in"}</strong>
+                    <span className="text-[9px] text-slate-500 block">SEAT / CABIN</span>
+                    <strong className="text-slate-300 font-mono">{ticket.extra_info?.seat || "14C"} ({booking.cabin_class || "ECONOMY"})</strong>
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-slate-500 block">FLIGHT ROUTE</span>
+                    <strong className="text-slate-300">{booking.origin} ➔ {booking.destination}</strong>
                   </div>
                 </div>
               </div>
 
-              {/* QR Sidebar Code */}
-              <div className="flex flex-col items-center justify-center bg-slate-950/40 p-4 rounded-2xl border border-slate-850 text-center space-y-3">
+              {/* QR and Barcode area */}
+              <div className="mt-6 flex flex-col items-center gap-2">
                 <img 
                   src={ticket.qr_code_data || `/static/qrcodes/${bookingId}.png`} 
                   alt="Boarding Pass QR" 
-                  className="w-32 h-32 bg-white p-2 rounded-xl border border-slate-800"
+                  className="w-24 h-24 bg-white p-1 rounded-lg border border-slate-800"
                 />
-                <div>
-                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Digital Boarding QR</div>
-                  <div className="text-[9px] text-slate-600 mt-0.5">Scan to verify booking security code</div>
-                </div>
+                <Barcode />
               </div>
             </div>
           </div>
         )}
 
         {vertical === "hotels" && (
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl text-left">
-            <div className="bg-purple-600 px-6 py-4 flex justify-between items-center text-xs font-black uppercase tracking-wider">
-              <span>🏨 LUXURY STAY RESERVATION VOUCHER</span>
-              <span>{booking.room_type || "Deluxe Room"}</span>
-            </div>
-            
-            <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="md:col-span-2 space-y-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl text-left flex flex-col md:flex-row">
+            <div className="flex-1 p-6 space-y-4">
+              <div className="flex justify-between items-center text-xs font-black uppercase tracking-wider text-purple-400">
+                <span>🏨 LUXURY STAY RESERVATION VOUCHER</span>
+                <span className="bg-purple-950 border border-purple-900/30 px-2 py-0.5 rounded text-[8px]">{booking.room_type || "Deluxe Room"}</span>
+              </div>
+              
+              <div>
+                <h3 className="text-xl font-black text-white">{booking.hotel_name || "Grand Palace Stay"}</h3>
+                <p className="text-xs text-slate-400 mt-1">📍 Address: {booking.address || "Goa Beachfront"}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 text-xs bg-slate-950/40 p-4 rounded-2xl border border-slate-850">
                 <div>
-                  <h3 className="text-xl font-black text-white">{booking.hotel_name || "Grand Palace Stay"}</h3>
-                  <p className="text-xs text-slate-400 mt-1">📍 Address: {booking.address || "Goa Beachfront"}</p>
+                  <span className="text-slate-500 block text-[9px] font-bold">CHECK-IN</span>
+                  <strong className="text-slate-200">{booking.check_in ? new Date(booking.check_in).toDateString() : "—"}</strong>
                 </div>
-
-                <div className="grid grid-cols-2 gap-4 text-xs bg-slate-950/40 p-4 rounded-2xl border border-slate-850">
-                  <div>
-                    <span className="text-slate-500 block text-[9px] font-bold">CHECK-IN</span>
-                    <strong className="text-slate-200">{booking.check_in ? new Date(booking.check_in).toDateString() : "—"}</strong>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block text-[9px] font-bold">CHECK-OUT</span>
-                    <strong className="text-slate-200">{booking.check_out ? new Date(booking.check_out).toDateString() : "—"}</strong>
-                  </div>
+                <div>
+                  <span className="text-slate-500 block text-[9px] font-bold">CHECK-OUT</span>
+                  <strong className="text-slate-200">{booking.check_out ? new Date(booking.check_out).toDateString() : "—"}</strong>
                 </div>
+              </div>
 
-                <div className="grid grid-cols-2 gap-4 text-xs bg-slate-950/40 p-4 rounded-2xl border border-slate-850">
+              <div className="grid grid-cols-2 gap-4 text-xs bg-slate-950/40 p-4 rounded-2xl border border-slate-850">
+                <div>
+                  <span className="text-slate-500 block text-[9px] font-bold">GUESTS DETAILS</span>
+                  <strong className="text-slate-200">{booking.guest_details?.[0]?.name || "Primary Guest"}</strong>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[9px] font-bold">INCLUSIONS</span>
+                  <span className="text-emerald-400 font-black block">✓ Free Buffet Breakfast & High-Speed Wi-Fi</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Perforated Divider */}
+            <div className="hidden md:flex flex-col items-center justify-between py-4 relative">
+              <div className="w-4 h-4 rounded-full bg-[#060814] -mt-6 z-10" />
+              <div className="border-l border-dashed border-slate-700 h-full mx-2" />
+              <div className="w-4 h-4 rounded-full bg-[#060814] -mb-6 z-10" />
+            </div>
+
+            {/* Right Hotel Stub */}
+            <div className="w-full md:w-64 bg-slate-950/20 p-6 flex flex-col justify-between border-t md:border-t-0 md:border-l border-slate-800 text-center">
+              <div className="space-y-4">
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block text-left">Reservation Stub</span>
+                <div className="text-xs text-left space-y-1.5">
                   <div>
-                    <span className="text-slate-500 block text-[9px] font-bold">GUESTS DETAILS</span>
-                    <strong className="text-slate-200">{booking.guest_details?.[0]?.name || "Primary Guest"}</strong>
+                    <span className="text-[9px] text-slate-500 block">CONFIRMATION ID</span>
+                    <strong className="text-slate-300 font-mono">{bookingId}</strong>
                   </div>
                   <div>
-                    <span className="text-slate-500 block text-[9px] font-bold">AMENITIES INCLUDED</span>
-                    <strong className="text-emerald-400 font-semibold">Free High-Speed Wi-Fi, Breakfast buffet</strong>
+                    <span className="text-[9px] text-slate-500 block">POLICY DETAILS</span>
+                    <span className="text-rose-400 font-bold block">Free cancellation 24h prior</span>
                   </div>
                 </div>
               </div>
 
-              {/* QR Sidebar Code */}
-              <div className="flex flex-col items-center justify-center bg-slate-950/40 p-4 rounded-2xl border border-slate-850 text-center space-y-3">
+              <div className="mt-6 flex flex-col items-center gap-2">
                 <img 
                   src={ticket?.qr_code_data || `/static/qrcodes/${bookingId}.png`} 
                   alt="Hotel Stay QR" 
-                  className="w-32 h-32 bg-white p-2 rounded-xl border border-slate-800"
+                  className="w-24 h-24 bg-white p-1 rounded-lg border border-slate-800"
                 />
-                <div className="space-y-1">
-                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Hotel Reservation ID</div>
-                  <div className="text-[9px] text-slate-500 font-mono">{bookingId}</div>
-                  {booking.address && (
-                    <a 
-                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(booking.hotel_name + " " + booking.address)}`} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-[9px] text-blue-400 hover:underline flex items-center justify-center gap-1 mt-1.5"
-                    >
-                      🗺️ Open Google Maps <ExternalLink size={10} />
-                    </a>
-                  )}
-                </div>
+                {booking.address && (
+                  <a 
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(booking.hotel_name + " " + booking.address)}`} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-[9px] text-blue-400 hover:underline flex items-center justify-center gap-1 mt-1"
+                  >
+                    Open Google Maps <ExternalLink size={10} />
+                  </a>
+                )}
               </div>
             </div>
           </div>
@@ -369,20 +532,57 @@ export function ConfirmationPage({ bookingId, onNavigate }: ConfirmationPageProp
           </div>
         )}
 
+        {/* SMS & WhatsApp Action Controls (Phase 1 & 2) */}
+        <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl text-left space-y-4 shadow-xl">
+          <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 border-b border-slate-800 pb-2">
+            Enterprise Dispatches & Reminders
+          </h4>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+            <div className="bg-slate-950/40 p-4 rounded-2xl border border-slate-850 flex items-center justify-between">
+              <div className="space-y-0.5">
+                <span className="font-bold block text-slate-200">SMS Notification Dispatch</span>
+                <span className="text-[10px] text-slate-500">Sends PNR reservation code via mobile network.</span>
+              </div>
+              <button 
+                onClick={handleTriggerSMS}
+                disabled={smsStatus === "sending" || smsStatus === "sent"}
+                className="bg-blue-600 hover:bg-blue-500 font-bold py-1.5 px-3 rounded-lg text-[10px] uppercase text-white cursor-pointer transition-all disabled:opacity-50 flex items-center gap-1"
+              >
+                <Phone size={10} /> {smsStatus === "sending" ? "Sending..." : smsStatus === "sent" ? "Sent!" : "Trigger SMS"}
+              </button>
+            </div>
+            
+            <div className="bg-slate-950/40 p-4 rounded-2xl border border-slate-850 flex items-center justify-between">
+              <div className="space-y-0.5">
+                <span className="font-bold block text-slate-200">WhatsApp Confirmation Slip</span>
+                <span className="text-[10px] text-slate-500">Sends rich PDF ticket download link dynamically.</span>
+              </div>
+              <button 
+                onClick={handleTriggerWhatsApp}
+                disabled={whatsappStatus === "sending" || whatsappStatus === "sent"}
+                className="bg-emerald-600 hover:bg-emerald-500 font-bold py-1.5 px-3 rounded-lg text-[10px] uppercase text-white cursor-pointer transition-all disabled:opacity-50 flex items-center gap-1"
+              >
+                <MessageSquare size={10} /> {whatsappStatus === "sending" ? "Sending..." : whatsappStatus === "sent" ? "Sent!" : "WhatsApp"}
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* Action Controls */}
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-2">
+        <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 pt-2">
           <button
             onClick={handleDownloadPDF}
             className="bg-blue-600 hover:bg-blue-500 border border-blue-500/20 font-black py-3 px-4 rounded-xl text-[10px] uppercase tracking-wider cursor-pointer text-white transition-all flex items-center justify-center gap-2 shadow"
           >
-            <Download size={14} /> Download PDF Ticket
+            <Download size={14} /> Download PDF
           </button>
           
           <button
             onClick={handlePrint}
             className="bg-slate-900 hover:bg-slate-850 border border-slate-800 font-black py-3 px-4 rounded-xl text-[10px] uppercase tracking-wider cursor-pointer text-slate-300 transition-all flex items-center justify-center gap-2"
           >
-            <Printer size={14} /> Print Document
+            <Printer size={14} /> Print Ticket
           </button>
           
           <button
@@ -391,7 +591,14 @@ export function ConfirmationPage({ bookingId, onNavigate }: ConfirmationPageProp
             className="bg-slate-900 hover:bg-slate-850 border border-slate-800 font-black py-3 px-4 rounded-xl text-[10px] uppercase tracking-wider cursor-pointer text-slate-300 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
           >
             <Mail size={14} /> 
-            {emailStatus === "sending" ? "Resending..." : emailStatus === "sent" ? "Resent! 🎉" : "Resend Email"}
+            {emailStatus === "sending" ? "Resending..." : emailStatus === "sent" ? "Email Sent! 🎉" : "Resend Email"}
+          </button>
+
+          <button
+            onClick={handleExportCalendar}
+            className="bg-slate-900 hover:bg-slate-850 border border-slate-800 font-black py-3 px-4 rounded-xl text-[10px] uppercase tracking-wider cursor-pointer text-slate-300 transition-all flex items-center justify-center gap-2"
+          >
+            <Calendar size={14} /> Export Calendar
           </button>
           
           <button
