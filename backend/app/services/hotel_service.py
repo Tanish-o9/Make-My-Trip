@@ -19,7 +19,7 @@ class HotelService:
             logger.info("RapidAPI credentials not configured. Using fallback data.")
             raise ValueError("RapidAPI credentials missing.")
 
-        url = f"https://{api_host}/v1/hotels/{endpoint}"
+        url = f"https://{api_host}/api/v1/hotels/{endpoint}"
         headers = {
             "x-rapidapi-key": api_key,
             "x-rapidapi-host": api_host
