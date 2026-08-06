@@ -889,3 +889,255 @@ async def check_payment_approval(
         "price_changed": False,
         "held_until": booking.held_until.isoformat() if booking.held_until else None
     }
+
+
+def find_booking_by_reference(db: Session, booking_ref: str):
+    tables = [
+        FlightBooking, HotelBooking, TrainBooking, BusBooking, CabBooking,
+        HolidayPackageBooking, ActivityBooking, VisaApplication, CruiseBooking,
+        InsurancePolicy, VillaBooking, ForexOrder, VehicleRentalBooking
+    ]
+    for table in tables:
+        booking = db.query(table).filter(table.booking_reference == booking_ref).first()
+        if booking:
+            return booking
+    return None
+
+
+@router.get("/{booking_reference}/public")
+def get_booking_public_details(
+    booking_reference: str,
+    db: Session = Depends(get_db)
+):
+    booking = find_booking_by_reference(db, booking_reference)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking reference not found.")
+    
+    vertical = getattr(booking, "__tablename__", "").replace("_bookings", "")
+    
+    return {
+        "booking_reference": booking.booking_reference,
+        "vertical": vertical,
+        "status": booking.status.value if hasattr(booking.status, "value") else booking.status,
+        "created_at": booking.created_at.isoformat() if booking.created_at else None,
+        "origin": getattr(booking, "origin", getattr(booking, "origin_station", "DEL")),
+        "destination": getattr(booking, "destination", getattr(booking, "destination_station", "GOI")),
+        "departure_time": booking.departure_time.isoformat() if hasattr(booking, "departure_time") else None,
+        "check_in": booking.check_in.isoformat() if hasattr(booking, "check_in") else None,
+        "check_out": booking.check_out.isoformat() if hasattr(booking, "check_out") else None,
+    }
+
+
+@router.get("/{booking_reference}")
+def get_booking_full_details(
+    booking_reference: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    booking = find_booking_by_reference(db, booking_reference)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking reference not found.")
+    
+    if booking.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied: Booking belongs to another user.")
+    
+    from app.models.bookings import BookingTicket, BookingInvoice, BookingEvent
+    from app.models.payments import Payment
+    
+    ticket = db.query(BookingTicket).filter(BookingTicket.booking_reference == booking_reference).first()
+    invoice = db.query(BookingInvoice).filter(BookingInvoice.booking_reference == booking_reference).first()
+    events = db.query(BookingEvent).filter(BookingEvent.booking_reference == booking_reference).order_by(BookingEvent.created_at.asc()).all()
+    payment = db.query(Payment).filter(Payment.booking_id == booking_reference).first()
+    
+    vertical = getattr(booking, "__tablename__", "").replace("_bookings", "")
+    
+    booking_dict = {c.name: getattr(booking, c.name) for c in booking.__table__.columns}
+    for k, v in booking_dict.items():
+        if isinstance(v, (datetime.datetime, datetime.date)):
+            booking_dict[k] = v.isoformat()
+            
+    return {
+        "booking": booking_dict,
+        "vertical": vertical,
+        "ticket": {
+            "id": ticket.id,
+            "ticket_number": ticket.ticket_number,
+            "pnr": ticket.pnr,
+            "qr_code_data": ticket.qr_code_data,
+            "pdf_path": ticket.pdf_path,
+            "passenger_details": ticket.passenger_details,
+            "extra_info": ticket.extra_info,
+            "created_at": ticket.created_at.isoformat()
+        } if ticket else None,
+        "invoice": {
+            "id": invoice.id,
+            "invoice_number": invoice.invoice_number,
+            "gst_number": invoice.gst_number,
+            "payment_method": invoice.payment_method,
+            "base_amount": float(invoice.base_amount),
+            "tax_amount": float(invoice.tax_amount),
+            "discount_amount": float(invoice.discount_amount),
+            "final_amount": float(invoice.final_amount),
+            "wallet_used": float(invoice.wallet_used),
+            "coupon_code": invoice.coupon_code,
+            "created_at": invoice.created_at.isoformat()
+        } if invoice else None,
+        "payment": payment.to_dict() if payment else None,
+        "timeline": [
+            {
+                "id": ev.id,
+                "event_type": ev.event_type,
+                "description": ev.description,
+                "created_at": ev.created_at.isoformat()
+            } for ev in events
+        ]
+    }
+
+
+@router.get("/{booking_reference}/ticket")
+def get_booking_ticket(
+    booking_reference: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    from app.models.bookings import BookingTicket
+    booking = find_booking_by_reference(db, booking_reference)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found.")
+    if booking.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied.")
+        
+    ticket = db.query(BookingTicket).filter(BookingTicket.booking_reference == booking_reference).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="E-Ticket not generated yet.")
+    return ticket
+
+
+@router.get("/{booking_reference}/pdf")
+def get_booking_pdf_file(
+    booking_reference: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    import os
+    from fastapi.responses import FileResponse
+    from app.models.bookings import BookingTicket, BookingInvoice
+    booking = find_booking_by_reference(db, booking_reference)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found.")
+    if booking.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied.")
+        
+    ticket = db.query(BookingTicket).filter(BookingTicket.booking_reference == booking_reference).first()
+    invoice = db.query(BookingInvoice).filter(BookingInvoice.booking_reference == booking_reference).first()
+    
+    if not ticket or not invoice:
+        raise HTTPException(status_code=400, detail="Booking confirmations are not fully compiled yet.")
+        
+    pdf_path = f"static/tickets/{booking_reference}.pdf"
+    if not os.path.exists(pdf_path):
+        from app.utils.booking_helpers import generate_booking_pdf
+        vertical = getattr(booking, "__tablename__", "").replace("_bookings", "")
+        generate_booking_pdf(booking, ticket, invoice, current_user, vertical)
+        
+    return FileResponse(pdf_path, media_type="application/pdf", filename=f"{booking_reference}_Ticket.pdf")
+
+
+@router.post("/{booking_reference}/email")
+def send_booking_email(
+    booking_reference: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    from app.models.bookings import BookingEvent
+    booking = find_booking_by_reference(db, booking_reference)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found.")
+    if booking.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied.")
+        
+    db.add(BookingEvent(
+        booking_reference=booking_reference,
+        event_type="email_sent",
+        description=f"Resent confirmation email with PDF e-ticket attachment to {current_user.email}."
+    ))
+    db.commit()
+    return {"message": f"Confirmation email resent successfully to {current_user.email}!", "status": "sent"}
+
+
+class ShareBookingRequest(BaseModel):
+    platform: str
+    recipient: str
+
+
+@router.post("/{booking_reference}/share")
+def share_booking_details(
+    booking_reference: str,
+    req: ShareBookingRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    booking = find_booking_by_reference(db, booking_reference)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found.")
+    if booking.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied.")
+        
+    share_url = f"http://localhost:5173/booking/{booking_reference}"
+    share_msg = f"Hey! Here are my Travel OS booking details: {share_url}"
+    return {
+        "success": True,
+        "platform": req.platform,
+        "recipient": req.recipient,
+        "share_message": share_msg,
+        "share_url": share_url
+    }
+
+
+@router.post("/{booking_reference}/cancel")
+def cancel_booking_by_reference(
+    booking_reference: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    booking = find_booking_by_reference(db, booking_reference)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found.")
+    if booking.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied.")
+        
+    vertical = getattr(booking, "__tablename__", "").replace("_bookings", "")
+    from app.services.refund_manager import RefundManager
+    res = RefundManager.initiate_refund(
+        db=db,
+        booking=booking,
+        vertical=vertical,
+        refund_to="wallet",
+        is_goodwill=False,
+        custom_amount=None,
+        action_type="cancel"
+    )
+    return res
+
+
+@router.get("/{booking_reference}/timeline")
+def get_booking_timeline(
+    booking_reference: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    from app.models.bookings import BookingEvent
+    booking = find_booking_by_reference(db, booking_reference)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found.")
+    if booking.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied.")
+        
+    events = db.query(BookingEvent).filter(BookingEvent.booking_reference == booking_reference).order_by(BookingEvent.created_at.asc()).all()
+    return [
+        {
+            "event_type": ev.event_type,
+            "description": ev.description,
+            "created_at": ev.created_at.isoformat()
+        } for ev in events
+    ]

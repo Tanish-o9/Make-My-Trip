@@ -238,4 +238,35 @@ class BookingEvent(Base):
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
 
 
+class BookingTicket(Base):
+    __tablename__ = "booking_tickets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    booking_reference: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
+    ticket_number: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    pnr: Mapped[str] = mapped_column(String(20), nullable=True)
+    qr_code_data: Mapped[str] = mapped_column(String(500), nullable=True)
+    pdf_path: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    passenger_details: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
+    extra_info: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
+
+
+class BookingInvoice(Base):
+    __tablename__ = "booking_invoices"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    booking_reference: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
+    invoice_number: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    gst_number: Mapped[str] = mapped_column(String(50), default="07TRVOS9921A1Z0", nullable=False)
+    payment_method: Mapped[str] = mapped_column(String(50), default="razorpay", nullable=False)
+    base_amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    tax_amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    discount_amount: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0, nullable=False)
+    final_amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    wallet_used: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0, nullable=False)
+    coupon_code: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
+
+
 

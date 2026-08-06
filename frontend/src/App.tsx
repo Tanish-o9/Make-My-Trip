@@ -10,6 +10,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckoutPage } from './CheckoutPage';
 import { ConfirmationPage } from './ConfirmationPage';
+import { BookingDetailPage } from './BookingDetailPage';
 import { DesignTokensPage } from './DesignTokensPage';
 
 const resolveApiBase = () => {
@@ -537,6 +538,12 @@ export default function App() {
     return <ConfirmationPage bookingId={bookingId} onNavigate={navigate} />;
   }
 
+  const bookingDetailMatch = currentPath.match(/^\/booking\/([^/]+)$/);
+  if (bookingDetailMatch) {
+    const bookingId = bookingDetailMatch[1];
+    return <BookingDetailPage bookingId={bookingId} onNavigate={navigate} token={token} />;
+  }
+
   const rentARideMatch = currentPath.match(/^\/rent-a-ride\/([^?#]+)/);
   if (rentARideMatch) {
     const city = decodeURIComponent(rentARideMatch[1]);
@@ -802,7 +809,7 @@ export default function App() {
                 setPrefilledMessage={setPrefilledMessage} 
               />
             )}
-            {activeTab === 'trips' && <MyTripsView key="trips" userProfile={userProfile} setActiveTab={setActiveTab} />}
+            {activeTab === 'trips' && <MyTripsView key="trips" userProfile={userProfile} setActiveTab={setActiveTab} onNavigate={navigate} />}
             {activeTab === 'wallet' && <WalletView key="wallet" userProfile={userProfile} setUserProfile={setUserProfile} />}
             
           </AnimatePresence>
@@ -5270,7 +5277,7 @@ function CheckoutModal({ data, onClose, userProfile, onConfirm }: { data: any, o
   );
 }
 
-function MyTripsView({ userProfile, setActiveTab, setPrefilledMessage }: { userProfile: any, setActiveTab: any, setPrefilledMessage?: any }) {
+function MyTripsView({ userProfile, setActiveTab, onNavigate, setPrefilledMessage }: { userProfile: any, setActiveTab: any, onNavigate: (path: string) => void, setPrefilledMessage?: any }) {
   const [trips, setTrips] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [invoiceText, setInvoiceText] = useState<string | null>(null);
@@ -5430,8 +5437,8 @@ function MyTripsView({ userProfile, setActiveTab, setPrefilledMessage }: { userP
                 <h4 className="font-black text-lg text-black">{trip.title}</h4>
                 <p className="text-xs text-slate-600 font-bold">{trip.subtitle} {trip.date && `| Date: ${trip.date}`}</p>
                 <button 
-                  onClick={() => setSelectedTrip(trip)}
-                  className="text-xs text-blue-600 font-black hover:underline block pt-1"
+                  onClick={() => onNavigate(`/booking/${trip.booking_reference}`)}
+                  className="text-xs text-blue-600 font-black hover:underline block pt-1 cursor-pointer"
                 >
                   Manage Reservation & Live Tracking ➔
                 </button>
