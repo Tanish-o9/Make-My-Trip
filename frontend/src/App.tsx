@@ -2825,6 +2825,8 @@ function HotelsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
     .catch(console.error);
   }, []);
 
+  const [error, setError] = useState<string | null>(null);
+
   const handleSearch = (overrideSort = sortBy, overrideCategory = categoryFilter, overrideCancellation = cancellationFilter) => {
     if (!city.trim()) {
       alert("Please enter a city or property name.");
@@ -2840,21 +2842,32 @@ function HotelsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
     }
     setLoading(true);
     setResults([]);
+    setError(null);
     
-    let url = `${API_URL}/search?vertical=hotels&destination=${encodeURIComponent(city)}&check_in=${checkIn}&check_out=${checkOut}&guests=${guests}`;
+    let url = `${API_URL}/hotels/search?city=${encodeURIComponent(city)}&checkIn=${checkIn}&checkOut=${checkOut}&adults=${guests}&rooms=1`;
     if (overrideSort) url += `&sort_by=${overrideSort}`;
     if (overrideCategory && overrideCategory !== "all") url += `&category=${encodeURIComponent(overrideCategory)}`;
     if (overrideCancellation && overrideCancellation !== "all") url += `&cancellation=${overrideCancellation}`;
 
     fetch(url)
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error("Hotel search failed");
+        return res.json();
+      })
       .then(data => {
         setLoading(false);
-        if (data && Array.isArray(data.results)) {
+        if (Array.isArray(data)) {
+          setResults(data);
+        } else if (data && Array.isArray(data.results)) {
           setResults(data.results);
+        } else {
+          setResults([]);
         }
       })
-      .catch(() => {
+      .catch(err => {
+        console.error(err);
+        setError("Failed to fetch hotels. Please check your network and try again.");
+        setResults([]);
         setLoading(false);
       });
   };
@@ -2962,7 +2975,26 @@ function HotelsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
           </div>
         )}
 
-        {!loading && results.length > 0 && (() => {
+        {error && (
+          <div className="bg-red-950/40 border border-red-800 text-red-200 p-5 rounded-2xl text-center space-y-3 max-w-md mx-auto my-6 shadow-xl">
+            <p className="text-xs font-bold">{error}</p>
+            <button 
+              onClick={() => handleSearch()} 
+              className="bg-red-800 hover:bg-red-700 text-white text-[10px] font-black uppercase tracking-wider px-4 py-2 rounded-xl cursor-pointer border border-red-700 active:scale-95 transition-all"
+            >
+              Retry Search
+            </button>
+          </div>
+        )}
+
+        {!loading && !error && results.length === 0 && (
+          <div className="bg-slate-900/40 border border-slate-800 text-slate-400 p-8 rounded-2xl text-center max-w-md mx-auto my-6">
+            <p className="text-xs font-bold uppercase tracking-wider">No hotels found matching your query.</p>
+            <p className="text-[10px] text-slate-500 mt-1">Try entering popular cities like Delhi, Mumbai, or Goa.</p>
+          </div>
+        )}
+
+        {!loading && !error && results.length > 0 && (() => {
           const calculateNights = () => {
             if (!checkIn || !checkOut) return 1;
             try {
@@ -3033,112 +3065,126 @@ function HotelsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
                 </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              {results.map((res, index) => (
-                <div key={index} className="dark-card-override bg-[#121c33] p-4 rounded-2xl border border-slate-800 hover:border-slate-700 transition-all flex flex-col justify-between gap-4 relative">
-                  {res.ai_pick ? (
-                    <div className="absolute -top-2 left-4 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-[9px] text-white font-black px-2.5 py-0.5 rounded-full shadow-lg shadow-indigo-500/30 animate-pulse border border-indigo-400/30 z-20 flex items-center gap-1">✨ AI PICK: {res.ai_pick_reason}</div>
-                  ) : index === 0 ? (
-                    <div className="absolute -top-2 left-4 bg-gradient-to-r from-emerald-500 to-teal-400 text-[9px] text-white font-black px-2.5 py-0.5 rounded-full shadow-lg shadow-emerald-500/20 animate-pulse z-10">🏆 BEST PRICE</div>
-                  ) : null}
-                  <div onClick={() => onDetailClick("hotels", res)} className="cursor-pointer">
-                    <CardThumbnail ownerType="hotel" ownerId={res.name} blurHash={res.blur_hash_base64} defaultUrl={res.primary_photo_url} />
-                    <div className="flex flex-col gap-1.5 mt-3 text-left">
-                      <div className="flex items-center gap-1.5">
-                        <span className="dark-card-badge text-[8px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
-                          {res.category || "Hotel"}
-                        </span>
-                        <span className="text-xs text-blue-400 font-black">{res.rating}</span>
-                      </div>
-                      
-                      <h4 className="font-extrabold text-slate-200 text-base mt-0.5">{res.name}</h4>
-                      
-                      <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
-                        {res.guest_review_score && (
-                          <span className="bg-blue-950/40 text-blue-400 border border-blue-500/20 px-1.5 py-0.5 rounded font-black">
-                            ⭐ {res.guest_review_score}/10
+              {results.map((res, index) => {
+                const hotelId = res.hotelId || res.hotel_id || "H101";
+                const hotelName = res.hotelName || res.name || "Luxury Boutique Stay";
+                const hotelImage = res.image || res.primary_photo_url || "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800";
+                const rating = res.rating || 4.2;
+                const reviewScore = res.reviewScore || res.guest_review_score || 8.4;
+                const price = res.price || 0;
+                const address = res.address || "Heritage Area";
+                const distance = res.distance || res.distance_from_center || 1.5;
+                const isBreakfast = res.breakfastIncluded !== undefined ? res.breakfastIncluded : res.breakfast_included;
+                const isFreeCancel = res.freeCancellation !== undefined ? res.freeCancellation : res.free_cancellation;
+                const starsCount = res.stars || 4;
+                
+                return (
+                  <div key={index} className="dark-card-override bg-[#121c33] p-4 rounded-2xl border border-slate-800 hover:border-slate-700 transition-all flex flex-col justify-between gap-4 relative">
+                    {res.ai_pick ? (
+                      <div className="absolute -top-2 left-4 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-[9px] text-white font-black px-2.5 py-0.5 rounded-full shadow-lg shadow-indigo-500/30 animate-pulse border border-indigo-400/30 z-20 flex items-center gap-1">✨ AI PICK: {res.ai_pick_reason}</div>
+                    ) : index === 0 ? (
+                      <div className="absolute -top-2 left-4 bg-gradient-to-r from-emerald-500 to-teal-400 text-[9px] text-white font-black px-2.5 py-0.5 rounded-full shadow-lg shadow-emerald-500/20 animate-pulse z-10">🏆 BEST PRICE</div>
+                    ) : null}
+                    <div onClick={() => onDetailClick("hotels", res)} className="cursor-pointer">
+                      <CardThumbnail ownerType="hotel" ownerId={hotelName} blurHash={res.blur_hash_base64} defaultUrl={hotelImage} />
+                      <div className="flex flex-col gap-1.5 mt-3 text-left">
+                        <div className="flex items-center gap-1.5">
+                          <span className="dark-card-badge text-[8px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                            {res.category || "Hotel"}
                           </span>
-                        )}
-                        {res.review_count && (
-                          <span className="text-slate-400 font-medium">({res.review_count} reviews)</span>
-                        )}
-                        {res.distance_from_center && (
-                          <span className="text-slate-500">• {res.distance_from_center} km from center</span>
-                        )}
-                      </div>
-                      
-                      <div className="text-[10px] text-slate-400 truncate mt-0.5">
-                        📍 {res.address}
-                      </div>
-
-                      <p className="text-xs text-slate-400 mt-1">{res.details}</p>
-                      
-                      <div className="text-xs text-slate-300 font-black mt-1 flex items-center gap-1">
-                        <span>🛏️</span>
-                        <span>{res.room_type || "Deluxe Room"}</span>
-                      </div>
-
-                      <div className="flex gap-1.5 flex-wrap mt-1">
-                        {res.breakfast_included && (
-                          <span className="text-[9px] bg-emerald-950/40 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded font-bold">🍳 Free Breakfast</span>
-                        )}
-                        {res.free_cancellation && (
-                          <span className="text-[9px] bg-teal-950/40 text-teal-400 border border-teal-500/20 px-1.5 py-0.5 rounded font-bold">🛡️ Free Cancellation</span>
-                        )}
-                      </div>
-
-                      {res.alternatives && res.alternatives.length > 0 && (
-                        <div className="flex items-center gap-1.5 flex-wrap mt-2 pt-2 border-t border-slate-800/60">
-                          <span className="text-[9px] text-slate-500">Compare:</span>
-                          {res.alternatives.map((alt: any, ai: number) => (
-                            <span key={ai} className="dark-card-badge text-[9px] px-1.5 py-0.5 rounded">
-                              {alt.provider_name}: ₹{Number(alt.price).toLocaleString()}
-                            </span>
-                          ))}
+                          <span className="text-xs text-blue-400 font-black">{rating} ★ ({starsCount} Stars)</span>
                         </div>
-                      )}
-                      
-                      <span className="text-[10px] text-blue-400 font-bold block mt-1 hover:underline">View details, reviews & cancellation policies ➔</span>
+                        
+                        <h4 className="font-extrabold text-slate-200 text-base mt-0.5">{hotelName}</h4>
+                        
+                        <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
+                          {reviewScore && (
+                            <span className="bg-blue-950/40 text-blue-400 border border-blue-500/20 px-1.5 py-0.5 rounded font-black">
+                              ⭐ {reviewScore}/10
+                            </span>
+                          )}
+                          {res.review_count && (
+                            <span className="text-slate-400 font-medium">({res.review_count} reviews)</span>
+                          )}
+                          {distance && (
+                            <span className="text-slate-500">• {distance} km from center</span>
+                          )}
+                        </div>
+                        
+                        <div className="text-[10px] text-slate-400 truncate mt-0.5">
+                          📍 {address}
+                        </div>
+
+                        <p className="text-xs text-slate-400 mt-1">{res.details || "Boutique architecture, standard booking options available."}</p>
+                        
+                        <div className="text-xs text-slate-300 font-black mt-1 flex items-center gap-1">
+                          <span>🛏️</span>
+                          <span>{res.room_type || "Standard Room"}</span>
+                        </div>
+
+                        <div className="flex gap-1.5 flex-wrap mt-1">
+                          {isBreakfast && (
+                            <span className="text-[9px] bg-emerald-950/40 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded font-bold">🍳 Free Breakfast</span>
+                          )}
+                          {isFreeCancel && (
+                            <span className="text-[9px] bg-teal-950/40 text-teal-400 border border-teal-500/20 px-1.5 py-0.5 rounded font-bold">🛡️ Free Cancellation</span>
+                          )}
+                        </div>
+
+                        {res.alternatives && res.alternatives.length > 0 && (
+                          <div className="flex items-center gap-1.5 flex-wrap mt-2 pt-2 border-t border-slate-800/60">
+                            <span className="text-[9px] text-slate-500">Compare:</span>
+                            {res.alternatives.map((alt: any, ai: number) => (
+                              <span key={ai} className="dark-card-badge text-[9px] px-1.5 py-0.5 rounded">
+                                {alt.provider_name}: ₹{Number(alt.price).toLocaleString()}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        
+                        <span className="text-[10px] text-blue-400 font-bold block mt-1 hover:underline">View details, reviews & cancellation policies ➔</span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-between items-center pt-2 border-t border-slate-800/80">
+                      <div>
+                        <span className="text-[9px] text-slate-500 uppercase block font-bold">Price per night</span>
+                        <span className="font-black text-emerald-400 text-base">₹{price.toLocaleString()}</span>
+                        <span className="text-[9px] text-slate-400 block mt-0.5">
+                          Total for {nights} {nights === 1 ? "night" : "nights"}: <strong className="text-emerald-400">₹{Number(price * nights).toLocaleString()}</strong>
+                        </span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => setSelectedHotel({ name: hotelName, blur_hash_base64: res.blur_hash_base64, primary_photo_url: hotelImage })}
+                          className="bg-slate-800 hover:bg-slate-750 text-white text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1 transition-all"
+                        >
+                          Snaps
+                        </button>
+                        <button 
+                          onClick={() => onBook({
+                            vertical: "hotels",
+                            amount: price * nights,
+                            details: {
+                              hotel_name: hotelName,
+                              hotel_id: hotelId,
+                              room_type: res.room_type || "Deluxe Room",
+                              guests: [{ name: "Traveler Guest", age: 32 }],
+                              provider_name: "Booking.com API",
+                              offer_id: `OF-BK-${hotelId}`
+                            },
+                            title: hotelName,
+                            subtitle: address
+                          })}
+                          className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1 shadow-md shadow-blue-500/10 transition-all"
+                        >
+                          Book Room
+                        </button>
+                      </div>
                     </div>
                   </div>
-                  
-                  <div className="flex justify-between items-center pt-2 border-t border-slate-800/80">
-                    <div>
-                      <span className="text-[9px] text-slate-500 uppercase block font-bold">Price per night</span>
-                      <span className="font-black text-emerald-400 text-base">₹{(res.price || 0).toLocaleString()}</span>
-                      <span className="text-[9px] text-slate-400 block mt-0.5">
-                        Total for {nights} {nights === 1 ? "night" : "nights"}: <strong className="text-emerald-400">₹{Number((res.price || 0) * nights).toLocaleString()}</strong>
-                      </span>
-                    </div>
-                    <div className="flex gap-2">
-                      <button 
-                        onClick={() => setSelectedHotel(res)}
-                        className="bg-slate-800 hover:bg-slate-750 text-white text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1 transition-all"
-                      >
-                        Snaps
-                      </button>
-                      <button 
-                        onClick={() => onBook({
-                          vertical: "hotels",
-                          amount: res.price,
-                          details: {
-                            hotel_name: res.name,
-                            hotel_id: res.hotel_id || "H101",
-                            room_type: res.room_type || "Deluxe Room",
-                            guests: [{ name: "Traveler Guest", age: 32 }],
-                            provider_name: res.provider_name,
-                            offer_id: res.offer_id
-                          },
-                          title: res.name,
-                          subtitle: res.details
-                        })}
-                        className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1 shadow-md shadow-blue-500/10 transition-all"
-                      >
-                        Book Room
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             </div>
           );
@@ -9594,6 +9640,38 @@ function ProductDetailModal({ vertical, item, currency, onBook, onClose, wishlis
   const [tourPax, setTourPax] = useState<number>(1);
   const [cruiseCabin, setCruiseCabin] = useState<'ocean' | 'suite'>('ocean');
 
+  const [hotelDetails, setHotelDetails] = useState<any | null>(null);
+  const [hotelReviews, setHotelReviews] = useState<any[]>([]);
+  const [hotelRooms, setHotelRooms] = useState<any[]>([]);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+
+  useEffect(() => {
+    if (vertical === 'hotels' && item.hotelId) {
+      setLoadingDetails(true);
+      fetch(`${API_URL}/hotels/${item.hotelId}`)
+        .then(res => res.json())
+        .then(data => {
+          setHotelDetails(data);
+          setLoadingDetails(false);
+        })
+        .catch(() => setLoadingDetails(false));
+        
+      fetch(`${API_URL}/hotels/${item.hotelId}/reviews`)
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) setHotelReviews(data);
+        })
+        .catch(console.error);
+
+      fetch(`${API_URL}/hotels/${item.hotelId}/rooms?checkIn=2026-12-15&checkOut=2026-12-20`)
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) setHotelRooms(data);
+        })
+        .catch(console.error);
+    }
+  }, [vertical, item.hotelId]);
+
   const handleSeatClick = (seat: string) => {
     if (selectedSeats.includes(seat)) {
       setSelectedSeats(prev => prev.filter(s => s !== seat));
@@ -9623,7 +9701,12 @@ function ProductDetailModal({ vertical, item, currency, onBook, onClose, wishlis
     if (vertical === 'flights') {
       if (fareClass === 'flexi') base += 1200;
     } else if (vertical === 'hotels') {
-      if (selectedRoom === 'executive') base += 4500;
+      const matched = hotelRooms.find(r => r.roomType === selectedRoom);
+      if (matched) {
+        base = matched.price;
+      } else {
+        if (selectedRoom === 'executive') base += 4500;
+      }
     } else if (vertical === 'holidays') {
       if (addOns.includes('cab')) base += 3000;
       if (addOns.includes('dinner')) base += 1500;
@@ -9755,37 +9838,75 @@ function ProductDetailModal({ vertical, item, currency, onBook, onClose, wishlis
 
           {/* HOTELS */}
           {vertical === 'hotels' && (
-            <div className="space-y-4">
-              {/* Photo Lightbox gallery */}
-              <div className="grid grid-cols-3 gap-2">
-                <div className="h-24 rounded-lg border-2 border-black overflow-hidden"><img src="https://images.unsplash.com/photo-1566073771259-6a8506099945?w=200" alt="Taj" className="w-full h-full object-cover" /></div>
-                <div className="h-24 rounded-lg border-2 border-black overflow-hidden"><img src="https://images.unsplash.com/photo-1582719508461-905c673771fd?w=200" alt="Taj Bed" className="w-full h-full object-cover" /></div>
-                <div className="h-24 rounded-lg border-2 border-black overflow-hidden"><img src="https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=200" alt="Taj Pool" className="w-full h-full object-cover" /></div>
-              </div>
-
-              {/* Room selector */}
-              <div className="space-y-2">
-                <span className="text-[10px] uppercase font-black tracking-wider block">Choose Room Category:</span>
-                <label className={`flex justify-between items-center p-3 border-2 border-black rounded-lg cursor-pointer ${selectedRoom === 'deluxe' ? 'bg-yellow-300' : 'bg-white'}`}>
-                  <div className="flex items-center gap-2">
-                    <input type="radio" checked={selectedRoom === 'deluxe'} onChange={() => setSelectedRoom('deluxe')} className="accent-black" />
-                    <span className="font-bold text-xs uppercase">Deluxe Room (Base fare)</span>
+            <div className="space-y-4 text-left">
+              {loadingDetails ? (
+                <div className="text-center py-8 text-xs font-black text-slate-400">Loading hotel amenities, snaps, & room rates...</div>
+              ) : (
+                <>
+                  {/* Photo Lightbox gallery */}
+                  <div className="grid grid-cols-3 gap-2">
+                    {(hotelDetails?.images || [item.image]).slice(0, 3).map((imgUrl: string, idx: number) => (
+                      <div key={idx} className="h-24 rounded-lg border-2 border-black overflow-hidden">
+                        <img src={imgUrl} alt={`Snap ${idx}`} className="w-full h-full object-cover" />
+                      </div>
+                    ))}
                   </div>
-                  <span className="text-xs font-bold">Queen bed, City view</span>
-                </label>
-                <label className={`flex justify-between items-center p-3 border-2 border-black rounded-lg cursor-pointer ${selectedRoom === 'executive' ? 'bg-yellow-300' : 'bg-white'}`}>
-                  <div className="flex items-center gap-2">
-                    <input type="radio" checked={selectedRoom === 'executive'} onChange={() => setSelectedRoom('executive')} className="accent-black" />
-                    <span className="font-bold text-xs uppercase">Executive Suite (+₹4,500)</span>
-                  </div>
-                  <span className="text-xs font-bold">King bed, Ocean view, Lounge Access</span>
-                </label>
-              </div>
 
-              <div className="border-2 border-black p-3 bg-slate-50 text-xs font-bold space-y-1">
-                <div>🏊 Amenities: Pool, Free Spa Credits, High-Speed Wi-Fi, Gym Access</div>
-                <div>📍 Location: Heritage Palace Drive, 500m from Beach</div>
-              </div>
+                  {/* Description */}
+                  <div className="border-2 border-black p-3 bg-slate-900/60 rounded-xl">
+                    <span className="text-[10px] uppercase font-black tracking-wider block text-slate-400">About the Property:</span>
+                    <p className="text-xs mt-1 text-slate-300 leading-relaxed font-semibold">{hotelDetails?.description || item.details || "Boutique stays with elegant layouts and cozy spaces."}</p>
+                  </div>
+
+                  {/* Amenities/Facilities */}
+                  <div className="border-2 border-black p-3 bg-slate-900/60 rounded-xl space-y-1">
+                    <span className="text-[10px] uppercase font-black tracking-wider block text-slate-400">🏊 Amenities & Facilities:</span>
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {(hotelDetails?.facilities || ["Free Wifi", "Gym", "Breakfast", "AC"]).map((fac: string, idx: number) => (
+                        <span key={idx} className="bg-slate-800 text-slate-300 text-[10px] px-2 py-0.5 rounded border border-slate-700 font-bold">{fac}</span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Room Category selector */}
+                  <div className="space-y-2">
+                    <span className="text-[10px] uppercase font-black tracking-wider block text-slate-400">Choose Room Category:</span>
+                    {(hotelRooms.length > 0 ? hotelRooms : [
+                      { roomType: "Deluxe Room", beds: "Queen Bed", price: item.price || 4500, mealPlan: "Breakfast Included" },
+                      { roomType: "Executive Suite", beds: "King Bed", price: (item.price || 4500) + 4500, mealPlan: "All Meals Included" }
+                    ]).map((room, rIdx) => {
+                      const isSelected = selectedRoom === room.roomType || (rIdx === 0 && selectedRoom === 'deluxe');
+                      return (
+                        <label key={rIdx} onClick={() => setSelectedRoom(room.roomType)} className={`flex justify-between items-center p-3 border-2 border-black rounded-lg cursor-pointer ${isSelected ? 'bg-yellow-400 text-black font-extrabold shadow-[2px_2px_0px_0px_#000000]' : 'bg-slate-800/80 text-white'}`}>
+                          <div className="flex items-center gap-2">
+                            <input type="radio" checked={isSelected} readOnly className="accent-black" />
+                            <span className="font-bold text-xs uppercase">{room.roomType} ({room.beds})</span>
+                          </div>
+                          <span className="text-xs font-bold font-mono">₹{room.price.toLocaleString()}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+
+                  {/* Reviews */}
+                  {hotelReviews.length > 0 && (
+                    <div className="border-2 border-black p-3 bg-slate-900/60 rounded-xl space-y-2">
+                      <span className="text-[10px] uppercase font-black tracking-wider block text-slate-400">💬 Recent Guest Reviews:</span>
+                      <div className="space-y-2">
+                        {hotelReviews.map((rev, idx) => (
+                          <div key={idx} className="text-[11px] border-b border-slate-800 last:border-0 pb-1.5 last:pb-0">
+                            <div className="flex justify-between font-bold text-blue-400">
+                              <span>{rev.title} ({rev.score}/10)</span>
+                              <span className="text-slate-500 font-medium">{rev.author}</span>
+                            </div>
+                            <p className="text-slate-400 mt-0.5">{rev.pros}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
 

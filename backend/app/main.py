@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.database import engine, Base, get_db
 from app.models import search_entities, payments
-from app.routes import auth, wallet, agents, voice, showcase, bookings, search, tracker, mybiz, wishlist, admin_panel, media, rent_a_ride, localities, payments as payments_routes, webhooks, profile, flights
+from app.routes import auth, wallet, agents, voice, showcase, bookings, search, tracker, mybiz, wishlist, admin_panel, media, rent_a_ride, localities, payments as payments_routes, webhooks, profile, flights, hotels
 from fastapi.staticfiles import StaticFiles
 import os
 from app.ml import fraud_model
@@ -173,6 +173,7 @@ app.include_router(rent_a_ride.router, prefix="/api/v1")
 app.include_router(localities.router, prefix="/api/v1")
 app.include_router(webhooks.router, prefix="/api/v1")
 app.include_router(flights.router, prefix="/api/flights")
+app.include_router(hotels.router, prefix="/api/hotels")
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
 os.makedirs(STATIC_DIR, exist_ok=True)
