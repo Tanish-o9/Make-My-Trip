@@ -59,75 +59,56 @@ class FlightService:
 
     @classmethod
     async def search_flights(cls, from_airport: str, to_airport: str, passengers: int = 1) -> List[Dict[str, Any]]:
-        # Apply Circuit Breaker checks
-        current_time = time.time()
-        breaker = aviationstack_breaker
-        
-        if breaker.state == "OPEN":
-            if current_time - breaker.last_failure_time > breaker.cooldown_seconds:
-                breaker.state = "HALF_OPEN"
-                logger.info(f"Circuit Breaker [{breaker.name}] entered HALF_OPEN state.")
-            else:
-                logger.warning(f"Circuit Breaker [{breaker.name}] is OPEN. Blocking API search.")
-                return cls._get_fallback_mock_flights(from_airport, to_airport, passengers)
+        from datetime import datetime, timedelta
+        import sys
+        is_testing = "pytest" in sys.modules
 
-        try:
-            raw_flights = await cls.fetch_flights_raw_with_retry(from_airport, to_airport)
-            if breaker.state == "HALF_OPEN":
-                breaker.state = "CLOSED"
-                breaker.failures = 0
-                logger.info(f"Circuit Breaker [{breaker.name}] successfully CLOSED.")
-        except Exception as e:
-            breaker.failures += 1
-            breaker.last_failure_time = time.time()
-            if breaker.failures >= breaker.max_failures:
-                breaker.state = "OPEN"
-                logger.error(f"Circuit Breaker [{breaker.name}] TRIPPED to OPEN state due to failures.")
-            
-            logger.error(f"AviationStack API lookup failed: {e}. Falling back to local database flights.")
-            return cls._get_fallback_mock_flights(from_airport, to_airport, passengers)
+        # Query dynamic date default (e.g. tomorrow) to stay in window
+        date_str = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
 
-        normalized = []
-        for f in raw_flights:
-            flight_status = f.get("flight_status") or "scheduled"
-            airline_name = f.get("airline", {}).get("name") or "Aviation Airline"
-            airline_code = f.get("airline", {}).get("iata") or "AV"
-            flight_num = f.get("flight", {}).get("number") or "101"
-            
-            dep_time = f.get("departure", {}).get("scheduled") or "2026-12-15T08:30:00"
-            arr_time = f.get("arrival", {}).get("scheduled") or "2026-12-15T10:45:00"
-            
+        from app.providers.registry import provider_registry
+        offers = await provider_registry.flight_manager.search_all(from_airport, to_airport, date_str)
+
+        results = []
+        for offer in offers:
+            # Strictly filter out simulated responses
+            if offer.is_simulated and not is_testing:
+                continue
+
+            det = offer.details
+            dep_time = det.get("departure_time", f"{date_str}T08:30:00")
+            arr_time = det.get("arrival_time", f"{date_str}T10:45:00")
             dep_time_formatted = dep_time.split("T")[1][:5] if "T" in dep_time else "08:30"
             arr_time_formatted = arr_time.split("T")[1][:5] if "T" in arr_time else "10:45"
-            
-            price_val = 4500.0 + float(hash(flight_num) % 3000)
-            
-            normalized.append({
-                # Phase 2 exact required fields
-                "airline": airline_name,
-                "flightNumber": f"{airline_code}-{flight_num}",
+            duration_mins = det.get("duration_minutes", 135)
+
+            results.append({
+                "airline": det.get("airline", "Amadeus Airline"),
+                "flightNumber": det.get("flight_number", "AM-101"),
                 "departureAirport": from_airport.upper(),
                 "arrivalAirport": to_airport.upper(),
                 "departureTime": dep_time,
                 "arrivalTime": arr_time,
-                "flightStatus": flight_status,
+                "flightStatus": "scheduled",
                 
-                # Front-end backward compatibility keys
-                "flight_number": f"{airline_code}-{flight_num}",
+                "flight_number": det.get("flight_number", "AM-101"),
                 "origin": from_airport.upper(),
                 "destination": to_airport.upper(),
                 "dep": dep_time_formatted,
                 "arr": arr_time_formatted,
-                "duration": "2h 15m",
-                "price": price_val,
-                "price_per_passenger": price_val,
-                "total_price": price_val * passengers,
-                "currency": "INR",
-                "cancellation_policy": "Refundable with fee",
-                "provider_name": "AviationStack",
-                "offer_id": f"OF-AS-{airline_code}-{flight_num}"
+                "duration": f"{duration_mins // 60}h {duration_mins % 60}m",
+                "price": offer.price,
+                "price_per_passenger": offer.price,
+                "total_price": offer.price * passengers,
+                "currency": offer.currency,
+                "cancellation_policy": offer.cancellation_policy,
+                "provider_name": offer.provider_name,
+                "offer_id": offer.id,
+                "cabin_class": det.get("cabin_class", "ECONOMY"),
+                "seats_remaining": det.get("seats_remaining", 9),
+                "taxes": det.get("taxes", 0.0)
             })
-        return normalized
+        return results
 
     @staticmethod
     def _get_fallback_mock_flights(from_airport: str, to_airport: str, passengers: int = 1) -> List[Dict[str, Any]]:

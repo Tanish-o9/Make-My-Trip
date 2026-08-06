@@ -10,10 +10,8 @@ logger = logging.getLogger(__name__)
 class FlightProviderManager:
     def __init__(self):
         self.providers = [
-            AmadeusProvider(),
-            AviationStackProvider()
+            AmadeusProvider()
         ]
-        self.fallback = MockFlightProvider()
 
     async def search_all(self, origin: str, destination: str, date: str) -> List[NormalizedOffer]:
         results = []
@@ -23,14 +21,6 @@ class FlightProviderManager:
                 if offers:
                     results.extend(offers)
             except Exception as e:
-                logger.warning(f"Flight provider {provider.__class__.__name__} failed: {e}")
-                
-        # If all API queries return nothing, use high-fidelity mock fallback
-        if not results:
-            logger.info("All flight providers returned empty or failed. Triggering mock fallback.")
-            try:
-                results = await self.fallback.search(origin, destination, date)
-            except Exception as fe:
-                logger.error(f"Fallback flight provider failed: {fe}")
-                
+                logger.error(f"Flight provider {provider.__class__.__name__} search failed: {e}")
+                raise e
         return results

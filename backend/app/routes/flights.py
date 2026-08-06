@@ -37,5 +37,7 @@ async def search_flights(
         return results
     except Exception as e:
         logger.error(f"Error in search_flights endpoint: {e}")
-        # Always return fallback instead of failing to satisfy "Never stop execution"
-        return FlightService._get_fallback_mock_flights(from_clean, to_clean, passengers)
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
