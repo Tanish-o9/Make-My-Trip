@@ -26,11 +26,11 @@ class FlightProviderManager:
         # Priority 3: Duffel Flights (uses DUFFEL_API_KEY)
         # Priority 4: Skyscanner via RapidAPI (uses existing RAPIDAPI_KEY)
         self.providers: List[BaseFlightProvider] = []
+        self.providers.append(DuffelFlightProvider())
         if _amadeus_is_configured():
             self.providers.append(AmadeusProvider())
-            logger.info("FlightProviderManager: Amadeus provider registered as Priority 1.")
+            logger.info("FlightProviderManager: Amadeus provider registered.")
         self.providers.append(BookingDotComFlightProvider())
-        self.providers.append(DuffelFlightProvider())
         self.providers.append(SkyscannerRapidProvider())
 
     async def search_all(self, origin: str, destination: str, date: str) -> List[NormalizedOffer]:
