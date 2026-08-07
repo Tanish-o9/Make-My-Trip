@@ -13,6 +13,11 @@ class RazorpaySettings(BaseSettings):
     RAZORPAY_KEY_SECRET: str = "BJa1JWIiisFRf1mTPN5gPlfD"
     RAZORPAY_WEBHOOK_SECRET: Optional[str] = "demo_secret"
 
+    # Duffel settings
+    DUFFEL_API_KEY: Optional[str] = None
+    DUFFEL_BASE_URL: str = "https://api.duffel.com"
+    DUFFEL_VERSION: str = "v2"
+
 settings = RazorpaySettings()
 
 # Post-instantiation sanitization and fallback overrides to bypass Pydantic environment loading

@@ -1,15 +1,29 @@
+import os
 import logging
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.gzip import GZipMiddleware
+
+
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
+import sentry_sdk
 
 # Load environment variables from .env BEFORE anything else
 load_dotenv()
 
+# Sentry initialization
+sentry_dsn = os.getenv("SENTRY_DSN", "").strip()
+if sentry_dsn and sentry_dsn != "your-sentry-dsn":
+    sentry_sdk.init(
+        dsn=sentry_dsn,
+        traces_sample_rate=1.0,
+        profiles_sample_rate=1.0,
+    )
+
 from app.database import engine, Base, get_db
 from app.models import search_entities, payments
-from app.routes import auth, wallet, agents, voice, showcase, bookings, search, tracker, mybiz, wishlist, admin_panel, media, rent_a_ride, localities, payments as payments_routes, webhooks, profile, flights, hotels, weather, maps, system
+from app.routes import auth, wallet, agents, voice, showcase, bookings, search, tracker, mybiz, wishlist, admin_panel, media, rent_a_ride, localities, payments as payments_routes, webhooks, profile, flights, hotels, weather, maps, system, currency, notifications
 from fastapi.staticfiles import StaticFiles
 import os
 from app.ml import fraud_model
@@ -48,6 +62,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+
+
 # Custom CORS/Origin restriction for admin endpoints
 @app.middleware("http")
 async def restrict_admin_origin_middleware(request, call_next):
@@ -83,7 +101,9 @@ async def add_secure_headers_middleware(request, call_next):
 # Request ID, Context and Metrics Middleware
 @app.middleware("http")
 async def request_id_middleware(request, call_next):
-    from app.utils.metrics import API_RESPONSE_TIMES
+    from app.utils.metrics import API_RESPONSE_TIMES, HTTP_REQUESTS_TOTAL
+    from app.utils.rate_limit import global_rate_limiter, llm_rate_limiter
+    from fastapi.responses import JSONResponse
     import time
     
     start_time = time.time()
@@ -94,20 +114,54 @@ async def request_id_middleware(request, call_next):
     logger = logging.getLogger("travel_os")
     if "/payments/create-order" in request.url.path or "/create-order" in request.url.path:
         logger.info(f"AUDIT [create-order] headers: {dict(request.headers)}")
+
+    # 1. Rate Limiting Check (bypass documentation/metrics/health checks)
+    path = request.url.path
+    if not any(path.startswith(p) for p in ["/metrics", "/healthz", "/static", "/api/docs", "/api/openapi.json"]):
+        # Extract client IP
+        forwarded = request.headers.get("X-Forwarded-For")
+        client_ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "unknown")
         
+        # Apply rate limits
+        if "/agents/chat" in path:
+            allowed, remaining = llm_rate_limiter.is_allowed(client_ip, rate_limit=15, refill_period=60)
+            limit_max = 15
+        else:
+            allowed, remaining = global_rate_limiter.is_allowed(client_ip, rate_limit=60, refill_period=60)
+            limit_max = 60
+            
+        if not allowed:
+            logger.warning(f"Rate limit exceeded for IP: {client_ip} on path: {path}")
+            HTTP_REQUESTS_TOTAL.labels(endpoint=path, method=request.method, status="429").inc()
+            request_id_ctx_var.reset(request_id_token)
+            user_id_ctx_var.reset(user_id_token)
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "error_code": "TOO_MANY_REQUESTS",
+                    "message": f"Rate limit exceeded. Maximum {limit_max} requests per minute are allowed.",
+                    "request_id": request_id
+                }
+            )
+
     try:
         response = await call_next(request)
         response.headers["X-Request-ID"] = request_id
         
-        # Observe response times excluding /metrics endpoint to avoid noise
-        if request.url.path != "/metrics":
+        # Observe response times and request count
+        if path != "/metrics":
             latency = time.time() - start_time
-            API_RESPONSE_TIMES.labels(endpoint=request.url.path, method=request.method).observe(latency)
+            API_RESPONSE_TIMES.labels(endpoint=path, method=request.method).observe(latency)
+            HTTP_REQUESTS_TOTAL.labels(endpoint=path, method=request.method, status=str(response.status_code)).inc()
             
         return response
+    except Exception as exc:
+        HTTP_REQUESTS_TOTAL.labels(endpoint=path, method=request.method, status="500").inc()
+        raise exc
     finally:
         request_id_ctx_var.reset(request_id_token)
         user_id_ctx_var.reset(user_id_token)
+
 
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -186,6 +240,9 @@ app.include_router(maps.router, prefix="/api/maps")
 app.include_router(maps.router, prefix="/api/v1/maps")
 app.include_router(system.router, prefix="/api")
 app.include_router(system.router, prefix="/api/v1")
+app.include_router(currency.router, prefix="/api")
+app.include_router(currency.router, prefix="/api/v1")
+app.include_router(notifications.router, prefix="/api/v1")
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
 os.makedirs(STATIC_DIR, exist_ok=True)
@@ -194,6 +251,19 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 @app.on_event("startup")
 def startup_db_seed():
+    # Duffel validation print
+    from app.payments.config import settings
+    dkey = settings.DUFFEL_API_KEY
+    dbase = settings.DUFFEL_BASE_URL
+    dver = settings.DUFFEL_VERSION
+    if dkey and dkey.strip() not in ["", "your-duffel-key"] and dbase and dver:
+        # Mask key for diagnostics
+        masked = dkey[:12] + "xxxxxxxx" + "*" * (len(dkey) - 20) if len(dkey) > 20 else "xxxx"
+        logger.info(f"Duffel configuration loaded. Base URL: {dbase}, Version: {dver}, Key: {masked}")
+        print("✓ Duffel Provider Loaded")
+    else:
+        print("⚠ Duffel Provider Disabled")
+
     logger.info("Initializing database schemas...")
     # Create tables locally if not using migrations in dev mode
     Base.metadata.create_all(bind=engine)

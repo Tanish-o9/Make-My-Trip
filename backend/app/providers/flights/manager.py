@@ -5,6 +5,7 @@ from app.providers.base import BaseFlightProvider, NormalizedOffer
 from app.providers.flights.amadeus import AmadeusProvider
 from app.providers.flights.skyscanner_rapid import SkyscannerRapidProvider
 from app.providers.flights.booking_dot_com import BookingDotComFlightProvider
+from app.providers.flights.duffel import DuffelFlightProvider
 from app.database import SessionLocal
 from app.models.search_entities import FlightRoute
 
@@ -22,12 +23,14 @@ class FlightProviderManager:
     def __init__(self):
         # Priority 1: Amadeus (only if real credentials are configured)
         # Priority 2: Booking.com Flights via RapidAPI (uses subscribed RAPIDAPI_KEY)
-        # Priority 3: Skyscanner via RapidAPI (uses existing RAPIDAPI_KEY)
+        # Priority 3: Duffel Flights (uses DUFFEL_API_KEY)
+        # Priority 4: Skyscanner via RapidAPI (uses existing RAPIDAPI_KEY)
         self.providers: List[BaseFlightProvider] = []
         if _amadeus_is_configured():
             self.providers.append(AmadeusProvider())
             logger.info("FlightProviderManager: Amadeus provider registered as Priority 1.")
         self.providers.append(BookingDotComFlightProvider())
+        self.providers.append(DuffelFlightProvider())
         self.providers.append(SkyscannerRapidProvider())
 
     async def search_all(self, origin: str, destination: str, date: str) -> List[NormalizedOffer]:
