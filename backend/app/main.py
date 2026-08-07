@@ -23,7 +23,7 @@ if sentry_dsn and sentry_dsn != "your-sentry-dsn":
 
 from app.database import engine, Base, get_db
 from app.models import search_entities, payments
-from app.routes import auth, wallet, agents, voice, showcase, bookings, search, tracker, mybiz, wishlist, admin_panel, media, rent_a_ride, localities, payments as payments_routes, webhooks, profile, flights, hotels, weather, maps, system, currency, notifications
+from app.routes import auth, wallet, agents, voice, showcase, bookings, search, tracker, mybiz, wishlist, admin_panel, media, rent_a_ride, localities, payments as payments_routes, webhooks, profile, flights, hotels, weather, maps, system, currency, notifications, cabs, activities
 from fastapi.staticfiles import StaticFiles
 import os
 from app.ml import fraud_model
@@ -243,6 +243,8 @@ app.include_router(system.router, prefix="/api/v1")
 app.include_router(currency.router, prefix="/api")
 app.include_router(currency.router, prefix="/api/v1")
 app.include_router(notifications.router, prefix="/api/v1")
+app.include_router(cabs.router, prefix="/api/v1")
+app.include_router(activities.router, prefix="/api/v1")
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
 os.makedirs(STATIC_DIR, exist_ok=True)
