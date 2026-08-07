@@ -127,7 +127,24 @@ class DuffelFlightProvider(BaseFlightProvider):
                     try:
                         offer_id = raw_offer.get("id")
                         total_amount = float(raw_offer.get("total_amount", 0))
-                        currency = raw_offer.get("total_currency", "INR")
+                        raw_currency = raw_offer.get("total_currency", "INR")
+                        
+                        # Live-locked conversion rates
+                        rate = 1.0
+                        if raw_currency == "USD":
+                            rate = 84.5
+                        elif raw_currency == "EUR":
+                            rate = 91.8
+                        elif raw_currency == "GBP":
+                            rate = 107.2
+                        elif raw_currency != "INR":
+                            rate = 84.5
+                            
+                        converted_price = round(total_amount * rate, 2)
+                        
+                        # Tax parsing
+                        tax_amount = float(raw_offer.get("tax_amount") or (total_amount * 0.15))
+                        converted_tax = round(tax_amount * rate, 2)
                         
                         slices = raw_offer.get("slices", [])
                         if not slices:
@@ -160,11 +177,21 @@ class DuffelFlightProvider(BaseFlightProvider):
                                 pass
                         
                         stops = len(segments) - 1
-                        is_refundable = raw_offer.get("passenger_conditions", {}).get("refundability_status", "non_refundable")
-                        refund_policy = "Refundable" if is_refundable == "refundable" else "Non-Refundable"
+                        
+                        # Refundable condition mapping
+                        conds = raw_offer.get("passenger_conditions", {})
+                        refund_status = conds.get("refundability_status", "non_refundable")
+                        refund_policy = "Refundable" if refund_status == "refundable" else "Non-Refundable"
                         
                         logo_url = f"https://r-xx.bstatic.com/data/airlines_logo/{airline_code}.png"
+                        
+                        # Baggage mapping
                         baggage_info = "15 KG Checked, 7 KG Cabin"
+                        passengers_list = raw_offer.get("passengers", [])
+                        if passengers_list:
+                            baggages = passengers_list[0].get("baggage", [])
+                            if baggages:
+                                baggage_info = "Baggage Included"
                         
                         details = {
                             "flight_number": flight_num,
@@ -179,25 +206,28 @@ class DuffelFlightProvider(BaseFlightProvider):
                             "layovers": [seg.get("origin", {}).get("iata_code") for seg in segments[1:]] if stops > 0 else [],
                             "cabin_class": "ECONOMY",
                             "cabin": "ECONOMY",
-                            "price": total_amount,
-                            "price_per_passenger": total_amount,
-                            "total_price": total_amount,
-                            "currency": currency,
+                            "price": converted_price,
+                            "price_per_passenger": converted_price,
+                            "total_price": converted_price,
+                            "currency": "INR",
                             "seats_remaining": 9,
-                            "taxes": total_amount * 0.15,
+                            "taxes": converted_tax,
                             "stop_count": stops,
                             "terminal": "T1",
                             "baggage": baggage_info,
                             "logo": logo_url,
                             "provider": "Duffel",
                             "availability": "available",
+                            "raw_currency": raw_currency,
+                            "raw_amount": total_amount,
+                            "exchange_rate": rate
                         }
                         
                         offers.append(NormalizedOffer(
                             id=f"OF-DF-{uuid.uuid4().hex[:6].upper()}",
                             provider_name="Duffel",
-                            price=total_amount,
-                            currency=currency,
+                            price=converted_price,
+                            currency="INR",
                             availability_status="available",
                             cancellation_policy=refund_policy,
                             raw_provider_ref=offer_id,
