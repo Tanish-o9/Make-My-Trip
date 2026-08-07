@@ -94,3 +94,85 @@ def test_e2e_booking_hold_payment_flow(clean_user_db):
     assert pay_res.status_code == 200
     pay_data = pay_res.json()
     assert pay_data["status"] == "confirmed"
+
+def test_new_booking_engine_lifecycle(clean_user_db):
+    user = clean_user_db
+    from app.auth.jwt import create_access_token
+    token = create_access_token(data={"sub": user.email, "role": "user"})
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    # 1. Offer Lock
+    lock_payload = {
+        "vertical": "flights",
+        "offer_id": "OF-DF-12345",
+        "provider_name": "Duffel",
+        "amount": 7500.00,
+        "details": {
+            "origin": "DEL",
+            "destination": "GOI",
+            "airline_code": "6E",
+            "flight_number": "502",
+            "cabin_class": "ECONOMY"
+        }
+    }
+    lock_res = client.post("/api/v1/bookings/offer-lock", json=lock_payload, headers=headers)
+    assert lock_res.status_code == 200
+    lock_data = lock_res.json()
+    booking_ref = lock_data["booking_reference"]
+    assert lock_data["status"] == "offer_selected"
+    
+    # 2. Revalidate (no change)
+    reval_res = client.post("/api/v1/bookings/revalidate", json={"booking_reference": booking_ref}, headers=headers)
+    assert reval_res.status_code == 200
+    reval_data = reval_res.json()
+    assert reval_data["price_changed"] is False
+    
+    # 3. Revalidate with change trigger
+    change_ref = f"{booking_ref}_revalidate_change"
+    # Create another booking to trigger change
+    lock_payload_change = dict(lock_payload)
+    lock_res_change = client.post("/api/v1/bookings/offer-lock", json=lock_payload_change, headers=headers)
+    booking_ref_change = lock_res_change.json()["booking_reference"]
+    # Revalidate using custom suffix to trigger simulated price change
+    reval_change_res = client.post(
+        "/api/v1/bookings/revalidate",
+        json={"booking_reference": f"{booking_ref_change}_revalidate_change"},
+        headers=headers
+    )
+    assert reval_change_res.status_code == 200
+    reval_change_data = reval_change_res.json()
+    assert reval_change_data["price_changed"] is True
+    assert reval_change_data["new_price"] > reval_change_data["old_price"]
+    
+    # 4. Create (Passenger Validation)
+    create_payload = {
+        "booking_reference": booking_ref,
+        "passengers": [
+            {
+                "name": "Jane Doe",
+                "dob": "1994-06-12",
+                "gender": "F",
+                "email": "jane@example.com",
+                "phone": "9876543210"
+            }
+        ]
+    }
+    create_res = client.post("/api/v1/bookings/create", json=create_payload, headers=headers)
+    assert create_res.status_code == 200
+    create_data = create_res.json()
+    assert create_data["status"] == "payment_pending"
+    
+    # 5. Status API
+    status_res = client.get(f"/api/v1/bookings/status/check?booking_reference={booking_ref}", headers=headers)
+    assert status_res.status_code == 200
+    assert status_res.json()["status"] == "payment_pending"
+    
+    # 6. Refund API (cancel first, then refund)
+    cancel_res = client.post("/api/v1/bookings/engine/cancel-booking", json={"booking_reference": booking_ref}, headers=headers)
+    assert cancel_res.status_code == 200
+    assert cancel_res.json()["status"] == "cancelled"
+    
+    refund_res = client.post("/api/v1/bookings/engine/refund-booking", json={"booking_reference": booking_ref}, headers=headers)
+    assert refund_res.status_code == 200
+    assert refund_res.json()["status"] == "refunded"
+
