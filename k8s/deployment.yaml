@@ -1,0 +1,103 @@
+# Travel OS — Kubernetes Deployment
+# Backend API — 3 replicas minimum
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: travel-os-backend
+  namespace: travel-os
+  labels:
+    app: travel-os-backend
+    version: "1.0"
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: travel-os-backend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 2
+  template:
+    metadata:
+      labels:
+        app: travel-os-backend
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: backend
+          image: ghcr.io/tanish-o9/make-my-trip/travel-os-backend:latest
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: travel-os-config
+            - secretRef:
+                name: travel-os-secrets
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 3
+          volumeMounts:
+            - name: upload-storage
+              mountPath: /app/static/uploads
+      volumes:
+        - name: upload-storage
+          persistentVolumeClaim:
+            claimName: upload-pvc
+
+---
+# Celery Worker Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: travel-os-celery-worker
+  namespace: travel-os
+  labels:
+    app: travel-os-celery-worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: travel-os-celery-worker
+  template:
+    metadata:
+      labels:
+        app: travel-os-celery-worker
+    spec:
+      containers:
+        - name: celery-worker
+          image: ghcr.io/tanish-o9/make-my-trip/travel-os-backend:latest
+          command: ["celery", "-A", "app.celery_app", "worker", "--loglevel=info", "--concurrency=4"]
+          envFrom:
+            - configMapRef:
+                name: travel-os-config
+            - secretRef:
+                name: travel-os-secrets
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"

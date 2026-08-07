@@ -1,0 +1,211 @@
+name: Travel OS — CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.10"
+  NODE_VERSION: "20"
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/travel-os-backend
+
+jobs:
+  # ─── 1. Backend Tests ───────────────────────────────────────────────────────
+  backend-tests:
+    name: Backend — pytest
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: travel_os_test
+          POSTGRES_USER: travel_user
+          POSTGRES_PASSWORD: travel_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: sqlite:///./test.db
+      REDIS_URL: redis://localhost:6379/0
+      JWT_SECRET_KEY: ci-test-secret-key-not-for-production
+      SENTRY_DSN: ""
+      DUFFEL_ACCESS_TOKEN: ""
+      STORAGE_BACKEND: local
+      PYTHONPATH: backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Run pytest
+        working-directory: backend
+        run: |
+          python -m pytest tests/ -v --tb=short --junitxml=reports/pytest-results.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-results
+          path: backend/reports/pytest-results.xml
+
+  # ─── 2. Frontend Build ──────────────────────────────────────────────────────
+  frontend-build:
+    name: Frontend — TypeScript + Vite build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build production bundle
+        working-directory: frontend
+        run: npm run build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+
+  # ─── 3. Security Scan ───────────────────────────────────────────────────────
+  security-scan:
+    name: Security — dependency vulnerability scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install safety
+        run: pip install safety
+
+      - name: Run safety check
+        run: |
+          pip install -r backend/requirements.txt --quiet
+          safety check --file backend/requirements.txt --output text || true
+        # 'true' prevents blocking on low-severity advisories; adjust as needed
+
+      - name: Scan npm dependencies
+        working-directory: frontend
+        run: |
+          npm audit --audit-level=high || true
+
+  # ─── 4. Docker Build ────────────────────────────────────────────────────────
+  docker-build:
+    name: Docker — build backend image
+    runs-on: ubuntu-latest
+    needs: [backend-tests, frontend-build]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ─── 5. Version Tagging ─────────────────────────────────────────────────────
+  version-tag:
+    name: Tag release version
+    runs-on: ubuntu-latest
+    needs: [docker-build]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bump version and push tag
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          default_bump: patch
+          release_branches: main
+
+  # ─── 6. Railway Deploy ──────────────────────────────────────────────────────
+  deploy-railway:
+    name: Deploy to Railway
+    runs-on: ubuntu-latest
+    needs: [docker-build]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Trigger Railway deployment
+        run: |
+          # Railway auto-deploys on push to main via GitHub integration.
+          # If using Railway CLI for explicit deploys, install and run:
+          # npm install -g @railway/cli
+          # railway up --detach
+          echo "Railway deployment triggered by push to main branch."
+          echo "Railway auto-deployment is handled by the GitHub integration configured in Railway dashboard."

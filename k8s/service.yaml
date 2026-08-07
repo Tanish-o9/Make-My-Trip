@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: travel-os-backend
+  namespace: travel-os
+  labels:
+    app: travel-os-backend
+spec:
+  type: ClusterIP
+  selector:
+    app: travel-os-backend
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+      protocol: TCP

@@ -1,0 +1,56 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: travel-os-ingress
+  namespace: travel-os
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/limit-rps: "50"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      add_header X-Frame-Options "DENY" always;
+      add_header X-Content-Type-Options "nosniff" always;
+      add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+      add_header Content-Security-Policy "default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data:; frame-ancestors 'none';" always;
+      add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+spec:
+  tls:
+    - hosts:
+        - travelos.com
+        - www.travelos.com
+        - api.travelos.com
+        - admin.travelos.com
+      secretName: travel-os-tls
+  rules:
+    - host: api.travelos.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: travel-os-backend
+                port:
+                  number: 80
+    - host: travelos.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: travel-os-backend
+                port:
+                  number: 80
+    - host: admin.travelos.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: travel-os-admin
+                port:
+                  number: 80

@@ -15,6 +15,8 @@ from app.database import engine, Base
 
 # Import all models to register them on Base.metadata
 from app.models import core, bookings, showcase, mybiz, wishlist, agents, payments, audit
+# Import route modules that define inline ORM models
+from app.routes import crm  # Registers SupportTicket, TicketReply
 
 Base.metadata.create_all(bind=engine)
 

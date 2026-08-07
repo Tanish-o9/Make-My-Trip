@@ -771,3 +771,158 @@ def resolve_refund_request(
         "message": f"Refund exception request has been resolved as {approval.status.lower()}."
     }
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ENTERPRISE ANALYTICS ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+from sqlalchemy import func, text
+from app.models.bookings import FlightBooking, HotelBooking, CabBooking, ActivityBooking, VisaApplication, InsurancePolicy, ForexOrder
+
+
+@router.get("/analytics/revenue")
+def get_revenue_analytics(days: int = 30, db: Session = Depends(get_db)):
+    """Revenue breakdown across all booking types for the last N days."""
+    from datetime import datetime, timedelta
+    since = datetime.utcnow() - timedelta(days=days)
+
+    def _sum(model):
+        return float(db.query(func.coalesce(func.sum(model.total_amount), 0)).filter(
+            model.created_at >= since,
+            model.status.in_(["confirmed", "completed"])
+        ).scalar() or 0)
+
+    flight_rev = _sum(FlightBooking)
+    hotel_rev  = _sum(HotelBooking)
+    cab_rev    = _sum(CabBooking)
+    act_rev    = _sum(ActivityBooking)
+    visa_rev   = _sum(VisaApplication)
+    ins_rev    = _sum(InsurancePolicy)
+    forex_rev  = _sum(ForexOrder)
+    total      = flight_rev + hotel_rev + cab_rev + act_rev + visa_rev + ins_rev + forex_rev
+
+    return {
+        "period_days": days,
+        "total_revenue_inr": round(total, 2),
+        "breakdown": {
+            "flights": round(flight_rev, 2), "hotels": round(hotel_rev, 2),
+            "cabs": round(cab_rev, 2), "activities": round(act_rev, 2),
+            "visa": round(visa_rev, 2), "insurance": round(ins_rev, 2),
+            "forex": round(forex_rev, 2),
+        },
+        "currency": "INR",
+    }
+
+
+@router.get("/analytics/top-destinations")
+def get_top_destinations(limit: int = 10, db: Session = Depends(get_db)):
+    """Top hotel booking destinations by hotel name."""
+    rows = (
+        db.query(HotelBooking.hotel_name, func.count(HotelBooking.id).label("bookings"))
+        .filter(HotelBooking.status == "confirmed")
+        .group_by(HotelBooking.hotel_name)
+        .order_by(func.count(HotelBooking.id).desc())
+        .limit(limit).all()
+    )
+    return {"top_destinations": [{"hotel": r.hotel_name, "bookings": r.bookings} for r in rows]}
+
+
+@router.get("/analytics/provider-health")
+def get_provider_health(db: Session = Depends(get_db)):
+    """Provider usage counts from flight bookings by airline."""
+    rows = (
+        db.query(FlightBooking.airline_code, func.count(FlightBooking.id).label("total"))
+        .filter(FlightBooking.airline_code.isnot(None))
+        .group_by(FlightBooking.airline_code).all()
+    )
+    return {
+        "provider_stats": [{"airline": r.airline_code, "total_flights": r.total} for r in rows],
+        "live_failure_rates": "See provider_search_total in /metrics (Prometheus PROVIDER_SEARCHES counter)",
+    }
+
+
+@router.get("/analytics/cancellation-rate")
+def get_cancellation_rate(days: int = 30, db: Session = Depends(get_db)):
+    """Cancellation and refund rates for flights and hotels."""
+    from datetime import datetime, timedelta
+    since = datetime.utcnow() - timedelta(days=days)
+
+    def _count(model, *statuses):
+        return db.query(model).filter(model.created_at >= since, model.status.in_(statuses)).count()
+
+    tf = _count(FlightBooking, "confirmed", "cancelled", "refunded", "completed")
+    cf = _count(FlightBooking, "cancelled", "refunded")
+    th = _count(HotelBooking, "confirmed", "cancelled", "refunded", "completed")
+    ch = _count(HotelBooking, "cancelled", "refunded")
+    total = tf + th; cancelled = cf + ch
+
+    return {
+        "period_days": days, "total_bookings": total, "total_cancellations": cancelled,
+        "cancellation_rate_pct": round(cancelled / total * 100, 2) if total > 0 else 0,
+        "breakdown": {"flights": {"total": tf, "cancelled": cf}, "hotels": {"total": th, "cancelled": ch}},
+    }
+
+
+@router.get("/analytics/user-stats")
+def get_user_stats(db: Session = Depends(get_db)):
+    """Total users and repeat customer count."""
+    from app.models.core import User
+    total_users = db.query(func.count(User.id)).scalar() or 0
+    repeat = (
+        db.query(FlightBooking.user_id)
+        .filter(FlightBooking.status == "confirmed")
+        .group_by(FlightBooking.user_id)
+        .having(func.count(FlightBooking.id) > 1)
+        .count()
+    )
+    return {
+        "total_registered_users": total_users,
+        "repeat_customers": repeat,
+        "repeat_rate_pct": round(repeat / total_users * 100, 2) if total_users > 0 else 0,
+    }
+
+
+@router.get("/analytics/wallet-stats")
+def get_wallet_stats(db: Session = Depends(get_db)):
+    """Wallet balance totals across all accounts."""
+    from app.models.core import WalletAccount
+    total_wallets = db.query(func.count(WalletAccount.id)).scalar() or 0
+    total_balance = float(db.query(func.coalesce(func.sum(WalletAccount.balance), 0)).scalar() or 0)
+    return {
+        "total_wallet_accounts": total_wallets,
+        "total_wallet_balance_inr": round(total_balance, 2),
+        "average_wallet_balance_inr": round(total_balance / total_wallets, 2) if total_wallets > 0 else 0,
+    }
+
+
+@router.get("/analytics/ai-usage")
+def get_ai_usage_stats():
+    """AI usage stats pointer — live metrics are in Prometheus."""
+    return {
+        "message": "AI usage metrics tracked in Prometheus.",
+        "metrics_endpoint": "/metrics",
+        "relevant_metrics": ["llm_latency_seconds", "llm_failures_total", "tool_calls_total"],
+    }
+
+
+@router.get("/analytics/system-health")
+def get_system_health(db: Session = Depends(get_db)):
+    """Admin dashboard system health snapshot."""
+    import redis as redis_lib, os
+    health = {
+        "database": "unknown", "redis": "unknown",
+        "storage_backend": os.getenv("STORAGE_BACKEND", "local"),
+        "sentry": "configured" if os.getenv("SENTRY_DSN", "").strip() else "not_configured",
+    }
+    try:
+        db.execute(text("SELECT 1"))
+        health["database"] = "healthy"
+    except Exception as e:
+        health["database"] = f"error: {str(e)[:80]}"
+    try:
+        r = redis_lib.from_url(os.getenv("REDIS_URL", "redis://localhost:6379/0"), socket_connect_timeout=1)
+        r.ping()
+        health["redis"] = "healthy"
+    except Exception as e:
+        health["redis"] = f"error: {str(e)[:80]}"
+    return health
