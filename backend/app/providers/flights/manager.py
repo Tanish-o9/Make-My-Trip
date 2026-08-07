@@ -128,7 +128,7 @@ class FlightProviderManager:
             last_error = dbe
 
         # If everything including database queries fails or yields nothing
-        raise last_error or ValueError(
+        raise ValueError(
             f"No flights found matching the route {origin} to {destination}."
         )
 
