@@ -55,8 +55,7 @@ async def test_duffel_health_endpoint_status():
             assert duffel["base_url"] == "https://api.duffel.com"
             assert duffel["version"] == "v2"
             
-            # Verify mock_get was called with the Duffel URL
-            duffel_calls = [call for call in mock_get.call_args_list if "aircraft" in str(call)]
+            duffel_calls = [call for call in mock_get.call_args_list if "airlines" in str(call)]
             assert len(duffel_calls) > 0
 
 def test_duffel_no_secret_leaks_in_logs():
