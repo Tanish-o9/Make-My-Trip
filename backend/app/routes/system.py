@@ -217,7 +217,8 @@ async def get_provider_health():
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
-                    f"{dbase}/aircraft",
+                    f"{dbase}/air/airlines",
+                    params={"limit": "1"},
                     headers={
                         "Authorization": f"Bearer {dkey}",
                         "Duffel-Version": dver
