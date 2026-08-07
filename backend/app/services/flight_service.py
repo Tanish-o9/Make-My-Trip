@@ -76,7 +76,10 @@ class FlightService:
                 cached_val = redis_client.get(cache_key)
                 if cached_val:
                     logger.info(f"Redis Cache Hit: Found cached flight results for key {cache_key}.")
-                    return json.loads(cached_val)
+                    res_list = json.loads(cached_val)
+                    for item in res_list:
+                        item["is_cached"] = True
+                    return res_list
             except Exception as ce:
                 logger.warning(f"Failed to read from Redis cache: {ce}")
 
@@ -127,7 +130,14 @@ class FlightService:
                 "baggage": det.get("baggage", "15 KG Checked, 7 KG Cabin"),
                 "logo": det.get("logo", ""),
                 "provider": offer.provider_name,
-                "availability": det.get("availability", "available")
+                "availability": det.get("availability", "available"),
+                
+                # Diagnostics Metadata
+                "is_simulated": offer.is_simulated,
+                "is_cached": False,
+                "provider_latency": det.get("provider_latency", "Unknown"),
+                "provider_status": det.get("provider_status", "Unknown"),
+                "provider_source": det.get("provider_source", "Unknown")
             })
 
         # 2. Store in Redis Cache

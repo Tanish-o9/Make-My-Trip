@@ -106,6 +106,12 @@ class BookingDotComFlightProvider(BaseFlightProvider):
             raise e
 
         flight_offers = raw.get("data", {}).get("flightOffers", [])
+        if not flight_offers:
+            logger.warning(
+                f"BookingDotComFlightProvider: No flight offers returned from API. "
+                f"Keys in raw response: {list(raw.keys()) if isinstance(raw, dict) else 'non-dict'}"
+            )
+
         offers = []
 
         for offer in flight_offers[:6]:

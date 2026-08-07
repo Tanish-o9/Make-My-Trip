@@ -31,19 +31,28 @@ class FlightProviderManager:
         self.providers.append(SkyscannerRapidProvider())
 
     async def search_all(self, origin: str, destination: str, date: str) -> List[NormalizedOffer]:
+        import time
         last_error = None
         for provider in self.providers:
+            start_time = time.time()
             try:
                 offers = await provider.search(origin, destination, date)
+                latency = int((time.time() - start_time) * 1000)
                 if offers:
-                    logger.info(f"FlightProviderManager: {provider.__class__.__name__} returned {len(offers)} offers.")
+                    logger.info(f"FlightProviderManager: {provider.__class__.__name__} returned {len(offers)} offers in {latency}ms.")
+                    for o in offers:
+                        o.details["provider_latency"] = f"{latency} ms"
+                        o.details["provider_status"] = "Success"
+                        o.details["provider_source"] = "Live API"
                     return offers
                 else:
                     logger.warning(f"FlightProviderManager: {provider.__class__.__name__} returned 0 offers, trying next.")
             except Exception as e:
-                logger.error(f"FlightProviderManager: {provider.__class__.__name__} failed: {e}")
+                latency = int((time.time() - start_time) * 1000)
+                logger.error(f"FlightProviderManager: {provider.__class__.__name__} failed in {latency}ms: {e}")
                 last_error = e
                 continue
+
 
         # External providers failed — run Database Fallback
         logger.warning("FlightProviderManager: All external API providers failed. Attempting database fallback...")
@@ -96,6 +105,9 @@ class FlightProviderManager:
                         "logo": f"https://r-xx.bstatic.com/data/airlines_logo/{route.airline_code}.png",
                         "provider": "Local Database",
                         "availability": "available",
+                        "provider_latency": "0 ms",
+                        "provider_status": "Fallback",
+                        "provider_source": "Local Database"
                     }
                     offers.append(NormalizedOffer(
                         id=f"OF-DB-{uuid.uuid4().hex[:6].upper()}",

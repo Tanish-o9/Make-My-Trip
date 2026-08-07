@@ -150,6 +150,12 @@ class SkyscannerRapidProvider(BaseFlightProvider):
             raise e
 
         itineraries = raw.get("data", {}).get("itineraries", [])
+        if not itineraries:
+            logger.warning(
+                f"SkyscannerRapidProvider: No itineraries returned from API. "
+                f"Keys in raw response: {list(raw.keys()) if isinstance(raw, dict) else 'non-dict'}"
+            )
+
         offers = []
         for it in itineraries[:6]:
             try:

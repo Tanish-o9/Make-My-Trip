@@ -236,6 +236,12 @@ export default function App() {
     let isRefreshing = false;
     let refreshQueue: Array<{ resolve: (token: string | null) => void }> = [];
     
+    let deviceId = localStorage.getItem('device_id');
+    if (!deviceId) {
+      deviceId = Math.random().toString(36).substring(2) + Date.now().toString(36);
+      localStorage.setItem('device_id', deviceId);
+    }
+    
     const executeRefresh = async (): Promise<string | null> => {
       const refreshToken = localStorage.getItem('refresh_token');
       if (!refreshToken) return null;
@@ -243,9 +249,16 @@ export default function App() {
       try {
         const resp = await originalFetch(`${API_URL}/auth/refresh`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ refresh_token: refreshToken })
+          headers: { 
+            "Content-Type": "application/json",
+            "X-Device-Id": deviceId || ""
+          },
+          body: JSON.stringify({ 
+            refresh_token: refreshToken,
+            device_id: deviceId
+          })
         });
+
         
         if (resp.ok) {
           const data = await resp.json();
@@ -283,9 +296,30 @@ export default function App() {
       
       let currentToken = localStorage.getItem('token');
       
+      if (isBackendReq) {
+        init = init || {};
+        init.headers = init.headers || {};
+        
+        // Inject X-Device-Id
+        if (init.headers instanceof Headers) {
+          init.headers.set('X-Device-Id', deviceId || '');
+        } else if (Array.isArray(init.headers)) {
+          const hasDev = init.headers.some(([k]) => k.toLowerCase() === 'x-device-id');
+          if (!hasDev) init.headers.push(['X-Device-Id', deviceId || '']);
+        } else {
+          const headersRecord = init.headers as Record<string, string>;
+          const keys = Object.keys(headersRecord);
+          const devKey = keys.find(k => k.toLowerCase() === 'x-device-id') || 'X-Device-Id';
+          if (!headersRecord[devKey]) {
+            headersRecord[devKey] = deviceId || '';
+          }
+        }
+      }
+      
       if (isBackendReq && !isAuthRoute && currentToken) {
         init = init || {};
         init.headers = init.headers || {};
+
         
         if (init.headers instanceof Headers) {
           init.headers.set('Authorization', `Bearer ${currentToken}`);
@@ -537,7 +571,28 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const curToken = localStorage.getItem('token');
+    const refreshToken = localStorage.getItem('refresh_token');
+    const deviceId = localStorage.getItem('device_id');
+    
+    if (curToken) {
+      try {
+        await window.fetch(`${API_URL}/auth/logout`, {
+
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${curToken}`,
+            "X-Device-Id": deviceId || ""
+          },
+          body: JSON.stringify({ refresh_token: refreshToken })
+        });
+      } catch (err) {
+        console.warn("Logout API call failed:", err);
+      }
+    }
+
     localStorage.removeItem('token');
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user_role');
@@ -549,6 +604,7 @@ export default function App() {
       points: 450,
       walletBalance: 24500.00
     });
+
     navigate('/');
   };
 
@@ -2588,9 +2644,20 @@ function FlightsSearchForm({ currency, onBook, onDetailClick, onTrackFlight }: {
                         <span className="font-extrabold text-sm text-slate-100 tracking-tight">{airlineName}</span>
                         <span className="text-[10px] font-mono bg-blue-950/85 text-blue-300 px-2 py-0.5 rounded border border-blue-900/50">{flightNumber}</span>
                         <span className="dark-card-badge text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded">{cabinClass}</span>
-                        {res.provider_name && !res.is_simulated && (
-                          <span className="text-[9px] font-semibold bg-purple-950/60 text-purple-300 px-2 py-0.5 rounded border border-purple-900/30">via {res.provider_name}</span>
+                        {res.is_cached ? (
+                          <span className="text-[9px] font-bold bg-amber-950/65 text-amber-300 px-2 py-0.5 rounded border border-amber-900/30">
+                            🟡 Cached Result
+                          </span>
+                        ) : res.provider_name === "Local Database" ? (
+                          <span className="text-[9px] font-bold bg-rose-950/65 text-rose-300 px-2 py-0.5 rounded border border-rose-900/30">
+                            🔴 Local Database Fallback
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-bold bg-emerald-950/65 text-emerald-300 px-2 py-0.5 rounded border border-emerald-900/30">
+                            🟢 Live via {res.provider_name || "API"} {res.provider_latency && `(${res.provider_latency})`}
+                          </span>
                         )}
+
                       </div>
  
                       {/* Line 2: Route, Times & Stops */}
