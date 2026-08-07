@@ -260,9 +260,15 @@ def startup_db_seed():
         # Mask key for diagnostics
         masked = dkey[:12] + "xxxxxxxx" + "*" * (len(dkey) - 20) if len(dkey) > 20 else "xxxx"
         logger.info(f"Duffel configuration loaded. Base URL: {dbase}, Version: {dver}, Key: {masked}")
-        print("✓ Duffel Provider Loaded")
+        try:
+            print("✓ Duffel Provider Loaded")
+        except UnicodeEncodeError:
+            print("Duffel Provider Loaded")
     else:
-        print("⚠ Duffel Provider Disabled")
+        try:
+            print("⚠ Duffel Provider Disabled")
+        except UnicodeEncodeError:
+            print("Duffel Provider Disabled")
 
     logger.info("Initializing database schemas...")
     # Create tables locally if not using migrations in dev mode
