@@ -19,12 +19,12 @@ const resolveApiBase = () => {
   if (!url || url.includes("placeholder") || url.includes("<")) {
     if (typeof window !== "undefined") {
       const hostname = window.location.hostname;
-      if (hostname.includes("vercel.app") || hostname.includes("travelos.com")) {
-        url = "https://make-my-trip-production.up.railway.app/api";
-      } else if (window.location.port === "3000" || window.location.port === "5173" || window.location.port === "5174") {
+      if (window.location.port === "3000" || window.location.port === "5173" || window.location.port === "5174") {
         url = `${window.location.protocol}//${hostname}:8000/api`;
-      } else {
+      } else if (hostname === "localhost" || hostname === "127.0.0.1") {
         url = `${window.location.origin}/api`;
+      } else {
+        url = "https://make-my-trip-production.up.railway.app/api";
       }
     } else {
       url = "http://localhost:8000/api";
