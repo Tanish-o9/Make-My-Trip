@@ -36,6 +36,12 @@ const resolveApiBase = () => {
   if (url.endsWith("/v1")) {
     url = url.slice(0, -3);
   }
+  if (url.endsWith("/")) {
+    url = url.slice(0, -1);
+  }
+  if (!url.endsWith("/api")) {
+    url = `${url}/api`;
+  }
   return url;
 };
 
