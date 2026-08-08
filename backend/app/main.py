@@ -59,8 +59,8 @@ app.add_middleware(
     allow_origins=origins,
     allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|.*\.vercel\.app|.*\.up\.railway\.app)(:\d+)?",
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "X-Device-Id", "X-Tenant-ID", "X-Request-ID"],
 )
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
@@ -70,6 +70,8 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 # Custom CORS/Origin restriction for admin endpoints
 @app.middleware("http")
 async def restrict_admin_origin_middleware(request, call_next):
+    if request.method == "OPTIONS":
+        return await call_next(request)
     if request.url.path.startswith("/api/admin"):
         origin = request.headers.get("origin")
         if origin is not None:
@@ -89,6 +91,8 @@ async def restrict_admin_origin_middleware(request, call_next):
 # Secure Headers Middleware
 @app.middleware("http")
 async def add_secure_headers_middleware(request, call_next):
+    if request.method == "OPTIONS":
+        return await call_next(request)
     response = await call_next(request)
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
@@ -110,6 +114,8 @@ async def tenant_isolation_middleware_hook(request, call_next):
 # Request ID, Context and Metrics Middleware
 @app.middleware("http")
 async def request_id_middleware(request, call_next):
+    if request.method == "OPTIONS":
+        return await call_next(request)
     from app.utils.metrics import API_RESPONSE_TIMES, HTTP_REQUESTS_TOTAL
     from app.utils.rate_limit import global_rate_limiter, llm_rate_limiter
     from fastapi.responses import JSONResponse

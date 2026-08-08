@@ -38,6 +38,27 @@ const resolveApiBase = () => {
 };
 
 
+const resolvePortalBase = () => {
+  let url = import.meta.env && import.meta.env.VITE_PORTAL_URL;
+  if (!url || url.includes("placeholder") || url.includes("<")) {
+    if (typeof window !== "undefined") {
+      const hostname = window.location.hostname;
+      if (hostname === "localhost" || hostname === "127.0.0.1") {
+        url = `${window.location.protocol}//${hostname}:3000`;
+      } else {
+        url = "https://make-my-trip-delta.vercel.app";
+      }
+    } else {
+      url = "http://localhost:3000";
+    }
+  }
+  if (url.endsWith("/")) {
+    url = url.slice(0, -1);
+  }
+  return url;
+};
+
+const PORTAL_BASE = resolvePortalBase();
 const API_BASE = resolveApiBase();
 const API_URL = `${API_BASE}/v1`;
 const WS_BASE = API_BASE.replace(/^http/, "ws").replace(/\/api$/, "/ws");
@@ -125,7 +146,7 @@ export default function App() {
       })
       .catch(err => {
         alert(err.message || "Failed to initialize secure admin session.");
-        window.location.href = "http://localhost:3000/?logout=true";
+        window.location.href = `${PORTAL_BASE}/?logout=true`;
       });
     }
   }, []);
@@ -141,7 +162,7 @@ export default function App() {
         setToken(null);
         setAdminRole(null);
         setAdminEmail(null);
-        window.location.href = "http://localhost:3000/?logout=true";
+        window.location.href = `${PORTAL_BASE}/?logout=true`;
       }
     }
   }, [token, adminRole]);
@@ -178,7 +199,7 @@ export default function App() {
     localStorage.removeItem('admin_token')
     localStorage.removeItem('admin_role')
     localStorage.removeItem('admin_email')
-    window.location.href = "http://localhost:3000/?logout=true";
+    window.location.href = `${PORTAL_BASE}/?logout=true`;
   }
 
   // Auto tab selection based on role constraints
@@ -368,12 +389,12 @@ export default function App() {
                   if (resp.ok) {
                     const data = await resp.json();
                     const code = data.exchange_code;
-                    window.location.href = `http://localhost:3000/?exchange_code=${code}`;
+                    window.location.href = `${PORTAL_BASE}/?exchange_code=${code}`;
                   } else {
-                    window.location.href = "http://localhost:3000/";
+                    window.location.href = `${PORTAL_BASE}/`;
                   }
                 } catch (err) {
-                  window.location.href = "http://localhost:3000/";
+                  window.location.href = `${PORTAL_BASE}/`;
                 }
               }}
               className="px-3 py-1.5 bg-yellow-300 hover:bg-yellow-400 border-2 border-black shadow-[2px_2px_0px_0px_#000000] text-xs font-black uppercase flex items-center gap-1 cursor-pointer"

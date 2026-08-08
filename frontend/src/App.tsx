@@ -46,6 +46,27 @@ const resolveApiBase = () => {
 };
 
 
+const resolveAdminBase = () => {
+  let url = import.meta.env.VITE_ADMIN_URL;
+  if (!url || url.includes("placeholder") || url.includes("<")) {
+    if (typeof window !== "undefined") {
+      const hostname = window.location.hostname;
+      if (hostname === "localhost" || hostname === "127.0.0.1") {
+        url = `http://${hostname}:5174`;
+      } else {
+        url = "https://admin.travelos.com";
+      }
+    } else {
+      url = "http://localhost:5174";
+    }
+  }
+  if (url.endsWith("/")) {
+    url = url.slice(0, -1);
+  }
+  return url;
+};
+
+const ADMIN_BASE = resolveAdminBase();
 const API_BASE = resolveApiBase();
 const API_URL = `${API_BASE}/v1`;
 const WS_BASE = API_BASE.replace(/^http/, "ws");
@@ -594,12 +615,12 @@ export default function App() {
       if (resp.ok) {
         const data = await resp.json();
         const code = data.exchange_code;
-        window.location.href = `http://localhost:5174/?exchange_code=${code}`;
+        window.location.href = `${ADMIN_BASE}/?exchange_code=${code}`;
       } else {
-        window.location.href = "http://localhost:5174/";
+        window.location.href = `${ADMIN_BASE}/`;
       }
     } catch (err) {
-      window.location.href = "http://localhost:5174/";
+      window.location.href = `${ADMIN_BASE}/`;
     }
   };
 
@@ -12259,14 +12280,34 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, refreshToken: strin
         .map(key => encodeURIComponent(key) + '=' + encodeURIComponent((details as any)[key]))
         .join('&');
 
-      const loginResp = await fetch(`${API_URL}/auth/token`, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: formBody
-      });
-      const loginData = await loginResp.json();
+      let loginResp;
+      try {
+        loginResp = await fetch(`${API_URL}/auth/token`, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: formBody
+        });
+      } catch (networkErr: any) {
+        throw new Error("Network / CORS preflight error: Unable to connect to the authentication server. Please check your internet connection or verify DNS/CORS configuration.");
+      }
+
+      let loginData;
+      try {
+        loginData = await loginResp.json();
+      } catch (jsonErr) {
+        throw new Error(`Server returned invalid response structure (HTTP ${loginResp.status}).`);
+      }
+
       if (!loginResp.ok) {
-        throw new Error(loginData.detail || "Login failed");
+        if (loginResp.status === 401) {
+          throw new Error(loginData.detail || "Incorrect email or password. Access Denied.");
+        } else if (loginResp.status === 422) {
+          throw new Error("Validation Error: Please ensure you entered a valid email and password.");
+        } else if (loginResp.status === 429) {
+          throw new Error("Too Many Requests: Rate limit exceeded. Please wait a minute and try again.");
+        } else {
+          throw new Error(loginData.detail || `Server Error (HTTP ${loginResp.status}). Please contact support.`);
+        }
       }
 
       const accessToken = loginData.access_token;
