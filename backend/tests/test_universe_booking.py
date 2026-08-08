@@ -265,3 +265,65 @@ def test_tracker_cache_rest():
     data = resp.json()
     assert data["flight_number"] == "6E-502"
     assert data["live_metrics"]["status"] == "On Time"
+
+
+def test_multi_passenger_hold_flow(test_user_and_wallet):
+    user, wallet = test_user_and_wallet
+    from app.auth.jwt import create_access_token
+    token = create_access_token(data={"sub": user.email, "role": "user"})
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    hold_payload = {
+        "vertical": "flights",
+        "amount": 15000.00,
+        "user_id": user.id,
+        "details": {
+            "provider_name": "MockFlight",
+            "airline_code": "UK",
+            "flight_number": "UK-101",
+            "cabin_class": "ECONOMY",
+            "origin": "DEL",
+            "destination": "BOM",
+            "passengers": [
+                {
+                    "name": "Passenger One",
+                    "fullName": "Passenger One",
+                    "age": 25,
+                    "email": "p1@example.com",
+                    "phone": "+919999999999",
+                    "studentFare": False,
+                    "is_student": False,
+                    "is_primary": True
+                },
+                {
+                    "name": "Passenger Two",
+                    "fullName": "Passenger Two",
+                    "age": 30,
+                    "email": "p2@example.com",
+                    "phone": "+918888888888",
+                    "studentFare": True,
+                    "is_student": True,
+                    "is_primary": False
+                }
+            ]
+        }
+    }
+    response = client.post("/api/v1/bookings/hold", json=hold_payload, headers=headers)
+    assert response.status_code == 200
+    data = response.json()
+    ref = data["booking_reference"]
+    assert data["status"] == "hold"
+    assert data["total_amount"] == 15000.00
+    
+    # Query database to verify both passengers are successfully saved
+    from app.database import SessionLocal
+    from app.models.bookings import FlightBooking
+    db = SessionLocal()
+    booking = db.query(FlightBooking).filter(FlightBooking.booking_reference == ref).first()
+    assert booking is not None
+    assert len(booking.passenger_details) == 2
+    assert booking.passenger_details[0]["name"] == "Passenger One"
+    assert booking.passenger_details[1]["name"] == "Passenger Two"
+    assert booking.passenger_details[1]["studentFare"] is True
+    db.close()
+
