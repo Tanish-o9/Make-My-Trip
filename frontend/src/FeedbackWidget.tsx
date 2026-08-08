@@ -72,7 +72,7 @@ export default function FeedbackWidget() {
         title="Send Beta Feedback"
         style={{
           position: "fixed",
-          bottom: "24px",
+          bottom: "20px",
           right: "24px",
           zIndex: 9999,
           background: "linear-gradient(135deg, #6c63ff 0%, #4f46e5 100%)",

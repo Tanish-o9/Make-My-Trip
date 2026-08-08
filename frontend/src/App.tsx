@@ -6402,7 +6402,7 @@ function FloatingAssistant({ onTrigger }: { onTrigger: (msg: string) => void }) 
   };
 
   return (
-    <div className="fixed bottom-6 right-4 left-4 md:right-6 md:left-auto z-40 bg-[#0d1527] border border-slate-800 rounded-full p-1.5 shadow-2xl flex items-center w-[calc(100%-32px)] md:w-80 max-w-sm">
+    <div className="fixed bottom-20 right-4 left-4 md:right-6 md:left-auto z-40 bg-[#0d1527] border border-slate-800 rounded-full p-1.5 shadow-2xl flex items-center w-[calc(100%-32px)] md:w-80 max-w-sm">
       <div className="p-2 bg-blue-600 rounded-full text-white">
         <Sparkles size={16} className="animate-pulse" />
       </div>
