@@ -5,34 +5,31 @@ import {
 } from "lucide-react";
 
 const resolveApiBase = () => {
-  let url = import.meta.env.VITE_API_URL;
-  if (!url || url.includes("placeholder") || url.includes("<")) {
-    if (typeof window !== "undefined") {
-      const hostname = window.location.hostname;
-      if (window.location.port && window.location.port !== "8000") {
-        url = `${window.location.protocol}//${hostname}:8000/api`;
-      } else if (hostname === "localhost" || hostname === "127.0.0.1") {
-        url = `${window.location.origin}/api`;
-      } else {
-        url = "https://make-my-trip-production.up.railway.app/api";
+  if (typeof window !== "undefined") {
+    const hostname = window.location.hostname;
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      let url = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+      if (url.includes("make-my-trip-production.up.railway.app")) {
+        url = "http://localhost:8000/api";
       }
+      if (url.endsWith("/")) {
+        url = url.slice(0, -1);
+      }
+      if (url.endsWith("/v1")) {
+        url = url.slice(0, -3);
+      }
+      if (url.endsWith("/")) {
+        url = url.slice(0, -1);
+      }
+      if (!url.endsWith("/api")) {
+        url = `${url}/api`;
+      }
+      return url;
     } else {
-      url = "http://localhost:8000/api";
+      return `${window.location.origin}/api`;
     }
   }
-  if (url.endsWith("/")) {
-    url = url.slice(0, -1);
-  }
-  if (url.endsWith("/v1")) {
-    url = url.slice(0, -3);
-  }
-  if (url.endsWith("/")) {
-    url = url.slice(0, -1);
-  }
-  if (!url.endsWith("/api")) {
-    url = `${url}/api`;
-  }
-  return url;
+  return "http://localhost:8000/api";
 };
 
 const API_BASE = resolveApiBase();
