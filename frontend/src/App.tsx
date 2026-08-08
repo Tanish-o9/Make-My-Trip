@@ -15,7 +15,21 @@ import { DesignTokensPage } from './DesignTokensPage';
 import { ProfilePage } from './ProfilePage';
 
 const resolveApiBase = () => {
-  let url = import.meta.env.VITE_API_URL || "https://make-my-trip-production.up.railway.app/api";
+  let url = import.meta.env.VITE_API_URL;
+  if (!url || url.includes("placeholder") || url.includes("<")) {
+    if (typeof window !== "undefined") {
+      const hostname = window.location.hostname;
+      if (hostname.includes("vercel.app") || hostname.includes("travelos.com")) {
+        url = "https://make-my-trip-production.up.railway.app/api";
+      } else if (window.location.port === "3000" || window.location.port === "5173" || window.location.port === "5174") {
+        url = `${window.location.protocol}//${hostname}:8000/api`;
+      } else {
+        url = `${window.location.origin}/api`;
+      }
+    } else {
+      url = "http://localhost:8000/api";
+    }
+  }
   if (url.endsWith("/")) {
     url = url.slice(0, -1);
   }
@@ -24,6 +38,7 @@ const resolveApiBase = () => {
   }
   return url;
 };
+
 
 const API_BASE = resolveApiBase();
 const API_URL = `${API_BASE}/v1`;

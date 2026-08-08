@@ -41,10 +41,21 @@ try:
             connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {},
             pool_pre_ping=True
         )
-    # Test connection
+    # Test connection and run auto-migration for column drift
     with engine.connect() as conn:
-        pass
+        from sqlalchemy import inspect, text
+        try:
+            inspector = inspect(engine)
+            if "users" in inspector.get_table_names():
+                columns = [c["name"] for c in inspector.get_columns("users")]
+                if "fcm_token" not in columns:
+                    print("Auto-migrating database: adding fcm_token column to users table.")
+                    conn.execute(text("ALTER TABLE users ADD COLUMN fcm_token VARCHAR(512)"))
+                    conn.commit()
+        except Exception as migrate_err:
+            print(f"WARNING: Schema auto-migration failed: {migrate_err}", file=sys.stderr)
 except Exception as e:
+
     print(f"CRITICAL: Failed to connect to DATABASE_URL: {e}. Falling back to local SQLite to prevent startup crash.", file=sys.stderr)
     DATABASE_URL = "sqlite:///./fallback.db"
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False}, pool_pre_ping=True)

@@ -6,6 +6,8 @@ from app.ai_router.router import llm_router
 from app.ai_tools.weather_tool import weather_search_tool
 from app.ai_tools.flight_tool import flight_search_tool
 from app.ai_tools.hotel_tool import hotel_search_tool
+from app.ai_tools.packing_tool import generate_packing_checklist
+from app.ai_tools.emergency_contacts_tool import get_emergency_contacts
 
 logger = logging.getLogger(__name__)
 
@@ -245,6 +247,25 @@ Once you give me this information, I will instantly fetch everything for you.
     hotels_summary = _trim_for_prompt(mapped_hotels,
         ["name", "rating", "price", "total_price", "amenities", "address", "breakfast_included"])
 
+    # Generate packing checklist
+    packing_res = generate_packing_checklist(destination, n_days, weather_res.get("forecast_description", ""), [travel_style])
+    
+    # Generate emergency contacts
+    emergency_res = get_emergency_contacts(destination)
+    
+    # Simple visa suggestion logic based on destination
+    visa_required = True
+    dest_lower = destination.lower()
+    if any(country in dest_lower for country in ["goa", "delhi", "mumbai", "bangalore", "india"]):
+        visa_required = False
+    visa_desc = f"Visa required for international travel to {destination}." if visa_required else "No international visa required (Domestic Indian trip)."
+
+    # Simple forex suggestion (e.g. converting 10,000 INR baseline to target currency)
+    from app.ai_tools.currency_tool import currency_convert_tool
+    target_curr = "USD" if visa_required else "INR"
+    forex_convert = currency_convert_tool(10000.0, target_curr)
+    forex_desc = f"Suggested pocket money: ₹10,000 (~{target_curr} {forex_convert.get('converted_amount', 10000.0):.2f})."
+
     # Synthesize the final comprehensive response
     package_synthesis_prompt = f"""You are a senior travel consultant compiling a complete travel package.
 Destination: {destination} | Origin: {origin} | Dates: {departure_date} to {return_date} ({n_days} Days)
@@ -254,12 +275,21 @@ Top Flights: {json.dumps(flights_summary, default=str)}
 Top Hotels: {json.dumps(hotels_summary, default=str)}
 Weather: {str(weather_res.get("forecast_description", ""))[:200]}
 Itinerary: {itin_text[:800]}
+Visa: {visa_desc}
+Forex: {forex_desc}
 
 Write a professional travel proposal with these sections (use icons):
-🗺️ Itinerary Highlights | ☀️ Weather & Packing | 💰 Budget Breakdown | 💎 Local Tips & Dining
+🗺️ Itinerary Highlights | ☀️ Weather & Packing | 💰 Budget Breakdown | 💎 Local Tips & Dining | 🚨 Emergency & Visa
 Keep it detailed but concise. No code blocks in your response."""
     final_response = llm_router.complete(prompt=package_synthesis_prompt, task_type="reasoning")
 
+    # Add emergency contacts and packing checklist to final text output
+    final_response += f"\n\n🎒 **Packing Essentials**:\n" + "\n".join([f"- {item}" for item in packing_res["checklist"][:6]])
+    final_response += f"\n\n🚨 **Local Emergency Contacts** ({emergency_res['country']}):\n"
+    for k, v in emergency_res["contacts"].items():
+        if k != "note":
+            final_response += f"- {k.replace('_', ' ').title()}: {v}\n"
+    final_response += f"Note: {emergency_res['contacts'].get('note', '')}"
 
     # Inject metadata blocks
     final_response += f"\n\n```flights-data\n{json.dumps(mapped_flights, indent=2, default=str)}\n```"
@@ -291,6 +321,10 @@ Keep it detailed but concise. No code blocks in your response."""
     collected["flights"] = mapped_flights
     collected["hotels"] = mapped_hotels
     collected["itinerary"] = itin_arr
+    collected["packing_checklist"] = packing_res["checklist"]
+    collected["emergency_contacts"] = emergency_res["contacts"]
+    collected["visa_suggestion"] = visa_desc
+    collected["forex_suggestion"] = forex_desc
 
     return {
         "final_response": final_response,

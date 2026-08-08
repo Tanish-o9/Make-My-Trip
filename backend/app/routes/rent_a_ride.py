@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 import logging
 from app.database import get_db
 from app.models.bookings import VehicleRentalBooking, BookingStatus
+from app.models.core import User
+from app.auth.dependencies import get_current_user
 from app.services.vehicle_rental_agents import (
     routing_agent, fuel_agent, ev_charging_agent, support_rag_bot, pricing_agent
 )
@@ -35,10 +37,18 @@ def get_nearest_hub(location: str = Query(...)):
         raise HTTPException(status_code=500, detail="Failed to compute nearest depot.")
 
 @router.get("/telemetry/{booking_ref}")
-def get_vehicle_telemetry(booking_ref: str, db: Session = Depends(get_db)):
+def get_vehicle_telemetry(
+    booking_ref: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     booking = db.query(VehicleRentalBooking).filter(VehicleRentalBooking.booking_reference == booking_ref).first()
     if not booking:
         raise HTTPException(status_code=404, detail="Vehicle rental booking not found.")
+        
+    # BUG-012j FIX: Enforce user ownership of booking (IDOR prevention)
+    if booking.user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Access denied.")
     
     is_ev = "ev" in booking.vehicle_type.lower() or "ev" in (booking.fuel_type or "").lower()
     
@@ -60,10 +70,17 @@ def get_vehicle_telemetry(booking_ref: str, db: Session = Depends(get_db)):
         }
 
 @router.post("/extend")
-def extend_rental(req: ExtendRentalRequest, db: Session = Depends(get_db)):
+def extend_rental(
+    req: ExtendRentalRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     booking = db.query(VehicleRentalBooking).filter(VehicleRentalBooking.booking_reference == req.booking_reference).first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found.")
+    # BUG-012c FIX: Verify booking ownership (IDOR prevention)
+    if booking.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to modify this booking.")
     
     # Calculate daily rate
     days = (booking.drop_time - booking.pickup_time).days
@@ -93,10 +110,18 @@ def extend_rental(req: ExtendRentalRequest, db: Session = Depends(get_db)):
     }
 
 @router.post("/emergency")
-def report_emergency(req: EmergencyRequest, db: Session = Depends(get_db)):
+def report_emergency(
+    req: EmergencyRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     booking = db.query(VehicleRentalBooking).filter(VehicleRentalBooking.booking_reference == req.booking_reference).first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking reference not found.")
+        
+    # BUG-012j FIX: Enforce user ownership of booking (IDOR prevention)
+    if booking.user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Access denied.")
     
     ticket_id = f"EMG-{booking.user_id}-{booking.id}"
     logger.critical(f"EMERGENCY PRIORITY TICKET {ticket_id} RAISED for {req.booking_reference}: {req.issue_type} - {req.details}")
@@ -116,7 +141,17 @@ def support_chat(req: ChatMessageRequest):
     }
 
 @router.post("/transition")
-def transition_booking_status(booking_reference: str, status: str, db: Session = Depends(get_db)):
+def transition_booking_status(
+    booking_reference: str,
+    status: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # BUG-012j FIX: Only administrative/support users are allowed to transition booking statuses
+    allowed_roles = {"admin", "super_admin", "support", "finance_admin"}
+    if current_user.role not in allowed_roles:
+        raise HTTPException(status_code=403, detail="Access denied: Administrative privileges required.")
+        
     booking = db.query(VehicleRentalBooking).filter(VehicleRentalBooking.booking_reference == booking_reference).first()
     if not booking:
         # Fallback to general tables lookup if not vehicle rental

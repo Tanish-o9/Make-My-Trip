@@ -99,5 +99,5 @@ async def voice_media_stream_endpoint(websocket: WebSocket):
         logger.error(f"Voice gateway stream error: {e}")
         try:
             await websocket.close()
-        except:
+        except Exception:
             pass

@@ -33,65 +33,20 @@ class ActivityBookRequest(BaseModel):
 class ActivityCancelRequest(BaseModel):
     booking_reference: str
 
+from app.services.activities_service import activities_service
+
 # Endpoints
 @router.post("/search")
 async def search_activities(req: ActivitySearchRequest, db: Session = Depends(get_db)):
-    dest = req.destination.capitalize()
-    
-    options = [
-        {
-            "id": f"ACT-GYG-{uuid.uuid4().hex[:6].upper()}",
-            "name": f"Historical Museum & Palace Tour in {dest}",
-            "image": "https://images.unsplash.com/photo-1544644181-1484b3fdfc62?w=800",
-            "rating": 4.7,
-            "reviews_count": 140,
-            "price": 1200.0,
-            "currency": "INR",
-            "duration": "3 Hours",
-            "cancellation_policy": "Free Cancellation",
-            "meeting_point": f"Main Gate, {dest} Palace",
-            "category": "Museum"
-        },
-        {
-            "id": f"ACT-VIATOR-{uuid.uuid4().hex[:6].upper()}",
-            "name": f"Adventure Safari & Wildlife Trek in {dest}",
-            "image": "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=800",
-            "rating": 4.9,
-            "reviews_count": 310,
-            "price": 3500.0,
-            "currency": "INR",
-            "duration": "6 Hours",
-            "cancellation_policy": "Non-Refundable",
-            "meeting_point": f"National Park Entrance Gate, {dest}",
-            "category": "Safari"
-        },
-        {
-            "id": f"ACT-KLOOK-{uuid.uuid4().hex[:6].upper()}",
-            "name": f"Sunset Cruise & Water Sports in {dest}",
-            "image": "https://images.unsplash.com/photo-1505080856163-267d49b302c4?w=800",
-            "rating": 4.6,
-            "reviews_count": 95,
-            "price": 2200.0,
-            "currency": "INR",
-            "duration": "2.5 Hours",
-            "cancellation_policy": "Free Cancellation",
-            "meeting_point": f"Marina Jetty Point 3, {dest}",
-            "category": "Cruise"
-        }
-    ]
-    
-    if req.category:
-        options = [o for o in options if o["category"].lower() == req.category.lower()]
-        
+    results = await activities_service.search_activities(req.destination, req.category)
     return {
-        "destination": dest,
-        "results": options
+        "destination": req.destination.capitalize(),
+        "results": results
     }
 
 @router.get("/{id}")
 async def get_activity_details(id: str):
     provider = "GetYourGuide" if "GYG" in id else "Viator" if "VIATOR" in id else "Klook"
-    
     return {
         "id": id,
         "name": "Boutique Adventure & Tour Experience",
@@ -119,8 +74,14 @@ async def book_activity(
     slot_time = datetime.datetime.utcnow() + datetime.timedelta(days=2)
     try:
         slot_time = datetime.datetime.strptime(req.activity_time, "%Y-%m-%d %H:%M:%S")
-    except:
+    except Exception:
         pass
+        
+    # Book via Viator
+    real_booking = await activities_service.book_activity(
+        req.activity_id,
+        {"first_name": current_user.email.split("@")[0], "last_name": "Traveler"}
+    )
         
     booking = ActivityBooking(
         booking_reference=booking_ref,
@@ -128,7 +89,7 @@ async def book_activity(
         status=BookingStatus.CONFIRMED,
         total_amount=req.price * req.tickets,
         currency="INR",
-        pricing_snapshot={"price_per_ticket": req.price, "tickets": req.tickets},
+        pricing_snapshot={"price_per_ticket": req.price, "tickets": req.tickets, "voucher_url": real_booking.get("voucher_url")},
         activity_name=req.activity_name,
         location=req.location,
         activity_time=slot_time,
@@ -148,7 +109,7 @@ async def book_activity(
     return {
         "booking_reference": booking.booking_reference,
         "status": "booked",
-        "voucher_number": f"VCH-AC-{uuid.uuid4().hex[:6].upper()}",
+        "voucher_number": real_booking.get("booking_reference") or f"VCH-AC-{uuid.uuid4().hex[:6].upper()}",
         "meeting_point": f"Main Reception Gate, {req.location}"
     }
 
@@ -161,6 +122,9 @@ async def cancel_activity(
     booking = db.query(ActivityBooking).filter(ActivityBooking.booking_reference == req.booking_reference).first()
     if not booking:
         raise HTTPException(status_code=404, detail="Activity booking not found.")
+    # BUG-012d FIX: Verify booking ownership (IDOR prevention)
+    if booking.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to cancel this booking.")
         
     booking.status = BookingStatus.CANCELLED
     db.add(BookingEvent(
@@ -186,6 +150,10 @@ async def refund_activity(
     if not booking:
         raise HTTPException(status_code=404, detail="Activity booking not found.")
         
+    # BUG-012h FIX: Enforce user ownership of booking (IDOR prevention)
+    if booking.user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Access denied.")
+        
     booking.status = BookingStatus.REFUNDED
     WalletService.refund_to_wallet(db, user_id=booking.user_id, amount=Decimal(str(booking.total_amount)), booking_ref=booking.booking_reference)
     
@@ -205,11 +173,16 @@ async def refund_activity(
 @router.get("/{id}/voucher")
 async def get_activity_voucher(
     id: str,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     booking = db.query(ActivityBooking).filter(ActivityBooking.booking_reference == id).first()
     if not booking:
         raise HTTPException(status_code=404, detail="Activity booking not found.")
+        
+    # BUG-012h FIX: Enforce user ownership of booking (IDOR prevention)
+    if booking.user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Access denied.")
         
     return {
         "voucher_number": f"VCH-AC-{uuid.uuid4().hex[:6].upper()}",

@@ -217,6 +217,9 @@ async def hotels_book_api(
     booking = db.query(HotelBooking).filter(HotelBooking.booking_reference == req.booking_reference).first()
     if not booking:
         raise HTTPException(status_code=404, detail="Hotel booking not found.")
+    # BUG-012b FIX: Verify booking ownership (IDOR prevention)
+    if booking.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to modify this booking.")
         
     if not req.guests:
         raise HTTPException(status_code=400, detail="Guest list is required.")
@@ -226,7 +229,8 @@ async def hotels_book_api(
         if not g.name or not g.dob or not g.gender or not g.email or not g.phone:
             raise HTTPException(status_code=400, detail="Guest information incomplete.")
             
-    booking.guest_details = [g.dict() for g in req.guests]
+    # BUG-004b FIX: Use model_dump() for Pydantic v2 compatibility
+    booking.guest_details = [g.model_dump() if hasattr(g, "model_dump") else g.dict() for g in req.guests]
     booking.status = BookingStatus.PAYMENT_PENDING
     
     db.add(BookingEvent(
@@ -251,6 +255,9 @@ async def hotels_cancel_api(
     booking = db.query(HotelBooking).filter(HotelBooking.booking_reference == req.booking_reference).first()
     if not booking:
         raise HTTPException(status_code=404, detail="Hotel booking not found.")
+    # BUG-012b FIX: Verify booking ownership (IDOR prevention)
+    if booking.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to cancel this booking.")
         
     booking.status = BookingStatus.CANCELLED
     db.add(BookingEvent(
@@ -275,6 +282,10 @@ async def hotels_refund_api(
     booking = db.query(HotelBooking).filter(HotelBooking.booking_reference == req.booking_reference).first()
     if not booking:
         raise HTTPException(status_code=404, detail="Hotel booking not found.")
+    
+    # BUG-012f FIX: Enforce user ownership of booking (IDOR prevention)
+    if booking.user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Access denied.")
         
     booking.status = BookingStatus.REFUNDED
     WalletService.refund_to_wallet(db, user_id=booking.user_id, amount=Decimal(str(booking.total_amount)), booking_ref=booking.booking_reference)
@@ -301,6 +312,10 @@ async def get_hotel_reservation(
     booking = db.query(HotelBooking).filter(HotelBooking.booking_reference == booking_reference).first()
     if not booking:
         raise HTTPException(status_code=404, detail="Hotel reservation not found.")
+        
+    # BUG-012f FIX: Enforce user ownership of booking (IDOR prevention)
+    if booking.user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Access denied.")
         
     events = db.query(BookingEvent).filter(BookingEvent.booking_reference == booking_reference).order_by(BookingEvent.created_at.asc()).all()
     
@@ -331,6 +346,10 @@ async def get_hotel_voucher(
     booking = db.query(HotelBooking).filter(HotelBooking.booking_reference == booking_reference).first()
     if not booking:
         raise HTTPException(status_code=404, detail="Hotel reservation not found.")
+        
+    # BUG-012f FIX: Enforce user ownership of booking (IDOR prevention)
+    if booking.user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Access denied.")
         
     return {
         "voucher_number": f"VCH-HT-{uuid.uuid4().hex[:6].upper()}",

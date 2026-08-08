@@ -6,8 +6,36 @@ import {
 } from 'lucide-react'
 
 // Backend config
-const API_BASE = 'http://localhost:8000/api'
-const WS_BASE = 'ws://localhost:8000/ws'
+const resolveApiBase = () => {
+  let url = import.meta.env && import.meta.env.VITE_API_URL;
+  if (!url || url.includes("placeholder") || url.includes("<")) {
+    if (typeof window !== "undefined") {
+      const hostname = window.location.hostname;
+      if (hostname.includes("vercel.app") || hostname.includes("travelos.com")) {
+        url = "https://make-my-trip-production.up.railway.app/api";
+      } else if (window.location.port === "3000" || window.location.port === "5173" || window.location.port === "5174") {
+        url = `${window.location.protocol}//${hostname}:8000/api`;
+      } else {
+        url = `${window.location.origin}/api`;
+      }
+    } else {
+      url = "http://localhost:8000/api";
+    }
+  }
+  if (url.endsWith("/")) {
+    url = url.slice(0, -1);
+  }
+  if (url.endsWith("/v1")) {
+    url = url.slice(0, -3);
+  }
+  return url;
+};
+
+
+const API_BASE = resolveApiBase();
+const API_URL = `${API_BASE}/v1`;
+const WS_BASE = API_BASE.replace(/^http/, "ws").replace(/\/api$/, "/ws");
+
 
 // Roles enum
 type Role = 'super_admin' | 'finance_admin' | 'booking_approver' | 'admin'
@@ -66,7 +94,7 @@ export default function App() {
       window.history.replaceState({}, '', newPath);
 
       // Exchange code for actual admin token
-      fetch("http://localhost:8000/api/v1/auth/exchange", {
+      fetch(`${API_URL}/auth/exchange`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ exchange_code: exchangeCode })

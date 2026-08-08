@@ -160,13 +160,42 @@ class WeatherManager:
 
         return result
 
+    async def get_historical_weather(self, city: str, date: str) -> Dict[str, Any]:
+        """Get historical weather for a city on a specific date (YYYY-MM-DD)."""
+        city_key = city.strip().lower()
+        cache_key = f"weather:historical:{city_key}:{date}"
+
+        if redis_client:
+            try:
+                cached = redis_client.get(cache_key)
+                if cached:
+                    logger.info(f"Cache HIT for historical weather of {city} on {date}")
+                    return json.loads(cached)
+            except Exception as e:
+                logger.error(f"Redis get failed in WeatherManager historical: {e}")
+
+        try:
+            data = await weather_breaker.call_async(
+                lambda: self.provider.get_historical_weather(city, date)
+            )
+            if redis_client and data:
+                try:
+                    # Historical data doesn't change — cache for 24 hours
+                    redis_client.setex(cache_key, 86400, json.dumps(data))
+                except Exception as cache_err:
+                    logger.error(f"Redis setex failed: {cache_err}")
+            return data
+        except Exception as e:
+            logger.error(f"Error querying historical weather for {city} on {date}: {e}")
+            return self.provider._get_mock_historical_weather(city_key, date)
+
     # Backwards compatibility method
     async def get_weather_for_city(self, city: str) -> Dict[str, Any]:
         current = await self.get_current_weather(city)
         forecast = await self.get_forecast(city)
         aqi = await self.get_air_quality(city)
         travel = await self.get_travel_recommendations(city)
-        
+
         return {
             "temperature": current.get("temperature"),
             "humidity": current.get("humidity"),
@@ -176,6 +205,6 @@ class WeatherManager:
                 {"day": f.get("date"), "temp": f.get("temperature"), "desc": f.get("weather")}
                 for f in forecast
             ],
-            "air_quality": float(aqi.get("PM2_5")),
-            "packing_suggestions": travel.get("packingSuggestions")
+            "air_quality": float(aqi.get("PM2_5", 0)),
+            "packing_suggestions": travel.get("packingSuggestions"),
         }

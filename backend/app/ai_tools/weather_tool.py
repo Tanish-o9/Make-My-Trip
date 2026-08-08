@@ -12,6 +12,7 @@ def weather_search_tool(location: str, month: int = 1) -> Dict[str, Any]:
         location: Target city or destination name.
         month: Int represent traveling month (1-12) to fetch contextual forecasts.
     """
+    from app.utils.metrics import TOOL_CALLS_TOTAL
     api_key = os.getenv("OPENWEATHER_API_KEY")
     if api_key:
         try:
@@ -20,6 +21,7 @@ def weather_search_tool(location: str, month: int = 1) -> Dict[str, Any]:
             resp = httpx.get(url, timeout=5.0)
             if resp.status_code == 200:
                 data = resp.json()
+                TOOL_CALLS_TOTAL.labels(tool_name="weather_search", status="success").inc()
                 return {
                     "success": True,
                     "location": location,
@@ -28,7 +30,9 @@ def weather_search_tool(location: str, month: int = 1) -> Dict[str, Any]:
                     "humidity": data["main"]["humidity"]
                 }
         except Exception as e:
+            TOOL_CALLS_TOTAL.labels(tool_name="weather_search", status="error").inc()
             logger.warning(f"Failed to fetch live weather: {e}")
+
 
     # Fallback/Climate Intelligence logic for typical destinations
     loc_lower = location.lower()
@@ -66,11 +70,13 @@ def weather_search_tool(location: str, month: int = 1) -> Dict[str, Any]:
         desc = f"Moderate temperatures. Partly cloudy conditions expected."
         temp = 22
 
+    TOOL_CALLS_TOTAL.labels(tool_name="weather_search", status="fallback").inc()
     return {
         "success": True,
         "location": location.capitalize(),
         "month": month_name,
         "avg_temperature_c": temp,
+
         "forecast_description": desc,
         "source": "climate_fallback_engine"
     }

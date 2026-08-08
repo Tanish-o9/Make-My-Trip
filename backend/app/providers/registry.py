@@ -3,6 +3,9 @@ import httpx
 from typing import Dict, Any, List
 from app.providers.flights.amadeus import AmadeusProvider
 from app.providers.flights.tbo import TBOProvider
+from app.providers.flights.duffel import DuffelFlightProvider
+from app.providers.flights.booking_dot_com import BookingDotComFlightProvider
+from app.providers.flights.skyscanner_rapid import SkyscannerRapidProvider
 from app.providers.hotels.hotelbeds import HotelBedsProvider
 from app.providers.hotels.expedia import ExpediaProvider
 from app.providers.vehicles.first_party import FirstPartyVehicleProvider
@@ -17,7 +20,10 @@ class ProviderRegistry:
     def __init__(self):
         self.flights = {
             "amadeus": AmadeusProvider(),
-            "tbo": TBOProvider()
+            "tbo": TBOProvider(),
+            "duffel": DuffelFlightProvider(),
+            "booking.com": BookingDotComFlightProvider(),
+            "skyscanner": SkyscannerRapidProvider()
         }
         self.hotels = {
             "hotelbeds": HotelBedsProvider(),

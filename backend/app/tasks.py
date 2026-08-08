@@ -231,3 +231,57 @@ def start_sla_daemon():
     
     thread2 = threading.Thread(target=run_payment_reconciliation, daemon=True)
     thread2.start()
+
+    # Start Phase 9: Price drop monitoring loop
+    thread3 = threading.Thread(target=run_price_drop_monitor, daemon=True)
+    thread3.start()
+
+    # Start Phase 9: Trip reminders, visa expiry, document expiry daemon loops
+    thread4 = threading.Thread(target=run_document_expiry_monitor, daemon=True)
+    thread4.start()
+
+
+# ─── Phase 9: Automation Background Loops ─────────────────────────────────────
+
+def run_price_drop_monitor():
+    logger.info("Starting background Price Drop Monitor daemon loop...")
+    while True:
+        try:
+            db = SessionLocal()
+            try:
+                from app.services.price_tracker import price_tracker
+                # Periodically query forex rate and monitor drops
+                price_tracker.record_price("forex", "USD-INR", 83.20)
+                price_tracker.record_price("forex", "USD-INR", 82.50)
+                analysis = price_tracker.analyze_price_trend("forex", "USD-INR")
+                logger.info(f"[SLA Daemon] Price Drop analysis USD-INR: {analysis.get('trend')}")
+            finally:
+                db.close()
+        except Exception as e:
+            logger.error(f"Error in Price Drop Monitor: {e}")
+        time.sleep(3600)  # Check hourly
+
+
+def run_document_expiry_monitor():
+    logger.info("Starting background Expiry Monitor daemon loop...")
+    while True:
+        try:
+            db = SessionLocal()
+            try:
+                from app.services.trip_monitor import trip_monitor
+                from app.models.core import User
+                users = db.query(User).all()
+                for user in users:
+                    # Scan active visa applications for expiration warnings
+                    visas = trip_monitor.monitor_visa_expiry(db, user.id)
+                    forex_alerts = trip_monitor.monitor_forex_rates(db, user.id)
+                    if visas:
+                        logger.info(f"[Expiry Daemon] Found {len(visas)} visa alerts for user {user.id}")
+                    if forex_alerts:
+                        logger.info(f"[Expiry Daemon] Found {len(forex_alerts)} forex rate alerts for user {user.id}")
+            finally:
+                db.close()
+        except Exception as e:
+            logger.error(f"Error in Expiry Monitor: {e}")
+        time.sleep(86400)  # Run once daily
+

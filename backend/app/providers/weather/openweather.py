@@ -165,6 +165,81 @@ class OpenWeatherProvider:
 
         return self._get_mock_air_quality(city_lower)
 
+    async def get_historical_weather(self, city: str, date: str) -> Dict[str, Any]:
+        """
+        Get historical weather for a city on a specific date (YYYY-MM-DD).
+        Uses OpenWeather One Call API 3.0 /timemachine endpoint.
+        Falls back to a plausible mock when the API is unconfigured or the plan does not include One Call 3.0.
+        """
+        city_lower = city.strip().lower()
+        lat, lon = None, None
+
+        # 1. Resolve coordinates from known table or current weather endpoint
+        if city_lower in CITY_COORDS:
+            lat = CITY_COORDS[city_lower]["lat"]
+            lon = CITY_COORDS[city_lower]["lon"]
+        else:
+            try:
+                weather_data = await self._make_request("weather", {"q": city})
+                coord = weather_data.get("coord", {})
+                lat = coord.get("lat")
+                lon = coord.get("lon")
+            except Exception:
+                pass
+
+        if lat is None or lon is None:
+            lat, lon = 28.6139, 77.2090
+
+        # 2. Convert YYYY-MM-DD to Unix timestamp (noon UTC)
+        try:
+            import datetime
+            dt = datetime.datetime.strptime(date, "%Y-%m-%d")
+            dt_noon = dt.replace(hour=12, tzinfo=datetime.timezone.utc)
+            unix_ts = int(dt_noon.timestamp())
+        except ValueError:
+            logger.error(f"Invalid date format for historical weather: {date}")
+            return self._get_mock_historical_weather(city_lower, date)
+
+        try:
+            data = await self._make_request(
+                "onecall/timemachine",
+                {"lat": lat, "lon": lon, "dt": unix_ts, "units": "metric"},
+            )
+            records = data.get("data", [])
+            if records:
+                rec = records[0]
+                weather_obj = rec.get("weather", [{}])[0]
+                return {
+                    "city": city.capitalize(),
+                    "date": date,
+                    "temperature": float(rec.get("temp", 25.0)),
+                    "humidity": int(rec.get("humidity", 60)),
+                    "wind_speed": float(rec.get("wind_speed", 3.5)),
+                    "pressure": int(rec.get("pressure", 1013)),
+                    "weather": weather_obj.get("description", "clear sky").capitalize(),
+                    "icon": weather_obj.get("icon", "01d"),
+                    "source": "openweather_historical",
+                }
+        except Exception as e:
+            logger.warning(f"Historical weather fetch failed for {city} on {date}: {e}. Returning mock.")
+
+        return self._get_mock_historical_weather(city_lower, date)
+
+    @staticmethod
+    def _get_mock_historical_weather(city: str, date: str) -> Dict[str, Any]:
+        temp = 26.5 if "goa" in city else 18.0 if "delhi" in city else 24.0
+        return {
+            "city": city.capitalize(),
+            "date": date,
+            "temperature": temp,
+            "humidity": 65,
+            "wind_speed": 4.0,
+            "pressure": 1012,
+            "weather": "Partly Cloudy",
+            "icon": "03d",
+            "source": "mock_historical",
+        }
+
     @staticmethod
     def _get_mock_current_weather(city: str) -> Dict[str, Any]:
         temp = 28.5 if "goa" in city else 16.0 if "delhi" in city else 24.0

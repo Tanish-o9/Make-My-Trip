@@ -12,18 +12,15 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/esim", tags=["esim"])
 
+from app.services.esim_service import esim_service
+
 class EsimPurchaseRequest(BaseModel):
     country: str
     plan_name: str
 
 @router.get("/plans")
 async def list_esim_plans(country: str = Query("USA")):
-    c = country.upper()
-    return [
-        {"plan_name": f"{c} 7-Day Lite", "data_limit": "1 GB", "price_usd": 5.0, "price_inr": 420.0},
-        {"plan_name": f"{c} 15-Day Standard", "data_limit": "5 GB", "price_usd": 15.0, "price_inr": 1260.0},
-        {"plan_name": f"{c} 30-Day Unlimited", "data_limit": "Unlimited", "price_usd": 35.0, "price_inr": 2940.0}
-    ]
+    return await esim_service.list_plans(country)
 
 @router.post("/purchase")
 async def purchase_esim(
@@ -31,12 +28,5 @@ async def purchase_esim(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    esim_id = f"ESIM-{uuid.uuid4().hex[:8].upper()}"
-    qr_code_mock = f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={esim_id}"
-    
-    return {
-        "success": True,
-        "esim_id": esim_id,
-        "activation_qr_url": qr_code_mock,
-        "install_guide": "Go to Settings -> Cellular -> Add eSIM, scan the QR code and follow the screen instructions."
-    }
+    result = await esim_service.purchase_esim(req.plan_name)
+    return result

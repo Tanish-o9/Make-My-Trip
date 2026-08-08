@@ -8,6 +8,7 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    tenant_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("tenants.id", ondelete="SET NULL"), nullable=True, index=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     phone: Mapped[str] = mapped_column(String(50), nullable=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=True)  # Nullable for OAuth users
@@ -16,6 +17,7 @@ class User(Base):
     preferred_currency: Mapped[str] = mapped_column(String(10), default="INR")
     role: Mapped[str] = mapped_column(String(50), default="user")
     trust_score: Mapped[float] = mapped_column(Numeric(4, 2), default=4.50, nullable=False)
+    fcm_token: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)  # Firebase FCM device token
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
     updated_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow
@@ -223,3 +225,23 @@ class NotificationPreference(Base):
     email_alerts: Mapped[bool] = mapped_column(Boolean, default=True)
     sms_alerts: Mapped[bool] = mapped_column(Boolean, default=True)
     whatsapp_alerts: Mapped[bool] = mapped_column(Boolean, default=True)
+    push_alerts: Mapped[bool] = mapped_column(Boolean, default=True)  # Firebase FCM push notifications
+
+
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    device_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    user_agent: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    ip_address: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    issued_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    expires_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    last_used_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+
+    # Relationship
+    user = relationship("User")
+

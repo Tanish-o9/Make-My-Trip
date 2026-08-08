@@ -52,8 +52,6 @@ class MemoryManager:
         import time
         import socket
         now = time.time()
-        if now < cls._chroma_offline_until:
-            return None
 
         if cls._chroma_client is None:
             try:
@@ -64,11 +62,22 @@ class MemoryManager:
                     host=CHROMADB_HOST,
                     port=int(CHROMADB_PORT)
                 )
+                logger.info(f"Connected to remote ChromaDB at {CHROMADB_HOST}:{CHROMADB_PORT}")
             except Exception as e:
-                logger.warning(f"ChromaDB is offline at {CHROMADB_HOST}:{CHROMADB_PORT}. Bypassing for 30s. Error: {e}")
-                cls._chroma_client = None
-                cls._chroma_offline_until = now + 30.0
+                logger.warning(
+                    f"Remote ChromaDB at {CHROMADB_HOST}:{CHROMADB_PORT} unreachable: {e}. "
+                    "Falling back to local PersistentClient."
+                )
+                try:
+                    db_path = os.path.join(os.getcwd(), "chromadb_data")
+                    os.makedirs(db_path, exist_ok=True)
+                    cls._chroma_client = chromadb.PersistentClient(path=db_path)
+                    logger.info(f"Local persistent ChromaDB initialized at {db_path}")
+                except Exception as local_err:
+                    logger.error(f"Failed to initialize local ChromaDB client: {local_err}")
+                    cls._chroma_client = None
         return cls._chroma_client
+
 
     # --- Short-term Memory (Redis-backed conversation buffer) ---
     @classmethod

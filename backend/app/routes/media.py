@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.media import Media
 from app.services.storage import storage_provider
+from app.auth.dependencies import get_current_user
+from app.models.core import User
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +32,14 @@ async def upload_media(
     display_order: int = Form(0),
     is_primary: bool = Form(False),
     file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Uploads file, compresses to WebP, and saves polymorphic Media record"""
+    # BUG-012m FIX: Restrict write operations to administrators and support personnel
+    allowed_roles = {"admin", "super_admin", "support"}
+    if current_user.role not in allowed_roles:
+        raise HTTPException(status_code=403, detail="Access denied: Administrative write permissions required.")
     # 1. Validation size limit (10MB)
     max_size = 10 * 1024 * 1024
     content = await file.read()
@@ -92,9 +99,14 @@ async def upload_media(
 @router.put("/{media_id}/primary")
 def set_primary_photo(
     media_id: int,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Sets photo as primary and unsets all other sibling images of this entity"""
+    # BUG-012m FIX: Restrict write operations to administrators and support personnel
+    allowed_roles = {"admin", "super_admin", "support"}
+    if current_user.role not in allowed_roles:
+        raise HTTPException(status_code=403, detail="Access denied: Administrative write permissions required.")
     media = db.query(Media).filter(Media.id == media_id).first()
     if not media:
         raise HTTPException(status_code=404, detail="Media not found.")
@@ -122,9 +134,14 @@ def set_primary_photo(
 @router.delete("/{media_id}")
 def delete_media(
     media_id: int,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Deletes local WebP asset file and database entry, re-assigning primary if needed"""
+    # BUG-012m FIX: Restrict write operations to administrators and support personnel
+    allowed_roles = {"admin", "super_admin", "support"}
+    if current_user.role not in allowed_roles:
+        raise HTTPException(status_code=403, detail="Access denied: Administrative write permissions required.")
     media = db.query(Media).filter(Media.id == media_id).first()
     if not media:
         raise HTTPException(status_code=404, detail="Media not found.")

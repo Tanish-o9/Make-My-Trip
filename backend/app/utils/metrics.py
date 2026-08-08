@@ -7,6 +7,34 @@ API_RESPONSE_TIMES = Histogram(
     ["endpoint", "method"]
 )
 
+# HTTP Request Count Counter
+HTTP_REQUESTS_TOTAL = Counter(
+    "http_requests_total",
+    "Total count of HTTP requests handled by the API",
+    ["endpoint", "method", "status"]
+)
+
+# LLM call latency histogram
+LLM_LATENCY = Histogram(
+    "llm_latency_seconds",
+    "Latency of LLM completions in seconds",
+    ["provider", "task_type"]
+)
+
+# LLM failures count
+LLM_FAILURES_TOTAL = Counter(
+    "llm_failures_total",
+    "Total count of LLM API failures",
+    ["provider", "error_type"]
+)
+
+# Tool execution counters
+TOOL_CALLS_TOTAL = Counter(
+    "tool_calls_total",
+    "Total count of tool call executions",
+    ["tool_name", "status"]
+)
+
 # Payment transaction metrics
 PAYMENT_TRANSACTIONS = Counter(
     "payment_transactions_total",

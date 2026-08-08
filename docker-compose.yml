@@ -43,7 +43,7 @@ services:
       - IS_PERSISTENT=TRUE
       - ALLOW_RESET=TRUE
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/heartbeat')"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -80,51 +80,6 @@ services:
     volumes:
       - upload_data:/app/static/uploads
 
-  celery-worker:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-    container_name: travel_os_celery_worker
-    restart: always
-    command: celery -A app.tasks worker --loglevel=info --concurrency=4 -Q default,email,notifications,refunds,reminders
-    environment:
-      - DATABASE_URL=postgresql://travel_user:travel_password@postgres:5432/travel_os
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/1
-      - CELERY_RESULT_BACKEND=redis://redis:6379/2
-    env_file:
-      - backend/.env
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
-  celery-beat:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-    container_name: travel_os_celery_beat
-    restart: always
-    command: celery -A app.tasks beat --loglevel=info --scheduler celery.beat:PersistentScheduler
-    environment:
-      - DATABASE_URL=postgresql://travel_user:travel_password@postgres:5432/travel_os
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/1
-    env_file:
-      - backend/.env
-    depends_on:
-      - celery-worker
-
-  flower:
-    image: mher/flower:2.0
-    container_name: travel_os_flower
-    restart: always
-    command: celery flower --broker=redis://redis:6379/1 --port=5555
-    ports:
-      - "5555:5555"
-    depends_on:
-      - redis
 
   frontend:
     build:

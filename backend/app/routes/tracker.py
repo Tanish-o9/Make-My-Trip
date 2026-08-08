@@ -109,7 +109,7 @@ async def flight_tracker_websocket(websocket: WebSocket):
         logger.error(f"Flight Tracker WS error: {e}")
         try:
             await websocket.close()
-        except:
+        except Exception:
             pass
 
 # --- REAL-TIME SERVICES HUB (Phase 13) ---
@@ -287,5 +287,5 @@ async def realtime_alerts_websocket(websocket: WebSocket, token: Optional[str] =
         logger.error(f"Real-Time Services WebSocket error: {e}")
         try:
             await websocket.close()
-        except:
+        except Exception:
             pass

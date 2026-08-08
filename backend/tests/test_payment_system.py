@@ -258,11 +258,13 @@ def test_gateway_chargeback_dispute_creation(seeder):
         }
     }
     
-    # Send webhook with simulated signature verification header
-    # HMAC SHA256 signature of payload using whsec_stripe_test_secret
-    import json, hmac, hashlib
+    # BUG-009 FIX: Set test webhook secret in env so handler uses the same key for HMAC verification
+    import os, json, hmac, hashlib
+    test_secret = "whsec_stripe_test_secret"
+    os.environ["STRIPE_WEBHOOK_SECRET"] = test_secret
+
     payload_bytes = json.dumps(webhook_payload).encode()
-    sig = hmac.new(b"whsec_stripe_test_secret", payload_bytes, hashlib.sha256).hexdigest()
+    sig = hmac.new(test_secret.encode(), payload_bytes, hashlib.sha256).hexdigest()
     
     resp = client.post(
         "/api/v1/payments/webhook/stripe",

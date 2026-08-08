@@ -18,20 +18,12 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     from app.auth.jwt import JWT_SECRET, ALGORITHM
     from jose import jwt, JWTError
     
-    # 4. Print which SECRET_KEY is used (masked)
+    # 4. Logger debug details
     secret_prefix = JWT_SECRET[:4] if JWT_SECRET else "None"
-    print(f"4. SECRET_KEY used: '{secret_prefix}...' (len={len(JWT_SECRET)})")
-    
-    # 5. Print which ALGORITHM is used
-    print(f"5. ALGORITHM used: '{ALGORITHM}'")
-    
-    # 6. Verify login endpoint uses EXACTLY the same config
-    print("6. Verification: Both login endpoint and dependency import config from app.auth.jwt.")
+    logger.debug(f"SECRET_KEY prefix: '{secret_prefix}...' (len={len(JWT_SECRET)})")
+    logger.debug(f"ALGORITHM: '{ALGORITHM}'")
     
     auth_header = request.headers.get("Authorization") or request.headers.get("authorization")
-    
-    # 1. Print Raw Authorization Header
-    print(f"1. Raw Authorization Header: '{auth_header}'")
     
     if not auth_header:
         logger.warning(f"AUDIT get_current_user: Missing Authorization header. Available: {list(request.headers.keys())}")
@@ -49,63 +41,53 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
         
     token = auth_header.split(" ")[1]
     
-    # 2. Print Extracted Bearer Token
-    print(f"2. Extracted Bearer Token: '{token[:10]}...' (len={len(token)})")
-    
     if is_token_blacklisted(token):
         logger.warning("AUDIT get_current_user: Token is blacklisted")
         raise HTTPException(status_code=401, detail="Token is blacklisted")
     
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM])
-        
-        # 8. After jwt.decode(), print payload
-        print(f"8. Payload: {payload}")
-        
-        # 3. Decoded JWT Payload fields
-        print(f"3. Decoded JWT Payload - sub: '{payload.get('sub')}', role: '{payload.get('role')}', type: '{payload.get('type')}', exp: {payload.get('exp')}")
+        logger.debug(f"Decoded JWT Payload - sub: '{payload.get('sub')}', role: '{payload.get('role')}', type: '{payload.get('type')}', exp: {payload.get('exp')}")
         
     except JWTError as e:
         exception_name = type(e).__name__
-        # 7. Print real exception
-        print(f"7. Exception inside get_current_user: {exception_name} - {str(e)}")
+        logger.error(f"Exception inside get_current_user: {exception_name} - {str(e)}")
         raise HTTPException(
             status_code=401,
             detail=f"JWT Decode Error ({exception_name}): {str(e)} (Secret prefix: {secret_prefix}, Token len: {len(token)})"
         )
     except Exception as e:
         exception_name = type(e).__name__
-        print(f"7. Exception inside get_current_user: {exception_name} - {str(e)}")
+        logger.error(f"Exception inside get_current_user: {exception_name} - {str(e)}")
         raise HTTPException(
             status_code=401,
             detail=f"JWT Decode Unhandled Exception ({exception_name}): {str(e)}"
         )
         
     if not payload.get("type") == "access":
-        print(f"7. Exception inside get_current_user: InvalidTokenType - expected 'access', got '{payload.get('type')}'")
+        logger.error(f"Exception inside get_current_user: InvalidTokenType - expected 'access', got '{payload.get('type')}'")
         raise HTTPException(status_code=401, detail=f"InvalidTokenType: expected 'access', got '{payload.get('type')}'")
     
     email: str = payload.get("sub")
     if email is None:
-        print("7. Exception inside get_current_user: TokenPayloadMissingSub")
+        logger.error("Exception inside get_current_user: TokenPayloadMissingSub")
         raise HTTPException(status_code=401, detail="TokenPayloadMissingSub: Token payload missing 'sub'")
         
     user = db.query(User).filter(User.email == email).first()
     
-    # 9. After database lookup, print user found/not found
     if user is None:
-        print(f"9. Database lookup for email '{email}': User not found")
         driver = db.bind.url.drivername if db.bind else "unknown"
         db_url = str(db.bind.url) if db.bind else "unknown"
         if "@" in db_url:
             db_url = db_url.split("@")[1]
-        print(f"7. Exception inside get_current_user: UserNotFound - '{email}' not found in DB")
+        logger.error(f"Exception inside get_current_user: UserNotFound - '{email}' not found in DB")
         raise HTTPException(
             status_code=401, 
             detail=f"UserNotFound: Authenticated user '{email}' not found in database (Engine: {driver}, Host: {db_url})"
         )
     else:
-        print(f"9. Database lookup for email '{email}': User found (id={user.id}, role={user.role})")
+        logger.debug(f"Database lookup for email '{email}': User found (id={user.id}, role={user.role})")
+
         
     logger.info(f"AUDIT get_current_user: Successfully resolved user: id={user.id}, email={user.email}, role={user.role}")
         

@@ -3,6 +3,7 @@ import logging
 from decimal import Decimal
 import redis
 import os
+from app.utils.redis_client import redis_client
 
 logger = logging.getLogger(__name__)
 
@@ -24,12 +25,7 @@ class CurrencyService:
 
     @classmethod
     def _get_redis(cls):
-        if cls._redis_client is None:
-            try:
-                cls._redis_client = redis.Redis.from_url(REDIS_URL, socket_timeout=2)
-            except Exception as e:
-                logger.warning(f"Failed to connect to Redis for Currency Cache: {e}")
-        return cls._redis_client
+        return redis_client
 
     @classmethod
     def get_rates(cls) -> dict:
@@ -67,14 +63,38 @@ class CurrencyService:
 
     @classmethod
     def sync_rates(cls) -> dict:
-        # Celery-scheduled rate sync simulator (would call openexchangerates or similar API)
-        # For now, it updates our local state cache in Redis
+        """Fetches live exchange rates from ExchangeRate.host or OpenExchangeRates, caching in Redis."""
+        api_key = os.getenv("EXCHANGERATE_HOST_API_KEY", "").strip()
         rates = cls.DEFAULT_RATES.copy()
-        # Stub: Simulating slight market fluctuations
-        import random
-        for curr in rates:
-            if curr != cls.BASE_CURRENCY:
-                rates[curr] = rates[curr] * (1 + (random.random() - 0.5) * 0.01)
+        
+        if api_key and api_key not in ["", "your-exchangerate-key"]:
+            url = f"https://api.exchangerate.host/live?access_key={api_key}"
+            try:
+                import httpx
+                resp = httpx.get(url, timeout=5.0)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    quotes = data.get("quotes", {})
+                    # ExchangeRate.host returns USD-relative quotes: E.g. USDINR = 83.5
+                    # We normalize rates relative to INR (BASE_CURRENCY = "INR")
+                    usd_inr = float(quotes.get("USDINR", 83.5))
+                    for k, val in quotes.items():
+                        # Extract currency name (e.g. USDINR -> INR)
+                        curr_code = k[3:] if len(k) == 6 else k
+                        if curr_code == "INR":
+                            rates["INR"] = 1.0
+                        elif usd_inr > 0:
+                            # 1 INR = (1 / usd_inr) * quote_val USD-relative
+                            rates[curr_code] = round((1.0 / usd_inr) * float(val), 5)
+                    logger.info("Successfully fetched live rates from ExchangeRate.host")
+            except Exception as e:
+                logger.error(f"Failed to fetch real exchange rates from API: {e}")
+        else:
+            # Sandbox market fluctuations fallback
+            import random
+            for curr in rates:
+                if curr != cls.BASE_CURRENCY:
+                    rates[curr] = rates[curr] * (1 + (random.random() - 0.5) * 0.01)
 
         r = cls._get_redis()
         if r:

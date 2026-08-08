@@ -23,7 +23,10 @@ from app.ai_agents.specialists import (
     memory_node,
     notification_node,
     insurance_assistant_node,
-    emergency_assistant_node
+    emergency_assistant_node,
+    expense_tracking_node,
+    price_intelligence_node,
+    recommendation_node
 )
 
 logger = logging.getLogger(__name__)
@@ -414,6 +417,9 @@ builder.add_node("analytics_info", analytics_node)
 builder.add_node("trip_planner", trip_planner_node)
 builder.add_node("insurance_assistant", insurance_assistant_node)
 builder.add_node("emergency_assistant", emergency_assistant_node)
+builder.add_node("expense_tracking", expense_tracking_node)
+builder.add_node("price_intelligence", price_intelligence_node)
+builder.add_node("recommendation", recommendation_node)
 builder.add_node("general_chat", general_chat_node)
 builder.add_node("compiler_node", compiler_node)
 
@@ -441,6 +447,9 @@ builder.add_conditional_edges(
         "trip_planner": "trip_planner",
         "insurance_assistant": "insurance_assistant",
         "emergency_assistant": "emergency_assistant",
+        "expense_tracking": "expense_tracking",
+        "price_intelligence": "price_intelligence",
+        "recommendation": "recommendation",
         "general_chat": "general_chat",
         "compiler_node": "compiler_node"
     }
@@ -463,6 +472,9 @@ builder.add_edge("analytics_info", "supervisor_node")
 builder.add_edge("trip_planner", "supervisor_node")
 builder.add_edge("insurance_assistant", "supervisor_node")
 builder.add_edge("emergency_assistant", "supervisor_node")
+builder.add_edge("expense_tracking", "supervisor_node")
+builder.add_edge("price_intelligence", "supervisor_node")
+builder.add_edge("recommendation", "supervisor_node")
 builder.add_edge("general_chat", "supervisor_node")
 
 # Compiler to END
@@ -712,6 +724,13 @@ If NO permanent preference is stated, output ONLY the word: NONE"""
 
     @staticmethod
     def execute_chat_turn(user_id: int, session_id: str, message: str) -> str:
+        # Extract and remember permanent entities/preferences first
+        from app.services.memory_extractor import ProfileMemoryExtractor
+        try:
+            ProfileMemoryExtractor.extract_and_remember(user_id, session_id, message)
+        except Exception as e:
+            logger.error(f"Failed during memory extraction step: {e}")
+
         # 1. Load history, context, and enriched preferences
         history, trip_context, budget_constraints = SupervisorAgent._load_and_enrich_context(
             user_id, session_id, message
@@ -719,6 +738,7 @@ If NO permanent preference is stated, output ONLY the word: NONE"""
 
         # 2. Fast regex-based parameter extraction (no LLM call — saves rate limit quota)
         import re as _re
+
         # Dates: YYYY-MM-DD or DD/MM/YYYY
         date_matches = _re.findall(r'\b(\d{4}-\d{2}-\d{2})\b', message)
         if date_matches and not trip_context.get("departure_date"):
@@ -806,6 +826,13 @@ If NO permanent preference is stated, output ONLY the word: NONE"""
 
     @staticmethod
     async def execute_chat_turn_async(user_id: int, session_id: str, message: str, status_callback=None) -> str:
+        # Extract and remember permanent entities/preferences first
+        from app.services.memory_extractor import ProfileMemoryExtractor
+        try:
+            ProfileMemoryExtractor.extract_and_remember(user_id, session_id, message)
+        except Exception as e:
+            logger.error(f"Failed during memory extraction step in async: {e}")
+
         # 1. Load history, context, and enriched preferences (shared with sync path)
         history, trip_context, budget_constraints = SupervisorAgent._load_and_enrich_context(
             user_id, session_id, message
@@ -813,6 +840,7 @@ If NO permanent preference is stated, output ONLY the word: NONE"""
 
         # 2. Fast regex-based parameter extraction (no LLM call — saves rate limit quota)
         import re as _re
+
         date_matches = _re.findall(r'\b(\d{4}-\d{2}-\d{2})\b', message)
         if date_matches and not trip_context.get("departure_date"):
             trip_context["departure_date"] = date_matches[0]

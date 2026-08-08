@@ -33,11 +33,17 @@ class BookingStatus(PyEnum):
 class BookingMixin:
     """Common columns shared across all booking verticals"""
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    tenant_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("tenants.id", ondelete="SET NULL"), nullable=True, index=True)
+    version_id: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     booking_reference: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True, nullable=False)
     status: Mapped[BookingStatus] = mapped_column(Enum(BookingStatus), default=BookingStatus.HOLD, index=True, nullable=False)
     total_amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(10), default="INR")
+
+    __mapper_args__ = {
+        "version_id_col": version_id
+    }
     pricing_snapshot: Mapped[dict] = mapped_column(JSON, nullable=False)  # Breakdown: base, taxes, fees, discount
     cancellation_policy_ref: Mapped[str] = mapped_column(String(255), nullable=True)
     held_until: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=True) # Checkout hold TTL timer

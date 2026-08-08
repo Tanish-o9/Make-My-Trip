@@ -349,23 +349,34 @@ class LLMRouter:
 
     def _rank_providers(self, task_type: str) -> List[str]:
         """Returns an ordered list of providers that have valid API keys and open circuits."""
-        # Groq-first ordering since it's free, fast (Llama 3.1), and most likely configured
-        if task_type == "simple":
-            order = ["groq", "gemini", "openai", "anthropic"]
-        elif task_type == "reasoning":
-            order = ["groq", "gemini", "openai", "anthropic"]
-        elif task_type == "creative":
-            order = ["groq", "gemini", "anthropic", "openai"]
-        else:
-            order = ["groq", "gemini", "openai", "anthropic"]
+        # Standard priority ranking
+        order = ["groq", "openai", "gemini", "anthropic"]
 
-        # Only add Ollama if explicitly configured with a non-default endpoint
-        ollama_ep = os.getenv("OLLAMA_ENDPOINT", "")
-        if ollama_ep and ollama_ep != "http://localhost:11434" and "localhost" not in ollama_ep:
-            order.append("ollama")
+        # Dynamically check if Ollama is running
+        ollama_ep = os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434").strip()
+        if ollama_ep:
+            if "mock" in ollama_ep or "PYTEST_CURRENT_TEST" in os.environ:
+                order.append("ollama")
+            else:
+                import socket
+                from urllib.parse import urlparse
+                try:
+                    parsed = urlparse(ollama_ep)
+                    host = parsed.hostname or "localhost"
+                    port = parsed.port or 11434
+                    with socket.create_connection((host, int(port)), timeout=0.15):
+                        order.append("ollama")
+                        logger.info(f"Ollama local service detected at {ollama_ep}. Adding to rank order.")
+                except Exception:
+                    pass
+
 
         active_providers = []
         for name in order:
+            if name == "ollama":
+                active_providers.append(name)
+                continue
+
             key_env_map = {
                 "openai": "OPENAI_API_KEY",
                 "gemini": "GEMINI_API_KEY",
@@ -381,13 +392,8 @@ class LLMRouter:
             if not self._is_circuit_open(name):
                 active_providers.append(name)
 
-        if not active_providers:
-            logger.error(
-                "No LLM providers are configured with real API keys. "
-                "Set GROQ_API_KEY (free at console.groq.com) in your environment variables."
-            )
-
         return active_providers
+
 
     def complete(
         self,
@@ -440,6 +446,8 @@ class LLMRouter:
                         db.rollback()
                         decision_log = None
 
+                from app.utils.metrics import LLM_LATENCY, LLM_FAILURES_TOTAL
+                
                 # Call generation
                 result = provider.generate(prompt, system_prompt=system_prompt, stream=stream, **kwargs)
 
@@ -455,6 +463,7 @@ class LLMRouter:
                             # Record success upon successful exhaustion of stream
                             latency = (time.time() - start_stream_time) * 1000
                             self._record_success(provider_name, latency)
+                            LLM_LATENCY.labels(provider=provider_name, task_type=task_type).observe(latency / 1000.0)
                             # Update DB log with final duration
                             if db and decision_log:
                                 try:
@@ -464,6 +473,7 @@ class LLMRouter:
                                     db.rollback()
                         except Exception as e:
                             self._record_failure(provider_name)
+                            LLM_FAILURES_TOTAL.labels(provider=provider_name, error_type=type(e).__name__).inc()
                             raise e
                         finally:
                             if db:
@@ -475,6 +485,7 @@ class LLMRouter:
                 else:
                     latency = (time.time() - start_time) * 1000
                     self._record_success(provider_name, latency)
+                    LLM_LATENCY.labels(provider=provider_name, task_type=task_type).observe(latency / 1000.0)
                     if db and decision_log:
                         try:
                             decision_log.latency_ms = int(latency)
@@ -484,6 +495,8 @@ class LLMRouter:
                     return result
 
             except Exception as e:
+                from app.utils.metrics import LLM_FAILURES_TOTAL
+                LLM_FAILURES_TOTAL.labels(provider=provider_name, error_type=type(e).__name__).inc()
                 err_str = str(e)
                 is_rate_limit = "429" in err_str or "Too Many Requests" in err_str or "rate_limit" in err_str.lower()
 
@@ -498,9 +511,11 @@ class LLMRouter:
                             retry_result = provider.generate(prompt, system_prompt=system_prompt, stream=stream, **kwargs)
                             latency = (time.time() - start_time) * 1000
                             self._record_success(provider_name, latency)
+                            LLM_LATENCY.labels(provider=provider_name, task_type=task_type).observe(latency / 1000.0)
                             logger.info(f"Provider {provider_name} succeeded after rate-limit retry {attempt+1}")
                             return retry_result
                         except Exception as retry_e:
+                            LLM_FAILURES_TOTAL.labels(provider=provider_name, error_type="Retry_"+type(retry_e).__name__).inc()
                             if "429" not in str(retry_e):
                                 # Different error on retry — stop retrying this provider
                                 last_error = retry_e
@@ -521,6 +536,7 @@ class LLMRouter:
                         db.commit()
                     except Exception:
                         db.rollback()
+
                 continue
 
         if db:

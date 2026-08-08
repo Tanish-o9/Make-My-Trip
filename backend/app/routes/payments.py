@@ -213,15 +213,12 @@ def create_payment_order(
     if not booking:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found.")
 
-    # Ownership Debug Prints
-    print("--- OWNERSHIP DEBUG TRACE ---")
-    print(f"1. current_user.id: {current_user.id}")
-    print(f"2. booking.user_id: {booking.user_id if booking else None}")
-    print(f"3. booking.booking_reference: {booking.booking_reference if booking else None}")
-    print(f"4. booking.created_by: {getattr(booking, 'created_by', 'N/A')}")
-    print(f"5. JWT subject (current_user.email): {current_user.email}")
-    print(f"6. Database booking row: {booking.__class__.__name__} (id={getattr(booking, 'id', None)}, ref={getattr(booking, 'booking_reference', None)}, user_id={getattr(booking, 'user_id', None)}, status={getattr(booking, 'status', None)})")
-    print("------------------------------")
+    # Ownership Debug Log
+    logger.debug(
+        f"OWNERSHIP TRACE - User ID: {current_user.id}, Booking User ID: {booking.user_id if booking else None}, "
+        f"Booking Ref: {booking.booking_reference if booking else None}, JWT: {current_user.email}"
+    )
+
 
     # Validate that it belongs to the requesting user
     if booking.user_id != current_user.id:
@@ -375,15 +372,16 @@ def create_payment_order(
         "qr_code_url": qr_code_url,
         "qr_code_id": qr_code_id
     }
-    print(f"LOG: create-order final response payload: {res_payload}")
     logger.info(f"LOG: create-order final response payload: {res_payload}")
     return res_payload
 
 
-# Simulated webhook signature validation secrets
+
+# BUG-005 FIX: Load webhook secrets from environment — never hardcode in source
+import os as _os
 WEBHOOK_SECRETS = {
-    "stripe": "whsec_stripe_test_secret",
-    "razorpay": "whsec_razorpay_test_secret"
+    "stripe": _os.getenv("STRIPE_WEBHOOK_SECRET", ""),
+    "razorpay": _os.getenv("RAZORPAY_WEBHOOK_SECRET", "")
 }
 
 def find_booking_by_reference(db: Session, booking_ref: str):
@@ -479,10 +477,10 @@ def verify_payment(
     return {"status": "captured", "booking_reference": payment.booking_id}
 
 
-# Simulated webhook signature validation secrets
-WEBHOOK_SECRETS = {
-    "stripe": "whsec_stripe_test_secret",
-    "razorpay": "whsec_razorpay_test_secret"
+# BUG-005 FIX: Load webhook secrets from environment — never hardcode in source
+WEBHOOK_SECRETS_V2 = {
+    "stripe": _os.getenv("STRIPE_WEBHOOK_SECRET", ""),
+    "razorpay": _os.getenv("RAZORPAY_WEBHOOK_SECRET", "")
 }
 
 @router.post("/webhook")
@@ -503,12 +501,15 @@ async def gateway_webhook(
     
     # Resolve secret
     from app.payments.config import settings
-    secret = WEBHOOK_SECRETS.get(provider.lower(), "default_secret")
+    secret = _os.getenv("RAZORPAY_WEBHOOK_SECRET", "") if provider.lower() == "razorpay" else _os.getenv("STRIPE_WEBHOOK_SECRET", "")
     if provider.lower() == "razorpay" and settings.RAZORPAY_WEBHOOK_SECRET:
         secret = settings.RAZORPAY_WEBHOOK_SECRET
         
     # 1. Webhook Signature Verification
     if sig:
+        if not secret:
+            logger.error(f"Webhook secret not configured for provider: {provider}")
+            raise HTTPException(status_code=500, detail="Webhook secret not configured")
         expected = hmac.new(
             secret.encode('utf-8'),
             body_bytes,

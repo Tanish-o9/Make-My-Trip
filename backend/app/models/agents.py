@@ -73,3 +73,15 @@ class DestinationCostBaseline(Base):
     daily_activities_cost: Mapped[float] = mapped_column(Integer, default=1200)
     seed_batch_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
+
+class PriceSnapshot(Base):
+    __tablename__ = "price_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    item_type: Mapped[str] = mapped_column(String(50), index=True, nullable=False) # "flight" | "hotel" | "forex" | "activity"
+    item_id: Mapped[str] = mapped_column(String(100), index=True, nullable=False)   # e.g., "DEL-BOM-AI101" | "HOTEL-123" | "USD-INR"
+    price: Mapped[float] = mapped_column(Integer, nullable=False)
+    currency: Mapped[str] = mapped_column(String(10), default="INR")
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
+
+

@@ -1,9 +1,12 @@
 import datetime
 from typing import Dict, Any, Optional
 from pydantic import BaseModel
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from app.database import get_db
+from app.auth.dependencies import get_current_admin
+from app.models.core import User
+import os
 from app.models.bookings import (
     BookingStatus, FlightBooking, HotelBooking, TrainBooking, BusBooking,
     CabBooking, HolidayPackageBooking, ActivityBooking, VisaApplication,
@@ -26,8 +29,14 @@ class PartnerUpdatePayload(BaseModel):
 @router.post("/partner-update")
 def partner_webhook_update(
     payload: PartnerUpdatePayload,
+    request: Request,
     db: Session = Depends(get_db)
 ):
+    # BUG-012k FIX: Enforce partner webhook signature/token authentication
+    partner_token = request.headers.get("X-Partner-Token")
+    expected_token = os.getenv("PARTNER_WEBHOOK_TOKEN", "partner_default_token")
+    if not partner_token or partner_token != expected_token:
+        raise HTTPException(status_code=401, detail="Invalid or missing X-Partner-Token.")
     models_mapping = {
         "flights": FlightBooking, "hotels": HotelBooking, "trains": TrainBooking,
         "cabs": CabBooking, "visa": VisaApplication, "holidays": HolidayPackageBooking,
@@ -93,6 +102,7 @@ def partner_webhook_update(
 
 @router.post("/reconcile")
 def trigger_provider_reconciliation(
+    current_admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
     from app.services.reconciliation import reconcile_provider_bookings

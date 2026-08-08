@@ -1483,6 +1483,10 @@ async def bookings_create(
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found.")
 
+    # BUG-012e FIX: Enforce user ownership of booking (IDOR prevention)
+    if booking.user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Access denied.")
+
     if not req.passengers:
         raise HTTPException(status_code=400, detail="Passenger list is required.")
 
@@ -1491,8 +1495,8 @@ async def bookings_create(
         if not p.name or not p.dob or not p.gender or not p.email or not p.phone:
             raise HTTPException(status_code=400, detail="Passenger information incomplete.")
 
-    # Save passenger details & update status
-    booking.passenger_details = [p.dict() for p in req.passengers]
+    # Save passenger details & update status (BUG-004 FIX: use model_dump() for Pydantic v2)
+    booking.passenger_details = [p.model_dump() if hasattr(p, "model_dump") else p.dict() for p in req.passengers]
     booking.status = BookingStatus.PAYMENT_PENDING
     
     db.add(BookingEvent(
@@ -1518,6 +1522,10 @@ async def bookings_cancel_api(
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found.")
 
+    # BUG-012e FIX: Enforce user ownership of booking (IDOR prevention)
+    if booking.user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Access denied.")
+
     booking.status = BookingStatus.CANCELLED
     db.add(BookingEvent(
         booking_reference=req.booking_reference,
@@ -1541,6 +1549,10 @@ async def bookings_refund_api(
     booking = db.query(FlightBooking).filter(FlightBooking.booking_reference == req.booking_reference).first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found.")
+
+    # BUG-012e FIX: Enforce user ownership of booking (IDOR prevention)
+    if booking.user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Access denied.")
 
     booking.status = BookingStatus.REFUNDED
     # Credit back to user wallet
@@ -1568,6 +1580,10 @@ async def bookings_status_api(
     booking = db.query(FlightBooking).filter(FlightBooking.booking_reference == booking_reference).first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found.")
+
+    # BUG-012e FIX: Enforce user ownership of booking (IDOR prevention)
+    if booking.user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Access denied.")
 
     return {
         "booking_reference": booking.booking_reference,

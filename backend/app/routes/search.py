@@ -23,19 +23,32 @@ search_limiter = RateLimiter(max_requests=20, window_seconds=60, scope="search")
 
 def attach_media_to_results(results: List[Dict[str, Any]], owner_type: str) -> List[Dict[str, Any]]:
     """Helper to attach primary photo URL and base64 blur-up hash to search results"""
+    if not results:
+        return results
     db = SessionLocal()
     try:
+        # Collect all owner_ids to query in a single batch
+        keys = []
+        for item in results:
+            name_key = item.get("name") or item.get("provider") or item.get("train_name") or item.get("operator_name")
+            if name_key:
+                keys.append(name_key)
+        
+        media_map = {}
+        if keys:
+            media_list = db.query(Media).filter(
+                Media.owner_type == owner_type,
+                Media.owner_id.in_(keys),
+                Media.is_primary == True
+            ).all()
+            media_map = {m.owner_id: m for m in media_list}
+            
         for item in results:
             name_key = item.get("name") or item.get("provider") or item.get("train_name") or item.get("operator_name")
             if not name_key:
                 continue
                 
-            media = db.query(Media).filter(
-                Media.owner_type == owner_type,
-                Media.owner_id == name_key,
-                Media.is_primary == True
-            ).first()
-            
+            media = media_map.get(name_key)
             if media:
                 item["primary_photo_url"] = media.url
                 item["blur_hash_base64"] = media.blur_hash_base64
@@ -111,6 +124,51 @@ async def unified_vertical_search(
     offset: int = Query(0)
 ):
     """Unified search gateway routing queries based on vertical type"""
+    # BUG-003 FIX: Coerce FastAPI Query descriptor defaults to real Python types when called directly
+    # (not via FastAPI DI, e.g. when invoked from saas_routes.py bypassing dependency injection).
+    # Query(None) returns a fastapi.params.Query instance — detect and replace with None.
+    from fastapi.params import Query as _QueryType
+
+    def _str_or_none(v):
+        """Return None if value is a FastAPI Query descriptor, else the value as-is."""
+        return None if isinstance(v, _QueryType) else v
+
+    origin = _str_or_none(origin)
+    destination = _str_or_none(destination)
+    date = _str_or_none(date)
+    category = _str_or_none(category)
+    pickup = _str_or_none(pickup)
+    drop = _str_or_none(drop)
+    type = _str_or_none(type)
+    selfDrive = _str_or_none(selfDrive)
+    check_in = _str_or_none(check_in)
+    check_out = _str_or_none(check_out)
+    sort_by = _str_or_none(sort_by)
+    stops = _str_or_none(stops)
+    carrier = _str_or_none(carrier)
+    amenity = _str_or_none(amenity)
+    cancellation = _str_or_none(cancellation)
+
+    if isinstance(locality_id, _QueryType):
+        locality_id = None
+
+    try:
+        passengers = int(passengers) if not isinstance(passengers, _QueryType) and passengers is not None else 1
+    except (TypeError, ValueError):
+        passengers = 1
+    try:
+        limit = int(limit) if not isinstance(limit, _QueryType) and limit is not None else 25
+    except (TypeError, ValueError):
+        limit = 25
+    try:
+        offset = int(offset) if not isinstance(offset, _QueryType) and offset is not None else 0
+    except (TypeError, ValueError):
+        offset = 0
+    try:
+        budget = float(budget) if not isinstance(budget, _QueryType) and budget is not None else None
+    except (TypeError, ValueError):
+        budget = None
+
     v = vertical.lower()
     
     if v == "flights":

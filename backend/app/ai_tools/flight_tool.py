@@ -52,11 +52,19 @@ def flight_search_tool(
     except RuntimeError:
         loop = None
 
-    if loop and loop.is_running():
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(asyncio.run, get_offers())
-            results = future.result()
-    else:
-        results = asyncio.run(get_offers())
+    from app.utils.metrics import TOOL_CALLS_TOTAL
+    try:
+        if loop and loop.is_running():
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, get_offers())
+                results = future.result()
+        else:
+            results = asyncio.run(get_offers())
+        
+        status = "success" if results else "empty"
+        TOOL_CALLS_TOTAL.labels(tool_name="flight_search", status=status).inc()
+        return {"success": True, "results": results}
+    except Exception as exc:
+        TOOL_CALLS_TOTAL.labels(tool_name="flight_search", status="error").inc()
+        raise exc
 
-    return {"success": True, "results": results}

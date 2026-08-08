@@ -7,6 +7,7 @@ import logging
 import httpx
 from typing import Dict, Any, List
 from app.providers.base import BaseFlightProvider, NormalizedOffer
+from app.utils.http_client import async_client
 from app.payments.config import settings
 
 logger = logging.getLogger(__name__)
@@ -100,24 +101,24 @@ class DuffelFlightProvider(BaseFlightProvider):
         offers: List[NormalizedOffer] = []
         try:
             # HTTP Client with timeout and retries
-            async with httpx.AsyncClient() as client:
-                response = None
-                for attempt in range(3):
-                    try:
-                        response = await client.post(url, headers=headers, json=payload, timeout=8.0)
-                        if response.status_code in (200, 201):
-                            break
-                        else:
-                            logger.warning(f"DuffelFlightProvider: Attempt {attempt+1} failed with HTTP {response.status_code}")
-                    except httpx.RequestError as exc:
-                        logger.warning(f"DuffelFlightProvider: Attempt {attempt+1} network error: {exc}")
-                        if attempt == 2:
-                            raise exc
-                        await asyncio.sleep(0.5)
+            client = async_client
+            response = None
+            for attempt in range(3):
+                try:
+                    response = await client.post(url, headers=headers, json=payload, timeout=8.0)
+                    if response.status_code in (200, 201):
+                        break
+                    else:
+                        logger.warning(f"DuffelFlightProvider: Attempt {attempt+1} failed with HTTP {response.status_code}")
+                except httpx.RequestError as exc:
+                    logger.warning(f"DuffelFlightProvider: Attempt {attempt+1} network error: {exc}")
+                    if attempt == 2:
+                        raise exc
+                    await asyncio.sleep(0.5)
 
-                if not response or response.status_code not in (200, 201):
-                    logger.error(f"DuffelFlightProvider: API permanently failed with status {response.status_code if response else 'No Response'}")
-                    return []
+            if not response or response.status_code not in (200, 201):
+                logger.error(f"DuffelFlightProvider: API permanently failed with status {response.status_code if response else 'No Response'}")
+                return []
 
                 resp_data = response.json()
                 raw_offers = resp_data.get("data", {}).get("offers", [])
@@ -291,22 +292,21 @@ class DuffelFlightProvider(BaseFlightProvider):
         }
 
         try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(url, headers=headers, json=payload, timeout=10.0)
-                if response.status_code in (200, 201):
-                    res_data = response.json().get("data", {})
-                    return {
-                        "success": True,
-                        "hold_id": res_data.get("id"),
-                        "booking_ref": res_data.get("booking_reference"),
-                        "provider_name": "Duffel",
-                        "status": res_data.get("status")
-                    }
-                else:
-                    return {
-                        "success": False,
-                        "message": f"Provider limitation: Duffel API returned HTTP {response.status_code} - {response.text}"
-                    }
+            response = await async_client.post(url, headers=headers, json=payload, timeout=10.0)
+            if response.status_code in (200, 201):
+                res_data = response.json().get("data", {})
+                return {
+                    "success": True,
+                    "hold_id": res_data.get("id"),
+                    "booking_ref": res_data.get("booking_reference"),
+                    "provider_name": "Duffel",
+                    "status": res_data.get("status")
+                }
+            else:
+                return {
+                    "success": False,
+                    "message": f"Provider limitation: Duffel API returned HTTP {response.status_code} - {response.text}"
+                }
         except Exception as e:
             return {
                 "success": False,
@@ -331,22 +331,21 @@ class DuffelFlightProvider(BaseFlightProvider):
         }
 
         try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(url, headers=headers, json={}, timeout=10.0)
-                if response.status_code in (200, 201):
-                    res_data = response.json().get("data", {})
-                    return {
-                        "success": True,
-                        "booking_ref": res_data.get("booking_reference"),
-                        "order_id": res_data.get("id"),
-                        "status": res_data.get("status"),
-                        "provider_name": "Duffel"
-                    }
-                else:
-                    return {
-                        "success": False,
-                        "message": f"Provider limitation: Duffel confirmation failed: {response.text}"
-                    }
+            response = await async_client.post(url, headers=headers, json={}, timeout=10.0)
+            if response.status_code in (200, 201):
+                res_data = response.json().get("data", {})
+                return {
+                    "success": True,
+                    "booking_ref": res_data.get("booking_reference"),
+                    "order_id": res_data.get("id"),
+                    "status": res_data.get("status"),
+                    "provider_name": "Duffel"
+                }
+            else:
+                return {
+                    "success": False,
+                    "message": f"Provider limitation: Duffel confirmation failed: {response.text}"
+                }
         except Exception as e:
             return {
                 "success": False,
@@ -374,27 +373,26 @@ class DuffelFlightProvider(BaseFlightProvider):
         }
 
         try:
-            async with httpx.AsyncClient() as client:
-                resp_create = await client.post(url_create, headers=headers, json=payload_create, timeout=10.0)
-                if resp_create.status_code not in (200, 201):
-                    return {
-                        "success": False,
-                        "message": f"Provider limitation: Duffel cancellation initiation failed: {resp_create.text}"
-                    }
-                
-                cancellation_id = resp_create.json().get("data", {}).get("id")
-                url_confirm = f"{self.base_url}/air/order_cancellations/{cancellation_id}/actions/confirm"
-                resp_confirm = await client.post(url_confirm, headers=headers, json={}, timeout=10.0)
-                if resp_confirm.status_code in (200, 201):
-                    return {
-                        "success": True,
-                        "message": "Cancelled and refunded successfully via Duffel"
-                    }
-                else:
-                    return {
-                        "success": False,
-                        "message": f"Provider limitation: Duffel cancellation confirmation failed: {resp_confirm.text}"
-                    }
+            resp_create = await async_client.post(url_create, headers=headers, json=payload_create, timeout=10.0)
+            if resp_create.status_code not in (200, 201):
+                return {
+                    "success": False,
+                    "message": f"Provider limitation: Duffel cancellation initiation failed: {resp_create.text}"
+                }
+            
+            cancellation_id = resp_create.json().get("data", {}).get("id")
+            url_confirm = f"{self.base_url}/air/order_cancellations/{cancellation_id}/actions/confirm"
+            resp_confirm = await async_client.post(url_confirm, headers=headers, json={}, timeout=10.0)
+            if resp_confirm.status_code in (200, 201):
+                return {
+                    "success": True,
+                    "message": "Cancelled and refunded successfully via Duffel"
+                }
+            else:
+                return {
+                    "success": False,
+                    "message": f"Provider limitation: Duffel cancellation confirmation failed: {resp_confirm.text}"
+                }
         except Exception as e:
             return {
                 "success": False,

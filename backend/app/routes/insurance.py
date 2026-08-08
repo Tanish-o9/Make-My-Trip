@@ -28,6 +28,8 @@ async def list_insurance_plans():
         {"plan_name": "Platinum Elite", "premium": 1499.0, "coverage": "Unlimited Medical cover, Trip delays, Covid cover, Adventure sports cover"}
     ]
 
+from app.services.insurance import insurance_service
+
 @router.post("/purchase")
 async def purchase_insurance(
     req: InsurancePurchaseRequest,
@@ -35,7 +37,6 @@ async def purchase_insurance(
     db: Session = Depends(get_db)
 ):
     booking_ref = f"BK-IS-{uuid.uuid4().hex[:8].upper()}"
-    policy_num = f"POL-{uuid.uuid4().hex[:6].upper()}"
     
     plan_fare = 499.0
     if "gold" in req.plan_name.lower():
@@ -46,6 +47,16 @@ async def purchase_insurance(
     start_date = datetime.datetime.utcnow() + datetime.timedelta(days=7)
     end_date = start_date + datetime.timedelta(days=req.duration_days)
     
+    # Issue policy via abstracted adapters
+    policy_res = await insurance_service.purchase_policy(
+        provider_name="Tata AIG",
+        plan_name=req.plan_name,
+        destination=req.destination,
+        passenger_name=req.passenger_name,
+        duration_days=req.duration_days
+    )
+    policy_num = policy_res.get("policy_number")
+    
     booking = InsurancePolicy(
         booking_reference=booking_ref,
         user_id=current_user.id,
@@ -53,7 +64,7 @@ async def purchase_insurance(
         total_amount=plan_fare,
         currency="INR",
         pricing_snapshot={"premium": plan_fare},
-        provider_name="Tata AIG",
+        provider_name=policy_res.get("provider_name", "Tata AIG"),
         policy_name=req.plan_name,
         policy_number=policy_num,
         coverage_details={"destination": req.destination, "insured": req.passenger_name},

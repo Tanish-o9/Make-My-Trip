@@ -126,6 +126,7 @@ def hotel_search_tool(
                 "provider_name": offer.provider_name
             })
 
+    from app.utils.metrics import TOOL_CALLS_TOTAL
     # If still completely empty, fallback mock (safety net)
     if not results:
         results = [{
@@ -150,4 +151,7 @@ def hotel_search_tool(
             "provider_name": "Expedia"
         }]
 
+    status = "success" if results and not results[0]["hotel_id"].startswith("ht_mock") else "fallback"
+    TOOL_CALLS_TOTAL.labels(tool_name="hotel_search", status=status).inc()
     return {"success": True, "results": results}
+

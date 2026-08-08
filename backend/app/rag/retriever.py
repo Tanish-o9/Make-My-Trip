@@ -16,14 +16,28 @@ class RAGSystem:
 
     def _get_client(self):
         if self._chroma_client is None:
+            import socket
             try:
+                # 200ms connection test
+                with socket.create_connection((CHROMADB_HOST, int(CHROMADB_PORT)), timeout=0.2):
+                    pass
                 self._chroma_client = chromadb.HttpClient(
                     host=CHROMADB_HOST,
                     port=int(CHROMADB_PORT)
                 )
+                logger.info(f"RAGSystem connected to remote ChromaDB at {CHROMADB_HOST}:{CHROMADB_PORT}")
             except Exception as e:
-                logger.warning(f"RAGSystem failed to connect to ChromaDB: {e}")
+                logger.warning(f"RAGSystem remote ChromaDB unreachable: {e}. Falling back to local PersistentClient.")
+                try:
+                    db_path = os.path.join(os.getcwd(), "chromadb_data")
+                    os.makedirs(db_path, exist_ok=True)
+                    self._chroma_client = chromadb.PersistentClient(path=db_path)
+                    logger.info(f"RAGSystem local persistent ChromaDB initialized at {db_path}")
+                except Exception as local_err:
+                    logger.error(f"RAGSystem failed to initialize local ChromaDB client: {local_err}")
+                    self._chroma_client = None
         return self._chroma_client
+
 
     def ingest_document(self, text: str, doc_type: str, metadata: Dict[str, Any]) -> List[str]:
         """
@@ -69,7 +83,7 @@ class RAGSystem:
             logger.error(f"Error during ingestion in ChromaDB: {e}")
             return []
 
-    def query_chunks(self, query: str, filters: Optional[Dict[str, Any]] = None, limit: int = 3) -> List[Dict[str, Any]]:
+    def query_chunks(self, query: str, filters: Optional[Dict[str, Any]] = None, limit: int = 5) -> List[Dict[str, Any]]:
         client = self._get_client()
         if not client:
             logger.warning("ChromaDB client unavailable for query. Returning mock chunks.")
@@ -82,16 +96,15 @@ class RAGSystem:
 
         try:
             collection = client.get_or_create_collection(self.collection_name)
-            # Map simple filter keys to ChromaDB query where-clause
-            # e.g., filters={"country": "France"} -> where={"country": "France"}
-            where_clause = filters if filters else {}
+            # Metadata pre-filtering
+            where_clause = filters if filters else None
 
             results = collection.query(
                 query_texts=[query],
                 where=where_clause,
                 n_results=limit
             )
-            
+
             output = []
             if results and results.get("documents"):
                 documents = results["documents"][0]
@@ -101,18 +114,50 @@ class RAGSystem:
                         "text": doc,
                         "metadata": meta
                     })
-            return output
+
+            # Basic Re-ranking: sort by presence of query keywords in document
+            query_keywords = set(query.lower().split())
+            def score_chunk(c):
+                text_lower = c["text"].lower()
+                return sum(1 for kw in query_keywords if kw in text_lower)
+
+            output = sorted(output, key=score_chunk, reverse=True)
+            return output[:3]  # Return top 3 after re-ranking
         except Exception as e:
             logger.error(f"Error querying ChromaDB: {e}")
             return []
 
-    def rag_query(self, question: str, filters: Optional[Dict[str, Any]] = None, trace_id: str = "rag_trace") -> Dict[str, Any]:
+    def rag_query(
+        self,
+        question: str,
+        filters: Optional[Dict[str, Any]] = None,
+        conversation_history: Optional[List[Dict[str, str]]] = None,
+        trace_id: str = "rag_trace"
+    ) -> Dict[str, Any]:
         """
         Retrieves matching document chunks and uses the LLM Router to synthesize a grounded answer.
+        Supports advanced RAG features: re-ranking, context compression, and conversation memory.
         """
-        # 1. Fetch relevant chunks
-        chunks = self.query_chunks(question, filters=filters, limit=3)
-        context = "\n---\n".join([c["text"] for c in chunks])
+        # 1. Fetch relevant chunks (which handles pre-filtering & basic re-ranking internally)
+        chunks = self.query_chunks(question, filters=filters, limit=5)
+        
+        # Context Compression: truncate each chunk to 600 characters to save context window tokens
+        compressed_chunks = []
+        for c in chunks:
+            text = c["text"]
+            if len(text) > 600:
+                text = text[:570] + "... [compressed]"
+            compressed_chunks.append(text)
+
+        context = "\n---\n".join(compressed_chunks)
+
+        # Build conversation memory context
+        history_str = ""
+        if conversation_history:
+            history_str = "\n".join([
+                f"{h['role'].upper()}: {h['content']}" for h in conversation_history[-3:]
+            ])
+            history_str = f"Conversation History:\n{history_str}\n\n"
 
         # 2. Synthesize with LLM Router
         prompt = f"""
@@ -120,7 +165,7 @@ You are a helpful travel assistant. Answer the user's travel question using ONLY
 If the context does not contain the answer, politely explain that you don't have that information.
 Always cite the source/metadata if provided in the context.
 
-Verified Context:
+{history_str}Verified Context:
 {context}
 
 Question:
@@ -162,3 +207,4 @@ Processing Time: Typically 15 calendar days, but can take up to 45 days in peak 
 
 # Global RAG Instance
 rag_system = RAGSystem()
+

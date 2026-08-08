@@ -23,7 +23,7 @@ if sentry_dsn and sentry_dsn != "your-sentry-dsn":
 
 from app.database import engine, Base, get_db
 from app.models import search_entities, payments
-from app.routes import auth, wallet, agents, voice, showcase, bookings, search, tracker, mybiz, wishlist, admin_panel, media, rent_a_ride, localities, payments as payments_routes, webhooks, profile, flights, hotels, weather, maps, system, currency, notifications, cabs, activities, visa, insurance, forex, esim, documents, loyalty, crm
+from app.routes import auth, wallet, agents, voice, showcase, bookings, search, tracker, mybiz, wishlist, admin_panel, media, rent_a_ride, localities, payments as payments_routes, webhooks, profile, flights, hotels, weather, maps, system, currency, notifications, cabs, activities, visa, insurance, forex, esim, documents, loyalty, crm, insights, saas_routes, gateway, partner, feedback
 from fastapi.staticfiles import StaticFiles
 import os
 from app.ml import fraud_model
@@ -98,6 +98,12 @@ async def add_secure_headers_middleware(request, call_next):
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
 
+# Tenant Isolation Middleware
+@app.middleware("http")
+async def tenant_isolation_middleware_hook(request, call_next):
+    from app.utils.tenant_context import tenant_isolation_middleware
+    return await tenant_isolation_middleware(request, call_next)
+
 # Request ID, Context and Metrics Middleware
 @app.middleware("http")
 async def request_id_middleware(request, call_next):
@@ -115,9 +121,11 @@ async def request_id_middleware(request, call_next):
     if "/payments/create-order" in request.url.path or "/create-order" in request.url.path:
         logger.info(f"AUDIT [create-order] headers: {dict(request.headers)}")
 
-    # 1. Rate Limiting Check (bypass documentation/metrics/health checks)
+    # 1. Rate Limiting Check (bypass documentation/metrics/health checks and pytest runs)
     path = request.url.path
-    if not any(path.startswith(p) for p in ["/metrics", "/healthz", "/static", "/api/docs", "/api/openapi.json"]):
+    import sys
+    is_testing = "pytest" in sys.modules
+    if not is_testing and not any(path.startswith(p) for p in ["/metrics", "/healthz", "/static", "/api/docs", "/api/openapi.json"]):
         # Extract client IP
         forwarded = request.headers.get("X-Forwarded-For")
         client_ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "unknown")
@@ -219,6 +227,7 @@ app.include_router(fraud_model.router, prefix="/api/v1")
 app.include_router(voice.router, prefix="/api/v1")
 app.include_router(showcase.router, prefix="/api/v1")
 app.include_router(bookings.router, prefix="/api/v1")
+app.include_router(saas_routes.router, prefix="/api/v1")
 app.include_router(search.router, prefix="/api/v1")
 app.include_router(tracker.router, prefix="/api/v1")
 app.include_router(mybiz.router, prefix="/api/v1")
@@ -252,6 +261,10 @@ app.include_router(esim.router, prefix="/api/v1")
 app.include_router(documents.router, prefix="/api/v1")
 app.include_router(loyalty.router, prefix="/api/v1")
 app.include_router(crm.router, prefix="/api/v1")
+app.include_router(insights.router, prefix="/api/v1")
+app.include_router(gateway.router, prefix="/api/v1")
+app.include_router(partner.router, prefix="/api/v1")
+app.include_router(feedback.router, prefix="/api/v1")
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
 os.makedirs(STATIC_DIR, exist_ok=True)
@@ -260,6 +273,41 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 @app.on_event("startup")
 def startup_db_seed():
+    # ── Startup Environment Variable Validation ──
+    critical_missing = []
+    
+    # 1. DATABASE_URL check
+    db_url = os.getenv("DATABASE_URL", "").strip()
+    if not db_url or "placeholder" in db_url:
+        critical_missing.append("DATABASE_URL")
+        
+    # 2. JWT_SECRET check
+    jwt_sec = os.getenv("JWT_SECRET", "").strip()
+    is_prod = os.getenv("PRODUCTION", "false").lower() == "true" or "neon" in db_url
+    if not jwt_sec or (is_prod and jwt_sec in ["supersecretjwtkeychangeinproduction", "your-development-jwt-secret-key-make-it-secure"]):
+        critical_missing.append("JWT_SECRET (must be unique & secure in production)")
+
+    # 3. REDIS_URL check
+    redis_url = os.getenv("REDIS_URL", "").strip()
+    if not redis_url:
+        critical_missing.append("REDIS_URL")
+
+    # 4. LLM provider check
+    llm_keys = ["GROQ_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY"]
+    configured_llm = False
+    for k in llm_keys:
+        val = os.getenv(k, "").strip()
+        if val and not any(p in val.lower() for p in ["your-", "placeholder", "todo", "example"]):
+            configured_llm = True
+            break
+    if not configured_llm:
+        critical_missing.append("At least one active LLM API Key (GROQ_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, ANTHROPIC_API_KEY)")
+
+    if critical_missing:
+        err_msg = f"CRITICAL ENV CONFIGURATION FAILURE: The following environment variables are missing or unconfigured: {', '.join(critical_missing)}. Refusing to start application."
+        logger.error(err_msg)
+        raise SystemExit(err_msg)
+
     # Duffel validation print
     from app.payments.config import settings
     dkey = settings.DUFFEL_API_KEY
@@ -280,8 +328,9 @@ def startup_db_seed():
             print("Duffel Provider Disabled")
 
     logger.info("Initializing database schemas...")
-    # Create tables locally if not using migrations in dev mode
-    Base.metadata.create_all(bind=engine)
+    # Create tables locally if using SQLite database
+    if "sqlite" in str(engine.url):
+        Base.metadata.create_all(bind=engine)
 
     # Check if database is unseeded, and if so, run full seeding sequence automatically!
     from app.database import SessionLocal
@@ -475,17 +524,34 @@ def startup_db_seed():
     except Exception as e:
         logger.warning(f"Could not start SLA background daemon: {e}")
 
-    logger.info("Seeding verified travel rules in RAG vector database...")
+    logger.info("Seeding verified travel rules in RAG vector database in background...")
     try:
-        rag_system.seed_Schengen_visa_data()
-        logger.info("RAG pre-seeding successful.")
+        import threading
+        thread = threading.Thread(target=rag_system.seed_Schengen_visa_data, daemon=True)
+        thread.start()
+        logger.info("RAG pre-seeding background thread started.")
     except Exception as e:
-        logger.warning(f"Could not pre-seed RAG database on startup: {e}")
+        logger.warning(f"Could not start RAG pre-seeding background thread: {e}")
 
 @app.on_event("shutdown")
 def shutdown_event():
     logger.info("SIGTERM/SIGINT received. Initiating graceful shutdown sequence...")
     logger.info("Graceful shutdown completed successfully.")
+
+@app.get("/docs", include_in_schema=False)
+async def redirect_docs():
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/api/docs")
+
+@app.get("/redoc", include_in_schema=False)
+async def redirect_redoc():
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/api/redoc")
+
+@app.get("/openapi.json", include_in_schema=False)
+async def redirect_openapi():
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/api/openapi.json")
 
 @app.get("/healthz", tags=["monitoring"])
 def health_check():

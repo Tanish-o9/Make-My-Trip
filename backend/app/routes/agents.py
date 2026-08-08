@@ -44,16 +44,23 @@ def chat_turn(
     user=Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    if check_prompt_injection(req.message):
+    from app.utils.security import validate_input_safety
+    
+    # 1. Scan for SQL Injection & XSS
+    safe_message = validate_input_safety(req.message)
+    
+    # 2. Scan for prompt injection
+    if check_prompt_injection(safe_message):
         raise HTTPException(status_code=400, detail="Potential prompt injection detected. Input restricted.")
         
     try:
         response = SupervisorAgent.execute_chat_turn(
             user_id=user.id,
             session_id=req.session_id,
-            message=req.message
+            message=safe_message
         )
         return {"response": response}
+
     except RuntimeError as e:
         import traceback
         logger.error(f"Agent config error: {e}\n{traceback.format_exc()}")
@@ -134,8 +141,16 @@ async def chat_ws_endpoint(websocket: WebSocket, session_id: str, db: Session = 
             if not message_text:
                 await websocket.send_text(json.dumps({"error": "Empty message"}))
                 continue
+
+            from app.utils.security import validate_input_safety
+            try:
+                safe_message_text = validate_input_safety(message_text)
+            except Exception as e:
+                await websocket.send_text(json.dumps({"type": "error", "message": "Dangerous input patterns detected. Request blocked."}))
+                continue
                 
-            if check_prompt_injection(message_text):
+            if check_prompt_injection(safe_message_text):
+
                 await websocket.send_text(json.dumps({"error": "Potential prompt injection detected. Input restricted."}))
                 continue
                 
@@ -160,9 +175,10 @@ async def chat_ws_endpoint(websocket: WebSocket, session_id: str, db: Session = 
                 response = await SupervisorAgent.execute_chat_turn_async(
                     user_id=user_id,
                     session_id=session_id,
-                    message=message_text,
+                    message=safe_message_text,
                     status_callback=status_callback
                 )
+
                 
                 # Simulate token streaming of the response to show smooth Framer Motion typing
                 words = response.split(" ")
