@@ -789,7 +789,7 @@ def get_revenue_analytics(days: int = 30, db: Session = Depends(get_db)):
     def _sum(model):
         return float(db.query(func.coalesce(func.sum(model.total_amount), 0)).filter(
             model.created_at >= since,
-            model.status.in_(["confirmed", "completed"])
+            model.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED])
         ).scalar() or 0)
 
     flight_rev = _sum(FlightBooking)
@@ -819,7 +819,7 @@ def get_top_destinations(limit: int = 10, db: Session = Depends(get_db)):
     """Top hotel booking destinations by hotel name."""
     rows = (
         db.query(HotelBooking.hotel_name, func.count(HotelBooking.id).label("bookings"))
-        .filter(HotelBooking.status == "confirmed")
+        .filter(HotelBooking.status == BookingStatus.CONFIRMED)
         .group_by(HotelBooking.hotel_name)
         .order_by(func.count(HotelBooking.id).desc())
         .limit(limit).all()
@@ -850,10 +850,10 @@ def get_cancellation_rate(days: int = 30, db: Session = Depends(get_db)):
     def _count(model, *statuses):
         return db.query(model).filter(model.created_at >= since, model.status.in_(statuses)).count()
 
-    tf = _count(FlightBooking, "confirmed", "cancelled", "refunded", "completed")
-    cf = _count(FlightBooking, "cancelled", "refunded")
-    th = _count(HotelBooking, "confirmed", "cancelled", "refunded", "completed")
-    ch = _count(HotelBooking, "cancelled", "refunded")
+    tf = _count(FlightBooking, BookingStatus.CONFIRMED, BookingStatus.CANCELLED, BookingStatus.REFUNDED, BookingStatus.COMPLETED)
+    cf = _count(FlightBooking, BookingStatus.CANCELLED, BookingStatus.REFUNDED)
+    th = _count(HotelBooking, BookingStatus.CONFIRMED, BookingStatus.CANCELLED, BookingStatus.REFUNDED, BookingStatus.COMPLETED)
+    ch = _count(HotelBooking, BookingStatus.CANCELLED, BookingStatus.REFUNDED)
     total = tf + th; cancelled = cf + ch
 
     return {
@@ -870,7 +870,7 @@ def get_user_stats(db: Session = Depends(get_db)):
     total_users = db.query(func.count(User.id)).scalar() or 0
     repeat = (
         db.query(FlightBooking.user_id)
-        .filter(FlightBooking.status == "confirmed")
+        .filter(FlightBooking.status == BookingStatus.CONFIRMED)
         .group_by(FlightBooking.user_id)
         .having(func.count(FlightBooking.id) > 1)
         .count()
