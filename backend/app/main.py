@@ -57,7 +57,7 @@ origins = [o.strip() for o in allowed_origins_str.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|.*\.vercel\.app|.*\.up\.railway\.app)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -102,6 +102,8 @@ async def add_secure_headers_middleware(request, call_next):
 # Tenant Isolation Middleware
 @app.middleware("http")
 async def tenant_isolation_middleware_hook(request, call_next):
+    if request.method == "OPTIONS":
+        return await call_next(request)
     from app.utils.tenant_context import tenant_isolation_middleware
     return await tenant_isolation_middleware(request, call_next)
 
@@ -126,7 +128,7 @@ async def request_id_middleware(request, call_next):
     path = request.url.path
     import sys
     is_testing = "pytest" in sys.modules
-    if not is_testing and not any(path.startswith(p) for p in ["/metrics", "/healthz", "/static", "/api/docs", "/api/openapi.json"]):
+    if not is_testing and request.method != "OPTIONS" and not any(path.startswith(p) for p in ["/metrics", "/healthz", "/static", "/api/docs", "/api/openapi.json"]):
         # Extract client IP
         forwarded = request.headers.get("X-Forwarded-For")
         client_ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "unknown")
