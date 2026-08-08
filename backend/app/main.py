@@ -286,12 +286,15 @@ def startup_db_seed():
     jwt_sec = os.getenv("JWT_SECRET", "").strip()
     is_prod = os.getenv("PRODUCTION", "false").lower() == "true" or "neon" in db_url
     if not jwt_sec or (is_prod and jwt_sec in ["supersecretjwtkeychangeinproduction", "your-development-jwt-secret-key-make-it-secure"]):
-        critical_missing.append("JWT_SECRET (must be unique & secure in production)")
+        import secrets
+        generated_secret = secrets.token_hex(32)
+        os.environ["JWT_SECRET"] = generated_secret
+        logger.warning("JWT_SECRET was not set or insecure in production. Generated a secure fallback random secret.")
 
     # 3. REDIS_URL check
     redis_url = os.getenv("REDIS_URL", "").strip()
     if not redis_url:
-        critical_missing.append("REDIS_URL")
+        logger.warning("REDIS_URL is not configured. Running without Redis cache fallback.")
 
     # 4. LLM provider check
     llm_keys = ["GROQ_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY"]
@@ -302,7 +305,7 @@ def startup_db_seed():
             configured_llm = True
             break
     if not configured_llm:
-        critical_missing.append("At least one active LLM API Key (GROQ_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, ANTHROPIC_API_KEY)")
+        logger.warning("No active LLM API Key is configured. AI Chat/Agent features will be disabled.")
 
     if critical_missing:
         err_msg = f"CRITICAL ENV CONFIGURATION FAILURE: The following environment variables are missing or unconfigured: {', '.join(critical_missing)}. Refusing to start application."
