@@ -1,0 +1,20 @@
+{
+  "name": "Travel OS",
+  "short_name": "TravelOS",
+  "description": "Enterprise AI Travel Operating System — Book Flights, Hotels, Activities and more.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f1117",
+  "theme_color": "#6c63ff",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "categories": ["travel", "business", "lifestyle"],
+  "lang": "en-IN",
+  "dir": "ltr"
+}
