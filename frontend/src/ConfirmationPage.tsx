@@ -316,7 +316,7 @@ export function ConfirmationPage({ bookingId, onNavigate }: ConfirmationPageProp
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-left text-xs bg-slate-950/20 p-4 rounded-2xl border border-slate-850">
                 <div>
                   <span className="text-slate-500 block text-[9px] font-bold">PASSENGER</span>
-                  <strong className="text-slate-200">{ticket.passenger_details?.[0]?.name || "Traveler"}</strong>
+                  <strong className="text-slate-200">{ticket.passenger_details?.map((p: any) => p.fullName || p.name).join(", ") || "Traveler"}</strong>
                 </div>
                 <div>
                   <span className="text-slate-500 block text-[9px] font-bold">SEAT</span>
@@ -361,7 +361,7 @@ export function ConfirmationPage({ bookingId, onNavigate }: ConfirmationPageProp
                 <div className="space-y-1.5 text-xs">
                   <div>
                     <span className="text-[9px] text-slate-500 block">PASSENGER NAME</span>
-                    <strong className="text-slate-300">{ticket.passenger_details?.[0]?.name || "Traveler"}</strong>
+                    <strong className="text-slate-300">{ticket.passenger_details?.map((p: any) => p.fullName || p.name).join(", ") || "Traveler"}</strong>
                   </div>
                   <div>
                     <span className="text-[9px] text-slate-500 block">SEAT / CABIN</span>

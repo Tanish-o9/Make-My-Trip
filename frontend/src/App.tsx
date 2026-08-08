@@ -19,7 +19,7 @@ const resolveApiBase = () => {
   if (!url || url.includes("placeholder") || url.includes("<")) {
     if (typeof window !== "undefined") {
       const hostname = window.location.hostname;
-      if (window.location.port === "3000" || window.location.port === "5173" || window.location.port === "5174") {
+      if (window.location.port && window.location.port !== "8000") {
         url = `${window.location.protocol}//${hostname}:8000/api`;
       } else if (hostname === "localhost" || hostname === "127.0.0.1") {
         url = `${window.location.origin}/api`;
@@ -126,6 +126,53 @@ export default function App() {
   const [profileName, setProfileName] = useState("");
   const [profileCompletion, setProfileCompletion] = useState(0);
   const [profileData, setProfileData] = useState<any>(null);
+
+  const [passengers, setPassengers] = useState<number>(() => {
+    const val = sessionStorage.getItem("fl_passengers");
+    return val ? parseInt(val, 10) : 1;
+  });
+
+  const [passengersList, setPassengersList] = useState<{
+    id: number;
+    fullName: string;
+    age: string;
+    email: string;
+    phone: string;
+    studentFare: boolean;
+  }[]>(() => {
+    const val = sessionStorage.getItem("fl_passengers");
+    const count = val ? parseInt(val, 10) : 1;
+    return Array.from({ length: count }, (_, i) => ({
+      id: i + 1,
+      fullName: "",
+      age: "",
+      email: "",
+      phone: "",
+      studentFare: false
+    }));
+  });
+
+  useEffect(() => {
+    setPassengersList((prevList) => {
+      const currentLength = prevList.length;
+      if (currentLength < passengers) {
+        const addedCount = passengers - currentLength;
+        const newItems = Array.from({ length: addedCount }, (_, i) => ({
+          id: currentLength + i + 1,
+          fullName: "",
+          age: "",
+          email: "",
+          phone: "",
+          studentFare: false
+        }));
+        return [...prevList, ...newItems];
+      } else if (currentLength > passengers) {
+        return prevList.slice(0, passengers);
+      }
+      return prevList;
+    });
+    sessionStorage.setItem("fl_passengers", String(passengers));
+  }, [passengers]);
 
   useEffect(() => {
     if (!token) {
@@ -632,6 +679,22 @@ export default function App() {
 
   const [prefilledMessage, setPrefilledMessage] = useState("");
   const [checkoutData, setCheckoutData] = useState<any | null>(null);
+
+  const handleOnBook = (bookData: any) => {
+    const count = bookData.details?.passengers?.length || bookData.details?.guests?.length || 1;
+    setPassengers(count);
+    setPassengersList(
+      Array.from({ length: count }, (_, i) => ({
+        id: i + 1,
+        fullName: "",
+        age: "",
+        email: "",
+        phone: "",
+        studentFare: false
+      }))
+    );
+    setCheckoutData(bookData);
+  };
   
   // Phase 10 State Routing variables
   const [selectedDetail, setSelectedDetail] = useState<any | null>(null);
@@ -1112,7 +1175,7 @@ export default function App() {
               <ExploreView 
                 key="explore" 
                 currency={currency} 
-                onBook={setCheckoutData} 
+                onBook={handleOnBook} 
                 setActiveTab={setActiveTab}
                 onDetailClick={(vert, item) => setSelectedDetail({ vertical: vert, item })}
                 onOfferClick={(off) => setOfferLanding(off)}
@@ -1126,6 +1189,8 @@ export default function App() {
                 setPrefilledMessage={setPrefilledMessage}
                 profileName={profileName}
                 profileData={profileData}
+                passengers={passengers}
+                setPassengers={setPassengers}
               />
             )}
             {activeTab === 'chat' && (
@@ -1159,6 +1224,8 @@ export default function App() {
         <CheckoutModal 
           data={checkoutData} 
           userProfile={userProfile} 
+          passengersList={passengersList}
+          setPassengersList={setPassengersList}
           onConfirm={handleConfirmBooking} 
           onClose={() => setCheckoutData(null)} 
         />
@@ -1285,7 +1352,9 @@ function ExploreView({
   onShowWishlist, onShowProfile, onNavigate,
   setPrefilledMessage,
   profileName,
-  profileData
+  profileData,
+  passengers,
+  setPassengers
 }: { 
   currency: string, onBook: (data: any) => void, setActiveTab: any,
   onDetailClick: (vert: string, item: any) => void,
@@ -1299,7 +1368,9 @@ function ExploreView({
   onNavigate: (path: string) => void,
   setPrefilledMessage: (msg: string) => void,
   profileName: string,
-  profileData: any
+  profileData: any,
+  passengers: number,
+  setPassengers: React.Dispatch<React.SetStateAction<number>>
 }) {
   const [activeVertical, setActiveVertical] = useState<string>(() => sessionStorage.getItem("active_vertical") || 'flights');
   const [loadingVerticals, setLoadingVerticals] = useState<Record<string, boolean>>({});
@@ -1396,7 +1467,7 @@ function ExploreView({
             
             <div className="pt-1">
             {activeVertical === 'trip-planner' && <TripPlannerForm onBook={onBook} onDetailClick={onDetailClick} setPrefilledMessage={setPrefilledMessage} setActiveTab={setActiveTab} />}
-            {activeVertical === 'flights' && <FlightsSearchForm currency={currency} onBook={onBook} onDetailClick={onDetailClick} onTrackFlight={onTrackFlight} />}
+            {activeVertical === 'flights' && <FlightsSearchForm currency={currency} onBook={onBook} onDetailClick={onDetailClick} onTrackFlight={onTrackFlight} passengers={passengers} setPassengers={setPassengers} />}
             {activeVertical === 'hotels' && <HotelsSearchForm onBook={onBook} onDetailClick={onDetailClick} />}
             {activeVertical === 'villas' && <VillasSearchForm onBook={onBook} onDetailClick={onDetailClick} />}
             {activeVertical === 'holidays' && <HolidayPackagesSearchForm onBook={onBook} onDetailClick={onDetailClick} />}
@@ -2225,24 +2296,33 @@ function SearchRouteMap({ vertical, origin, destination, points }: { vertical: '
   );
 }
 
-function FlightsSearchForm({ currency, onBook, onDetailClick, onTrackFlight }: { currency: string, onBook: (data: any) => void, onDetailClick: (vert: string, item: any) => void, onTrackFlight: (fnum: string) => void }) {
+function FlightsSearchForm({ 
+  currency, 
+  onBook, 
+  onDetailClick, 
+  onTrackFlight,
+  passengers,
+  setPassengers
+}: { 
+  currency: string, 
+  onBook: (data: any) => void, 
+  onDetailClick: (vert: string, item: any) => void, 
+  onTrackFlight: (fnum: string) => void,
+  passengers: number,
+  setPassengers: React.Dispatch<React.SetStateAction<number>>
+}) {
   const [fromCity, setFromCity] = useState(() => sessionStorage.getItem("fl_fromCity") || "");
   const [toCity, setToCity] = useState(() => sessionStorage.getItem("fl_toCity") || "");
   const [showFromSuggestions, setShowFromSuggestions] = useState(false);
   const [showToSuggestions, setShowToSuggestions] = useState(false);
   const [depDate, setDepDate] = useState(() => sessionStorage.getItem("fl_depDate") || "");
   const [depTime, setDepTime] = useState(() => sessionStorage.getItem("fl_depTime") || "");
-  const [passengers, setPassengers] = useState(() => {
-    const val = sessionStorage.getItem("fl_passengers");
-    return val ? parseInt(val) : 1;
-  });
   const [cabin, setCabin] = useState(() => sessionStorage.getItem("fl_cabin") || "Economy");
 
   useEffect(() => { sessionStorage.setItem("fl_fromCity", fromCity); }, [fromCity]);
   useEffect(() => { sessionStorage.setItem("fl_toCity", toCity); }, [toCity]);
   useEffect(() => { sessionStorage.setItem("fl_depDate", depDate); }, [depDate]);
   useEffect(() => { sessionStorage.setItem("fl_depTime", depTime); }, [depTime]);
-  useEffect(() => { sessionStorage.setItem("fl_passengers", String(passengers)); }, [passengers]);
   useEffect(() => { sessionStorage.setItem("fl_cabin", cabin); }, [cabin]);
 
   useEffect(() => {
@@ -5268,7 +5348,21 @@ function InsuranceSearchForm({ onBook, onDetailClick }: { onBook: (data: any) =>
 /* 4.5 CHECKOUT MODAL & TRIP DASHBOARD SUB-COMPONENTS   */
 /* ---------------------------------------------------- */
 
-function CheckoutModal({ data, onClose, userProfile, onConfirm }: { data: any, onClose: () => void, userProfile: any, onConfirm: (payMethod: string) => void }) {
+function CheckoutModal({ 
+  data, 
+  onClose, 
+  userProfile, 
+  passengersList,
+  setPassengersList,
+  onConfirm 
+}: { 
+  data: any, 
+  onClose: () => void, 
+  userProfile: any, 
+  passengersList: { id: number; fullName: string; age: string; email: string; phone: string; studentFare: boolean }[],
+  setPassengersList: React.Dispatch<React.SetStateAction<{ id: number; fullName: string; age: string; email: string; phone: string; studentFare: boolean }[]>>,
+  onConfirm: (payMethod: string) => void 
+}) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [payMethod, setPayMethod] = useState<'wallet' | 'card' | 'split' | 'corporate_billing'>('wallet');
   const [gateway, setGateway] = useState<'stripe' | 'razorpay'>('stripe');
@@ -5291,19 +5385,15 @@ function CheckoutModal({ data, onClose, userProfile, onConfirm }: { data: any, o
   
   const [loading, setLoading] = useTabLoading('insurance');
   const [error, setError] = useState("");
-  const [travelerName, setTravelerName] = useState("");
-  const [travelerAge, setTravelerAge] = useState("30");
-  const [travelerEmail, setTravelerEmail] = useState("");
-  const [travelerPhone, setTravelerPhone] = useState("");
   const [cardHolderName, setCardHolderName] = useState("");
   const [cardIssuingBank, setCardIssuingBank] = useState("HDFC Bank");
-  const [isStudent, setIsStudent] = useState(false);
   const [promoCode, setPromoCode] = useState("");
   const [discountAmount, setDiscountAmount] = useState(0);
   const [promoStatus, setPromoStatus] = useState("");
   const [bookingRef, setBookingRef] = useState("");
   const [invoiceText, setInvoiceText] = useState("");
   const [timeLeft, setTimeLeft] = useState(300);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   // Fetch real profile details dynamically (Phase 7)
   useEffect(() => {
@@ -5315,20 +5405,7 @@ function CheckoutModal({ data, onClose, userProfile, onConfirm }: { data: any, o
       .then(res => res.json())
       .then(data => {
         if (data && data.full_name) {
-          setTravelerName(data.full_name);
           setCardHolderName(data.full_name);
-          if (data.email) setTravelerEmail(data.email);
-          if (data.mobile_number) setTravelerPhone(data.mobile_number);
-          if (data.dob) {
-            const birthDate = new Date(data.dob);
-            const today = new Date();
-            let age = today.getFullYear() - birthDate.getFullYear();
-            const m = today.getMonth() - birthDate.getMonth();
-            if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-              age--;
-            }
-            setTravelerAge(age.toString());
-          }
         }
       })
       .catch(() => {});
@@ -5416,6 +5493,17 @@ function CheckoutModal({ data, onClose, userProfile, onConfirm }: { data: any, o
 
     const localToken = localStorage.getItem('token');
 
+    const passengersPayload = passengersList.map((p, idx) => ({
+      name: p.fullName,
+      fullName: p.fullName,
+      age: parseInt(p.age, 10) || 0,
+      email: p.email,
+      phone: p.phone,
+      studentFare: p.studentFare,
+      is_student: p.studentFare,
+      is_primary: idx === 0
+    }));
+
     // 1. Create Hold Reservation
     fetch(`${API_URL}/bookings/hold`, {
       method: "POST",
@@ -5429,13 +5517,9 @@ function CheckoutModal({ data, onClose, userProfile, onConfirm }: { data: any, o
         user_id: 1,
         details: {
           ...data.details,
-          traveler: { 
-            name: travelerName, 
-            age: travelerAge, 
-            is_student: isStudent,
-            email: travelerEmail,
-            phone: travelerPhone
-          }
+          traveler: passengersPayload[0],
+          passengers: passengersPayload,
+          guests: passengersPayload
         }
       })
     })
@@ -5513,35 +5597,110 @@ function CheckoutModal({ data, onClose, userProfile, onConfirm }: { data: any, o
               <p className="text-xs text-slate-600 font-semibold">{data.subtitle}</p>
             </div>
 
-            {/* Traveler info forms */}
-            <div className="border-3 border-black p-4 rounded-xl bg-slate-50 space-y-3">
-              <span className="text-[10px] uppercase font-black tracking-wider block">Primary Passenger Details:</span>
-              <div className="grid grid-cols-3 gap-2">
-                <div className="col-span-2">
-                  <label className="text-[9px] uppercase font-bold text-slate-500">Full Name</label>
-                  <input type="text" value={travelerName} onChange={(e) => setTravelerName(e.target.value)} className="w-full bg-white border-2 border-black rounded px-2 py-1 text-xs font-bold" />
-                </div>
-                <div>
-                  <label className="text-[9px] uppercase font-bold text-slate-500">Age</label>
-                  <input type="number" value={travelerAge} onChange={(e) => setTravelerAge(e.target.value)} className="w-full bg-white border-2 border-black rounded px-2 py-1 text-xs font-bold" />
-                </div>
-              </div>
+            {/* Passenger Forms */}
+            <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
+              {passengersList.map((passenger, index) => {
+                const isPrimary = index === 0;
+                return (
+                  <div key={passenger.id} className="border-3 border-black p-4 rounded-xl bg-slate-50 space-y-3 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+                    <span className="text-[10px] uppercase font-black tracking-wider block border-b border-black/10 pb-1.5 mb-1">
+                      PASSENGER {index + 1} - {isPrimary ? "PRIMARY PASSENGER DETAILS" : "PASSENGER DETAILS"}
+                    </span>
+                    
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="col-span-2">
+                        <label className="text-[9px] uppercase font-bold text-slate-500">Full Name</label>
+                        <input 
+                          type="text" 
+                          value={passenger.fullName} 
+                          onChange={(e) => {
+                            const updated = [...passengersList];
+                            updated[index].fullName = e.target.value;
+                            setPassengersList(updated);
+                          }} 
+                          className="w-full bg-white border-2 border-black rounded px-2 py-1 text-xs font-bold" 
+                        />
+                        {validationErrors[`passenger_${index}_fullName`] && (
+                          <span className="text-[9px] text-rose-600 font-bold block mt-0.5">
+                            {validationErrors[`passenger_${index}_fullName`]}
+                          </span>
+                        )}
+                      </div>
+                      <div>
+                        <label className="text-[9px] uppercase font-bold text-slate-500">Age</label>
+                        <input 
+                          type="number" 
+                          value={passenger.age} 
+                          onChange={(e) => {
+                            const updated = [...passengersList];
+                            updated[index].age = e.target.value;
+                            setPassengersList(updated);
+                          }} 
+                          className="w-full bg-white border-2 border-black rounded px-2 py-1 text-xs font-bold" 
+                        />
+                        {validationErrors[`passenger_${index}_age`] && (
+                          <span className="text-[9px] text-rose-600 font-bold block mt-0.5">
+                            {validationErrors[`passenger_${index}_age`]}
+                          </span>
+                        )}
+                      </div>
+                    </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[9px] uppercase font-bold text-slate-500">Email Address (for 2FA & Tickets)</label>
-                  <input type="email" value={travelerEmail} onChange={(e) => setTravelerEmail(e.target.value)} className="w-full bg-white border-2 border-black rounded px-2 py-1 text-xs font-bold" />
-                </div>
-                <div>
-                  <label className="text-[9px] uppercase font-bold text-slate-500">Phone Number (SMS Alerts)</label>
-                  <input type="text" value={travelerPhone} onChange={(e) => setTravelerPhone(e.target.value)} className="w-full bg-white border-2 border-black rounded px-2 py-1 text-xs font-bold" />
-                </div>
-              </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[9px] uppercase font-bold text-slate-500">Email Address (for 2FA & Tickets)</label>
+                        <input 
+                          type="email" 
+                          value={passenger.email} 
+                          onChange={(e) => {
+                            const updated = [...passengersList];
+                            updated[index].email = e.target.value;
+                            setPassengersList(updated);
+                          }} 
+                          className="w-full bg-white border-2 border-black rounded px-2 py-1 text-xs font-bold" 
+                        />
+                        {validationErrors[`passenger_${index}_email`] && (
+                          <span className="text-[9px] text-rose-600 font-bold block mt-0.5">
+                            {validationErrors[`passenger_${index}_email`]}
+                          </span>
+                        )}
+                      </div>
+                      <div>
+                        <label className="text-[9px] uppercase font-bold text-slate-500">Phone Number (SMS Alerts)</label>
+                        <input 
+                          type="text" 
+                          value={passenger.phone} 
+                          onChange={(e) => {
+                            const updated = [...passengersList];
+                            updated[index].phone = e.target.value;
+                            setPassengersList(updated);
+                          }} 
+                          className="w-full bg-white border-2 border-black rounded px-2 py-1 text-xs font-bold" 
+                        />
+                        {validationErrors[`passenger_${index}_phone`] && (
+                          <span className="text-[9px] text-rose-600 font-bold block mt-0.5">
+                            {validationErrors[`passenger_${index}_phone`]}
+                          </span>
+                        )}
+                      </div>
+                    </div>
 
-              <label className="flex items-center gap-2 text-xs font-bold cursor-pointer">
-                <input type="checkbox" checked={isStudent} onChange={() => setIsStudent(!isStudent)} className="accent-black rounded border-2" />
-                Apply Student Special Fare (requires Student ID)
-              </label>
+                    <label className="flex items-center gap-2 text-xs font-bold cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={passenger.studentFare} 
+                        onChange={() => {
+                          const updated = [...passengersList];
+                          updated[index].studentFare = !updated[index].studentFare;
+                          setPassengersList(updated);
+                        }} 
+                        className="accent-black rounded border-2" 
+                      />
+                      Apply Student Special Fare (requires Student ID)
+                    </label>
+                  </div>
+                );
+              })}
             </div>
 
             <div className="flex justify-between items-center border-y-3 border-black py-2 font-bold">
@@ -5549,8 +5708,43 @@ function CheckoutModal({ data, onClose, userProfile, onConfirm }: { data: any, o
               <span className="font-black text-xl text-red-600">₹{data.amount.toLocaleString()}</span>
             </div>
 
+            {error && (
+              <div className="text-xs text-rose-600 font-bold border-2 border-rose-600 p-2.5 bg-rose-50 rounded-xl mb-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                ⚠️ {error}
+              </div>
+            )}
+
             <button 
-              onClick={() => setStep(2)}
+              onClick={() => {
+                const errors: Record<string, string> = {};
+                passengersList.forEach((p, idx) => {
+                  if (!p.fullName.trim()) {
+                    errors[`passenger_${idx}_fullName`] = "Full Name is required.";
+                  }
+                  if (!p.age.trim()) {
+                    errors[`passenger_${idx}_age`] = "Age is required.";
+                  } else if (isNaN(parseInt(p.age, 10)) || parseInt(p.age, 10) <= 0) {
+                    errors[`passenger_${idx}_age`] = "Please enter a valid age.";
+                  }
+                  if (!p.email.trim()) {
+                    errors[`passenger_${idx}_email`] = "Email Address is required.";
+                  } else if (!/\S+@\S+\.\S+/.test(p.email)) {
+                    errors[`passenger_${idx}_email`] = "Please enter a valid email address.";
+                  }
+                  if (!p.phone.trim()) {
+                    errors[`passenger_${idx}_phone`] = "Phone Number is required.";
+                  }
+                });
+
+                setValidationErrors(errors);
+                if (Object.keys(errors).length > 0) {
+                  setError("Please fix all validation errors before proceeding.");
+                  return;
+                }
+
+                setError("");
+                setStep(2);
+              }}
               className="w-full bg-yellow-300 hover:bg-yellow-400 border-3 border-black font-black text-sm py-2.5 rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] cursor-pointer transition-all uppercase"
             >
               Continue to Payment ➔
@@ -12115,7 +12309,7 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, refreshToken: strin
         <form onSubmit={handleSubmit} className="space-y-4 text-left">
           {isSignUp && (
             <div>
-              <label className="text-[10px] uppercase font-black text-slate-600 block mb-1">Full Legal Name</label>
+              <label className="text-[10px] uppercase font-black text-slate-600 block mb-1">Full Name (Auto-fills Ticket Bookings)</label>
               <input 
                 type="text" 
                 required
