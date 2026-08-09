@@ -19,6 +19,7 @@ export function ConfirmationPage({ bookingId, onNavigate }: ConfirmationPageProp
   const [whatsappStatus, setWhatsappStatus] = useState<string>("");
   const [copied, setCopied] = useState(false);
   const [toast, setToast] = useState<{ show: boolean; message: string }>({ show: false, message: "" });
+  const [showPdfModal, setShowPdfModal] = useState(false);
 
   const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token') || null;
 
@@ -55,7 +56,7 @@ export function ConfirmationPage({ bookingId, onNavigate }: ConfirmationPageProp
       const headers: any = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
       
-      const res = await fetch(`${API_URL}/bookings/${bookingId}/pdf`, { headers });
+      const res = await fetch(`${API_URL}/bookings/${bookingId}/ticket?download=true`, { headers });
       if (!res.ok) throw new Error("Failed to compile ticket PDF.");
       
       const blob = await res.blob();
@@ -70,6 +71,40 @@ export function ConfirmationPage({ bookingId, onNavigate }: ConfirmationPageProp
     } catch (err: any) {
       alert(err.message || "Error downloading PDF");
     }
+  };
+
+  const handleDownloadInvoice = () => {
+    if (!details || !details.invoice) return;
+    const inv = details.invoice;
+    const receiptText = `
+==================================================
+                TRAVEL OS INVOICE                 
+==================================================
+Invoice Date : ${new Date(inv.created_at || Date.now()).toLocaleString()}
+Reference    : ${bookingId}
+GST Number   : ${inv.gst_number || "07TRVOS9921A1Z0"}
+Payment Mode : ${(inv.payment_method || "card").toUpperCase()}
+--------------------------------------------------
+ITEM DESCRIPTION                         AMOUNT   
+--------------------------------------------------
+Base Fare                                ₹${floatToDecimal(inv.base_amount)}
+Taxes & Fees                            ₹${floatToDecimal(inv.tax_amount)}
+Discounts                              -₹${floatToDecimal(inv.discount_amount)}
+--------------------------------------------------
+TOTAL AMOUNT PAID                        ₹${floatToDecimal(inv.final_amount)}
+==================================================
+Thank you for booking with Travel OS!
+==================================================
+`;
+    const blob = new Blob([receiptText], { type: "text/plain" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `TravelOS_Invoice_${bookingId}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    showToast("📥 Invoice downloaded successfully!");
   };
 
   const handlePrint = () => {
@@ -260,7 +295,11 @@ export function ConfirmationPage({ bookingId, onNavigate }: ConfirmationPageProp
               <CheckCircle size={30} className="animate-bounce" />
             </div>
             <div className="space-y-1 text-left">
-              <h2 className="text-2xl font-black uppercase text-emerald-400 tracking-wider">Booking Confirmed</h2>
+              <pre className="font-mono text-xs text-emerald-400 leading-normal font-black">
+{`╔════════════════════════════════╗
+       ✓ BOOKING CONFIRMED
+╚════════════════════════════════╝`}
+              </pre>
               <p className="text-xs text-slate-400">Payment captured and seats/rooms successfully secured with carrier.</p>
             </div>
           </div>
@@ -272,6 +311,22 @@ export function ConfirmationPage({ bookingId, onNavigate }: ConfirmationPageProp
                 {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
               </button>
             </span>
+          </div>
+        </div>
+
+        {/* Quick status bar */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs bg-slate-900 border border-slate-800 p-4 rounded-2xl">
+          <div className="flex items-center gap-2 justify-center sm:justify-start">
+            <span className="text-slate-500 font-bold">PNR:</span>
+            <strong className="text-white font-mono text-sm">{ticket?.pnr || "GENERATING..."}</strong>
+          </div>
+          <div className="flex items-center gap-2 justify-center sm:justify-start">
+            <span className="text-slate-500 font-bold">PAYMENT:</span>
+            <span className="text-emerald-400 font-bold">✓ PAID</span>
+          </div>
+          <div className="flex items-center gap-2 justify-center sm:justify-start">
+            <span className="text-slate-500 font-bold">TICKET:</span>
+            <span className="text-emerald-400 font-bold">✓ READY</span>
           </div>
         </div>
 
@@ -622,46 +677,82 @@ export function ConfirmationPage({ bookingId, onNavigate }: ConfirmationPageProp
         </div>
 
         {/* Action Controls */}
-        <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 pt-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+          <button
+            onClick={() => setShowPdfModal(true)}
+            className="bg-emerald-500 hover:bg-emerald-600 border border-emerald-500/20 font-black py-3.5 px-4 rounded-xl text-[11px] uppercase tracking-wider cursor-pointer text-slate-950 transition-all flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5"
+          >
+            <ExternalLink size={14} /> View E-Ticket
+          </button>
+
           <button
             onClick={handleDownloadPDF}
-            className="bg-blue-600 hover:bg-blue-500 border border-blue-500/20 font-black py-3 px-4 rounded-xl text-[10px] uppercase tracking-wider cursor-pointer text-white transition-all flex items-center justify-center gap-2 shadow"
+            className="bg-blue-600 hover:bg-blue-500 border border-blue-500/20 font-black py-3.5 px-4 rounded-xl text-[11px] uppercase tracking-wider cursor-pointer text-white transition-all flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5"
           >
-            <Download size={14} /> Download PDF
+            <Download size={14} /> Download E-Ticket
           </button>
           
           <button
-            onClick={handlePrint}
-            className="bg-slate-900 hover:bg-slate-850 border border-slate-800 font-black py-3 px-4 rounded-xl text-[10px] uppercase tracking-wider cursor-pointer text-slate-300 transition-all flex items-center justify-center gap-2"
+            onClick={handleDownloadInvoice}
+            className="bg-slate-900 hover:bg-slate-850 border border-slate-800 font-black py-3.5 px-4 rounded-xl text-[11px] uppercase tracking-wider cursor-pointer text-slate-300 transition-all flex items-center justify-center gap-2 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5"
           >
-            <Printer size={14} /> Print Ticket
+            <FileText size={14} /> Download Invoice
+          </button>
+        </div>
+
+        {/* Supplementary Utility Controls */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+          <button
+            onClick={handlePrint}
+            className="bg-slate-950 hover:bg-slate-900 border border-slate-800 font-bold py-2.5 px-4 rounded-xl text-[10px] uppercase tracking-wider cursor-pointer text-slate-400 transition-all flex items-center justify-center gap-2"
+          >
+            <Printer size={12} /> Print Ticket
           </button>
           
           <button
             onClick={handleResendEmail}
             disabled={emailStatus === "sending" || emailStatus === "sent"}
-            className="bg-slate-900 hover:bg-slate-850 border border-slate-800 font-black py-3 px-4 rounded-xl text-[10px] uppercase tracking-wider cursor-pointer text-slate-300 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            className="bg-slate-950 hover:bg-slate-900 border border-slate-800 font-bold py-2.5 px-4 rounded-xl text-[10px] uppercase tracking-wider cursor-pointer text-slate-400 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
           >
-            <Mail size={14} /> 
+            <Mail size={12} /> 
             {emailStatus === "sending" ? "Resending..." : emailStatus === "sent" ? "Email Sent! 🎉" : "Resend Email"}
           </button>
 
           <button
-            onClick={handleExportCalendar}
-            className="bg-slate-900 hover:bg-slate-850 border border-slate-800 font-black py-3 px-4 rounded-xl text-[10px] uppercase tracking-wider cursor-pointer text-slate-300 transition-all flex items-center justify-center gap-2"
-          >
-            <Calendar size={14} /> Export Calendar
-          </button>
-          
-          <button
             onClick={() => onNavigate(`/booking/${bookingId}`)}
-            className="bg-yellow-400 hover:bg-yellow-500 text-slate-950 font-black py-3 px-4 rounded-xl text-[10px] uppercase tracking-wider cursor-pointer transition-all flex items-center justify-center gap-1.5 shadow"
+            className="bg-yellow-400/90 hover:bg-yellow-400 text-slate-950 font-bold py-2.5 px-4 rounded-xl text-[10px] uppercase tracking-wider cursor-pointer transition-all flex items-center justify-center gap-1.5"
           >
-            View Live Timeline <ArrowRight size={14} />
+            View Live Timeline <ArrowRight size={12} />
           </button>
         </div>
 
       </div>
+
+      {/* Secure PDF Modal Viewer */}
+      {showPdfModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-[#0b0f1d] border-3 border-black rounded-3xl w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden shadow-2xl">
+            <div className="p-4 border-b border-slate-800 flex justify-between items-center">
+              <h3 className="font-black text-sm uppercase tracking-wide text-white flex items-center gap-2">
+                📄 Travel OS E-Ticket Viewer
+              </h3>
+              <button 
+                onClick={() => setShowPdfModal(false)}
+                className="text-slate-400 hover:text-white font-bold text-xs bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-xl cursor-pointer"
+              >
+                ✕ Close
+              </button>
+            </div>
+            <div className="flex-1 bg-slate-950 relative">
+              <iframe 
+                src={`${API_URL}/bookings/${bookingId}/ticket`}
+                className="w-full h-full border-0"
+                title="E-Ticket PDF"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

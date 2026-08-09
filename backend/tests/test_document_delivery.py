@@ -332,3 +332,47 @@ def test_email_dispatch_failure_resilience():
         ).first()
         assert evt is not None
         assert "SMTP server" in evt.description
+
+
+def test_ticket_pdf_content_validation():
+    db = SessionLocal()
+    booking_ref = f"BK-{uuid.uuid4().hex[:8].upper()}"
+    booking = FlightBooking(
+        booking_reference=booking_ref,
+        user_id=1,
+        status=BookingStatus.HOLD,
+        total_amount=5000.0,
+        origin="DEL",
+        destination="BOM",
+        departure_time=datetime.datetime.utcnow() + datetime.timedelta(days=1),
+        arrival_time=datetime.datetime.utcnow() + datetime.timedelta(days=1, hours=2),
+        airline_code="AI",
+        flight_number="101",
+        passenger_details=[{"fullName": "Ronaldo", "age": 39}],
+        pricing_snapshot={"base_fare": 4500.0, "tax": 500.0, "discount": 0.0}
+    )
+    db.add(booking)
+    
+    payment = Payment(
+        booking_id=booking_ref,
+        user_id=1,
+        amount=5000.0,
+        status=PaymentStatus.CAPTURED,
+        payment_method="card"
+    )
+    db.add(payment)
+    db.commit()
+    
+    BookingStateMachine.transition_to(booking, BookingStatus.CONFIRMED)
+    db.commit()
+    
+    # Call ticket endpoint
+    response = client.get(f"/api/v1/bookings/{booking_ref}/ticket")
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert "inline" in response.headers["content-disposition"]
+    
+    # Read PDF content
+    content = response.content
+    assert len(content) > 0
+    assert content.startswith(b"%PDF")

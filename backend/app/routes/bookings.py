@@ -1195,20 +1195,42 @@ def get_booking_confirmation(
 @router.get("/{booking_reference}/ticket")
 def get_booking_ticket(
     booking_reference: str,
+    download: Optional[bool] = False,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    from app.models.bookings import BookingTicket
+    import os
+    from fastapi.responses import FileResponse
+    from app.models.bookings import BookingTicket, BookingInvoice
     booking = find_booking_by_reference(db, booking_reference)
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found.")
     if booking.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Access denied.")
+        if getattr(current_user, "role", "user") != "admin":
+            raise HTTPException(status_code=403, detail="Access denied.")
         
     ticket = db.query(BookingTicket).filter(BookingTicket.booking_reference == booking_reference).first()
-    if not ticket:
-        raise HTTPException(status_code=404, detail="E-Ticket not generated yet.")
-    return ticket
+    invoice = db.query(BookingInvoice).filter(BookingInvoice.booking_reference == booking_reference).first()
+    
+    if not ticket or not invoice:
+        raise HTTPException(status_code=400, detail="Booking confirmations are not fully compiled yet.")
+        
+    pdf_path = f"static/tickets/{booking_reference}.pdf"
+    if not os.path.exists(pdf_path):
+        from app.utils.booking_helpers import generate_booking_pdf
+        vertical = getattr(booking, "__tablename__", "").replace("_bookings", "")
+        generate_booking_pdf(booking, ticket, invoice, current_user, vertical)
+        
+    if not os.path.exists(pdf_path) or os.path.getsize(pdf_path) == 0:
+        raise HTTPException(status_code=500, detail="Ticket PDF generation failed or empty file.")
+
+    disposition = "attachment" if download else "inline"
+    return FileResponse(
+        pdf_path, 
+        media_type="application/pdf", 
+        filename=f"TravelOS-Eticket-{booking_reference}.pdf",
+        headers={"Content-Disposition": f"{disposition}; filename=\"TravelOS-Eticket-{booking_reference}.pdf\""}
+    )
 
 
 @router.get("/{booking_reference}/pdf")
