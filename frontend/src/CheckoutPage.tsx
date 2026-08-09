@@ -405,6 +405,36 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
     );
   }
 
+  const handleInstantDemoPayment = async () => {
+    if (!humanApproved) {
+      setError("Please check the 'Approve Payment Transaction' checkbox first to proceed.");
+      return;
+    }
+    setPaymentLoading(true);
+    setError("");
+    try {
+      const vert = booking.vertical || "flights";
+      const res = await fetch(`${API_URL}/bookings/confirm?booking_reference=${bookingId}&vertical=${vert}&payment_method=wallet`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {})
+        }
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || "Instant test payment confirmation failed.");
+      }
+      setPaymentStatus("captured");
+      onNavigate(`/bookings/${bookingId}/confirmation`);
+    } catch (err: any) {
+      console.error("Instant demo payment error:", err);
+      setError(err.message || "Failed to process test transaction.");
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#f4efe6] text-black p-6 font-sans">
       <div className="max-w-4xl mx-auto space-y-6">
@@ -653,28 +683,42 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                   )}
                 </div>
               ) : (
-                <div className="text-center space-y-6 my-auto py-8">
-                  <div className="bg-[#eae5d9] border-3 border-black p-4 rounded-xl max-w-md mx-auto text-left">
+                <div className="text-center space-y-4 my-auto py-6">
+                  <div className="bg-[#eae5d9] border-3 border-black p-4 rounded-xl max-w-md mx-auto text-left space-y-2">
                     <span className="text-[10px] uppercase font-black tracking-wide text-slate-600">Secure Payment Protocol</span>
-                    <h4 className="font-black text-sm uppercase mt-1">Razorpay Checkout Widget</h4>
-                    <p className="text-xs text-slate-600 font-medium mt-1">
-                      Click below to open Razorpay's secure checkout popup. Supports saved cards, Netbanking credentials, and multiple wallet provider networks.
-                    </p>
+                    <h4 className="font-black text-sm uppercase">Razorpay Sandbox Gateway</h4>
+                    <div className="bg-yellow-100 border-2 border-black p-2.5 rounded-lg text-[11px] space-y-1 font-mono">
+                      <div className="font-bold text-slate-800">💳 Domestic Test Card:</div>
+                      <div>Card: <span className="font-black select-all bg-white px-1.5 py-0.5 rounded border border-black">4012 0000 3333 0026</span></div>
+                      <div className="text-[10px] text-slate-600">Expiry: <span className="font-bold">12/30</span> | CVV: <span className="font-bold">123</span> | OTP: <span className="font-bold">123456</span></div>
+                      <div className="text-[10px] text-slate-600">💡 Or select <strong>Netbanking / Wallet</strong> inside popup for 1-click Success.</div>
+                    </div>
                   </div>
                   
-                  <button
-                    onClick={payWithRazorpay}
-                    disabled={paymentLoading || !humanApproved || profileIncomplete}
-                    className="bg-emerald-400 hover:bg-emerald-500 disabled:bg-emerald-200 border-3 border-black px-8 py-3.5 font-black text-sm uppercase rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer flex items-center justify-center gap-2 mx-auto"
-                  >
-                    {paymentLoading ? (
-                      <>
-                        <RefreshCw className="animate-spin" size={16} /> Opening Gateway...
-                      </>
-                    ) : (
-                      `Pay ₹${booking.total_amount.toLocaleString()} Now`
-                    )}
-                  </button>
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center items-center max-w-md mx-auto">
+                    <button
+                      onClick={payWithRazorpay}
+                      disabled={paymentLoading || !humanApproved || profileIncomplete}
+                      className="w-full bg-emerald-400 hover:bg-emerald-500 disabled:bg-emerald-200 border-3 border-black px-6 py-3 font-black text-xs uppercase rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      {paymentLoading ? (
+                        <>
+                          <RefreshCw className="animate-spin" size={16} /> Opening Gateway...
+                        </>
+                      ) : (
+                        `Pay ₹${booking.total_amount.toLocaleString()} Now`
+                      )}
+                    </button>
+
+                    <button
+                      onClick={handleInstantDemoPayment}
+                      disabled={paymentLoading || !humanApproved}
+                      className="w-full bg-yellow-300 hover:bg-yellow-400 disabled:bg-yellow-200 border-3 border-black px-6 py-3 font-black text-xs uppercase rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer flex items-center justify-center gap-2"
+                      title="Instantly complete booking in test mode"
+                    >
+                      ⚡ 1-Click Demo Pay
+                    </button>
+                  </div>
                 </div>
               )}
 
