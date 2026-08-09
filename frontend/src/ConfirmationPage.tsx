@@ -276,6 +276,22 @@ Thank you for booking with Travel OS!
 
   const { booking, ticket, invoice, vertical } = details;
 
+  const ticketTypeLabel = vertical === "flights" 
+    ? "FLIGHT TICKET" 
+    : vertical === "hotels" 
+      ? "HOTEL VOUCHER" 
+      : `${(vertical || "booking").slice(0, -1).toUpperCase()} TICKET`;
+
+  const getCenteredLine = (text: string) => {
+    const totalWidth = 32;
+    const content = `✓ ${text}`;
+    const leftPad = Math.max(0, Math.floor((totalWidth - content.length) / 2));
+    const rightPad = Math.max(0, totalWidth - content.length - leftPad);
+    return `${" ".repeat(leftPad)}${content}${" ".repeat(rightPad)}`;
+  };
+
+  const headerLine = getCenteredLine(`${ticketTypeLabel} CONFIRMED`);
+
   return (
     <div className="min-h-screen bg-[#060814] text-white p-4 md:p-8 font-sans relative">
       {/* Toast Notification (Phase 12) */}
@@ -297,7 +313,7 @@ Thank you for booking with Travel OS!
             <div className="space-y-1 text-left">
               <pre className="font-mono text-xs text-emerald-400 leading-normal font-black">
 {`╔════════════════════════════════╗
-       ✓ BOOKING CONFIRMED
+${headerLine}
 ╚════════════════════════════════╝`}
               </pre>
               <p className="text-xs text-slate-400">Payment captured and seats/rooms successfully secured with carrier.</p>
@@ -315,7 +331,7 @@ Thank you for booking with Travel OS!
         </div>
 
         {/* Quick status bar */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs bg-slate-900 border border-slate-800 p-4 rounded-2xl">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs bg-slate-900 border border-slate-800 p-4 rounded-2xl">
           <div className="flex items-center gap-2 justify-center sm:justify-start">
             <span className="text-slate-500 font-bold">PNR:</span>
             <strong className="text-white font-mono text-sm">{ticket?.pnr || "GENERATING..."}</strong>
@@ -327,6 +343,10 @@ Thank you for booking with Travel OS!
           <div className="flex items-center gap-2 justify-center sm:justify-start">
             <span className="text-slate-500 font-bold">TICKET:</span>
             <span className="text-emerald-400 font-bold">✓ READY</span>
+          </div>
+          <div className="flex items-center gap-2 justify-center sm:justify-start">
+            <span className="text-slate-500 font-bold">TYPE:</span>
+            <span className="text-blue-400 font-black uppercase">{ticketTypeLabel}</span>
           </div>
         </div>
 
