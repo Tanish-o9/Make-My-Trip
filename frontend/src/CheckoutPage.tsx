@@ -412,7 +412,13 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
         {/* Header */}
         <div className="flex justify-between items-center border-b-4 border-black pb-4">
           <button 
-            onClick={() => onNavigate("/")} 
+            onClick={() => {
+              if (window.history.length > 1) {
+                window.history.back();
+              } else {
+                onNavigate("/");
+              }
+            }} 
             className="flex items-center gap-2 bg-white hover:bg-slate-100 border-3 border-black px-4 py-2 font-bold rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer text-sm"
           >
             <ArrowLeft size={16} /> Return to Explore
@@ -704,8 +710,8 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
               
               {(() => {
                 const snapshot = booking.pricing_snapshot || {};
-                const base = typeof snapshot.base_fare === "number" ? snapshot.base_fare : booking.total_amount * 0.85;
-                const tax = typeof snapshot.tax === "number" ? snapshot.tax : booking.total_amount * 0.15;
+                const base = typeof snapshot.base_fare === "number" ? snapshot.base_fare : (parseFloat(booking.total_amount) || 0);
+                const tax = typeof snapshot.tax === "number" ? snapshot.tax : 0;
                 const discount = typeof snapshot.discount === "number" ? snapshot.discount : 0;
                 
                 return (
@@ -721,10 +727,12 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                         <span>-₹{discount.toFixed(2)}</span>
                       </div>
                     )}
-                    <div className="flex justify-between text-xs font-semibold">
-                      <span>SGST & CGST Tax:</span>
-                      <span>₹{tax.toFixed(2)}</span>
-                    </div>
+                    {tax > 0 && (
+                      <div className="flex justify-between text-xs font-semibold">
+                        <span>SGST & CGST Tax:</span>
+                        <span>₹{tax.toFixed(2)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between border-t-3 border-black pt-2 font-black text-sm">
                       <span>Amount Payable:</span>
                       <span className="text-rose-600">₹{parseFloat(booking.total_amount || "0").toLocaleString()}</span>

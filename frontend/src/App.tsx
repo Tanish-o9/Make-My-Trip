@@ -2364,11 +2364,27 @@ function FlightsSearchForm({
     .catch(console.error);
   }, []);
   
-  const [specialFare, setSpecialFare] = useState("Regular");
-  const [gstInvoice, setGstInvoice] = useState(false);
-  const [priceProtection, setPriceProtection] = useState(false);
+  const [specialFare, setSpecialFare] = useState(() => sessionStorage.getItem("fl_specialFare") || "Regular");
+  const [gstInvoice, setGstInvoice] = useState(() => sessionStorage.getItem("fl_gstInvoice") === "true");
+  const [priceProtection, setPriceProtection] = useState(() => sessionStorage.getItem("fl_priceProtection") === "true");
   
-  const [results, setResults] = useState<any[]>([]);
+  const [results, setResults] = useState<any[]>(() => {
+    try {
+      const saved = sessionStorage.getItem("fl_results");
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  useEffect(() => { sessionStorage.setItem("fl_specialFare", specialFare); }, [specialFare]);
+  useEffect(() => { sessionStorage.setItem("fl_gstInvoice", String(gstInvoice)); }, [gstInvoice]);
+  useEffect(() => { sessionStorage.setItem("fl_priceProtection", String(priceProtection)); }, [priceProtection]);
+  useEffect(() => { 
+    try {
+      sessionStorage.setItem("fl_results", JSON.stringify(results));
+    } catch (e) {}
+  }, [results]);
   const [loading, setLoading] = useTabLoading('flights');
   const [showPayoutModal, setShowPayoutModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
