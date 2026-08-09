@@ -29,3 +29,7 @@ venv/
 *.sqlite3
 *.db
 .pytest_cache/
+backend/static/tickets/*.pdf
+backend/static/qrcodes/*.png
+backend/static/uploads/*
+!backend/static/uploads/.gitkeep
