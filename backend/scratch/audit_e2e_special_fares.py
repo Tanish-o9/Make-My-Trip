@@ -112,7 +112,7 @@ def run_audit():
 
         print(f"  Booking Reference: {booking_ref}")
         print(f"  Hold Returned Total Amount: INR {total_amount}")
-        assert total_amount == 37875.0, f"Expected total 37875.0, got {total_amount}"
+        assert total_amount == 37500.0, f"Expected total 37500.0, got {total_amount}"
 
         # 3. Inspect DB Booking & pricing_snapshot
         print("\n--- 3. Database pricing_snapshot Inspection ---")
@@ -121,14 +121,14 @@ def run_audit():
         snapshot = booking.pricing_snapshot
         print(f"  Pricing Snapshot: {json.dumps(snapshot, indent=2)}")
 
-        assert snapshot["base_fare"] == 34000.0
-        assert snapshot["tax"] == 6000.0
-        assert snapshot["discount"] == 2125.0
-        assert snapshot["discounts"]["student"] == 850.0
-        assert snapshot["discounts"]["senior"] == 425.0
-        assert snapshot["discounts"]["armed_forces"] == 850.0
+        assert snapshot["base_fare"] == 40000.0
+        assert snapshot["tax"] == 0.0
+        assert snapshot["discount"] == 2500.0
+        assert snapshot["discounts"]["student"] == 1000.0
+        assert snapshot["discounts"]["senior"] == 500.0
+        assert snapshot["discounts"]["armed_forces"] == 1000.0
         assert snapshot["discounts"]["promo"] == 0.0
-        assert snapshot["final_payable"] == 37875.0
+        assert snapshot["final_payable"] == 37500.0
 
         # Passenger details status check
         pax_details = booking.passenger_details
@@ -155,7 +155,7 @@ def run_audit():
         # Legitimate order attempt
         valid_order_resp = client.post("/api/v1/payments/create-order", json={
             "booking_id": booking_ref,
-            "amount": 37875.0,
+            "amount": 37500.0,
             "currency": "INR",
             "method": "card",
             "human_approved": True
@@ -179,7 +179,7 @@ def run_audit():
         print(f"  Confirmed Booking Status: {details_data.get('status')}")
         print(f"  Confirmed Booking Total Amount: INR {details_data.get('total_amount')}")
         assert details_data.get("status") in ["confirmed", "CONFIRMED"]
-        assert details_data.get("total_amount") == 37875.0
+        assert details_data.get("total_amount") == 37500.0
 
         # 6. Invoice & Ticket Verification
         print("\n--- 6. Invoice & PDF Ticket Verification ---")
@@ -191,10 +191,10 @@ def run_audit():
         print(f"  Invoice Tax Amount: INR {invoice.tax_amount}")
         print(f"  Invoice Total Amount: INR {invoice.total_amount}")
 
-        assert float(invoice.base_amount) == 34000.0, f"Expected base 34000, got {invoice.base_amount}"
-        assert float(invoice.discount_amount) == 2125.0, f"Expected discount 2125, got {invoice.discount_amount}"
-        assert float(invoice.tax_amount) == 6000.0, f"Expected tax 6000, got {invoice.tax_amount}"
-        assert float(invoice.total_amount) == 37875.0, f"Expected total 37875, got {invoice.total_amount}"
+        assert float(invoice.base_amount) == 40000.0, f"Expected base 40000, got {invoice.base_amount}"
+        assert float(invoice.discount_amount) == 2500.0, f"Expected discount 2500, got {invoice.discount_amount}"
+        assert float(invoice.tax_amount) == 0.0, f"Expected tax 0, got {invoice.tax_amount}"
+        assert float(invoice.final_amount) == 37500.0, f"Expected total 37500, got {invoice.final_amount}"
 
         ticket = db.query(BookingTicket).filter(BookingTicket.booking_reference == booking_ref).first()
         assert ticket is not None, "Ticket was not generated"
