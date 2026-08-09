@@ -444,6 +444,7 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
           <button 
             onClick={() => {
               sessionStorage.setItem("active_vertical", "flights");
+              sessionStorage.setItem("fl_reopen_checkout", "true");
               if (window.history.length > 1) {
                 window.history.back();
               } else {
@@ -452,7 +453,7 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
             }} 
             className="flex items-center gap-2 bg-white hover:bg-slate-100 border-3 border-black px-4 py-2 font-bold rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer text-sm"
           >
-            <ArrowLeft size={16} /> Return to Explore
+            <ArrowLeft size={16} /> Back to Flight Booking
           </button>
           
           <h1 className="text-2xl font-bold bg-yellow-300 border-3 border-black px-4 py-1.5 rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">

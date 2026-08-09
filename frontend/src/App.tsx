@@ -678,6 +678,9 @@ export default function App() {
   const [checkoutData, setCheckoutData] = useState<any | null>(null);
 
   const handleOnBook = (bookData: any) => {
+    try {
+      sessionStorage.setItem("fl_last_checkout_data", JSON.stringify(bookData));
+    } catch (e) {}
     const count = bookData.details?.passengers?.length || bookData.details?.guests?.length || 1;
     const initialFareType = bookData.details?.specialFareType ? normalizeSpecialFareKey(bookData.details.specialFareType) : "regular";
     setPassengers(count);
@@ -703,6 +706,21 @@ export default function App() {
     );
     setCheckoutData(bookData);
   };
+
+  useEffect(() => {
+    if (currentPath === "/") {
+      const shouldReopen = sessionStorage.getItem("fl_reopen_checkout");
+      if (shouldReopen === "true") {
+        sessionStorage.removeItem("fl_reopen_checkout");
+        try {
+          const last = sessionStorage.getItem("fl_last_checkout_data");
+          if (last) {
+            setCheckoutData(JSON.parse(last));
+          }
+        } catch (e) {}
+      }
+    }
+  }, [currentPath]);
   
   // Phase 10 State Routing variables
   const [selectedDetail, setSelectedDetail] = useState<any | null>(null);
