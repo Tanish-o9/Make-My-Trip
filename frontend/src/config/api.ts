@@ -37,7 +37,7 @@ export const resolveAdminBase = () => {
       if (hostname === "localhost" || hostname === "127.0.0.1") {
         url = `http://${hostname}:5174`;
       } else {
-        url = "https://admin.travelos.com";
+        url = `${window.location.protocol}//admin.travelos.com`;
       }
     } else {
       url = "http://localhost:5174";

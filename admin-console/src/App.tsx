@@ -43,7 +43,7 @@ const resolvePortalBase = () => {
       if (hostname === "localhost" || hostname === "127.0.0.1") {
         url = `${window.location.protocol}//${hostname}:5173`;
       } else {
-        url = "https://travelos.com";
+        url = `${window.location.protocol}//travelos.com`;
       }
     } else {
       url = "http://localhost:5173";
