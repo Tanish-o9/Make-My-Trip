@@ -1,6 +1,6 @@
 import os
 import logging
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 
@@ -274,6 +274,17 @@ app.include_router(insights.router, prefix="/api/v1")
 app.include_router(gateway.router, prefix="/api/v1")
 app.include_router(partner.router, prefix="/api/v1")
 app.include_router(feedback.router, prefix="/api/v1")
+
+@app.websocket("/ws/admin_notifications")
+async def admin_notifications_ws(websocket: WebSocket):
+    from app.utils.websocket_gateway import ws_gateway
+    await ws_gateway.connect(websocket)
+    ws_gateway.subscribe(websocket, "admin_notifications")
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        ws_gateway.disconnect(websocket)
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
 os.makedirs(STATIC_DIR, exist_ok=True)

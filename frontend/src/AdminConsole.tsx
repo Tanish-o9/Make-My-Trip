@@ -42,10 +42,12 @@ const resolvePortalBase = () => {
   return "http://localhost:5173";
 };
 
+import { WS_BASE_ADMIN } from './config/api';
+
 const PORTAL_BASE = resolvePortalBase();
 const API_BASE = resolveApiBase();
 const API_URL = `${API_BASE}/v1`;
-const WS_BASE = API_BASE.replace(/^http/, "ws").replace(/\/api$/, "/ws");
+const WS_BASE = WS_BASE_ADMIN;
 
 
 // Roles enum

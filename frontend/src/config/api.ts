@@ -29,6 +29,34 @@ export const resolveApiBase = () => {
 export const API_BASE = resolveApiBase();
 export const API_URL = `${API_BASE}/v1`;
 
+export const resolveWsBase = () => {
+  if (typeof window !== "undefined") {
+    const hostname = window.location.hostname;
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return API_BASE.replace(/^http/, "ws");
+    } else {
+      return "wss://make-my-trip-production.up.railway.app/api";
+    }
+  }
+  return "ws://localhost:8000/api";
+};
+
+export const resolveWsAdminBase = () => {
+  if (typeof window !== "undefined") {
+    const hostname = window.location.hostname;
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return API_BASE.replace(/^http/, "ws").replace(/\/api$/, "/ws");
+    } else {
+      return "wss://make-my-trip-production.up.railway.app/ws";
+    }
+  }
+  return "ws://localhost:8000/ws";
+};
+
+export const WS_BASE_API = resolveWsBase();
+export const WS_BASE_ADMIN = resolveWsAdminBase();
+
+
 export const resolveAdminBase = () => {
   if (typeof window !== "undefined") {
     return `${window.location.origin}/admin`;

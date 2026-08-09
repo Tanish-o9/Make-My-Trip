@@ -15,8 +15,8 @@ import { DesignTokensPage } from './DesignTokensPage';
 import { ProfilePage } from './ProfilePage';
 import { AdminConsole } from './AdminConsole';
 
-import { API_BASE, API_URL, ADMIN_BASE, SPECIAL_FARES, calculatePassengerFare, validateStudentDetails, calculateSearchDisplayFare, normalizeSpecialFareKey } from './config/api';
-const WS_BASE = API_BASE.replace(/^http/, "ws");
+import { API_BASE, API_URL, ADMIN_BASE, WS_BASE_API, SPECIAL_FARES, calculatePassengerFare, validateStudentDetails, calculateSearchDisplayFare, normalizeSpecialFareKey } from './config/api';
+const WS_BASE = WS_BASE_API;
 const API_HOST = API_BASE.replace(/\/api$/, "");
 let globalTabLoadingListeners: ((loadingVerticals: Record<string, boolean>) => void)[] = [];
 let globalLoadingVerticals: Record<string, boolean> = {};
