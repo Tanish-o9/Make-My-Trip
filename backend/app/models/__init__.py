@@ -8,7 +8,7 @@ from app.models.bookings import (
     FlightBooking, HotelBooking, TrainBooking, BusBooking, CabBooking,
     HolidayPackageBooking, ActivityBooking, CruiseBooking, VisaApplication,
     InsurancePolicy, PaymentAttempt, PriceDropClaim, VillaBooking, ForexOrder,
-    VehicleRentalBooking, BookingEvent
+    VehicleRentalBooking, BookingEvent, SpecialFareConfig
 )
 from app.models.agents import (
     AgentExecutionLog, ConversationSession, UserPreferenceEmbedding,
@@ -48,7 +48,7 @@ __all__ = [
     "FlightBooking", "HotelBooking", "TrainBooking", "BusBooking", "CabBooking",
 
     "HolidayPackageBooking", "ActivityBooking", "CruiseBooking", "VisaApplication", "InsurancePolicy",
-    "PaymentAttempt", "PriceDropClaim", "VillaBooking", "ForexOrder", "VehicleRentalBooking", "BookingEvent",
+    "PaymentAttempt", "PriceDropClaim", "VillaBooking", "ForexOrder", "VehicleRentalBooking", "BookingEvent", "SpecialFareConfig",
     "AgentExecutionLog", "ConversationSession", "UserPreferenceEmbedding", "LLMRouterDecisionLog",
     "DestinationCostBaseline",
     "Notification", "AuditLog",

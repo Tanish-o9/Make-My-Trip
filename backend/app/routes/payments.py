@@ -29,6 +29,7 @@ from app.ai_agents.fraud_agent import FraudDetectionService
 from app.services.wallet_loyalty import WalletService
 from app.services.dunning import DunningService
 from app.utils.event_bus import emit_event
+from app.services.booking_core import BookingStateMachine
 
 logger = logging.getLogger(__name__)
 
@@ -252,12 +253,25 @@ def create_payment_order(
         )
 
     # 3. Validate amount server-side (NEVER trust client amount)
-    actual_amount = float(booking.total_amount)
-    if abs(actual_amount - req.amount) > 0.01:
+    pricing_snapshot = getattr(booking, "pricing_snapshot", {}) or {}
+    expected_amount = None
+    if isinstance(pricing_snapshot, dict):
+        if "final_payable" in pricing_snapshot:
+            expected_amount = float(pricing_snapshot["final_payable"])
+        elif "final_amount" in pricing_snapshot:
+            expected_amount = float(pricing_snapshot["final_amount"])
+            
+    if expected_amount is None:
+        expected_amount = float(booking.total_amount)
+        
+    if abs(expected_amount - req.amount) > 0.01:
+        logger.error(f"Internal Security Mismatch: payment order amount {req.amount} does not match pricing snapshot expected amount {expected_amount}.")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Payment amount mismatch. Expected: {actual_amount}, received: {req.amount}"
+            detail="Payment amount mismatch with authoritative pricing snapshot."
         )
+        
+    actual_amount = expected_amount
 
     # 4. Check if there is already an active payment for this booking
     existing_payment = db.query(Payment).filter(Payment.booking_id == booking.booking_reference).first()
@@ -358,6 +372,7 @@ def create_payment_order(
     db.add(transaction_log)
     
     # 8. Transition booking status to PAYMENT_PENDING
+    from app.services.booking_core import BookingStateMachine
     BookingStateMachine.transition_to(booking, BookingStatus.PAYMENT_PENDING)
     
     db.commit()

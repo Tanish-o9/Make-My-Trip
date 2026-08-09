@@ -19,6 +19,7 @@ from app.services.wallet_loyalty import WalletService
 from app.utils.event_bus import emit_event
 from app.models.mybiz import EmployeeLink, Organization
 from app.providers.registry import provider_registry
+from app.services.student_verification import StudentVerificationService
 
 from pydantic import BaseModel
 
@@ -83,6 +84,160 @@ async def create_booking_hold(
     }
 
     if vertical == "flights":
+        # Recalculate and validate flights passenger-level special fares dynamically
+        from app.models.bookings import SpecialFareConfig
+        configs = db.query(SpecialFareConfig).filter(SpecialFareConfig.active == True).all()
+        SPECIAL_FARES = {}
+        for c in configs:
+            SPECIAL_FARES[c.fare_type] = {
+                "discountPercent": c.discount_percent,
+                "minimumAge": c.minimum_age,
+                "maximumAge": c.maximum_age,
+                "verificationRequired": c.verification_required,
+                "validFrom": c.valid_from,
+                "validUntil": c.valid_until
+            }
+        
+        # Ensure default fallbacks are present
+        if "regular" not in SPECIAL_FARES:
+            SPECIAL_FARES["regular"] = {"discountPercent": 0.0}
+        if "student" not in SPECIAL_FARES:
+            SPECIAL_FARES["student"] = {"discountPercent": 10.0, "minimumAge": 5, "maximumAge": 30, "verificationRequired": True}
+        if "senior" not in SPECIAL_FARES:
+            SPECIAL_FARES["senior"] = {"discountPercent": 5.0, "minimumAge": 60}
+        if "armed_forces" not in SPECIAL_FARES:
+            SPECIAL_FARES["armed_forces"] = {"discountPercent": 10.0, "verificationRequired": True}
+
+        # Apply validity period constraints
+        now_dt = datetime.datetime.utcnow()
+        for ft, r in SPECIAL_FARES.items():
+            if r.get("validFrom") and now_dt < r["validFrom"]:
+                r["discountPercent"] = 0.0
+            if r.get("validUntil") and now_dt > r["validUntil"]:
+                r["discountPercent"] = 0.0
+
+        passengers = details.get("passengers", details.get("guests", [{"name": "Guest User", "age": 30}]))
+        pax_count = max(1, len(passengers))
+        
+        total_before_promo = float(details.get("finalFareBeforePromo", amount))
+        
+        base_fare_per_pax = (total_before_promo * 0.85) / pax_count
+        tax_per_pax = (total_before_promo * 0.15) / pax_count
+        
+        total_base = 0.0
+        total_discount = 0.0
+        total_tax = 0.0
+        
+        student_discount_total = 0.0
+        senior_discount_total = 0.0
+        armed_forces_discount_total = 0.0
+
+        validated_passengers = []
+        for p in passengers:
+            age = int(p.get("age") or 30)
+            fare_type = p.get("specialFareType", "regular")
+            student_id = p.get("studentId", "")
+            service_id = p.get("serviceId", "")
+            
+            passenger_name = p.get("fullName") or p.get("name") or "Guest"
+            
+            # Backend validation
+            if fare_type == "student":
+                if p.get("specialFareType") == "student":
+                    # Full student verification
+                    verify_res = StudentVerificationService.verify_student(p, passenger_name, age, db, passengers)
+                    verification_status = verify_res.get("status", "pending")
+                else:
+                    # Legacy fallback for backward compatibility
+                    verification_status = "incomplete"
+                    
+                rule = SPECIAL_FARES.get("student")
+            elif fare_type == "armed_forces":
+                if not service_id:
+                    raise HTTPException(status_code=400, detail="Service ID is required for Armed Forces fare.")
+                verification_status = "pending"
+                rule = SPECIAL_FARES.get("armed_forces")
+            elif fare_type == "senior":
+                rule = SPECIAL_FARES.get("senior")
+                min_age = rule.get("minimumAge") or 60
+                if age < min_age:
+                    raise HTTPException(status_code=400, detail=f"Senior Citizen fare requires age {min_age} or above.")
+                verification_status = "incomplete"
+            else:
+                verification_status = "incomplete"
+                rule = SPECIAL_FARES.get("regular")
+
+            pct = rule["discountPercent"]
+            
+            # If the student verification is incomplete (e.g. legacy fallback without details), no discount is applied
+            if fare_type == "student" and p.get("specialFareType") != "student":
+                pct = 0
+                
+            discount_amount = round(base_fare_per_pax * (pct / 100.0), 2)
+            final_fare = round(base_fare_per_pax - discount_amount, 2)
+            
+            total_base += base_fare_per_pax
+            total_tax += tax_per_pax
+            
+            if fare_type == "student":
+                student_discount_total += discount_amount
+            elif fare_type == "senior":
+                senior_discount_total += discount_amount
+            elif fare_type == "armed_forces":
+                armed_forces_discount_total += discount_amount
+
+            pax_dict = {
+                "name": passenger_name,
+                "fullName": passenger_name,
+                "age": age,
+                "email": p.get("email", ""),
+                "phone": p.get("phone", ""),
+                "specialFareType": fare_type,
+                "baseFare": base_fare_per_pax,
+                "discountPercent": pct,
+                "discountAmount": discount_amount,
+                "finalFare": final_fare,
+                "studentFare": fare_type == "student" or p.get("studentFare") is True,
+                "is_student": fare_type == "student" or p.get("is_student") is True,
+                "is_primary": p.get("is_primary", False)
+            }
+            
+            if fare_type == "student" and p.get("specialFareType") == "student":
+                pax_dict["studentId"] = student_id
+                pax_dict["studentName"] = p.get("studentName", "")
+                pax_dict["institutionName"] = p.get("institutionName", "")
+                pax_dict["institutionCity"] = p.get("institutionCity", "")
+                pax_dict["studentCourse"] = p.get("studentCourse", "")
+                pax_dict["studentDateOfBirth"] = p.get("studentDateOfBirth", "")
+                pax_dict["studentEmail"] = p.get("studentEmail", "")
+                pax_dict["studentVerificationStatus"] = verification_status
+            elif fare_type == "armed_forces":
+                pax_dict["serviceId"] = service_id
+                pax_dict["studentVerificationStatus"] = verification_status
+                
+            validated_passengers.append(pax_dict)
+            
+        promo_discount = float(details.get("promoDiscount", 0.0))
+        if promo_discount not in [0.0, 1200.0, 2500.0]:
+            promo_discount = 0.0
+            
+        total_discount = student_discount_total + senior_discount_total + armed_forces_discount_total
+        final_payable = round(total_base - total_discount + total_tax - promo_discount, 2)
+        amount = max(100.0, final_payable)
+        
+        pricing_snapshot = {
+            "base_fare": total_base,
+            "discount": total_discount + promo_discount,
+            "discounts": {
+                "student": student_discount_total,
+                "senior": senior_discount_total,
+                "armed_forces": armed_forces_discount_total,
+                "promo": promo_discount
+            },
+            "tax": total_tax,
+            "final_payable": amount
+        }
+        
         booking = FlightBooking(
             booking_reference=booking_ref, user_id=user_id, status=BookingStatus.HOLD,
             total_amount=amount, currency="INR", pricing_snapshot=pricing_snapshot, held_until=held_until,
@@ -90,7 +245,7 @@ async def create_booking_hold(
             departure_time=datetime.datetime.utcnow() + datetime.timedelta(days=7),
             arrival_time=datetime.datetime.utcnow() + datetime.timedelta(days=7, hours=2),
             airline_code=details.get("airline_code", "6E"), flight_number=details.get("flight_number", "502"),
-            cabin_class=details.get("cabin_class", "ECONOMY"), passenger_details=details.get("passengers", [{"name": "Guest", "age": 30}])
+            cabin_class=details.get("cabin_class", "ECONOMY"), passenger_details=validated_passengers
         )
     elif vertical == "hotels":
         booking = HotelBooking(
@@ -712,6 +867,11 @@ def get_booking_details(
             detail="Access denied: Booking does not belong to the requesting user."
         )
         
+    booking_dict = {c.name: getattr(booking, c.name) for c in booking.__table__.columns}
+    for k, v in booking_dict.items():
+        if isinstance(v, (datetime.datetime, datetime.date)):
+            booking_dict[k] = v.isoformat()
+
     details = {
         "booking_reference": booking.booking_reference,
         "vertical": vertical_name,
@@ -719,6 +879,9 @@ def get_booking_details(
         "total_amount": float(booking.total_amount),
         "currency": booking.currency,
         "created_at": booking.created_at.isoformat() if booking.created_at else None,
+        "pricing_snapshot": getattr(booking, "pricing_snapshot", None),
+        "passenger_details": getattr(booking, "passenger_details", None),
+        "booking": booking_dict
     }
     
     # Extract destination/city and travel dates

@@ -275,4 +275,15 @@ class BookingInvoice(Base):
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
 
 
+class SpecialFareConfig(Base):
+    __tablename__ = "special_fare_configs"
 
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    fare_type: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False) # e.g. regular, student, senior, armed_forces
+    discount_percent: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    minimum_age: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    maximum_age: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    verification_required: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    valid_from: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
+    valid_until: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)

@@ -91,8 +91,8 @@ def generate_booking_pdf(booking, ticket, invoice, user, vertical: str) -> str:
     info_data = [
         [Paragraph("Booking Date", body_bold), Paragraph(booking.created_at.strftime('%Y-%m-%d %H:%M:%S') if booking.created_at else "Now", body_style),
          Paragraph("Status", body_bold), Paragraph(booking.status.value.upper(), ParagraphStyle('StatusStyle', parent=body_style, fontName='Helvetica-Bold', textColor=colors.HexColor('#16a34a') if booking.status.value == 'confirmed' else colors.HexColor('#ca8a04')))],
-        [Paragraph("Customer Name", body_bold), Paragraph(getattr(user, "name", "") or getattr(user, "username", "Guest"), body_style),
-         Paragraph("Customer Email", body_bold), Paragraph(user.email, body_style)]
+        [Paragraph("Customer Name", body_bold), Paragraph(getattr(user, "name", "") or getattr(user, "username", "Guest") if user else "Guest", body_style),
+         Paragraph("Customer Email", body_bold), Paragraph(getattr(user, "email", "guest@travelos.com") if user else "guest@travelos.com", body_style)]
     ]
     info_table = Table(info_data, colWidths=[1.5*inch, 2.0*inch, 1.5*inch, 2.0*inch])
     info_table.setStyle(TableStyle([
@@ -143,6 +143,56 @@ def generate_booking_pdf(booking, ticket, invoice, user, vertical: str) -> str:
     ]))
     story.append(itinerary_table)
     story.append(Spacer(1, 10))
+
+    # 3.5 Flight Passenger Details Table
+    if vertical == "flights" and ticket and getattr(ticket, "passenger_details", None):
+        story.append(Paragraph("PASSENGER DETAILS & SPECIAL FARES", section_style))
+        pass_headers = [
+            Paragraph("<b>Name</b>", body_bold),
+            Paragraph("<b>Age</b>", body_bold),
+            Paragraph("<b>Fare Type</b>", body_bold),
+            Paragraph("<b>Verification ID</b>", body_bold),
+            Paragraph("<b>Fare Price</b>", body_bold)
+        ]
+        pass_rows = [pass_headers]
+        for p in ticket.passenger_details:
+            name = p.get("fullName") or p.get("name") or "Guest"
+            age = str(p.get("age", "—"))
+            fare_type = str(p.get("specialFareType", "regular")).upper()
+            
+            verif_id = "—"
+            if p.get("studentId"):
+                raw_id = p.get("studentId")
+                masked_id = (raw_id[:3] + "*****") if len(raw_id) > 4 else (raw_id[:1] + "***")
+                inst_part = f" ({p.get('institutionName')})" if p.get("institutionName") else ""
+                verif_id = f"Student ID: {masked_id}{inst_part}"
+            elif p.get("serviceId"):
+                verif_id = f"Service ID: {p.get('serviceId')}"
+                
+            final_fare = p.get("finalFare")
+            if final_fare is not None:
+                fare_str = f"INR {float(final_fare):.2f}"
+            else:
+                fare_str = f"INR {float(booking.total_amount) * 0.85 / len(ticket.passenger_details):.2f}"
+                
+            pass_rows.append([
+                Paragraph(name, body_style),
+                Paragraph(age, body_style),
+                Paragraph(fare_type, body_style),
+                Paragraph(verif_id, body_style),
+                Paragraph(fare_str, body_style)
+            ])
+            
+        pass_table = Table(pass_rows, colWidths=[2.2*inch, 0.8*inch, 1.2*inch, 1.6*inch, 1.2*inch])
+        pass_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#f1f5f9')),
+            ('BACKGROUND', (0,1), (-1,-1), colors.HexColor('#f8fafc')),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#e2e8f0')),
+            ('PADDING', (0,0), (-1,-1), 5),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ]))
+        story.append(pass_table)
+        story.append(Spacer(1, 10))
 
     # 4. Billing & Invoice details
     story.append(Paragraph("BILLING & PAYMENT RECEIPT", section_style))

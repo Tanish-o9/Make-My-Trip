@@ -1000,3 +1000,46 @@ def get_provider_performance(db: Session = Depends(get_db)):
         ]
     }
 
+
+class SpecialFareConfigUpdate(BaseModel):
+    discount_percent: float
+    minimum_age: Optional[int] = None
+    maximum_age: Optional[int] = None
+    verification_required: bool
+    active: bool
+    valid_from: Optional[datetime.datetime] = None
+    valid_until: Optional[datetime.datetime] = None
+
+
+@router.get("/special-fares")
+def get_admin_special_fares(db: Session = Depends(get_db)):
+    from app.models.bookings import SpecialFareConfig
+    configs = db.query(SpecialFareConfig).all()
+    return configs
+
+
+@router.post("/special-fares/{fare_type}")
+def update_admin_special_fare(
+    fare_type: str,
+    update_data: SpecialFareConfigUpdate,
+    db: Session = Depends(get_db)
+):
+    from app.models.bookings import SpecialFareConfig
+    config = db.query(SpecialFareConfig).filter(SpecialFareConfig.fare_type == fare_type).first()
+    if not config:
+        config = SpecialFareConfig(fare_type=fare_type)
+        db.add(config)
+        
+    config.discount_percent = update_data.discount_percent
+    config.minimum_age = update_data.minimum_age
+    config.maximum_age = update_data.maximum_age
+    config.verification_required = update_data.verification_required
+    config.active = update_data.active
+    config.valid_from = update_data.valid_from
+    config.valid_until = update_data.valid_until
+    
+    db.commit()
+    db.refresh(config)
+    return config
+
+

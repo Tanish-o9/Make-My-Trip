@@ -349,6 +349,19 @@ def startup_db_seed():
     from app.models.search_entities import City, HotelProperty
     db_init = SessionLocal()
     try:
+        from app.models.bookings import SpecialFareConfig
+        if db_init.query(SpecialFareConfig).count() == 0:
+            logger.info("Pre-seeding default Special Fare Configurations...")
+            defaults = [
+                SpecialFareConfig(fare_type="regular", discount_percent=0.0, minimum_age=None, maximum_age=None, verification_required=False, active=True),
+                SpecialFareConfig(fare_type="student", discount_percent=10.0, minimum_age=5, maximum_age=30, verification_required=True, active=True),
+                SpecialFareConfig(fare_type="senior", discount_percent=5.0, minimum_age=60, maximum_age=None, verification_required=False, active=True),
+                SpecialFareConfig(fare_type="armed_forces", discount_percent=10.0, minimum_age=None, maximum_age=None, verification_required=True, active=True)
+            ]
+            db_init.add_all(defaults)
+            db_init.commit()
+            logger.info("Special Fare Configurations seeded successfully!")
+
         if db_init.query(City).count() < 22 or db_init.query(HotelProperty).count() < 550:
             logger.info("Database has incomplete cities or hotel properties. Triggering automatic database seeding...")
             from app.commands.seed import (

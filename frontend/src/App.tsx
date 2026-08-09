@@ -14,7 +14,7 @@ import { BookingDetailPage } from './BookingDetailPage';
 import { DesignTokensPage } from './DesignTokensPage';
 import { ProfilePage } from './ProfilePage';
 
-import { API_BASE, API_URL, ADMIN_BASE } from './config/api';
+import { API_BASE, API_URL, ADMIN_BASE, SPECIAL_FARES, calculatePassengerFare, validateStudentDetails, calculateSearchDisplayFare, normalizeSpecialFareKey } from './config/api';
 const WS_BASE = API_BASE.replace(/^http/, "ws");
 const API_HOST = API_BASE.replace(/\/api$/, "");
 let globalTabLoadingListeners: ((loadingVerticals: Record<string, boolean>) => void)[] = [];
@@ -105,7 +105,17 @@ export default function App() {
     age: string;
     email: string;
     phone: string;
-    studentFare: boolean;
+    specialFareType: string;
+    studentId: string;
+    studentName: string;
+    institutionName: string;
+    institutionCity: string;
+    studentCourse: string;
+    studentDateOfBirth: string;
+    studentEmail: string;
+    studentVerificationStatus: string;
+    studentIdFile: string;
+    serviceId: string;
   }[]>(() => {
     const val = sessionStorage.getItem("fl_passengers");
     const count = val ? parseInt(val, 10) : 1;
@@ -115,7 +125,17 @@ export default function App() {
       age: "",
       email: "",
       phone: "",
-      studentFare: false
+      specialFareType: "regular",
+      studentId: "",
+      studentName: "",
+      institutionName: "",
+      institutionCity: "",
+      studentCourse: "",
+      studentDateOfBirth: "",
+      studentEmail: "",
+      studentVerificationStatus: "incomplete",
+      studentIdFile: "",
+      serviceId: ""
     }));
   });
 
@@ -130,7 +150,17 @@ export default function App() {
           age: "",
           email: "",
           phone: "",
-          studentFare: false
+          specialFareType: "regular",
+          studentId: "",
+          studentName: "",
+          institutionName: "",
+          institutionCity: "",
+          studentCourse: "",
+          studentDateOfBirth: "",
+          studentEmail: "",
+          studentVerificationStatus: "incomplete",
+          studentIdFile: "",
+          serviceId: ""
         }));
         return [...prevList, ...newItems];
       } else if (currentLength > passengers) {
@@ -649,6 +679,7 @@ export default function App() {
 
   const handleOnBook = (bookData: any) => {
     const count = bookData.details?.passengers?.length || bookData.details?.guests?.length || 1;
+    const initialFareType = bookData.details?.specialFareType ? normalizeSpecialFareKey(bookData.details.specialFareType) : "regular";
     setPassengers(count);
     setPassengersList(
       Array.from({ length: count }, (_, i) => ({
@@ -657,7 +688,17 @@ export default function App() {
         age: "",
         email: "",
         phone: "",
-        studentFare: false
+        specialFareType: i === 0 ? initialFareType : "regular",
+        studentId: "",
+        studentName: "",
+        institutionName: "",
+        institutionCity: "",
+        studentCourse: "",
+        studentDateOfBirth: "",
+        studentEmail: "",
+        studentVerificationStatus: "incomplete",
+        studentIdFile: "",
+        serviceId: ""
       }))
     );
     setCheckoutData(bookData);
@@ -2777,46 +2818,97 @@ function FlightsSearchForm({
                       {res.alternatives && res.alternatives.filter((alt: any) => !alt.is_simulated).length > 0 && (
                         <div className="flex items-center gap-1.5 mt-2 pt-1 border-t border-slate-800/40 flex-wrap">
                           <span className="text-[9px] text-slate-500 font-semibold uppercase tracking-wider">Also on:</span>
-                          {res.alternatives.filter((alt: any) => !alt.is_simulated).map((alt: any, ai: number) => (
-                            <span key={ai} className="text-[9px] bg-slate-800/60 text-slate-400 px-2 py-0.5 rounded border border-slate-700 flex items-center gap-1">
-                              <span className="font-medium">{alt.provider_name}:</span>
-                              <span className="font-bold text-emerald-400">₹{Number(alt.price).toLocaleString()}</span>
-                            </span>
-                          ))}
+                          {res.alternatives.filter((alt: any) => !alt.is_simulated).map((alt: any, ai: number) => {
+                            const altPrice = Number(alt.price) || 0;
+                            const altCalc = calculateSearchDisplayFare(altPrice, specialFare);
+                            return (
+                              <span key={ai} className="text-[9px] bg-slate-800/60 text-slate-400 px-2 py-0.5 rounded border border-slate-700 flex items-center gap-1">
+                                <span className="font-medium">{alt.provider_name}:</span>
+                                {altCalc.discountAmount > 0 ? (
+                                  <span className="font-bold text-emerald-400">
+                                    <span className="line-through text-slate-400 mr-1">₹{Math.round(altPrice).toLocaleString()}</span>
+                                    ₹{Math.round(altCalc.finalFare).toLocaleString()}
+                                  </span>
+                                ) : (
+                                  <span className="font-bold text-emerald-400">₹{Math.round(altPrice).toLocaleString()}</span>
+                                )}
+                              </span>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
 
                     {/* Right Section: Price and Book Button */}
-                    <div className="text-right w-full md:w-auto flex md:flex-col justify-between md:justify-center items-center md:items-end gap-3 border-t md:border-t-0 border-slate-800/60 pt-3 md:pt-0">
-                      <div>
-                        <div className="font-black text-emerald-400 text-lg md:text-xl tracking-tight">₹{(res.price_per_passenger || res.price || 0).toLocaleString()}</div>
-                        {res.price_per_passenger && passengers > 1 && (
-                          <div className="text-[10px] text-slate-400 font-semibold">Total: ₹{(res.total_price || res.price_per_passenger * passengers).toLocaleString()}</div>
-                        )}
-                      </div>
-                      <button 
-                        onClick={() => onBook({
-                          vertical: "flights",
-                          amount: res.total_price || res.price,
-                          details: {
-                            origin: origin.split(" ")[0],
-                            destination: destination.split(" ")[0],
-                            airline_code: airlineCode,
-                            flight_number: flightNumber.split("-")[1] || flightNumber,
-                            cabin_class: cabinClass.toUpperCase(),
-                            passengers: Array.from({ length: passengers }, (_, i) => ({ name: `Traveler Guest ${i+1}`, age: 32 })),
-                            provider_name: res.provider_name,
-                            offer_id: res.offer_id
-                          },
-                          title: `${airlineName} ${flightNumber}`,
-                          subtitle: `${origin.split(" ")[0]} ➔ ${destination.split(" ")[0]}`
-                        })}
-                        className="bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-[11px] font-extrabold px-4 py-2 rounded-xl flex items-center gap-1 shadow-lg shadow-blue-600/10 cursor-pointer transition-all"
-                      >
-                        Book Flight <ArrowRight size={12} />
-                      </button>
-                    </div>
+                    {(() => {
+                      const basePricePerPax = res.price_per_passenger || res.price || 0;
+                      const fareCalc = calculateSearchDisplayFare(basePricePerPax, specialFare);
+                      const hasDiscount = fareCalc.discountAmount > 0;
+                      const displayedPricePerPax = fareCalc.finalFare;
+                      const displayedTotalPrice = displayedPricePerPax * passengers;
+                      const originalTotalPrice = basePricePerPax * passengers;
+
+                      return (
+                        <div className="text-right w-full md:w-auto flex md:flex-col justify-between md:justify-center items-center md:items-end gap-3 border-t md:border-t-0 border-slate-800/60 pt-3 md:pt-0">
+                          <div>
+                            {hasDiscount ? (
+                              <div className="space-y-0.5">
+                                <div className="flex items-baseline justify-end gap-1.5">
+                                  <span className="line-through text-slate-400 text-xs md:text-sm font-semibold">
+                                    ₹{Math.round(basePricePerPax).toLocaleString()}
+                                  </span>
+                                  <span className="font-black text-emerald-400 text-lg md:text-xl tracking-tight">
+                                    ₹{Math.round(displayedPricePerPax).toLocaleString()}
+                                  </span>
+                                </div>
+                                <span className="inline-block text-[10px] font-extrabold text-yellow-400 bg-yellow-950/60 px-1.5 py-0.5 rounded border border-yellow-800/50">
+                                  {fareCalc.label} · {fareCalc.discountPercent}% off
+                                </span>
+                                {passengers > 1 && (
+                                  <div className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                                    Total: <span className="line-through mr-1">₹{Math.round(originalTotalPrice).toLocaleString()}</span>
+                                    <span className="text-white font-bold">₹{Math.round(displayedTotalPrice).toLocaleString()}</span>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div>
+                                <div className="font-black text-emerald-400 text-lg md:text-xl tracking-tight">
+                                  ₹{Math.round(basePricePerPax).toLocaleString()}
+                                </div>
+                                {passengers > 1 && (
+                                  <div className="text-[10px] text-slate-400 font-semibold">
+                                    Total: ₹{Math.round(originalTotalPrice).toLocaleString()}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          <button 
+                            onClick={() => onBook({
+                              vertical: "flights",
+                              amount: res.total_price || res.price,
+                              details: {
+                                origin: origin.split(" ")[0],
+                                destination: destination.split(" ")[0],
+                                airline_code: airlineCode,
+                                flight_number: flightNumber.split("-")[1] || flightNumber,
+                                cabin_class: cabinClass.toUpperCase(),
+                                specialFareType: fareCalc.fareKey,
+                                passengers: Array.from({ length: passengers }, (_, i) => ({ name: `Traveler Guest ${i+1}`, age: 32 })),
+                                provider_name: res.provider_name,
+                                offer_id: res.offer_id
+                              },
+                              title: `${airlineName} ${flightNumber}`,
+                              subtitle: `${origin.split(" ")[0]} ➔ ${destination.split(" ")[0]}`
+                            })}
+                            className="bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-[11px] font-extrabold px-4 py-2 rounded-xl flex items-center gap-1 shadow-lg shadow-blue-600/10 cursor-pointer transition-all"
+                          >
+                            Book Flight <ArrowRight size={12} />
+                          </button>
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               });
@@ -5326,8 +5418,42 @@ function CheckoutModal({
   data: any, 
   onClose: () => void, 
   userProfile: any, 
-  passengersList: { id: number; fullName: string; age: string; email: string; phone: string; studentFare: boolean }[],
-  setPassengersList: React.Dispatch<React.SetStateAction<{ id: number; fullName: string; age: string; email: string; phone: string; studentFare: boolean }[]>>,
+  passengersList: {
+    id: number;
+    fullName: string;
+    age: string;
+    email: string;
+    phone: string;
+    specialFareType: string;
+    studentId: string;
+    studentName: string;
+    institutionName: string;
+    institutionCity: string;
+    studentCourse: string;
+    studentDateOfBirth: string;
+    studentEmail: string;
+    studentVerificationStatus: string;
+    studentIdFile: string;
+    serviceId: string;
+  }[],
+  setPassengersList: React.Dispatch<React.SetStateAction<{
+    id: number;
+    fullName: string;
+    age: string;
+    email: string;
+    phone: string;
+    specialFareType: string;
+    studentId: string;
+    studentName: string;
+    institutionName: string;
+    institutionCity: string;
+    studentCourse: string;
+    studentDateOfBirth: string;
+    studentEmail: string;
+    studentVerificationStatus: string;
+    studentIdFile: string;
+    serviceId: string;
+  }[]>>,
   onConfirm: (payMethod: string) => void 
 }) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -5438,16 +5564,58 @@ function CheckoutModal({
 
 
 
+  const getFlightFareBreakdown = () => {
+    if (data.vertical !== "flights") {
+      return {
+        baseFareTotal: data.amount * 0.85,
+        totalDiscount: 0,
+        totalTax: data.amount * 0.15,
+        finalFare: data.amount
+      };
+    }
+    
+    const count = passengersList.length;
+    const baseFarePerPassenger = (data.amount * 0.85) / count;
+    const taxPerPassenger = (data.amount * 0.15) / count;
+    
+    let baseFareTotal = 0;
+    let totalDiscount = 0;
+    let totalTax = 0;
+    
+    passengersList.forEach(p => {
+      const ageNum = parseInt(p.age, 10) || 30;
+      const calc = calculatePassengerFare(
+        baseFarePerPassenger,
+        p.specialFareType,
+        ageNum,
+        p.studentId,
+        p.serviceId,
+        p
+      );
+      baseFareTotal += calc.baseFare;
+      totalDiscount += calc.discountAmount;
+      totalTax += taxPerPassenger;
+    });
+    
+    const finalFare = baseFareTotal - totalDiscount + totalTax;
+    
+    return {
+      baseFareTotal,
+      totalDiscount,
+      totalTax,
+      finalFare
+    };
+  };
+
   const executeBooking = () => {
     setLoading(true);
     setError("");
 
-    const finalPayVal = Math.max(100, data.amount - discountAmount);
+    const breakdown = getFlightFareBreakdown();
+    const finalPayVal = Math.max(100, breakdown.finalFare - discountAmount);
 
     // DCC Check for Razorpay (Module 1)
-    if (gateway === "razorpay" && !showDccConfirm && !showDccConfirm) {
-      // If we are in non-INR workspace setting
-      // Alert/confirm DCC conversion before charging
+    if (gateway === "razorpay" && !showDccConfirm) {
       setDccData({
         amount: finalPayVal,
         converted: finalPayVal,
@@ -5460,16 +5628,47 @@ function CheckoutModal({
 
     const localToken = localStorage.getItem('token');
 
-    const passengersPayload = passengersList.map((p, idx) => ({
-      name: p.fullName,
-      fullName: p.fullName,
-      age: parseInt(p.age, 10) || 0,
-      email: p.email,
-      phone: p.phone,
-      studentFare: p.studentFare,
-      is_student: p.studentFare,
-      is_primary: idx === 0
-    }));
+    const passengersPayload = passengersList.map((p, idx) => {
+      const ageNum = parseInt(p.age, 10) || 0;
+      const baseFarePerPassenger = (data.amount * 0.85) / passengersList.length;
+      const calc = calculatePassengerFare(
+        baseFarePerPassenger,
+        p.specialFareType,
+        ageNum,
+        p.studentId,
+        p.serviceId,
+        p
+      );
+      const paxObj: any = {
+        name: p.fullName,
+        fullName: p.fullName,
+        age: ageNum,
+        email: p.email,
+        phone: p.phone,
+        specialFareType: p.specialFareType,
+        baseFare: calc.baseFare,
+        discountPercent: calc.discountPercent,
+        discountAmount: calc.discountAmount,
+        finalFare: calc.finalFare,
+        studentFare: p.specialFareType === "student",
+        is_student: p.specialFareType === "student",
+        is_primary: idx === 0
+      };
+      if (p.specialFareType === "student") {
+        paxObj.studentId = p.studentId;
+        paxObj.studentName = p.studentName;
+        paxObj.institutionName = p.institutionName;
+        paxObj.institutionCity = p.institutionCity;
+        paxObj.studentCourse = p.studentCourse;
+        paxObj.studentDateOfBirth = p.studentDateOfBirth;
+        paxObj.studentEmail = p.studentEmail;
+        paxObj.studentVerificationStatus = p.studentVerificationStatus || "pending";
+        paxObj.studentIdFile = p.studentIdFile || "";
+      } else if (p.specialFareType === "armed_forces") {
+        paxObj.serviceId = p.serviceId;
+      }
+      return paxObj;
+    });
 
     // 1. Create Hold Reservation
     fetch(`${API_URL}/bookings/hold`, {
@@ -5484,6 +5683,11 @@ function CheckoutModal({
         user_id: 1,
         details: {
           ...data.details,
+          baseFareTotal: breakdown.baseFareTotal,
+          totalDiscount: breakdown.totalDiscount,
+          totalTax: breakdown.totalTax,
+          finalFareBeforePromo: breakdown.finalFare,
+          promoDiscount: discountAmount,
           traveler: passengersPayload[0],
           passengers: passengersPayload,
           guests: passengersPayload
@@ -5498,14 +5702,12 @@ function CheckoutModal({
           return;
         }
 
-        // If it's a corporate limit exceed holding, it returns PENDING_APPROVAL status directly
         if (holdRes.status === "pending_approval") {
           alert(holdRes.message || "myBiz Limit Exceeded: booking routed to manager queue.");
           onClose();
           return;
         }
 
-        // 2. Redirect to Checkout Page
         window.history.pushState(null, '', `/checkout/${holdRes.booking_reference}`);
         window.dispatchEvent(new Event('popstate'));
         onClose();
@@ -5516,7 +5718,8 @@ function CheckoutModal({
       });
   };
 
-  const finalAmount = Math.max(100, data.amount - discountAmount);
+  const breakdown = getFlightFareBreakdown();
+  const finalAmount = Math.max(100, breakdown.finalFare - discountAmount);
 
   // If 3DS redirection active, serve iframe viewport
   if (redirectUrl) {
@@ -5652,27 +5855,426 @@ function CheckoutModal({
                       </div>
                     </div>
 
-                    <label className="flex items-center gap-2 text-xs font-bold cursor-pointer">
-                      <input 
-                        type="checkbox" 
-                        checked={passenger.studentFare} 
-                        onChange={() => {
-                          const updated = [...passengersList];
-                          updated[index].studentFare = !updated[index].studentFare;
-                          setPassengersList(updated);
-                        }} 
-                        className="accent-black rounded border-2" 
-                      />
-                      Apply Student Special Fare (requires Student ID)
-                    </label>
+                    {/* Special Fare Selection for Flights */}
+                    {data.vertical === "flights" && (
+                      <div className="border-t border-black/10 pt-2.5 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <label className="flex items-center gap-2 text-xs font-bold cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={passenger.specialFareType === "student"}
+                              onChange={() => {
+                                setPassengersList(prev => {
+                                  const updated = [...prev];
+                                  const isStudent = updated[index].specialFareType === "student";
+                                  updated[index] = {
+                                    ...updated[index],
+                                    specialFareType: isStudent ? "regular" : "student",
+                                    studentId: "",
+                                    studentName: "",
+                                    institutionName: "",
+                                    institutionCity: "",
+                                    studentCourse: "",
+                                    studentDateOfBirth: "",
+                                    studentEmail: "",
+                                    studentIdFile: "",
+                                    studentVerificationStatus: "incomplete",
+                                    serviceId: ""
+                                  };
+                                  return updated;
+                                });
+                              }}
+                              className="accent-black rounded border-2 w-4 h-4 cursor-pointer"
+                            />
+                            <span className="font-extrabold text-slate-800">Student Special Fare — Save 10%</span>
+                          </label>
+                        </div>
+
+                        {passenger.specialFareType !== "student" && (
+                          <div className="space-y-1.5">
+                            <span className="text-[9px] uppercase font-bold text-slate-500 block">Other Fare Categories</span>
+                            <div className="grid grid-cols-3 gap-1">
+                              {[
+                                { value: "regular", label: "Regular" },
+                                { value: "senior", label: "Senior Citizen" },
+                                { value: "armed_forces", label: "Armed Forces" }
+                              ].map((opt) => (
+                                <button
+                                  key={opt.value}
+                                  type="button"
+                                  onClick={() => {
+                                    setPassengersList(prev => {
+                                      const updated = [...prev];
+                                      const oldType = updated[index].specialFareType;
+                                      const newObj = { ...updated[index], specialFareType: opt.value };
+                                      if (oldType === "student") {
+                                        newObj.studentId = "";
+                                        newObj.studentName = "";
+                                        newObj.institutionName = "";
+                                        newObj.institutionCity = "";
+                                        newObj.studentCourse = "";
+                                        newObj.studentDateOfBirth = "";
+                                        newObj.studentEmail = "";
+                                        newObj.studentIdFile = "";
+                                        newObj.studentVerificationStatus = "incomplete";
+                                      } else if (oldType === "armed_forces") {
+                                        newObj.serviceId = "";
+                                      }
+                                      updated[index] = newObj;
+                                      return updated;
+                                    });
+                                  }}
+                                  className={`text-[9px] font-bold py-1 border-2 border-black rounded transition-all ${
+                                    passenger.specialFareType === opt.value
+                                      ? "bg-yellow-300 text-black animate-pulse"
+                                      : "bg-white text-slate-700 hover:bg-slate-50"
+                                  }`}
+                                >
+                                  {opt.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {passenger.specialFareType === "student" && (
+                          <div className="border-3 border-black p-4 rounded-xl bg-slate-50 space-y-3 mt-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] text-left">
+                            <div className="flex justify-between items-center border-b-2 border-black pb-1.5 mb-2">
+                              <span className="text-[10px] font-black uppercase tracking-wider text-slate-800">🎓 Student Verification Details</span>
+                              <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border border-black uppercase ${
+                                passenger.studentVerificationStatus === "verified"
+                                  ? "bg-green-300 text-black"
+                                  : passenger.studentVerificationStatus === "pending"
+                                  ? "bg-amber-300 text-black animate-pulse"
+                                  : "bg-slate-200 text-slate-700"
+                              }`}>
+                                {passenger.studentVerificationStatus === "pending" ? "Pending Verification" : passenger.studentVerificationStatus === "verified" ? "Verified" : "Incomplete"}
+                              </span>
+                            </div>
+
+                            <div className="space-y-2">
+                              <div>
+                                <label className="text-[9px] uppercase font-bold text-slate-500 block">Student ID / Enrollment No.</label>
+                                <input
+                                  type="text"
+                                  placeholder="e.g. STU-12345"
+                                  value={passenger.studentId || ""}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setPassengersList(prev => {
+                                      const updated = [...prev];
+                                      const tempP = { ...updated[index], studentId: val };
+                                      const valResult = validateStudentDetails(tempP);
+                                      tempP.studentVerificationStatus = valResult.valid ? "pending" : "incomplete";
+                                      updated[index] = tempP;
+                                      return updated;
+                                    });
+                                  }}
+                                  className="w-full bg-white border-2 border-black rounded px-2 py-1 text-xs font-bold"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="text-[9px] uppercase font-bold text-slate-500 block">Student Full Name</label>
+                                <input
+                                  type="text"
+                                  placeholder="As per Student ID card"
+                                  value={passenger.studentName || ""}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setPassengersList(prev => {
+                                      const updated = [...prev];
+                                      const tempP = { ...updated[index], studentName: val };
+                                      const valResult = validateStudentDetails(tempP);
+                                      tempP.studentVerificationStatus = valResult.valid ? "pending" : "incomplete";
+                                      updated[index] = tempP;
+                                      return updated;
+                                    });
+                                  }}
+                                  className="w-full bg-white border-2 border-black rounded px-2 py-1 text-xs font-bold"
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <div>
+                                  <label className="text-[9px] uppercase font-bold text-slate-500 block">College / University Name</label>
+                                  <input
+                                    type="text"
+                                    placeholder="e.g. Delhi University"
+                                    value={passenger.institutionName || ""}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setPassengersList(prev => {
+                                        const updated = [...prev];
+                                        const tempP = { ...updated[index], institutionName: val };
+                                        const valResult = validateStudentDetails(tempP);
+                                        tempP.studentVerificationStatus = valResult.valid ? "pending" : "incomplete";
+                                        updated[index] = tempP;
+                                        return updated;
+                                      });
+                                    }}
+                                    className="w-full bg-white border-2 border-black rounded px-2 py-1 text-xs font-bold"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="text-[9px] uppercase font-bold text-slate-500 block">Institution City</label>
+                                  <input
+                                    type="text"
+                                    placeholder="e.g. New Delhi"
+                                    value={passenger.institutionCity || ""}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setPassengersList(prev => {
+                                        const updated = [...prev];
+                                        const tempP = { ...updated[index], institutionCity: val };
+                                        const valResult = validateStudentDetails(tempP);
+                                        tempP.studentVerificationStatus = valResult.valid ? "pending" : "incomplete";
+                                        updated[index] = tempP;
+                                        return updated;
+                                      });
+                                    }}
+                                    className="w-full bg-white border-2 border-black rounded px-2 py-1 text-xs font-bold"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <div>
+                                  <label className="text-[9px] uppercase font-bold text-slate-500 block">Course / Program</label>
+                                  <input
+                                    type="text"
+                                    placeholder="e.g. B.Tech Computer Science"
+                                    value={passenger.studentCourse || ""}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setPassengersList(prev => {
+                                        const updated = [...prev];
+                                        const tempP = { ...updated[index], studentCourse: val };
+                                        const valResult = validateStudentDetails(tempP);
+                                        tempP.studentVerificationStatus = valResult.valid ? "pending" : "incomplete";
+                                        updated[index] = tempP;
+                                        return updated;
+                                      });
+                                    }}
+                                    className="w-full bg-white border-2 border-black rounded px-2 py-1 text-xs font-bold"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="text-[9px] uppercase font-bold text-slate-500 block">Date of Birth</label>
+                                  <input
+                                    type="date"
+                                    value={passenger.studentDateOfBirth || ""}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setPassengersList(prev => {
+                                        const updated = [...prev];
+                                        const tempP = { ...updated[index], studentDateOfBirth: val };
+                                        const valResult = validateStudentDetails(tempP);
+                                        tempP.studentVerificationStatus = valResult.valid ? "pending" : "incomplete";
+                                        updated[index] = tempP;
+                                        return updated;
+                                      });
+                                    }}
+                                    className="w-full bg-white border-2 border-black rounded px-2 py-1 text-xs font-bold"
+                                  />
+                                </div>
+                              </div>
+
+                              <div>
+                                <label className="text-[9px] uppercase font-bold text-slate-500 block">Student Email</label>
+                                <input
+                                  type="email"
+                                  placeholder="e.g. student@university.edu"
+                                  value={passenger.studentEmail || ""}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setPassengersList(prev => {
+                                      const updated = [...prev];
+                                      const tempP = { ...updated[index], studentEmail: val };
+                                      const valResult = validateStudentDetails(tempP);
+                                      tempP.studentVerificationStatus = valResult.valid ? "pending" : "incomplete";
+                                      updated[index] = tempP;
+                                      return updated;
+                                    });
+                                  }}
+                                  className="w-full bg-white border-2 border-black rounded px-2 py-1 text-xs font-bold"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="text-[9px] uppercase font-bold text-slate-500 block">Upload Student ID Proof (JPG, PNG, PDF, max 5MB)</label>
+                                <div className="mt-1 flex items-center gap-2">
+                                  <input
+                                    type="file"
+                                    accept=".jpg,.jpeg,.png,.pdf"
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) {
+                                        if (file.size > 5 * 1024 * 1024) {
+                                          alert("File size exceeds 5MB limit.");
+                                          return;
+                                        }
+                                        setPassengersList(prev => {
+                                          const updated = [...prev];
+                                          updated[index] = { ...updated[index], studentIdFile: file.name };
+                                          return updated;
+                                        });
+                                      }
+                                    }}
+                                    className="hidden"
+                                    id={`student-file-upload-${index}`}
+                                  />
+                                  <label
+                                    htmlFor={`student-file-upload-${index}`}
+                                    className="px-3 py-1.5 bg-white border-2 border-black rounded text-[10px] font-black uppercase hover:bg-slate-100 cursor-pointer shadow-[1px_1px_0_0_rgba(0,0,0,1)]"
+                                  >
+                                    Choose File
+                                  </label>
+                                  <span className="text-[10px] font-bold text-slate-600 truncate max-w-[200px]">
+                                    {passenger.studentIdFile || "No file chosen"}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Dynamic Feedback on Verification */}
+                            {(() => {
+                              const valResult = validateStudentDetails(passenger);
+                              if (!valResult.valid && passenger.studentVerificationStatus === "incomplete") {
+                                const missingFields = [];
+                                if (!passenger.studentId) missingFields.push("Student ID");
+                                if (!passenger.studentName) missingFields.push("Full Name");
+                                if (!passenger.institutionName) missingFields.push("Institution");
+                                if (!passenger.institutionCity) missingFields.push("City");
+                                if (!passenger.studentCourse) missingFields.push("Course");
+                                if (!passenger.studentDateOfBirth) missingFields.push("DOB");
+                                if (!passenger.studentEmail) missingFields.push("Email");
+                                
+                                return (
+                                  <div className="text-[9px] text-amber-600 font-bold bg-amber-50 border border-amber-200 p-1.5 rounded mt-1.5">
+                                    ⚠️ Incomplete details. Missing: {missingFields.join(", ")}
+                                  </div>
+                                );
+                              } else if (!valResult.valid) {
+                                return (
+                                  <div className="text-[9px] text-rose-600 font-bold bg-rose-50 border border-rose-200 p-1.5 rounded mt-1.5">
+                                    ⚠️ Verification Failed: {valResult.reason}
+                                  </div>
+                                );
+                              } else {
+                                return (
+                                  <div className="text-[9px] text-green-700 font-bold bg-green-50 border border-green-200 p-1.5 rounded mt-1.5">
+                                    ✓ Student details submitted — verification pending
+                                  </div>
+                                );
+                              }
+                            })()}
+                            {validationErrors[`passenger_${index}_studentVerification`] && (
+                              <div className="text-[9px] text-rose-600 font-bold bg-rose-50 border-2 border-rose-600 p-1.5 rounded mt-1.5">
+                                ⚠️ {validationErrors[`passenger_${index}_studentVerification`]}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {passenger.specialFareType === "armed_forces" && (
+                          <div className="space-y-1 mt-1">
+                            <label className="text-[9px] uppercase font-bold text-slate-500">Service ID / Armed Forces ID</label>
+                            <input
+                              type="text"
+                              placeholder="Enter Service ID"
+                              value={passenger.serviceId || ""}
+                              onChange={(e) => {
+                                const updated = [...passengersList];
+                                updated[index].serviceId = e.target.value;
+                                setPassengersList(updated);
+                              }}
+                              className="w-full bg-white border-2 border-black rounded px-2 py-1 text-xs font-bold"
+                            />
+                            {validationErrors[`passenger_${index}_serviceId`] && (
+                              <span className="text-[9px] text-rose-600 font-bold block mt-0.5">
+                                {validationErrors[`passenger_${index}_serviceId`]}
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {passenger.specialFareType === "senior" && (
+                          <div className="mt-1">
+                            {parseInt(passenger.age, 10) < 60 ? (
+                              <span className="text-[9px] text-rose-600 font-bold block border-2 border-rose-200 bg-rose-50 p-1 rounded">
+                                ⚠️ Senior Citizen discount requires age 60 or above (Age: {passenger.age || 0}).
+                              </span>
+                            ) : (
+                              <span className="text-[9px] text-green-600 font-bold block border-2 border-green-200 bg-green-50 p-1 rounded">
+                                ✓ Age verified for Senior Citizen (Age: {passenger.age}). 5% discount applied.
+                              </span>
+                            )}
+                            {validationErrors[`passenger_${index}_seniorAge`] && (
+                              <span className="text-[9px] text-rose-600 font-bold block mt-0.5">
+                                {validationErrors[`passenger_${index}_seniorAge`]}
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Passenger fare preview */}
+                        {(() => {
+                          const baseFarePerPassenger = (data.amount * 0.85) / passengersList.length;
+                          const calc = calculatePassengerFare(
+                            baseFarePerPassenger,
+                            passenger.specialFareType,
+                            parseInt(passenger.age, 10) || 0,
+                            passenger.studentId || "",
+                            passenger.serviceId || "",
+                            passenger
+                          );
+                          if (calc.discountAmount > 0) {
+                            return (
+                              <div className="flex justify-between items-center text-[10px] bg-yellow-50 border-2 border-yellow-200 p-1.5 rounded font-bold text-slate-700">
+                                <span>Base: ₹{Math.round(calc.baseFare)} | Discount: -₹{calc.discountAmount} ({calc.discountPercent}%)</span>
+                                <span className="font-extrabold text-slate-900">Final Base: ₹{Math.round(calc.finalFare)}</span>
+                              </div>
+                            );
+                          } else if (passenger.specialFareType === "student") {
+                            return (
+                              <div className="flex justify-between items-center text-[10px] bg-slate-50 border-2 border-slate-200 p-1.5 rounded font-bold text-slate-500">
+                                <span>Student discount: Pending verification</span>
+                                <span className="font-extrabold text-slate-700">Final Base: ₹{Math.round(baseFarePerPassenger)}</span>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
+                    )}
                   </div>
                 );
               })}
             </div>
 
-            <div className="flex justify-between items-center border-y-3 border-black py-2 font-bold">
-              <span>Fare Sum:</span>
-              <span className="font-black text-xl text-red-600">₹{data.amount.toLocaleString()}</span>
+            {/* Dynamic Fare Breakdown in checkout footer */}
+            <div className="border-y-3 border-black py-2.5 space-y-1.5 text-xs font-bold bg-slate-50 px-1">
+              <div className="flex justify-between text-slate-600">
+                <span>Base Fare Total:</span>
+                <span>₹{Math.round(breakdown.baseFareTotal).toLocaleString()}</span>
+              </div>
+              {breakdown.totalDiscount > 0 && (
+                <div className="flex justify-between text-green-600">
+                  <span>Special Fare Discounts:</span>
+                  <span>-₹{Math.round(breakdown.totalDiscount).toLocaleString()}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-slate-600">
+                <span>Taxes & Fees (15%):</span>
+                <span>₹{Math.round(breakdown.totalTax).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between border-t border-black/10 pt-1.5 font-black text-sm">
+                <span>Total Amount Payable:</span>
+                <span className="text-red-600">₹{Math.round(breakdown.finalFare).toLocaleString()}</span>
+              </div>
             </div>
 
             {error && (
@@ -5700,6 +6302,22 @@ function CheckoutModal({
                   }
                   if (!p.phone.trim()) {
                     errors[`passenger_${idx}_phone`] = "Phone Number is required.";
+                  }
+
+                  if (data.vertical === "flights") {
+                    const ageNum = parseInt(p.age, 10) || 0;
+                    if (p.specialFareType === "student") {
+                      const valResult = validateStudentDetails(p);
+                      if (!valResult.valid) {
+                        errors[`passenger_${idx}_studentVerification`] = valResult.reason || "Student validation failed.";
+                      }
+                    }
+                    if (p.specialFareType === "armed_forces" && !(p.serviceId || "").trim()) {
+                      errors[`passenger_${idx}_serviceId`] = "Service ID is required for armed forces fare.";
+                    }
+                    if (p.specialFareType === "senior" && ageNum < 60) {
+                      errors[`passenger_${idx}_seniorAge`] = "Senior citizen fare requires age 60 or above.";
+                    }
                   }
                 });
 

@@ -153,13 +153,15 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
       if (detailsRes.ok) {
         const detailsData = await detailsRes.json();
         console.log("LOG: Fetched booking details:", detailsData);
+        const b = detailsData.booking || {};
         setBooking({
-          booking_reference: detailsData.booking_reference,
-          title: `Travel OS ${detailsData.vertical?.toUpperCase() || "Itinerary"} Booking ${detailsData.booking_reference}`,
-          total_amount: detailsData.total_amount,
-          currency: detailsData.currency || "INR",
+          booking_reference: b.booking_reference || detailsData.booking_reference,
+          title: `Travel OS ${detailsData.vertical?.toUpperCase() || "Itinerary"} Booking ${b.booking_reference || detailsData.booking_reference}`,
+          total_amount: parseFloat(b.total_amount || detailsData.total_amount || "0"),
+          currency: b.currency || detailsData.currency || "INR",
           vertical: detailsData.vertical || "flight",
-          traveler_name: detailsData.traveler_name || (profile && profile.full_name) || "Traveler"
+          traveler_name: (detailsData.ticket?.passenger_details?.[0]?.name) || detailsData.traveler_name || (profile && profile.full_name) || "Traveler",
+          pricing_snapshot: b.pricing_snapshot
         });
       } else {
         console.warn("Booking details fetch returned non-200. Using client-side defaults.");
@@ -700,21 +702,36 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                 <p className="text-xs text-slate-600 font-semibold">Ref PNR: {booking.booking_reference}</p>
               </div>
               
-              <div className="border-t-2 border-dashed border-black/20 pt-3 space-y-2">
-                <span className="text-[10px] uppercase font-black tracking-wide block">Cost Breakdown:</span>
-                <div className="flex justify-between text-xs font-semibold">
-                  <span>Fare Price:</span>
-                  <span>₹{(booking.total_amount * 0.85).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-xs font-semibold">
-                  <span>SGST & CGST Tax:</span>
-                  <span>₹{(booking.total_amount * 0.15).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between border-t-3 border-black pt-2 font-black text-sm">
-                  <span>Amount Payable:</span>
-                  <span className="text-rose-600">₹{booking.total_amount.toLocaleString()}</span>
-                </div>
-              </div>
+              {(() => {
+                const snapshot = booking.pricing_snapshot || {};
+                const base = typeof snapshot.base_fare === "number" ? snapshot.base_fare : booking.total_amount * 0.85;
+                const tax = typeof snapshot.tax === "number" ? snapshot.tax : booking.total_amount * 0.15;
+                const discount = typeof snapshot.discount === "number" ? snapshot.discount : 0;
+                
+                return (
+                  <div className="border-t-2 border-dashed border-black/20 pt-3 space-y-2">
+                    <span className="text-[10px] uppercase font-black tracking-wide block">Cost Breakdown:</span>
+                    <div className="flex justify-between text-xs font-semibold">
+                      <span>Fare Price:</span>
+                      <span>₹{base.toFixed(2)}</span>
+                    </div>
+                    {discount > 0 && (
+                      <div className="flex justify-between text-xs font-semibold text-green-600">
+                        <span>Special Fare Discounts:</span>
+                        <span>-₹{discount.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-xs font-semibold">
+                      <span>SGST & CGST Tax:</span>
+                      <span>₹{tax.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between border-t-3 border-black pt-2 font-black text-sm">
+                      <span>Amount Payable:</span>
+                      <span className="text-rose-600">₹{parseFloat(booking.total_amount || "0").toLocaleString()}</span>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>

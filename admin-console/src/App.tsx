@@ -498,6 +498,16 @@ export default function App() {
               <span>Security Audits</span>
             </button>
           )}
+
+          {(adminRole === 'super_admin' || adminRole === 'admin') && (
+            <button
+              onClick={() => setActiveTab('special_fares')}
+              className={`w-full flex items-center gap-3 p-3 border-2 font-bold text-left ${activeTab === 'special_fares' ? 'bg-[#7c3aed] text-white border-black shadow-[3px_3px_0px_0px_#000000]' : 'border-transparent hover:bg-purple-50 text-gray-700'}`}
+            >
+              <Shield size={20} />
+              <span>Special Fares</span>
+            </button>
+          )}
         </aside>
 
         {/* Dynamic content rendering */}
@@ -510,6 +520,7 @@ export default function App() {
           {activeTab === 'analytics' && <RAGAnalytics token={token} />}
           {activeTab === 'audit' && <AuditLogViewer token={token} />}
           {activeTab === 'coverage' && <CoverageLogisticsPanel token={token} />}
+          {activeTab === 'special_fares' && <SpecialFaresConfigPanel token={token} />}
         </main>
       </div>
     </div>
@@ -2017,4 +2028,307 @@ function CoverageLogisticsPanel({ token }: { token: string }) {
       )}
     </div>
   )
+}
+
+
+function SpecialFaresConfigPanel({ token }: { token: string }) {
+  const [configs, setConfigs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  
+  const [editingFare, setEditingFare] = useState<any | null>(null);
+  
+  // Modal edit fields
+  const [discountPercent, setDiscountPercent] = useState<number>(0);
+  const [minAge, setMinAge] = useState<string>("");
+  const [maxAge, setMaxAge] = useState<string>("");
+  const [verRequired, setVerRequired] = useState<boolean>(false);
+  const [active, setActive] = useState<boolean>(true);
+  const [validFrom, setValidFrom] = useState<string>("");
+  const [validUntil, setValidUntil] = useState<string>("");
+
+  const fetchConfigs = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`${API_BASE}/admin/special-fares`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setConfigs(data);
+      } else {
+        setError("Failed to fetch special fare configurations.");
+      }
+    } catch (err) {
+      setError("Failed to fetch special fare configurations.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchConfigs();
+  }, [token]);
+
+  const handleOpenEdit = (c: any) => {
+    setEditingFare(c);
+    setDiscountPercent(c.discount_percent);
+    setMinAge(c.minimum_age !== null ? String(c.minimum_age) : "");
+    setMaxAge(c.maximum_age !== null ? String(c.maximum_age) : "");
+    setVerRequired(c.verification_required);
+    setActive(c.active);
+    setValidFrom(c.valid_from ? c.valid_from.split('T')[0] : "");
+    setValidUntil(c.valid_until ? c.valid_until.split('T')[0] : "");
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingFare) return;
+    setError("");
+    setSuccess("");
+    
+    const payload = {
+      discount_percent: Number(discountPercent),
+      minimum_age: minAge.trim() !== "" ? Number(minAge) : null,
+      maximum_age: maxAge.trim() !== "" ? Number(maxAge) : null,
+      verification_required: verRequired,
+      active: active,
+      valid_from: validFrom.trim() !== "" ? `${validFrom}T00:00:00` : null,
+      valid_until: validUntil.trim() !== "" ? `${validUntil}T23:59:59` : null
+    };
+
+    try {
+      const res = await fetch(`${API_BASE}/admin/special-fares/${editingFare.fare_type}`, {
+        method: "POST",
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        setSuccess(`Configuration for ${editingFare.fare_type.toUpperCase()} updated successfully.`);
+        setEditingFare(null);
+        fetchConfigs();
+      } else {
+        const data = await res.json();
+        setError(data.detail || "Failed to update configuration.");
+      }
+    } catch (err) {
+      setError("Error saving configuration.");
+    }
+  };
+
+  return (
+    <div className="space-y-6 text-left">
+      <div className="border-b-4 border-black pb-4 flex justify-between items-center">
+        <div>
+          <h2 className="text-3xl font-extrabold" style={{ fontFamily: 'Bangers, cursive' }}>Special Fare Rules Manager</h2>
+          <p className="text-sm font-semibold text-gray-500">Configure discount percentages, age bounds, verification protocols, and active intervals for travel verticals</p>
+        </div>
+        <button 
+          onClick={fetchConfigs} 
+          className="flex items-center gap-1.5 px-3 py-2 bg-purple-100 hover:bg-purple-200 border-2 border-black font-bold shadow-[2px_2px_0px_0px_#000000] text-sm cursor-pointer"
+        >
+          <RefreshCw size={16} /> Refresh
+        </button>
+      </div>
+
+      {success && (
+        <div className="p-3 bg-green-100 border-2 border-black text-green-800 font-bold">
+          ✓ {success}
+        </div>
+      )}
+
+      {error && (
+        <div className="p-3 bg-red-100 border-2 border-black text-red-800 font-bold">
+          ⚠️ {error}
+        </div>
+      )}
+
+      <div className="bg-white p-5 border-4 border-black shadow-[6px_6px_0_0_#000000]">
+        <h3 className="text-xl font-bold uppercase mb-4 border-b-2 border-black pb-2 flex items-center gap-2">
+          🛡️ Special Fare Category Registry
+        </h3>
+        
+        {loading && configs.length === 0 ? (
+          <p className="font-bold text-slate-500 py-6 text-center">Loading rules...</p>
+        ) : (
+          <div className="overflow-x-auto border-2 border-black">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-100 border-b-2 border-black font-extrabold text-slate-800">
+                  <th className="p-3 border-r-2 border-black">Fare Category</th>
+                  <th className="p-3 border-r-2 border-black">Discount (%)</th>
+                  <th className="p-3 border-r-2 border-black">Age Restrictions</th>
+                  <th className="p-3 border-r-2 border-black">Verification Req.</th>
+                  <th className="p-3 border-r-2 border-black">Status</th>
+                  <th className="p-3 border-r-2 border-black">Validity Window</th>
+                  <th className="p-3 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y-2 divide-black">
+                {configs.map((c) => (
+                  <tr key={c.id} className="hover:bg-slate-50 font-semibold text-slate-700">
+                    <td className="p-3 border-r-2 border-black font-black text-sm text-slate-900 uppercase">{c.fare_type}</td>
+                    <td className="p-3 border-r-2 border-black font-mono text-sm">{c.discount_percent}%</td>
+                    <td className="p-3 border-r-2 border-black">
+                      {c.minimum_age !== null || c.maximum_age !== null ? (
+                        <span>
+                          {c.minimum_age !== null ? `Min: ${c.minimum_age}` : "No min"}{' • '}
+                          {c.maximum_age !== null ? `Max: ${c.maximum_age}` : "No max"}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
+                    </td>
+                    <td className="p-3 border-r-2 border-black">
+                      <span className={`px-1.5 py-0.5 rounded font-black border ${c.verification_required ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                        {c.verification_required ? "REQUIRED" : "OPTIONAL"}
+                      </span>
+                    </td>
+                    <td className="p-3 border-r-2 border-black">
+                      <span className={`px-1.5 py-0.5 rounded font-black border ${c.active ? 'bg-green-100 text-green-800 border-green-300' : 'bg-red-100 text-red-800 border-red-200'}`}>
+                        {c.active ? "ACTIVE" : "INACTIVE"}
+                      </span>
+                    </td>
+                    <td className="p-3 border-r-2 border-black">
+                      {c.valid_from || c.valid_until ? (
+                        <span className="font-mono text-[10px]">
+                          {c.valid_from ? c.valid_from.split('T')[0] : "Start"} to {c.valid_until ? c.valid_until.split('T')[0] : "End"}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">Lifetime</span>
+                      )}
+                    </td>
+                    <td className="p-3 text-center">
+                      <button
+                        onClick={() => handleOpenEdit(c)}
+                        className="px-2 py-1 text-[10px] font-black uppercase bg-purple-100 hover:bg-purple-200 border border-black shadow-[1px_1px_0_0_#000000] cursor-pointer"
+                      >
+                        Configure
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {editingFare && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+          <form onSubmit={handleSave} className="w-full max-w-sm bg-white border-4 border-black p-6 shadow-[8px_8px_0_0_#000000] space-y-4 text-left">
+            <div className="flex justify-between items-center border-b-2 border-black pb-2">
+              <h4 className="font-extrabold text-lg uppercase tracking-wider text-purple-700">Configure {editingFare.fare_type}</h4>
+              <button 
+                type="button" 
+                onClick={() => setEditingFare(null)}
+                className="p-1 bg-red-100 hover:bg-red-200 border border-black cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-gray-500 uppercase tracking-wider block">Discount Percentage (%)</label>
+              <input 
+                type="number" 
+                step="1" 
+                min="0"
+                max="100"
+                value={discountPercent}
+                onChange={(e) => setDiscountPercent(Number(e.target.value))}
+                className="w-full px-3 py-1.5 border-2 border-black text-xs font-semibold outline-none bg-white text-black"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-gray-500 uppercase tracking-wider block">Min Age Limit (Optional)</label>
+                <input 
+                  type="number" 
+                  value={minAge}
+                  onChange={(e) => setMinAge(e.target.value)}
+                  className="w-full px-3 py-1.5 border-2 border-black text-xs font-semibold outline-none bg-white text-black"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-gray-500 uppercase tracking-wider block">Max Age Limit (Optional)</label>
+                <input 
+                  type="number" 
+                  value={maxAge}
+                  onChange={(e) => setMaxAge(e.target.value)}
+                  className="w-full px-3 py-1.5 border-2 border-black text-xs font-semibold outline-none bg-white text-black"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-gray-500 uppercase tracking-wider block">Validity Start Date</label>
+                <input 
+                  type="date" 
+                  value={validFrom}
+                  onChange={(e) => setValidFrom(e.target.value)}
+                  className="w-full px-3 py-1.5 border-2 border-black text-xs font-semibold outline-none bg-white text-black"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-gray-500 uppercase tracking-wider block">Validity End Date</label>
+                <input 
+                  type="date" 
+                  value={validUntil}
+                  onChange={(e) => setValidUntil(e.target.value)}
+                  className="w-full px-3 py-1.5 border-2 border-black text-xs font-semibold outline-none bg-white text-black"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 py-1">
+              <input 
+                type="checkbox" 
+                id="ver_required" 
+                checked={verRequired} 
+                onChange={(e) => setVerRequired(e.target.checked)} 
+                className="w-4 h-4 cursor-pointer accent-purple-600"
+              />
+              <label htmlFor="ver_required" className="text-xs font-black uppercase text-slate-800 cursor-pointer">Verification Required</label>
+            </div>
+
+            <div className="flex items-center gap-2 py-1 border-b border-gray-200">
+              <input 
+                type="checkbox" 
+                id="fare_active" 
+                checked={active} 
+                onChange={(e) => setActive(e.target.checked)} 
+                className="w-4 h-4 cursor-pointer accent-purple-600"
+              />
+              <label htmlFor="fare_active" className="text-xs font-black uppercase text-slate-800 cursor-pointer">Category Active</label>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button 
+                type="button" 
+                onClick={() => setEditingFare(null)}
+                className="flex-1 py-2 border-2 border-black hover:bg-slate-100 font-bold uppercase text-xs tracking-wider cursor-pointer bg-white text-black"
+              >
+                Cancel
+              </button>
+              <button 
+                type="submit" 
+                className="flex-1 py-2 bg-yellow-300 hover:bg-yellow-400 border-2 border-black shadow-[2px_2px_0_0_#000000] font-black uppercase text-xs tracking-wider cursor-pointer text-black"
+              >
+                Save Config
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  );
 }

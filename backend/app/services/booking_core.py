@@ -161,8 +161,20 @@ class BookingStateMachine:
                 ).first()
                 if not invoice:
                     inv_num = f"INV-{uuid.uuid4().hex[:8].upper()}"
-                    base = float(booking.total_amount) * 0.85
-                    tax = float(booking.total_amount) * 0.15
+                    
+                    pricing = getattr(booking, "pricing_snapshot", {}) or {}
+                    base = float(pricing.get("base_fare", float(booking.total_amount) * 0.85))
+                    tax = float(pricing.get("tax", float(booking.total_amount) * 0.15))
+                    
+                    discount = 0.0
+                    discounts = pricing.get("discounts") or pricing.get("discount")
+                    if isinstance(discounts, dict):
+                        discount = sum(float(v) for v in discounts.values())
+                    else:
+                        try:
+                            discount = float(pricing.get("discount", 0.0))
+                        except (TypeError, ValueError):
+                            discount = 0.0
                     
                     # Get wallet info / coupon from payment if available
                     pm = "wallet"
@@ -176,7 +188,7 @@ class BookingStateMachine:
                         payment_method=pm,
                         base_amount=base,
                         tax_amount=tax,
-                        discount_amount=0.0,
+                        discount_amount=discount,
                         final_amount=float(booking.total_amount),
                         wallet_used=float(booking.total_amount) if pm == "wallet" else 0.0,
                         coupon_code=None
@@ -199,7 +211,7 @@ class BookingStateMachine:
                     ("payment_completed", "Payment transaction validated & captured."),
                     ("booking_confirmed", "Reservation status confirmed with carrier."),
                     ("ticket_generated", f"Digital E-Ticket {ticket.ticket_number} (PNR: {ticket.pnr}) generated."),
-                    ("email_sent", f"Confirmation email successfully queued for {user.email}."),
+                    ("email_sent", f"Confirmation email successfully queued for {user.email if user else 'traveler@travelos.com'}."),
                     ("ready_for_travel", "All steps completed. Ready for travel!")
                 ]
                 for ev_type, desc in events:

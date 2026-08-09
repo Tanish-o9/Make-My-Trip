@@ -512,10 +512,74 @@ export function ConfirmationPage({ bookingId, onNavigate }: ConfirmationPageProp
             </div>
 
             <div className="border-t border-slate-800 pt-3 flex justify-between items-center text-xs">
-              <span className="text-slate-400">Base Amount + Fees: ₹{floatToDecimal(invoice.base_amount)} + ₹{floatToDecimal(invoice.tax_amount)}</span>
+              <span className="text-slate-400">
+                Base Fare: ₹{floatToDecimal(invoice.base_amount)} 
+                {parseFloat(invoice.discount_amount) > 0 && ` - Discount: ₹${floatToDecimal(invoice.discount_amount)}`} 
+                + Taxes: ₹{floatToDecimal(invoice.tax_amount)}
+              </span>
               <span className="font-extrabold text-sm text-white">
                 Final Amount Paid: <strong className="text-emerald-400">₹{invoice.final_amount.toLocaleString()}</strong>
               </span>
+            </div>
+          </div>
+        )}
+
+        {/* Passenger special fare table */}
+        {vertical === "flights" && ticket && ticket.passenger_details && (
+          <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl text-left space-y-3 shadow-xl">
+            <h4 className="text-xs font-black uppercase tracking-wider text-blue-400 border-b border-slate-800 pb-2">
+              Passenger Fare Details
+            </h4>
+            <div className="space-y-2 text-xs">
+              {ticket.passenger_details.map((p: any, idx: number) => {
+                const fareType = (p.specialFareType || "regular").toUpperCase();
+                const discountAmt = p.discountAmount || 0;
+                const isStudent = p.specialFareType === "student";
+                const maskedId = p.studentId ? (p.studentId.length > 4 ? p.studentId.slice(0, 3) + "*****" : p.studentId.slice(0, 1) + "***") : "";
+                
+                return (
+                  <div key={idx} className="flex flex-col gap-2 bg-slate-950/20 p-3 rounded-xl border border-slate-850">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <span className="font-bold block text-slate-200">{p.fullName || p.name}</span>
+                        <span className="text-[10px] text-slate-500 font-bold uppercase">
+                          AGE: {p.age} | FARE CATEGORY: {fareType}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        {discountAmt > 0 && (
+                          <span className="text-[10px] text-emerald-400 font-bold block">
+                            Discount: -₹{floatToDecimal(discountAmt)} ({p.discountPercent}%)
+                          </span>
+                        )}
+                        <span className="font-extrabold text-slate-350 block">
+                          Fare: ₹{floatToDecimal(p.finalFare || (booking.total_amount * 0.85 / ticket.passenger_details.length))}
+                        </span>
+                      </div>
+                    </div>
+                    {isStudent && (
+                      <div className="border-t border-slate-850 pt-2 grid grid-cols-2 gap-2 text-[10px] text-slate-400 font-semibold bg-slate-950/10 p-2 rounded">
+                        <div>
+                          <span className="text-slate-500 block text-[8px] font-black uppercase">Student ID</span>
+                          <span>{maskedId || "—"}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block text-[8px] font-black uppercase">Institution</span>
+                          <span>{p.institutionName || "—"}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block text-[8px] font-black uppercase">Student Fare Option</span>
+                          <span>10% discount applied</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block text-[8px] font-black uppercase">Verification Status</span>
+                          <span className="text-amber-400 font-bold uppercase">{p.studentVerificationStatus || "Pending"}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
