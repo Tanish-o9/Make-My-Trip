@@ -48,7 +48,7 @@ jobs:
       SENTRY_DSN: ""
       DUFFEL_ACCESS_TOKEN: ""
       STORAGE_BACKEND: local
-      PYTHONPATH: backend
+      PYTHONPATH: .
 
     steps:
       - name: Checkout code
@@ -64,11 +64,12 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install -r backend/requirements.txt
+          pip install -r backend/requirements.txt pytest pytest-asyncio
 
       - name: Run pytest
         working-directory: backend
         run: |
+          mkdir -p reports
           python -m pytest tests/ -v --tb=short --junitxml=reports/pytest-results.xml
 
       - name: Upload test results
