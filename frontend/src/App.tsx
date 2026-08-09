@@ -2481,6 +2481,14 @@ function FlightsSearchForm({
   useEffect(() => {
     if (isFirstMount.current) {
       isFirstMount.current = false;
+      if (results.length > 0) {
+        setTimeout(() => {
+          const el = document.getElementById("flight-search-results");
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 100);
+      } else if (fromCity && toCity && depDate) {
+        handleSearch();
+      }
       return;
     }
     if (results.length > 0) {
@@ -2489,7 +2497,7 @@ function FlightsSearchForm({
   }, [sortBy, stops, carrier]);
 
   return (
-    <div className="space-y-6">
+    <div id="flight-search-results" className="space-y-6">
       {/* Input Core Grid */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4 bg-slate-950/20 p-6 border-3 border-black shadow-[6px_6px_0px_0px_#000000]">
         
