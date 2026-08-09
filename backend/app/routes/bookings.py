@@ -78,8 +78,8 @@ async def create_booking_hold(
     held_until = datetime.datetime.utcnow() + datetime.timedelta(minutes=hold_ttl_minutes)
 
     pricing_snapshot = {
-        "base_fare": amount * 0.85,
-        "tax": amount * 0.15,
+        "base_fare": amount,
+        "tax": 0.0,
         "discount": 0.0
     }
 
@@ -121,8 +121,8 @@ async def create_booking_hold(
         
         total_before_promo = float(details.get("finalFareBeforePromo", amount))
         
-        base_fare_per_pax = (total_before_promo * 0.85) / pax_count
-        tax_per_pax = (total_before_promo * 0.15) / pax_count
+        base_fare_per_pax = total_before_promo / pax_count
+        tax_per_pax = 0.0
         
         total_base = 0.0
         total_discount = 0.0
@@ -690,8 +690,7 @@ def get_booking_invoice(
         desc = f"Vehicle Rental: {booking.vehicle_name} ({booking.vehicle_type})"
 
     items = [
-        {"name": desc, "price": float(booking.total_amount) * 0.85},
-        {"name": "Tax & Processing Fees (GST)", "price": float(booking.total_amount) * 0.15}
+        {"name": desc, "price": float(booking.total_amount)}
     ]
 
     receipt = InvoiceGenerator.generate_invoice(booking, items)
@@ -1553,8 +1552,8 @@ async def bookings_offer_lock(
     held_until = datetime.datetime.utcnow() + datetime.timedelta(minutes=15)
 
     pricing_snapshot = {
-        "base_fare": amount * 0.85,
-        "tax": amount * 0.15,
+        "base_fare": amount,
+        "tax": 0.0,
         "discount": 0.0
     }
 

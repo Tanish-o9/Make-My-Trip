@@ -70,13 +70,13 @@ def test_regular_fare_discount():
     booking = db.query(FlightBooking).filter(FlightBooking.booking_reference == data["booking_reference"]).first()
     assert booking is not None
     assert booking.pricing_snapshot["discount"] == 0.0
-    assert booking.pricing_snapshot["base_fare"] == 8500.0
-    assert booking.pricing_snapshot["tax"] == 1500.0
+    assert booking.pricing_snapshot["base_fare"] == 10000.0
+    assert booking.pricing_snapshot["tax"] == 0.0
     db.close()
 
 
 def test_student_fare_discount_success():
-    """Verify that a Student fare with Student ID gets a 10% discount on base fare"""
+    """Verify that a Student fare with Student ID gets a 10% discount on base fare without tax addition"""
     payload = {
         "vertical": "flights",
         "amount": 10000.0,
@@ -111,13 +111,14 @@ def test_student_fare_discount_success():
     assert resp.status_code == 200
     data = resp.json()
     
-    # Expected discount: 10% of base fare (8500) = 850
-    # Final amount: 8500 - 850 + 1500 = 9150
-    assert data["total_amount"] == 9150.0
+    # Expected discount: 10% of base fare (10000) = 1000
+    # Final amount: 10000 - 1000 = 9000
+    assert data["total_amount"] == 9000.0
     
     db = SessionLocal()
     booking = db.query(FlightBooking).filter(FlightBooking.booking_reference == data["booking_reference"]).first()
-    assert booking.pricing_snapshot["discount"] == 850.0
+    assert booking.pricing_snapshot["discount"] == 1000.0
+    assert booking.pricing_snapshot["tax"] == 0.0
     db.close()
 
 
@@ -174,13 +175,13 @@ def test_senior_citizen_fare_success():
     assert resp.status_code == 200
     data = resp.json()
     
-    # Expected discount: 5% of base fare (8500) = 425
-    # Final amount: 8500 - 425 + 1500 = 9575
-    assert data["total_amount"] == 9575.0
+    # Expected discount: 5% of base fare (10000) = 500
+    # Final amount: 10000 - 500 = 9500
+    assert data["total_amount"] == 9500.0
     
     db = SessionLocal()
     booking = db.query(FlightBooking).filter(FlightBooking.booking_reference == data["booking_reference"]).first()
-    assert booking.pricing_snapshot["discount"] == 425.0
+    assert booking.pricing_snapshot["discount"] == 500.0
     db.close()
 
 
@@ -237,13 +238,13 @@ def test_armed_forces_fare_success():
     assert resp.status_code == 200
     data = resp.json()
     
-    # Expected discount: 10% of base fare (8500) = 850
-    # Final amount: 8500 - 850 + 1500 = 9150
-    assert data["total_amount"] == 9150.0
+    # Expected discount: 10% of base fare (10000) = 1000
+    # Final amount: 10000 - 1000 = 9000
+    assert data["total_amount"] == 9000.0
     
     db = SessionLocal()
     booking = db.query(FlightBooking).filter(FlightBooking.booking_reference == data["booking_reference"]).first()
-    assert booking.pricing_snapshot["discount"] == 850.0
+    assert booking.pricing_snapshot["discount"] == 1000.0
     db.close()
 
 
@@ -287,13 +288,13 @@ def test_mixed_passengers_discount():
     assert resp.status_code == 200
     data = resp.json()
     
-    assert data["total_amount"] == 19150.0
+    assert data["total_amount"] == 19000.0
     
     db = SessionLocal()
     booking = db.query(FlightBooking).filter(FlightBooking.booking_reference == data["booking_reference"]).first()
-    assert booking.pricing_snapshot["discount"] == 850.0
+    assert booking.pricing_snapshot["discount"] == 1000.0
     assert len(booking.passenger_details) == 2
-    assert booking.passenger_details[0]["discountAmount"] == 850.0
+    assert booking.passenger_details[0]["discountAmount"] == 1000.0
     assert booking.passenger_details[1]["discountAmount"] == 0.0
     db.close()
 
@@ -440,13 +441,13 @@ def test_two_students_fares():
     assert resp.status_code == 200
     data = resp.json()
     
-    # Base: 17000 (8500 per pax). Total Discount: 10% * 8500 * 2 = 1700. Total Tax: 3000.
-    # Expected final amount: 17000 - 1700 + 3000 = 18300.
-    assert data["total_amount"] == 18300.0
+    # Base: 20000 (10000 per pax). Total Discount: 10% * 10000 * 2 = 2000. Total Tax: 0.
+    # Expected final amount: 20000 - 2000 = 18000.
+    assert data["total_amount"] == 18000.0
     
     db = SessionLocal()
     booking = db.query(FlightBooking).filter(FlightBooking.booking_reference == data["booking_reference"]).first()
-    assert booking.pricing_snapshot["discounts"]["student"] == 1700.0
+    assert booking.pricing_snapshot["discounts"]["student"] == 2000.0
     db.close()
 
 
@@ -483,20 +484,20 @@ def test_mixed_all_four_passenger_fares():
     assert resp.status_code == 200
     data = resp.json()
     
-    # Pax count: 4. Base per pax: 8500. Tax per pax: 1500.
-    # Student discount: 10% of 8500 = 850.
+    # Pax count: 4. Base per pax: 10000. Tax: 0.
+    # Student discount: 10% of 10000 = 1000.
     # Regular discount: 0.
-    # Senior discount: 5% of 8500 = 425.
-    # Armed Forces discount: 10% of 8500 = 850.
-    # Total Base: 34000. Total Tax: 6000. Total Discount: 850 + 0 + 425 + 850 = 2125.
-    # Final amount: 34000 - 2125 + 6000 = 37875.
-    assert data["total_amount"] == 37875.0
+    # Senior discount: 5% of 10000 = 500.
+    # Armed Forces discount: 10% of 10000 = 1000.
+    # Total Base: 40000. Total Tax: 0. Total Discount: 1000 + 0 + 500 + 1000 = 2500.
+    # Final amount: 40000 - 2500 = 37500.
+    assert data["total_amount"] == 37500.0
     
     db = SessionLocal()
     booking = db.query(FlightBooking).filter(FlightBooking.booking_reference == data["booking_reference"]).first()
-    assert booking.pricing_snapshot["discounts"]["student"] == 850.0
-    assert booking.pricing_snapshot["discounts"]["senior"] == 425.0
-    assert booking.pricing_snapshot["discounts"]["armed_forces"] == 850.0
+    assert booking.pricing_snapshot["discounts"]["student"] == 1000.0
+    assert booking.pricing_snapshot["discounts"]["senior"] == 500.0
+    assert booking.pricing_snapshot["discounts"]["armed_forces"] == 1000.0
     db.close()
 
 
@@ -523,8 +524,8 @@ def test_frontend_pricing_forgery_ignored():
     assert resp.status_code == 200
     data = resp.json()
     
-    # Recalculated base: 8500. Student discount: 850. Tax: 1500. Expected final: 9150.
-    assert data["total_amount"] == 9150.0
+    # Recalculated base: 10000. Student discount: 1000. Tax: 0. Expected final: 9000.
+    assert data["total_amount"] == 9000.0
 
 
 def test_payment_amount_consistency():
@@ -628,20 +629,20 @@ def test_e2e_4_passenger_lifecycle_and_invoicing():
     assert hold_resp.status_code == 200
     hold_data = hold_resp.json()
     booking_ref = hold_data["booking_reference"]
-    assert hold_data["total_amount"] == 37875.0
+    assert hold_data["total_amount"] == 37500.0
 
     # 2. Database pricing_snapshot validation
     db = SessionLocal()
     booking = db.query(FlightBooking).filter(FlightBooking.booking_reference == booking_ref).first()
     assert booking is not None
     snapshot = booking.pricing_snapshot
-    assert snapshot["base_fare"] == 34000.0
-    assert snapshot["tax"] == 6000.0
-    assert snapshot["discount"] == 2125.0
-    assert snapshot["discounts"]["student"] == 850.0
-    assert snapshot["discounts"]["senior"] == 425.0
-    assert snapshot["discounts"]["armed_forces"] == 850.0
-    assert snapshot["final_payable"] == 37875.0
+    assert snapshot["base_fare"] == 40000.0
+    assert snapshot["tax"] == 0.0
+    assert snapshot["discount"] == 2500.0
+    assert snapshot["discounts"]["student"] == 1000.0
+    assert snapshot["discounts"]["senior"] == 500.0
+    assert snapshot["discounts"]["armed_forces"] == 1000.0
+    assert snapshot["final_payable"] == 37500.0
     assert booking.passenger_details[1]["studentVerificationStatus"] == "pending"
     db.close()
 
@@ -654,7 +655,7 @@ def test_e2e_4_passenger_lifecycle_and_invoicing():
 
     # Legitimate amount accepted
     valid_order_resp = client.post("/api/v1/payments/create-order", json={
-        "booking_id": booking_ref, "amount": 37875.0, "currency": "INR", "method": "card", "human_approved": True
+        "booking_id": booking_ref, "amount": 37500.0, "currency": "INR", "method": "card", "human_approved": True
     })
     assert valid_order_resp.status_code == 200
 
@@ -675,16 +676,16 @@ def test_e2e_4_passenger_lifecycle_and_invoicing():
     assert details_resp.status_code == 200
     details_data = details_resp.json()
     assert details_data.get("status") in ["confirmed", "CONFIRMED"]
-    assert details_data.get("total_amount") == 37875.0
+    assert details_data.get("total_amount") == 37500.0
 
     # 6. Invoice & Ticket Verification
     db = SessionLocal()
     invoice = db.query(BookingInvoice).filter(BookingInvoice.booking_reference == booking_ref).first()
     assert invoice is not None
-    assert float(invoice.base_amount) == 34000.0
-    assert float(invoice.discount_amount) == 2125.0
-    assert float(invoice.tax_amount) == 6000.0
-    assert float(invoice.final_amount) == 37875.0
+    assert float(invoice.base_amount) == 40000.0
+    assert float(invoice.discount_amount) == 2500.0
+    assert float(invoice.tax_amount) == 0.0
+    assert float(invoice.final_amount) == 37500.0
 
     ticket = db.query(BookingTicket).filter(BookingTicket.booking_reference == booking_ref).first()
     assert ticket is not None
@@ -747,8 +748,8 @@ def test_special_fare_discount_baseline_and_switching():
     resp = client.post("/api/v1/bookings/hold", json=hold_payload)
     assert resp.status_code == 200
     data = resp.json()
-    # Total Base: 17000 (8500 per pax). Student discount: 850. Tax: 3000. Total = 17000 - 850 + 3000 = 19150.
-    assert data["total_amount"] == 19150.0
+    # Total Base: 20000 (10000 per pax). Student discount: 1000. Tax: 0. Total = 20000 - 1000 = 19000.
+    assert data["total_amount"] == 19000.0
 
 
 

@@ -5565,22 +5565,11 @@ function CheckoutModal({
 
 
   const getFlightFareBreakdown = () => {
-    if (data.vertical !== "flights") {
-      return {
-        baseFareTotal: data.amount * 0.85,
-        totalDiscount: 0,
-        totalTax: data.amount * 0.15,
-        finalFare: data.amount
-      };
-    }
-    
-    const count = passengersList.length;
-    const baseFarePerPassenger = (data.amount * 0.85) / count;
-    const taxPerPassenger = (data.amount * 0.15) / count;
+    const count = passengersList.length || 1;
+    const baseFarePerPassenger = (data.amount || 0) / count;
     
     let baseFareTotal = 0;
     let totalDiscount = 0;
-    let totalTax = 0;
     
     passengersList.forEach(p => {
       const ageNum = parseInt(p.age, 10) || 30;
@@ -5594,15 +5583,14 @@ function CheckoutModal({
       );
       baseFareTotal += calc.baseFare;
       totalDiscount += calc.discountAmount;
-      totalTax += taxPerPassenger;
     });
     
-    const finalFare = baseFareTotal - totalDiscount + totalTax;
+    const finalFare = Math.max(0, baseFareTotal - totalDiscount);
     
     return {
       baseFareTotal,
       totalDiscount,
-      totalTax,
+      totalTax: 0,
       finalFare
     };
   };
@@ -5630,7 +5618,7 @@ function CheckoutModal({
 
     const passengersPayload = passengersList.map((p, idx) => {
       const ageNum = parseInt(p.age, 10) || 0;
-      const baseFarePerPassenger = (data.amount * 0.85) / passengersList.length;
+      const baseFarePerPassenger = (data.amount || 0) / passengersList.length;
       const calc = calculatePassengerFare(
         baseFarePerPassenger,
         p.specialFareType,
@@ -6222,7 +6210,7 @@ function CheckoutModal({
 
                         {/* Passenger fare preview */}
                         {(() => {
-                          const baseFarePerPassenger = (data.amount * 0.85) / passengersList.length;
+                          const baseFarePerPassenger = (data.amount || 0) / passengersList.length;
                           const calc = calculatePassengerFare(
                             baseFarePerPassenger,
                             passenger.specialFareType,
@@ -6235,14 +6223,14 @@ function CheckoutModal({
                             return (
                               <div className="flex justify-between items-center text-[10px] bg-yellow-50 border-2 border-yellow-200 p-1.5 rounded font-bold text-slate-700">
                                 <span>Base: ₹{Math.round(calc.baseFare)} | Discount: -₹{calc.discountAmount} ({calc.discountPercent}%)</span>
-                                <span className="font-extrabold text-slate-900">Final Base: ₹{Math.round(calc.finalFare)}</span>
+                                <span className="font-extrabold text-slate-900">Final: ₹{Math.round(calc.finalFare)}</span>
                               </div>
                             );
                           } else if (passenger.specialFareType === "student") {
                             return (
                               <div className="flex justify-between items-center text-[10px] bg-slate-50 border-2 border-slate-200 p-1.5 rounded font-bold text-slate-500">
                                 <span>Student discount: Pending verification</span>
-                                <span className="font-extrabold text-slate-700">Final Base: ₹{Math.round(baseFarePerPassenger)}</span>
+                                <span className="font-extrabold text-slate-700">Final: ₹{Math.round(baseFarePerPassenger)}</span>
                               </div>
                             );
                           }
@@ -6267,10 +6255,6 @@ function CheckoutModal({
                   <span>-₹{Math.round(breakdown.totalDiscount).toLocaleString()}</span>
                 </div>
               )}
-              <div className="flex justify-between text-slate-600">
-                <span>Taxes & Fees (15%):</span>
-                <span>₹{Math.round(breakdown.totalTax).toLocaleString()}</span>
-              </div>
               <div className="flex justify-between border-t border-black/10 pt-1.5 font-black text-sm">
                 <span>Total Amount Payable:</span>
                 <span className="text-red-600">₹{Math.round(breakdown.finalFare).toLocaleString()}</span>

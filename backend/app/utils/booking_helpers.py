@@ -173,7 +173,7 @@ def generate_booking_pdf(booking, ticket, invoice, user, vertical: str) -> str:
             if final_fare is not None:
                 fare_str = f"INR {float(final_fare):.2f}"
             else:
-                fare_str = f"INR {float(booking.total_amount) * 0.85 / len(ticket.passenger_details):.2f}"
+                fare_str = f"INR {float(booking.total_amount) / len(ticket.passenger_details):.2f}"
                 
             pass_rows.append([
                 Paragraph(name, body_style),

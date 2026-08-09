@@ -163,8 +163,8 @@ class BookingStateMachine:
                     inv_num = f"INV-{uuid.uuid4().hex[:8].upper()}"
                     
                     pricing = getattr(booking, "pricing_snapshot", {}) or {}
-                    base = float(pricing.get("base_fare", float(booking.total_amount) * 0.85))
-                    tax = float(pricing.get("tax", float(booking.total_amount) * 0.15))
+                    base = float(pricing.get("base_fare", float(booking.total_amount)))
+                    tax = float(pricing.get("tax", 0.0))
                     
                     discount = 0.0
                     discounts = pricing.get("discounts") or pricing.get("discount")
