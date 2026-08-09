@@ -127,6 +127,95 @@ def generate_booking_pdf(booking, ticket, invoice, user, vertical: str) -> str:
             [Paragraph("Address", body_bold), Paragraph(getattr(booking, 'address', 'Goa Beachfront'), body_style),
              Paragraph("Reservation ID", body_bold), Paragraph(booking.booking_reference, body_style)]
         ]
+    elif vertical == "trains":
+        itinerary_data = [
+            [Paragraph("Train Number", body_bold), Paragraph(getattr(booking, 'train_number', '12001'), body_style),
+             Paragraph("Train Name", body_bold), Paragraph(getattr(booking, 'train_name', 'Shatabdi Exp'), body_style)],
+            [Paragraph("Origin Station", body_bold), Paragraph(getattr(booking, 'origin_station', 'NDLS'), body_style),
+             Paragraph("Destination", body_bold), Paragraph(getattr(booking, 'destination_station', 'BCT'), body_style)],
+            [Paragraph("Departure Time", body_bold), Paragraph(booking.departure_time.strftime('%Y-%m-%d %H:%M:%S') if hasattr(booking, 'departure_time') else '—', body_style),
+             Paragraph("Coach Class", body_bold), Paragraph(getattr(booking, 'coach_class', 'CC'), body_style)],
+            [Paragraph("PNR", body_bold), Paragraph(ticket.pnr or "—", body_style),
+             Paragraph("Status", body_bold), Paragraph(booking.status.value.upper(), body_style)]
+        ]
+    elif vertical == "buses":
+        itinerary_data = [
+            [Paragraph("Bus Operator", body_bold), Paragraph(getattr(booking, 'operator_name', 'Volvo Travels'), body_style),
+             Paragraph("Bus Type", body_bold), Paragraph(getattr(booking, 'bus_type', 'AC Sleeper'), body_style)],
+            [Paragraph("Origin", body_bold), Paragraph(getattr(booking, 'origin', 'Delhi'), body_style),
+             Paragraph("Destination", body_bold), Paragraph(getattr(booking, 'destination', 'Jaipur'), body_style)],
+            [Paragraph("Departure Time", body_bold), Paragraph(booking.departure_time.strftime('%Y-%m-%d %H:%M:%S') if hasattr(booking, 'departure_time') else '—', body_style),
+             Paragraph("Seats Assigned", body_bold), Paragraph(", ".join(getattr(booking, 'seat_numbers', [])) if isinstance(getattr(booking, 'seat_numbers', None), list) else str(getattr(booking, 'seat_numbers', '—')), body_style)]
+        ]
+    elif vertical == "cabs":
+        itinerary_data = [
+            [Paragraph("Cab Provider", body_bold), Paragraph(getattr(booking, 'provider_name', 'TravelOS Cab'), body_style),
+             Paragraph("Cab Type", body_bold), Paragraph(getattr(booking, 'cab_type', 'Sedan'), body_style)],
+            [Paragraph("Pickup Address", body_bold), Paragraph(getattr(booking, 'pickup_address', '—'), body_style),
+             Paragraph("Drop Address", body_bold), Paragraph(getattr(booking, 'drop_address', '—'), body_style)],
+            [Paragraph("Pickup Time", body_bold), Paragraph(booking.pickup_time.strftime('%Y-%m-%d %H:%M:%S') if hasattr(booking, 'pickup_time') else '—', body_style),
+             Paragraph("Status", body_bold), Paragraph(booking.status.value.upper(), body_style)]
+        ]
+    elif vertical == "visa":
+        itinerary_data = [
+            [Paragraph("Country", body_bold), Paragraph(getattr(booking, 'country', 'USA'), body_style),
+             Paragraph("Visa Type", body_bold), Paragraph(getattr(booking, 'visa_type', 'Tourist'), body_style)],
+            [Paragraph("Application ID", body_bold), Paragraph(booking.booking_reference, body_style),
+             Paragraph("Status", body_bold), Paragraph(booking.status.value.upper(), body_style)]
+        ]
+    elif vertical == "holidays":
+        itinerary_data = [
+            [Paragraph("Package Name", body_bold), Paragraph(getattr(booking, 'package_name', 'Goa Holiday'), body_style),
+             Paragraph("Destination", body_bold), Paragraph(getattr(booking, 'destination', 'Goa'), body_style)],
+            [Paragraph("Start Date", body_bold), Paragraph(booking.start_date.strftime('%Y-%m-%d') if hasattr(booking, 'start_date') else '—', body_style),
+             Paragraph("End Date", body_bold), Paragraph(booking.end_date.strftime('%Y-%m-%d') if hasattr(booking, 'end_date') else '—', body_style)]
+        ]
+    elif vertical == "tours":
+        itinerary_data = [
+            [Paragraph("Activity Name", body_bold), Paragraph(getattr(booking, 'activity_name', 'Sightseeing'), body_style),
+             Paragraph("Location", body_bold), Paragraph(getattr(booking, 'location', '—'), body_style)],
+            [Paragraph("Activity Time", body_bold), Paragraph(booking.activity_time.strftime('%Y-%m-%d %H:%M') if hasattr(booking, 'activity_time') else '—', body_style),
+             Paragraph("Status", body_bold), Paragraph(booking.status.value.upper(), body_style)]
+        ]
+    elif vertical == "cruises":
+        itinerary_data = [
+            [Paragraph("Cruise Line", body_bold), Paragraph(getattr(booking, 'cruise_line', 'Royal Caribbean'), body_style),
+             Paragraph("Ship Name", body_bold), Paragraph(getattr(booking, 'ship_name', 'Majesty of the Seas'), body_style)],
+            [Paragraph("Departure Port", body_bold), Paragraph(getattr(booking, 'departure_port', 'Miami'), body_style),
+             Paragraph("Arrival Port", body_bold), Paragraph(getattr(booking, 'arrival_port', 'Nassau'), body_style)],
+            [Paragraph("Departure Time", body_bold), Paragraph(booking.departure_time.strftime('%Y-%m-%d %H:%M') if hasattr(booking, 'departure_time') else '—', body_style),
+             Paragraph("Status", body_bold), Paragraph(booking.status.value.upper(), body_style)]
+        ]
+    elif vertical == "insurance":
+        itinerary_data = [
+            [Paragraph("Policy Name", body_bold), Paragraph(getattr(booking, 'policy_name', 'Travel Guard'), body_style),
+             Paragraph("Policy Number", body_bold), Paragraph(getattr(booking, 'policy_number', 'TG-12345'), body_style)],
+            [Paragraph("Provider Name", body_bold), Paragraph(getattr(booking, 'provider_name', 'AIG'), body_style),
+             Paragraph("Start Date", body_bold), Paragraph(booking.start_date.strftime('%Y-%m-%d') if hasattr(booking, 'start_date') else '—', body_style)]
+        ]
+    elif vertical == "villas":
+        itinerary_data = [
+            [Paragraph("Villa Name", body_bold), Paragraph(getattr(booking, 'villa_name', 'Villa Vista'), body_style),
+             Paragraph("Bedrooms", body_bold), Paragraph(str(getattr(booking, 'bedrooms', 3)), body_style)],
+            [Paragraph("Check-In", body_bold), Paragraph(booking.check_in.strftime('%Y-%m-%d') if hasattr(booking, 'check_in') else '—', body_style),
+             Paragraph("Check-Out", body_bold), Paragraph(booking.check_out.strftime('%Y-%m-%d') if hasattr(booking, 'check_out') else '—', body_style)],
+            [Paragraph("Address", body_bold), Paragraph(getattr(booking, 'address', '—'), body_style),
+             Paragraph("Status", body_bold), Paragraph(booking.status.value.upper(), body_style)]
+        ]
+    elif vertical == "forex":
+        itinerary_data = [
+            [Paragraph("Currency Pair", body_bold), Paragraph(getattr(booking, 'currency_pair', 'USD/INR'), body_style),
+             Paragraph("Delivery Mode", body_bold), Paragraph(getattr(booking, 'delivery_mode', 'Home Delivery'), body_style)],
+            [Paragraph("Rate Locked At", body_bold), Paragraph(str(getattr(booking, 'rate_locked_at_order', '—')), body_style),
+             Paragraph("Status", body_bold), Paragraph(booking.status.value.upper(), body_style)]
+        ]
+    elif vertical in ["rent-a-ride", "vehicle_rental"]:
+        itinerary_data = [
+            [Paragraph("Vehicle Name", body_bold), Paragraph(getattr(booking, 'vehicle_name', 'Honda City'), body_style),
+             Paragraph("Vehicle Type", body_bold), Paragraph(getattr(booking, 'vehicle_type', 'Sedan'), body_style)],
+            [Paragraph("City", body_bold), Paragraph(getattr(booking, 'city', 'Delhi'), body_style),
+             Paragraph("Pickup Time", body_bold), Paragraph(booking.pickup_time.strftime('%Y-%m-%d %H:%M') if hasattr(booking, 'pickup_time') else '—', body_style)]
+        ]
     else:
         itinerary_data = [
             [Paragraph("Vertical type", body_bold), Paragraph(vertical.upper(), body_style),

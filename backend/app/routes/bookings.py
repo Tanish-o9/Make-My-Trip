@@ -1158,6 +1158,40 @@ def get_booking_full_details(
     }
 
 
+@router.get("/{booking_reference}/confirmation")
+def get_booking_confirmation(
+    booking_reference: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    booking = find_booking_by_reference(db, booking_reference)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking reference not found.")
+    
+    if booking.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied.")
+        
+    from app.models.bookings import BookingTicket, BookingInvoice
+    from app.models.payments import Payment
+    
+    ticket = db.query(BookingTicket).filter(BookingTicket.booking_reference == booking_reference).first()
+    invoice = db.query(BookingInvoice).filter(BookingInvoice.booking_reference == booking_reference).first()
+    payment = db.query(Payment).filter(Payment.booking_id == booking_reference).first()
+    
+    vertical = getattr(booking, "__tablename__", "").replace("_bookings", "")
+    
+    return {
+        "booking_id": booking.booking_reference,
+        "booking_status": booking.status.value if hasattr(booking.status, "value") else booking.status,
+        "payment_status": payment.status.value if payment and hasattr(payment.status, "value") else (payment.status if payment else "pending"),
+        "pnr": ticket.pnr if ticket else None,
+        "document_type": "ticket" if vertical == "flights" else "voucher",
+        "document_url": f"/api/v1/bookings/{booking_reference}/pdf",
+        "invoice_url": f"/api/v1/bookings/{booking_reference}/invoice",
+        "total_amount": float(booking.total_amount)
+    }
+
+
 @router.get("/{booking_reference}/ticket")
 def get_booking_ticket(
     booking_reference: str,

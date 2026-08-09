@@ -1,7 +1,10 @@
 import datetime
+import logging
 from typing import Dict, Any, List
 from sqlalchemy.orm import Session, object_session
 from app.models.bookings import BookingStatus, BookingMixin
+
+logger = logging.getLogger(__name__)
 
 class BookingStateMachine:
     """Manages the state transitions of booking records"""
@@ -204,6 +207,71 @@ class BookingStateMachine:
                 
                 pdf_url = generate_booking_pdf(booking, ticket, invoice, user, vertical)
                 ticket.pdf_path = pdf_url
+                
+                # Read PDF bytes
+                import os
+                pdf_bytes = None
+                try:
+                    pdf_absolute_path = os.path.join(os.getcwd(), pdf_url.lstrip("/"))
+                    if os.path.exists(pdf_absolute_path):
+                        with open(pdf_absolute_path, "rb") as f:
+                            pdf_bytes = f.read()
+                except Exception as e:
+                    logger.warning(f"Failed to read PDF bytes for email attachment: {e}")
+
+                # Send automatic email
+                try:
+                    from app.services.communication import SendGridClient
+                    email_client = SendGridClient()
+                    email_to = user.email if user else "traveler@travelos.com"
+                    user_name = getattr(user, "name", "") or getattr(user, "username", "Traveler") if user else "Traveler"
+                    
+                    details_dict = {
+                        "amount_paid": float(booking.total_amount),
+                        "departure_time": booking.departure_time.isoformat() if hasattr(booking, "departure_time") and booking.departure_time else None,
+                        "arrival_time": booking.arrival_time.isoformat() if hasattr(booking, "arrival_time") and booking.arrival_time else None,
+                        "origin": getattr(booking, "origin", None),
+                        "destination": getattr(booking, "destination", None),
+                        "airline_code": getattr(booking, "airline_code", None),
+                        "flight_number": getattr(booking, "flight_number", None),
+                        "cabin_class": getattr(booking, "cabin_class", None),
+                        "pnr": ticket.pnr,
+                        "hotel_name": getattr(booking, "hotel_name", None),
+                        "room_type": getattr(booking, "room_type", None),
+                        "check_in": booking.check_in.isoformat() if hasattr(booking, "check_in") and booking.check_in else None,
+                        "check_out": booking.check_out.isoformat() if hasattr(booking, "check_out") and booking.check_out else None,
+                        "address": getattr(booking, "address", None),
+                    }
+                    
+                    if vertical == "hotels":
+                        email_client.send_hotel_voucher_email(
+                            to_email=email_to,
+                            user_name=user_name,
+                            booking_ref=booking.booking_reference,
+                            hotel_name=details_dict["hotel_name"] or "Hotel",
+                            checkin=details_dict["check_in"] or "",
+                            checkout=details_dict["check_out"] or "",
+                            room_type=details_dict["room_type"] or "Deluxe Room",
+                            guests=len(getattr(booking, "guest_details", []) or []),
+                            address=details_dict["address"] or "",
+                            pdf_bytes=pdf_bytes
+                        )
+                    else:
+                        email_client.send_booking_confirmation_email(
+                            to_email=email_to,
+                            user_name=user_name,
+                            booking_ref=booking.booking_reference,
+                            vertical=vertical,
+                            details=details_dict,
+                            pdf_bytes=pdf_bytes
+                        )
+                except Exception as mail_err:
+                    logger.error(f"Email sending failed during booking confirmation: {mail_err}")
+                    session.add(BookingEvent(
+                        booking_reference=booking.booking_reference,
+                        event_type="email_failed",
+                        description=f"Confirmation email delivery failed: {str(mail_err)}"
+                    ))
                 
                 # Save Timeline Events
                 events = [
