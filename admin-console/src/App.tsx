@@ -41,12 +41,12 @@ const resolvePortalBase = () => {
     if (typeof window !== "undefined") {
       const hostname = window.location.hostname;
       if (hostname === "localhost" || hostname === "127.0.0.1") {
-        url = `${window.location.protocol}//${hostname}:3000`;
+        url = `${window.location.protocol}//${hostname}:5173`;
       } else {
-        url = "https://make-my-trip-delta.vercel.app";
+        url = "https://travelos.com";
       }
     } else {
-      url = "http://localhost:3000";
+      url = "http://localhost:5173";
     }
   }
   if (url.endsWith("/")) {
