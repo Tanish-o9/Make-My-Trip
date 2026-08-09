@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Bangers&family=Space+Grotesque:wght@400;500;700;900&display=swap');
 @import "./styles/tokens.css";
 @import "tailwindcss";
 
@@ -1184,6 +1185,46 @@ body.light-mode .chat-followup-chip:hover,
 .light-mode .chat-followup-chip:hover {
   background: #2563eb !important;
   color: #ffffff !important;
+}
+
+/* Neobrutalist Helper Styles for Admin Console */
+.neo-btn {
+  background-color: #ffffff;
+  color: #000000;
+  border: 3px solid #000000 !important;
+  box-shadow: 4px 4px 0px 0px #000000;
+  font-weight: 700;
+  transition: all 0.15s ease-in-out;
+}
+
+.neo-btn:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0px 0px #000000;
+}
+
+.neo-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0px 0px #000000;
+}
+
+.neo-card {
+  background-color: #ffffff;
+  color: #000000;
+  border: 3px solid #000000 !important;
+  box-shadow: 5px 5px 0px 0px #000000;
+}
+
+.neo-input {
+  background-color: #ffffff;
+  color: #000000;
+  border: 3px solid #000000 !important;
+  padding: 0.5rem;
+  font-weight: 500;
+  outline: none;
+}
+
+.neo-input:focus {
+  box-shadow: 3px 3px 0px 0px #7c3aed;
 }
 
 

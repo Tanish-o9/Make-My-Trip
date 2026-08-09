@@ -70,10 +70,36 @@ interface ApprovalRequest {
   reviewed_at?: string
 }
 
-export default function App() {
-  const [token, setToken] = useState<string | null>(localStorage.getItem('admin_token'))
-  const [adminRole, setAdminRole] = useState<Role | null>(localStorage.getItem('admin_role') as Role)
-  const [adminEmail, setAdminEmail] = useState<string | null>(localStorage.getItem('admin_email'))
+interface AdminConsoleProps {
+  token: string | null;
+  userRole: string | null;
+  userEmail: string | null;
+  onNavigate: (path: string) => void;
+  handleLogout: () => void;
+}
+
+export function AdminConsole({
+  token: parentToken,
+  userRole: parentRole,
+  userEmail: parentEmail,
+  onNavigate,
+  handleLogout: parentLogout
+}: AdminConsoleProps) {
+  const [token, setToken] = useState<string | null>(parentToken || localStorage.getItem('token') || localStorage.getItem('admin_token'))
+  const [adminRole, setAdminRole] = useState<Role | null>((parentRole || localStorage.getItem('user_role') || localStorage.getItem('admin_role')) as Role)
+  const [adminEmail, setAdminEmail] = useState<string | null>(parentEmail || localStorage.getItem('admin_email'))
+
+  useEffect(() => {
+    setToken(parentToken);
+  }, [parentToken]);
+
+  useEffect(() => {
+    setAdminRole(parentRole as Role);
+  }, [parentRole]);
+
+  useEffect(() => {
+    setAdminEmail(parentEmail);
+  }, [parentEmail]);
   
   // Auth state inputs
   const [email, setEmail] = useState('admin_test@travelos.com')
@@ -124,13 +150,15 @@ export default function App() {
         localStorage.setItem('admin_token', qToken);
         localStorage.setItem('admin_role', qRole);
         localStorage.setItem('admin_email', qEmail);
+        localStorage.setItem('token', qToken);
+        localStorage.setItem('user_role', qRole);
         setToken(qToken);
         setAdminRole(qRole);
         setAdminEmail(qEmail);
       })
       .catch(err => {
         alert(err.message || "Failed to initialize secure admin session.");
-        window.location.href = `${PORTAL_BASE}/?logout=true`;
+        onNavigate('/?logout=true');
       });
     }
   }, []);
@@ -143,10 +171,12 @@ export default function App() {
         localStorage.removeItem('admin_token');
         localStorage.removeItem('admin_role');
         localStorage.removeItem('admin_email');
+        localStorage.removeItem('token');
+        localStorage.removeItem('user_role');
         setToken(null);
         setAdminRole(null);
         setAdminEmail(null);
-        window.location.href = `${PORTAL_BASE}/?logout=true`;
+        onNavigate('/?logout=true');
       }
     }
   }, [token, adminRole]);
@@ -183,7 +213,11 @@ export default function App() {
     localStorage.removeItem('admin_token')
     localStorage.removeItem('admin_role')
     localStorage.removeItem('admin_email')
-    window.location.href = `${PORTAL_BASE}/?logout=true`;
+    localStorage.removeItem('token')
+    localStorage.removeItem('user_role')
+    localStorage.removeItem('refresh_token')
+    parentLogout()
+    onNavigate('/?logout=true')
   }
 
   // Auto tab selection based on role constraints

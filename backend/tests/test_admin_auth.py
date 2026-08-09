@@ -341,3 +341,24 @@ def test_admin_token_exchange_code_flow():
     exchange_resp2 = client.post("/api/v1/auth/exchange", json={"exchange_code": exchange_code})
     assert exchange_resp2.status_code == 400
 
+def test_admin_redirect_url_and_allowed_origins_leak():
+    """Regression test specifically verifying that the frontend redirects and APIs never reference admin.travelos.com."""
+    import os
+    backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    workspace_root = os.path.dirname(backend_dir)
+    frontend_src = os.path.join(workspace_root, "frontend", "src")
+    
+    api_ts = os.path.join(frontend_src, "config", "api.ts")
+    app_tsx = os.path.join(frontend_src, "App.tsx")
+    
+    if os.path.exists(api_ts):
+        with open(api_ts, "r", encoding="utf-8") as f:
+            content = f.read()
+            assert "admin.travelos.com" not in content
+            
+    if os.path.exists(app_tsx):
+        with open(app_tsx, "r", encoding="utf-8") as f:
+            content = f.read()
+            assert "admin.travelos.com" not in content
+
+

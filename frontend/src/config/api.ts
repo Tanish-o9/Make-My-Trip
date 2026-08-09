@@ -30,23 +30,10 @@ export const API_BASE = resolveApiBase();
 export const API_URL = `${API_BASE}/v1`;
 
 export const resolveAdminBase = () => {
-  let url = import.meta.env.VITE_ADMIN_URL;
-  if (!url || url.includes("placeholder") || url.includes("<")) {
-    if (typeof window !== "undefined") {
-      const hostname = window.location.hostname;
-      if (hostname === "localhost" || hostname === "127.0.0.1") {
-        url = `http://${hostname}:5174`;
-      } else {
-        url = `${window.location.protocol}//admin.travelos.com`;
-      }
-    } else {
-      url = "http://localhost:5174";
-    }
+  if (typeof window !== "undefined") {
+    return `${window.location.origin}/admin`;
   }
-  if (url.endsWith("/")) {
-    url = url.slice(0, -1);
-  }
-  return url;
+  return "http://localhost:5173/admin";
 };
 
 export const ADMIN_BASE = resolveAdminBase();

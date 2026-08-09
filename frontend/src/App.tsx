@@ -13,6 +13,7 @@ import { ConfirmationPage } from './ConfirmationPage';
 import { BookingDetailPage } from './BookingDetailPage';
 import { DesignTokensPage } from './DesignTokensPage';
 import { ProfilePage } from './ProfilePage';
+import { AdminConsole } from './AdminConsole';
 
 import { API_BASE, API_URL, ADMIN_BASE, SPECIAL_FARES, calculatePassengerFare, validateStudentDetails, calculateSearchDisplayFare, normalizeSpecialFareKey } from './config/api';
 const WS_BASE = API_BASE.replace(/^http/, "ws");
@@ -563,6 +564,12 @@ export default function App() {
           ...prev,
           email: qEmail
         }));
+
+        if (qRole === 'admin' || qRole === 'super_admin' || qRole === 'finance_admin' || qRole === 'booking_approver') {
+          navigate('/admin');
+        } else {
+          navigate('/');
+        }
       })
       .catch(err => {
         console.error(err.message || "Failed to exchange code.");
@@ -581,35 +588,23 @@ export default function App() {
   }, [token]);
 
   const redirectToAdmin = async (authToken: string) => {
-    try {
-      const resp = await fetch(`${API_URL}/auth/exchange-code`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${authToken}`
-        }
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        const code = data.exchange_code;
-        window.location.href = `${ADMIN_BASE}/?exchange_code=${code}`;
-      } else {
-        window.location.href = `${ADMIN_BASE}/`;
-      }
-    } catch (err) {
-      window.location.href = `${ADMIN_BASE}/`;
-    }
+    navigate('/admin');
   };
 
   // Path Interception and Guards
   useEffect(() => {
     if (currentPath === '/admin') {
       if (!token) {
-        navigate('/');
+        const params = new URLSearchParams(window.location.search);
+        const hasExchange = params.has('exchange_code');
+        if (!hasExchange) {
+          navigate('/');
+        }
       } else {
         const decoded = decodeJwt(token);
         const role = decoded?.role || userRole;
         if (role === 'admin' || role === 'super_admin' || role === 'finance_admin' || role === 'booking_approver') {
-          redirectToAdmin(token);
+          // Stay on /admin and render the AdminConsole component.
         } else {
           alert("Access denied: You do not have administrative privileges to access the admin panel.");
           navigate('/');
@@ -849,12 +844,24 @@ export default function App() {
     );
   }
 
+  if (currentPath === '/admin') {
+    return (
+      <AdminConsole
+        token={token}
+        userRole={userRole}
+        userEmail={userProfile.email}
+        onNavigate={navigate}
+        handleLogout={handleLogout}
+      />
+    );
+  }
+
   if (currentPath === '/design-tokens') {
     return <DesignTokensPage onNavigate={navigate} />;
   }
 
   // 404 Page (Phase 17)
-  const validPaths = ["/", "/profile", "/design-tokens"];
+  const validPaths = ["/", "/profile", "/design-tokens", "/admin"];
   const isMatch = 
     validPaths.includes(currentPath) || 
     !!checkoutMatch || 

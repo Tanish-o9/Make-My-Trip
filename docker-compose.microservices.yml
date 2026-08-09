@@ -1,0 +1,105 @@
+version: '3.8'
+
+services:
+  api-gateway:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      - SERVICE_NAME=gateway
+      - DATABASE_URL=postgresql://postgres:postgres@db_gateway:5432/gateway_db
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+
+  identity-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8001
+    ports:
+      - "8001:8001"
+    environment:
+      - SERVICE_NAME=identity
+      - DATABASE_URL=postgresql://postgres:postgres@db_identity:5432/identity_db
+      - REDIS_URL=redis://redis:6379/0
+
+  booking-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8002
+    ports:
+      - "8002:8002"
+    environment:
+      - SERVICE_NAME=booking
+      - DATABASE_URL=postgresql://postgres:postgres@db_booking:5432/booking_db
+      - REDIS_URL=redis://redis:6379/0
+
+  flight-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8003
+    ports:
+      - "8003:8003"
+    environment:
+      - SERVICE_NAME=flights
+      - DATABASE_URL=postgresql://postgres:postgres@db_flights:5432/flights_db
+      - REDIS_URL=redis://redis:6379/0
+
+  hotel-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8004
+    ports:
+      - "8004:8004"
+    environment:
+      - SERVICE_NAME=hotels
+      - DATABASE_URL=postgresql://postgres:postgres@db_hotels:5432/hotels_db
+      - REDIS_URL=redis://redis:6379/0
+
+  wallet-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8005
+    ports:
+      - "8005:8005"
+    environment:
+      - SERVICE_NAME=wallet
+      - DATABASE_URL=postgresql://postgres:postgres@db_wallet:5432/wallet_db
+      - REDIS_URL=redis://redis:6379/0
+
+  payment-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8006
+    ports:
+      - "8006:8006"
+    environment:
+      - SERVICE_NAME=payments
+      - DATABASE_URL=postgresql://postgres:postgres@db_payments:5432/payments_db
+      - REDIS_URL=redis://redis:6379/0
+
+  ai-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8007
+    ports:
+      - "8007:8007"
+    environment:
+      - SERVICE_NAME=ai
+      - DATABASE_URL=postgresql://postgres:postgres@db_ai:5432/ai_db
+      - REDIS_URL=redis://redis:6379/0
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
