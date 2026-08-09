@@ -9907,18 +9907,17 @@ function DetailGallery({ ownerType, ownerId, onClose }: { ownerType: string, own
           setPhotos(data);
         } else {
           setPhotos([
-            { id: 'f1', url: "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80", alt_text: `${ownerId} Exterior View` },
-            { id: 'f2', url: "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1200&q=80", alt_text: `${ownerId} Luxury Suite & Interior` },
-            { id: 'f3', url: "https://images.unsplash.com/photo-1571003123894-1f0594d2b5d9?auto=format&fit=crop&w=1200&q=80", alt_text: `${ownerId} Premium Pool & Lounge` },
-            { id: 'f4', url: "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=1200&q=80", alt_text: `${ownerId} Dining & Ambience` }
+            { id: 'f1', url: "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=900&q=80", alt_text: `${ownerId} Exterior View` },
+            { id: 'f2', url: "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=900&q=80", alt_text: `${ownerId} Luxury Suite` },
+            { id: 'f3', url: "https://images.unsplash.com/photo-1571003123894-1f0594d2b5d9?auto=format&fit=crop&w=900&q=80", alt_text: `${ownerId} Pool & Lounge` },
+            { id: 'f4', url: "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=900&q=80", alt_text: `${ownerId} Dining & Ambience` }
           ]);
         }
       })
       .catch(() => {
         setPhotos([
-          { id: 'f1', url: "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80", alt_text: `${ownerId} Exterior View` },
-          { id: 'f2', url: "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1200&q=80", alt_text: `${ownerId} Luxury Suite & Interior` },
-          { id: 'f3', url: "https://images.unsplash.com/photo-1571003123894-1f0594d2b5d9?auto=format&fit=crop&w=1200&q=80", alt_text: `${ownerId} Premium Pool & Lounge` }
+          { id: 'f1', url: "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=900&q=80", alt_text: `${ownerId} Exterior View` },
+          { id: 'f2', url: "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=900&q=80", alt_text: `${ownerId} Luxury Suite` }
         ]);
       });
   }, [ownerType, ownerId]);
@@ -9939,55 +9938,55 @@ function DetailGallery({ ownerType, ownerId, onClose }: { ownerType: string, own
   }, [lightboxOpen, photos.length]);
 
   const activePhoto = photos[activeIndex] || { 
-    url: "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80", 
+    url: "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=900&q=80", 
     alt_text: ownerId 
   };
   const activeFullUrl = activePhoto.url.startsWith("http") ? activePhoto.url : `${API_HOST}${activePhoto.url}`;
 
   return (
-    <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
-      <div className="bg-[#111827] border-3 border-black text-white rounded-3xl p-6 max-w-3xl w-full space-y-6 shadow-[8px_8px_0px_0px_rgba(250,204,21,1)] relative">
-        <div className="flex justify-between items-center border-b-2 border-slate-800 pb-3">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-[#111827] border-2 border-slate-700 text-white rounded-2xl p-5 max-w-lg w-full space-y-4 shadow-2xl relative">
+        <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
           <div>
-            <h4 className="font-black text-yellow-300 text-lg tracking-wide">{ownerId} Gallery</h4>
-            <p className="text-xs text-slate-300 mt-0.5">Explore {photos.length} real premium HD photos</p>
+            <h4 className="font-bold text-white text-base tracking-wide">{ownerId}</h4>
+            <p className="text-[11px] text-white/70 mt-0.5">{photos.length} Photos available</p>
           </div>
           <button 
             onClick={onClose} 
-            className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-white font-extrabold text-sm flex items-center justify-center border border-slate-600 transition-colors"
+            className="w-7 h-7 rounded-full bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs flex items-center justify-center border border-slate-600 transition-colors cursor-pointer"
           >
             ✕
           </button>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div 
             onClick={() => setLightboxOpen(true)}
-            className="relative w-full h-80 rounded-2xl overflow-hidden bg-black border-2 border-slate-700 cursor-pointer group shadow-lg"
+            className="relative w-full h-56 rounded-xl overflow-hidden bg-black border border-slate-800 cursor-pointer group shadow"
           >
             <img 
               src={activeFullUrl} 
               alt={activePhoto.alt_text} 
-              className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
+              className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end justify-between p-4">
-              <span className="text-xs text-white bg-black/70 px-3 py-1.5 rounded-full font-bold border border-yellow-400/40 text-yellow-300">
-                🔍 {activePhoto.alt_text} (Click to expand)
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end justify-between p-3">
+              <span className="text-[11px] text-white bg-black/70 px-2.5 py-1 rounded-md font-medium border border-white/20">
+                🔍 {activePhoto.alt_text}
               </span>
-              <span className="text-xs font-mono text-slate-300 bg-black/60 px-2 py-1 rounded">
+              <span className="text-[11px] font-mono text-white bg-black/70 px-2 py-0.5 rounded border border-white/20">
                 {activeIndex + 1} / {photos.length}
               </span>
             </div>
           </div>
 
-          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
             {photos.map((p, idx) => {
               const thumbUrl = p.url.startsWith("http") ? p.url : `${API_HOST}${p.url}`;
               return (
                 <button 
                   key={p.id || idx} 
                   onClick={() => setActiveIndex(idx)}
-                  className={`relative w-20 h-14 rounded-xl overflow-hidden flex-shrink-0 border-3 transition-all ${idx === activeIndex ? 'border-yellow-400 scale-105 shadow-[2px_2px_0px_0px_#facc15]' : 'border-slate-700 opacity-60 hover:opacity-100'}`}
+                  className={`relative w-16 h-11 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-all cursor-pointer ${idx === activeIndex ? 'border-white scale-95 shadow' : 'border-slate-800 opacity-60 hover:opacity-100'}`}
                 >
                   <img src={thumbUrl} alt="" className="w-full h-full object-cover" />
                 </button>
@@ -9998,32 +9997,43 @@ function DetailGallery({ ownerType, ownerId, onClose }: { ownerType: string, own
       </div>
 
       {lightboxOpen && (
-        <div className="fixed inset-0 bg-black/95 z-[60] flex flex-col justify-between items-center p-4">
-          <div className="w-full flex justify-between text-slate-300 p-2">
-            <span className="text-xs font-semibold">{activeIndex + 1} / {photos.length}</span>
-            <button onClick={() => setLightboxOpen(false)} className="text-white text-lg font-bold">✕ Close</button>
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[60] flex flex-col justify-center items-center p-4">
+          <div className="w-full max-w-xl flex justify-between items-center text-white mb-2 px-1">
+            <span className="text-xs font-mono font-medium text-white bg-white/10 px-2.5 py-1 rounded">
+              {activeIndex + 1} / {photos.length}
+            </span>
+            <button 
+              onClick={() => setLightboxOpen(false)} 
+              className="text-white hover:text-white bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full text-xs font-bold transition-colors cursor-pointer"
+            >
+              ✕ Close
+            </button>
           </div>
-          <div className="relative max-w-4xl max-h-[75vh] w-full flex items-center justify-center">
+          
+          <div className="relative max-w-xl w-full flex items-center justify-center">
             <button 
               onClick={() => setActiveIndex(prev => (prev - 1 + photos.length) % photos.length)}
-              className="absolute left-4 bg-slate-900/80 hover:bg-slate-900 border border-white/20 p-2.5 rounded-full text-white text-xl z-10"
+              className="absolute left-2 bg-black/70 hover:bg-black text-white border border-white/30 p-2 rounded-full text-sm z-10 transition-all cursor-pointer"
             >
               ◀
             </button>
-            <img 
-              src={activeFullUrl} 
-              alt={activePhoto.alt_text} 
-              className="max-w-full max-h-[75vh] object-contain rounded shadow-2xl" 
-            />
+            <div className="w-full h-[50vh] max-h-[380px] bg-black rounded-xl overflow-hidden border border-slate-700 shadow-2xl flex items-center justify-center">
+              <img 
+                src={activeFullUrl} 
+                alt={activePhoto.alt_text} 
+                className="w-full h-full object-cover" 
+              />
+            </div>
             <button 
               onClick={() => setActiveIndex(prev => (prev + 1) % photos.length)}
-              className="absolute right-4 bg-slate-900/80 hover:bg-slate-900 border border-white/20 p-2.5 rounded-full text-white text-xl z-10"
+              className="absolute right-2 bg-black/70 hover:bg-black text-white border border-white/30 p-2 rounded-full text-sm z-10 transition-all cursor-pointer"
             >
               ▶
             </button>
           </div>
-          <div className="text-center text-xs text-yellow-300 mb-6 bg-slate-900/90 px-4 py-2 rounded-full border border-slate-700 font-bold">
-            {activePhoto.alt_text} — Press Esc to close, Arrow keys to navigate
+
+          <div className="text-center text-xs text-white mt-3 bg-black/80 px-3.5 py-1.5 rounded-lg border border-white/20 font-medium">
+            {activePhoto.alt_text}
           </div>
         </div>
       )}
