@@ -443,6 +443,7 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
         <div className="flex justify-between items-center border-b-4 border-black pb-4">
           <button 
             onClick={() => {
+              sessionStorage.setItem("active_vertical", "flights");
               if (window.history.length > 1) {
                 window.history.back();
               } else {

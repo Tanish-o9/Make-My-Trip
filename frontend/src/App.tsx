@@ -2477,7 +2477,12 @@ function FlightsSearchForm({
       });
   };
 
+  const isFirstMount = useRef(true);
   useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      return;
+    }
     if (results.length > 0) {
       handleSearch(sortBy, stops, carrier);
     }
