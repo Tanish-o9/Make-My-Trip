@@ -14,58 +14,7 @@ import { BookingDetailPage } from './BookingDetailPage';
 import { DesignTokensPage } from './DesignTokensPage';
 import { ProfilePage } from './ProfilePage';
 
-const resolveApiBase = () => {
-  if (typeof window !== "undefined") {
-    const hostname = window.location.hostname;
-    if (hostname === "localhost" || hostname === "127.0.0.1") {
-      let url = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
-      if (url.includes("make-my-trip-production.up.railway.app")) {
-        url = "http://localhost:8000/api";
-      }
-      if (url.endsWith("/")) {
-        url = url.slice(0, -1);
-      }
-      if (url.endsWith("/v1")) {
-        url = url.slice(0, -3);
-      }
-      if (url.endsWith("/")) {
-        url = url.slice(0, -1);
-      }
-      if (!url.endsWith("/api")) {
-        url = `${url}/api`;
-      }
-      return url;
-    } else {
-      return `${window.location.origin}/api`;
-    }
-  }
-  return "http://localhost:8000/api";
-};
-
-
-const resolveAdminBase = () => {
-  let url = import.meta.env.VITE_ADMIN_URL;
-  if (!url || url.includes("placeholder") || url.includes("<")) {
-    if (typeof window !== "undefined") {
-      const hostname = window.location.hostname;
-      if (hostname === "localhost" || hostname === "127.0.0.1") {
-        url = `http://${hostname}:5174`;
-      } else {
-        url = "https://admin.travelos.com";
-      }
-    } else {
-      url = "http://localhost:5174";
-    }
-  }
-  if (url.endsWith("/")) {
-    url = url.slice(0, -1);
-  }
-  return url;
-};
-
-const ADMIN_BASE = resolveAdminBase();
-const API_BASE = resolveApiBase();
-const API_URL = `${API_BASE}/v1`;
+import { API_BASE, API_URL, ADMIN_BASE } from './config/api';
 const WS_BASE = API_BASE.replace(/^http/, "ws");
 const API_HOST = API_BASE.replace(/\/api$/, "");
 let globalTabLoadingListeners: ((loadingVerticals: Record<string, boolean>) => void)[] = [];
