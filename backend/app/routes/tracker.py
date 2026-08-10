@@ -199,13 +199,17 @@ async def realtime_alerts_websocket(websocket: WebSocket, token: Optional[str] =
     await websocket.accept()
     logger.info("Real-Time Services WebSocket connected.")
     
-    # Validate token if provided
-    user_id = 1
-    if token:
-        from app.auth.jwt import decode_token
-        payload = decode_token(token)
-        if payload and "id" in payload:
-            user_id = payload["id"]
+    if not token:
+        await websocket.close(code=4003, reason="Token required")
+        return
+        
+    from app.auth.jwt import decode_token
+    payload = decode_token(token)
+    if not payload or "id" not in payload:
+        await websocket.close(code=4003, reason="Invalid or expired token")
+        return
+        
+    user_id = payload["id"]
             
     try:
         counter = 0

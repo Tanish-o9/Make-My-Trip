@@ -1,6 +1,7 @@
 import os
 import logging
-from fastapi import FastAPI, Depends, WebSocket, WebSocketDisconnect
+from typing import Optional
+from fastapi import FastAPI, Depends, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 
@@ -276,14 +277,50 @@ app.include_router(partner.router, prefix="/api/v1")
 app.include_router(feedback.router, prefix="/api/v1")
 
 @app.websocket("/ws/admin_notifications")
-async def admin_notifications_ws(websocket: WebSocket):
+async def admin_notifications_ws(websocket: WebSocket, token: Optional[str] = Query(None)):
+    from app.auth.jwt import decode_token
+    from app.database import SessionLocal
+    from app.models.core import User
     from app.utils.websocket_gateway import ws_gateway
-    await ws_gateway.connect(websocket)
+    from typing import Optional
+
+    await websocket.accept()
+
+    if not token:
+        await websocket.close(code=4003, reason="Token required")
+        return
+
+    payload = decode_token(token)
+    if not payload or "id" not in payload or "role" not in payload:
+        await websocket.close(code=4003, reason="Invalid token payload")
+        return
+
+    allowed_roles = ["admin", "super_admin", "finance_admin", "booking_approver"]
+    if payload["role"] not in allowed_roles:
+        await websocket.close(code=4003, reason="Unauthorized role")
+        return
+
+    # Database validation check
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == payload["id"]).first()
+        if not user or user.role not in allowed_roles:
+            await websocket.close(code=4003, reason="Unauthorized database role")
+            return
+    except Exception as e:
+        logger.error(f"WebSocket DB validation error: {e}")
+        await websocket.close(code=4003, reason="Validation internal error")
+        return
+    finally:
+        db.close()
+
     ws_gateway.subscribe(websocket, "admin_notifications")
     try:
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
+        pass
+    finally:
         ws_gateway.disconnect(websocket)
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")

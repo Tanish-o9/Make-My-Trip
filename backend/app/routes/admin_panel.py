@@ -332,6 +332,18 @@ def list_approvals(status: str = None, db: Session = Depends(get_db)):
     return query.order_by(ApprovalRequest.created_at.desc()).all()
 
 
+@router.post("/trigger-test-notification")
+def trigger_test_notification():
+    """Development/test-only route to safely trigger a real-time WebSocket notification event for admin E2E testing."""
+    from app.routes.payments import send_websocket_update
+    send_websocket_update("admin_notifications", {
+        "event": "new_pending_approval",
+        "booking_reference": "BK-TEST-WS-123",
+        "type": "new_approval_request"
+    })
+    return {"status": "success", "message": "Admin test WebSocket notification broadcasted."}
+
+
 @router.post("/approvals/{id}/resolve", dependencies=[Depends(admin_write_limiter)])
 def resolve_approval(
     id: int,

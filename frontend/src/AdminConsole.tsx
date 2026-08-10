@@ -601,24 +601,41 @@ function BookingApprovalsQueue({ token, addAlert }: { token: string; addAlert: (
     if (!token) return
     fetchQueue()
 
-    // Establish WebSocket Connection
-    const ws = new WebSocket(`${WS_BASE}/admin_notifications`)
-    wsRef.current = ws
+    let reconnectTimeout: any = null;
+    const connectWs = () => {
+      const ws = new WebSocket(`${WS_BASE}/admin_notifications?token=${token}`)
+      wsRef.current = ws
 
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data)
-        if (data.event === 'new_pending_approval' || data.type === 'new_approval_request') {
-          addAlert(`New Booking Hold: Ref ${data.booking_reference}`)
-          fetchQueue()
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          if (data.event === 'new_pending_approval' || data.type === 'new_approval_request') {
+            addAlert(`New Booking Hold: Ref ${data.booking_reference}`)
+            fetchQueue()
+          }
+        } catch (err) {
+          console.error("WS parse error", err)
         }
-      } catch (err) {
-        console.error("WS parse error", err)
+      }
+
+      ws.onclose = (event) => {
+        console.warn("Admin notifications WS closed. Reconnecting in 5s...", event)
+        reconnectTimeout = setTimeout(() => {
+          connectWs()
+        }, 5000)
+      }
+
+      ws.onerror = (err) => {
+        console.error("Admin WS error:", err)
+        ws.close()
       }
     }
 
+    connectWs()
+
     return () => {
-      ws.close()
+      if (reconnectTimeout) clearTimeout(reconnectTimeout)
+      if (wsRef.current) wsRef.current.close()
     }
   }, [token])
 
@@ -697,10 +714,33 @@ function BookingApprovalsQueue({ token, addAlert }: { token: string; addAlert: (
           <h2 className="text-3xl font-extrabold flex items-center gap-2" style={{ fontFamily: 'Bangers, cursive' }}>Booking Hold Approval Queue</h2>
           <p className="text-sm font-semibold text-gray-500">Authorize held booking payments and secure inventory before timers expire</p>
         </div>
-        <button onClick={fetchQueue} className="neo-btn px-4 py-2 flex items-center gap-2 bg-white">
-          <RefreshCw size={18} />
-          <span>Refresh</span>
-        </button>
+        <div className="flex gap-2">
+          <button 
+            onClick={async () => {
+              try {
+                const res = await fetch(`${API_BASE}/admin/trigger-test-notification`, {
+                  method: 'POST',
+                  headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) {
+                  const data = await res.json();
+                  setSuccessMsg(data.message || "Test WebSocket notification triggered!");
+                } else {
+                  setErrorMsg("Failed to trigger test notification.");
+                }
+              } catch (err: any) {
+                setErrorMsg(err.message);
+              }
+            }} 
+            className="neo-btn px-4 py-2 flex items-center gap-2 bg-[#ffde43]"
+          >
+            <span>Trigger Test WS Alert</span>
+          </button>
+          <button onClick={fetchQueue} className="neo-btn px-4 py-2 flex items-center gap-2 bg-white">
+            <RefreshCw size={18} />
+            <span>Refresh</span>
+          </button>
+        </div>
       </div>
 
       {successMsg && (
