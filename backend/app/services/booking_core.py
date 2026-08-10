@@ -90,7 +90,8 @@ class BookingStateMachine:
                 BookingStatus.PAYMENT_FAILED,
                 BookingStatus.CANCELLED,
                 BookingStatus.CONFIRMED,
-                BookingStatus.HOLD
+                BookingStatus.HOLD,
+                BookingStatus.EXPIRED
             ]:
                 allowed = True
         elif current == BookingStatus.PAYMENT_FAILED:

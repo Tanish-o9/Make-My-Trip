@@ -37,6 +37,9 @@ def setup_db_and_auth():
     
     app.dependency_overrides.clear()
     
+    from app.models.bookings import BookingTicket, BookingInvoice
+    db.query(BookingTicket).delete()
+    db.query(BookingInvoice).delete()
     db.query(ProcessedWebhookEvent).delete()
     db.query(Refund).delete()
     db.query(PaymentTransaction).delete()
@@ -575,4 +578,178 @@ def test_polling_payment_status(setup_db_and_auth):
     assert data["status"] == "captured"
     assert data["razorpay_order_id"] == "order_poll_1"
     assert data["razorpay_payment_id"] == "pay_poll_1"
+    db.close()
+
+
+def test_verify_expired_hold_rejected(setup_db_and_auth):
+    user = setup_db_and_auth
+    db = SessionLocal()
+    
+    # 1. Create a booking with held_until in the past
+    now = datetime.datetime.utcnow()
+    booking = FlightBooking(
+        booking_reference="BK-TEST-EXPIRED-HOLD",
+        user_id=user.id,
+        status=BookingStatus.PAYMENT_PENDING,
+        total_amount=1500.00,
+        pricing_snapshot={"base": 1200, "tax": 300},
+        origin="DEL",
+        destination="BOM",
+        departure_time=now + datetime.timedelta(days=1),
+        arrival_time=now + datetime.timedelta(days=1, hours=2),
+        airline_code="AI",
+        flight_number="101",
+        passenger_details=[],
+        held_until=now - datetime.timedelta(minutes=10) # 10 mins ago
+    )
+    db.add(booking)
+    
+    payment = Payment(
+        booking_id="BK-TEST-EXPIRED-HOLD",
+        user_id=user.id,
+        amount=1500.00,
+        status=PaymentStatus.CREATED,
+        razorpay_order_id="order_expired_1"
+    )
+    db.add(payment)
+    db.commit()
+    
+    secret = settings.RAZORPAY_KEY_SECRET or "whsec_razorpay_test_secret"
+    message = "order_expired_1|pay_expired_123"
+    sig = hmac.new(secret.encode(), message.encode(), hashlib.sha256).hexdigest()
+    
+    payload = {
+        "razorpay_order_id": "order_expired_1",
+        "razorpay_payment_id": "pay_expired_123",
+        "razorpay_signature": sig
+    }
+    
+    response = client.post("/api/v1/payments/verify", json=payload)
+    assert response.status_code == 400
+    assert "expired" in response.json()["detail"].lower()
+    
+    db.refresh(payment)
+    assert payment.status == PaymentStatus.FAILED
+    
+    db.refresh(booking)
+    assert booking.status == BookingStatus.EXPIRED
+    db.close()
+
+
+def test_verify_amount_mismatch_rejected(setup_db_and_auth):
+    user = setup_db_and_auth
+    db = SessionLocal()
+    
+    now = datetime.datetime.utcnow()
+    booking = FlightBooking(
+        booking_reference="BK-TEST-MISMATCH",
+        user_id=user.id,
+        status=BookingStatus.PAYMENT_PENDING,
+        total_amount=1500.00,
+        pricing_snapshot={"base": 1200, "tax": 300},
+        origin="DEL",
+        destination="BOM",
+        departure_time=now + datetime.timedelta(days=1),
+        arrival_time=now + datetime.timedelta(days=1, hours=2),
+        airline_code="AI",
+        flight_number="101",
+        passenger_details=[],
+        held_until=now + datetime.timedelta(hours=2)
+    )
+    db.add(booking)
+    
+    # Mismatched payment amount (1600.00 instead of 1500.00)
+    payment = Payment(
+        booking_id="BK-TEST-MISMATCH",
+        user_id=user.id,
+        amount=1600.00,
+        status=PaymentStatus.CREATED,
+        razorpay_order_id="order_mismatch_1"
+    )
+    db.add(payment)
+    db.commit()
+    
+    secret = settings.RAZORPAY_KEY_SECRET or "whsec_razorpay_test_secret"
+    message = "order_mismatch_1|pay_mismatch_123"
+    sig = hmac.new(secret.encode(), message.encode(), hashlib.sha256).hexdigest()
+    
+    payload = {
+        "razorpay_order_id": "order_mismatch_1",
+        "razorpay_payment_id": "pay_mismatch_123",
+        "razorpay_signature": sig
+    }
+    
+    response = client.post("/api/v1/payments/verify", json=payload)
+    assert response.status_code == 400
+    assert "amount mismatch" in response.json()["detail"].lower()
+    
+    db.refresh(payment)
+    assert payment.status == PaymentStatus.FAILED
+    
+    db.refresh(booking)
+    assert booking.status == BookingStatus.PAYMENT_FAILED
+    db.close()
+
+
+def test_ticket_and_invoice_generated_exactly_once(setup_db_and_auth):
+    user = setup_db_and_auth
+    db = SessionLocal()
+    
+    now = datetime.datetime.utcnow()
+    booking = FlightBooking(
+        booking_reference="BK-TEST-DOCS-ONCE",
+        user_id=user.id,
+        status=BookingStatus.PAYMENT_PENDING,
+        total_amount=1500.00,
+        pricing_snapshot={"base": 1200, "tax": 300},
+        origin="DEL",
+        destination="BOM",
+        departure_time=now + datetime.timedelta(days=1),
+        arrival_time=now + datetime.timedelta(days=1, hours=2),
+        airline_code="AI",
+        flight_number="101",
+        passenger_details=[]
+    )
+    db.add(booking)
+    
+    payment = Payment(
+        booking_id="BK-TEST-DOCS-ONCE",
+        user_id=user.id,
+        amount=1500.00,
+        status=PaymentStatus.CREATED,
+        razorpay_order_id="order_docs_once"
+    )
+    db.add(payment)
+    db.commit()
+    
+    secret = settings.RAZORPAY_KEY_SECRET or "whsec_razorpay_test_secret"
+    message = "order_docs_once|pay_docs_once_123"
+    sig = hmac.new(secret.encode(), message.encode(), hashlib.sha256).hexdigest()
+    
+    payload = {
+        "razorpay_order_id": "order_docs_once",
+        "razorpay_payment_id": "pay_docs_once_123",
+        "razorpay_signature": sig
+    }
+    
+    # First verification
+    response1 = client.post("/api/v1/payments/verify", json=payload)
+    assert response1.status_code == 200
+    
+    # Assert ticket and invoice are generated
+    from app.models.bookings import BookingTicket, BookingInvoice
+    tickets = db.query(BookingTicket).filter(BookingTicket.booking_reference == "BK-TEST-DOCS-ONCE").all()
+    invoices = db.query(BookingInvoice).filter(BookingInvoice.booking_reference == "BK-TEST-DOCS-ONCE").all()
+    assert len(tickets) == 1
+    assert len(invoices) == 1
+    
+    # Second verification (idempotent retry)
+    response2 = client.post("/api/v1/payments/verify", json=payload)
+    assert response2.status_code == 200
+    
+    # Re-query and verify count remains 1
+    tickets = db.query(BookingTicket).filter(BookingTicket.booking_reference == "BK-TEST-DOCS-ONCE").all()
+    invoices = db.query(BookingInvoice).filter(BookingInvoice.booking_reference == "BK-TEST-DOCS-ONCE").all()
+    assert len(tickets) == 1
+    assert len(invoices) == 1
     db.close()

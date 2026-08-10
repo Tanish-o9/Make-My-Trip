@@ -456,6 +456,52 @@ def verify_payment(
         
     if not payment:
         raise HTTPException(status_code=404, detail="Payment record not found")
+
+    # Load booking across all 13 tables
+    booking = find_booking_by_reference(db, payment.booking_id)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Associated booking not found.")
+
+    # 2. Verify Hold Expiry
+    import datetime
+    if booking.held_until and booking.held_until < datetime.datetime.utcnow():
+        payment.status = PaymentStatus.FAILED
+        db.commit()
+        tx = PaymentTransaction(
+            payment_id=payment.id,
+            event_type=TransactionEventType.PAYMENT_FAILED,
+            raw_payload={"error": "Booking hold expired prior to verification"}
+        )
+        db.add(tx)
+        # Transition to EXPIRED
+        BookingStateMachine.transition_to(booking, BookingStatus.EXPIRED)
+        db.commit()
+        raise HTTPException(status_code=400, detail="Booking hold has expired. Cannot complete payment.")
+
+    # 3. Validate payment amount against authoritative booking amount (NEVER trust client amount)
+    pricing_snapshot = getattr(booking, "pricing_snapshot", {}) or {}
+    expected_amount = None
+    if isinstance(pricing_snapshot, dict):
+        if "final_payable" in pricing_snapshot:
+            expected_amount = float(pricing_snapshot["final_payable"])
+        elif "final_amount" in pricing_snapshot:
+            expected_amount = float(pricing_snapshot["final_amount"])
+            
+    if expected_amount is None:
+        expected_amount = float(booking.total_amount)
+
+    if abs(expected_amount - float(payment.amount)) > 0.01:
+        payment.status = PaymentStatus.FAILED
+        db.commit()
+        tx = PaymentTransaction(
+            payment_id=payment.id,
+            event_type=TransactionEventType.PAYMENT_FAILED,
+            raw_payload={"error": f"Payment amount {payment.amount} mismatch with booking total {expected_amount}"}
+        )
+        db.add(tx)
+        BookingStateMachine.transition_to(booking, BookingStatus.PAYMENT_FAILED)
+        db.commit()
+        raise HTTPException(status_code=400, detail="Payment amount mismatch with authoritative booking price.")
         
     # If already captured, just return success (idempotent verify)
     if payment.status == PaymentStatus.CAPTURED:
@@ -477,17 +523,15 @@ def verify_payment(
     db.commit()
     
     # Transition booking state
-    booking = find_booking_by_reference(db, payment.booking_id)
-    if booking:
-        BookingStateMachine.transition_to(booking, BookingStatus.CONFIRMED)
-        db.commit()
-        
-        # Enqueue confirmation notification/email job
-        emit_event("booking_confirmed", {
-            "user_id": booking.user_id,
-            "booking_reference": booking.booking_reference,
-            "vertical": getattr(booking, "__tablename__", "").replace("_bookings", "")
-        })
+    BookingStateMachine.transition_to(booking, BookingStatus.CONFIRMED)
+    db.commit()
+    
+    # Enqueue confirmation notification/email job
+    emit_event("booking_confirmed", {
+        "user_id": booking.user_id,
+        "booking_reference": booking.booking_reference,
+        "vertical": getattr(booking, "__tablename__", "").replace("_bookings", "")
+    })
         
     return {"status": "captured", "booking_reference": payment.booking_id}
 

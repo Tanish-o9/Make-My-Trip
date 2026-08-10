@@ -365,6 +365,14 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
         },
         theme: {
           color: "#facc15"
+        },
+        modal: {
+          ondismiss: function () {
+            console.log("LOG: Razorpay checkout modal closed by user.");
+            setPaymentLoading(false);
+            setError("Payment was not completed. You closed the checkout window.");
+            setPaymentStatus("failed");
+          }
         }
       };
       
@@ -405,35 +413,7 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
     );
   }
 
-  const handleInstantDemoPayment = async () => {
-    if (!humanApproved) {
-      setError("Please check the 'Approve Payment Transaction' checkbox first to proceed.");
-      return;
-    }
-    setPaymentLoading(true);
-    setError("");
-    try {
-      const vert = booking.vertical || "flights";
-      const res = await fetch(`${API_URL}/bookings/confirm?booking_reference=${bookingId}&vertical=${vert}&payment_method=wallet`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { "Authorization": `Bearer ${token}` } : {})
-        }
-      });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.detail || "Instant test payment confirmation failed.");
-      }
-      setPaymentStatus("captured");
-      onNavigate(`/bookings/${bookingId}/confirmation`);
-    } catch (err: any) {
-      console.error("Instant demo payment error:", err);
-      setError(err.message || "Failed to process test transaction.");
-    } finally {
-      setPaymentLoading(false);
-    }
-  };
+
 
   return (
     <div className="min-h-screen bg-[#f4efe6] text-black p-6 font-sans">
@@ -697,7 +677,7 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                     </div>
                   </div>
                   
-                  <div className="flex flex-col sm:flex-row gap-3 justify-center items-center max-w-md mx-auto">
+                  <div className="flex justify-center items-center max-w-md mx-auto">
                     <button
                       onClick={payWithRazorpay}
                       disabled={paymentLoading || !humanApproved || profileIncomplete}
@@ -710,15 +690,6 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                       ) : (
                         `Pay ₹${booking.total_amount.toLocaleString()} Now`
                       )}
-                    </button>
-
-                    <button
-                      onClick={handleInstantDemoPayment}
-                      disabled={paymentLoading || !humanApproved}
-                      className="w-full bg-yellow-300 hover:bg-yellow-400 disabled:bg-yellow-200 border-3 border-black px-6 py-3 font-black text-xs uppercase rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer flex items-center justify-center gap-2"
-                      title="Instantly complete booking in test mode"
-                    >
-                      ⚡ 1-Click Demo Pay
                     </button>
                   </div>
                 </div>
