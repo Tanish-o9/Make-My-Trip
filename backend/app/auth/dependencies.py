@@ -99,7 +99,7 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
 
 def get_current_admin(request: Request, db: Session = Depends(get_db)) -> User:
     user = get_current_user(request, db)
-    allowed_roles = ["admin", "super_admin", "finance_admin", "approver"]
+    allowed_roles = ["admin", "super_admin", "finance_admin", "approver", "booking_approver"]
     if user.role not in allowed_roles:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

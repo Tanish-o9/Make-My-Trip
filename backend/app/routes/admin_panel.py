@@ -66,7 +66,7 @@ def admin_login(
     if not verify_password(req_body.password, user.password_hash):
         raise HTTPException(status_code=400, detail="Incorrect email or password")
         
-    allowed_roles = ["admin", "super_admin", "finance_admin", "approver"]
+    allowed_roles = ["admin", "super_admin", "finance_admin", "approver", "booking_approver"]
     if user.role not in allowed_roles:
         raise HTTPException(
             status_code=403,
@@ -80,11 +80,11 @@ def admin_login(
         
     # Generate admin scoped JWT with 24 hours expiry for ease of dev testing
     access_token = create_access_token(
-        data={"sub": user.email, "role": user.role},
+        data={"sub": user.email, "role": user.role, "id": user.id},
         expires_delta=datetime.timedelta(hours=24)
     )
     refresh_token = create_refresh_token(
-        data={"sub": user.email, "role": user.role},
+        data={"sub": user.email, "role": user.role, "id": user.id},
         expires_delta=datetime.timedelta(days=7)
     )
     

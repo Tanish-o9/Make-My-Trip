@@ -49,7 +49,7 @@ const WS_BASE = API_BASE.replace(/^http/, "ws").replace(/\/api$/, "/ws");
 
 
 // Roles enum
-type Role = 'super_admin' | 'finance_admin' | 'booking_approver' | 'admin'
+type Role = 'super_admin' | 'finance_admin' | 'booking_approver' | 'admin' | 'approver'
 
 // Shared type for approvals
 interface ApprovalRequest {
@@ -138,7 +138,7 @@ export default function App() {
   // 2. Route Guard for non-admin roles
   useEffect(() => {
     if (token && adminRole) {
-      const allowed_roles = ["admin", "super_admin", "finance_admin", "booking_approver"];
+      const allowed_roles = ["admin", "super_admin", "finance_admin", "booking_approver", "approver"];
       if (!allowed_roles.includes(adminRole)) {
         localStorage.removeItem('admin_token');
         localStorage.removeItem('admin_role');
@@ -188,7 +188,7 @@ export default function App() {
 
   // Auto tab selection based on role constraints
   useEffect(() => {
-    if (adminRole === 'booking_approver' || adminRole === 'finance_admin') {
+    if (adminRole === 'booking_approver' || adminRole === 'approver' || adminRole === 'finance_admin') {
       setActiveTab('bookings')
     }
   }, [adminRole])
@@ -403,7 +403,7 @@ export default function App() {
         <aside className="w-full md:w-64 bg-white border-r-4 border-black p-4 flex flex-col gap-2">
           <div className="text-xs font-bold text-gray-500 px-2 uppercase mb-2">Operations Modules</div>
           
-          {(adminRole === 'super_admin' || adminRole === 'admin' || adminRole === 'booking_approver' || adminRole === 'finance_admin') && (
+          {(adminRole === 'super_admin' || adminRole === 'admin' || adminRole === 'booking_approver' || adminRole === 'approver' || adminRole === 'finance_admin') && (
             <button
               onClick={() => setActiveTab('bookings')}
               className={`w-full flex items-center justify-between p-3 border-2 font-bold text-left ${activeTab === 'bookings' ? 'bg-[#7c3aed] text-white border-black shadow-[3px_3px_0px_0px_#000000]' : 'border-transparent hover:bg-purple-50 text-gray-700'}`}

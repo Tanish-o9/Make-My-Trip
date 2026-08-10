@@ -22,8 +22,12 @@ backend/scratch/
 *.sqlite
 backend/travel_os.db
 backend/test_travel_os.db
+backend/chromadb_data/
+chromadb_data/
 
 # Frontend (not needed in backend container)
 frontend/
 **/node_modules/
 node_modules/
+backend/app/sdk/
+
