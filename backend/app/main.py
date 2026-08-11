@@ -24,7 +24,7 @@ if sentry_dsn and sentry_dsn != "your-sentry-dsn":
 
 from app.database import engine, Base, get_db
 from app.models import search_entities, payments
-from app.routes import auth, wallet, agents, voice, showcase, bookings, search, tracker, mybiz, wishlist, admin_panel, media, rent_a_ride, localities, payments as payments_routes, webhooks, profile, flights, hotels, weather, maps, system, currency, notifications, cabs, activities, visa, insurance, forex, esim, documents, loyalty, crm, insights, saas_routes, gateway, partner, feedback
+from app.routes import auth, wallet, agents, voice, showcase, bookings, search, tracker, mybiz, wishlist, admin_panel, media, rent_a_ride, localities, payments as payments_routes, webhooks, profile, flights, hotels, weather, maps, system, currency, notifications, cabs, activities, visa, insurance, forex, esim, documents, loyalty, crm, insights, saas_routes, gateway, partner, feedback, cars, providers, users, support, analytics_ops, monitoring, recovery
 from fastapi.staticfiles import StaticFiles
 import os
 from app.ml import fraud_model
@@ -231,6 +231,8 @@ async def unhandled_exception_handler(request, exc):
 # Include Route subtrees
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(profile.router, prefix="/api/v1")
+app.include_router(users.router, prefix="/api/v1")
+app.include_router(support.router, prefix="/api/v1")
 app.include_router(wallet.router, prefix="/api/v1")
 app.include_router(agents.router, prefix="/api/v1")
 app.include_router(fraud_model.router, prefix="/api/v1")
@@ -244,6 +246,12 @@ app.include_router(mybiz.router, prefix="/api/v1")
 app.include_router(wishlist.router, prefix="/api/v1")
 app.include_router(admin_panel.router, prefix="/api")
 app.include_router(admin_panel.admin_auth_router, prefix="/api")
+app.include_router(analytics_ops.router, prefix="/api/v1")
+app.include_router(analytics_ops.router, prefix="/api")
+app.include_router(monitoring.router, prefix="/api/v1")
+app.include_router(monitoring.router, prefix="/api")
+app.include_router(recovery.router, prefix="/api/v1")
+app.include_router(recovery.router, prefix="/api")
 app.include_router(media.router, prefix="/api/v1")
 app.include_router(payments_routes.router, prefix="/api/v1")
 app.include_router(rent_a_ride.router, prefix="/api/v1")
@@ -275,6 +283,8 @@ app.include_router(insights.router, prefix="/api/v1")
 app.include_router(gateway.router, prefix="/api/v1")
 app.include_router(partner.router, prefix="/api/v1")
 app.include_router(feedback.router, prefix="/api/v1")
+app.include_router(cars.router, prefix="/api/v1")
+app.include_router(providers.router, prefix="/api/v1")
 
 @app.websocket("/ws/admin_notifications")
 async def admin_notifications_ws(websocket: WebSocket, token: Optional[str] = Query(None)):
@@ -391,6 +401,187 @@ def startup_db_seed():
     # Create tables locally if using SQLite database
     if "sqlite" in str(engine.url):
         Base.metadata.create_all(bind=engine)
+    else:
+        try:
+            from sqlalchemy import text
+            with engine.connect() as conn:
+                cab_booking_cols = [
+                    ("trip_type", "VARCHAR(50) DEFAULT 'one_way'"),
+                    ("return_time", "TIMESTAMP"),
+                    ("flight_number", "VARCHAR(50)"),
+                    ("terminal", "VARCHAR(50)"),
+                    ("hourly_duration", "INTEGER"),
+                    ("passengers_count", "INTEGER DEFAULT 1"),
+                    ("passenger_details", "JSON"),
+                    ("luggage_count", "INTEGER DEFAULT 1"),
+                    ("special_instructions", "TEXT"),
+                    ("driver_name", "VARCHAR(150)"),
+                    ("driver_phone", "VARCHAR(50)"),
+                    ("vehicle_number", "VARCHAR(50)"),
+                    ("distance_km", "NUMERIC(10, 2) DEFAULT 0.0"),
+                    ("estimated_duration_mins", "INTEGER DEFAULT 30"),
+                    ("voucher_url", "VARCHAR(500)"),
+                ]
+                for col_name, col_type in cab_booking_cols:
+                    try:
+                        conn.execute(text(f"ALTER TABLE cab_bookings ADD COLUMN IF NOT EXISTS {col_name} {col_type};"))
+                        conn.commit()
+                    except Exception:
+                        pass
+
+                cab_veh_cols = [
+                    ("brand", "VARCHAR(100)"),
+                    ("model", "VARCHAR(100)"),
+                    ("display_name", "VARCHAR(255)"),
+                    ("category", "VARCHAR(50) DEFAULT 'Sedan'"),
+                    ("variant", "VARCHAR(100)"),
+                    ("image_key", "VARCHAR(100)"),
+                    ("image_url", "VARCHAR(500)"),
+                    ("thumbnail_url", "VARCHAR(500)"),
+                    ("seating_capacity", "INTEGER DEFAULT 4"),
+                    ("luggage_capacity", "INTEGER DEFAULT 2"),
+                    ("fuel_type", "VARCHAR(50) DEFAULT 'Petrol'"),
+                    ("transmission", "VARCHAR(50) DEFAULT 'Manual'"),
+                    ("ac_available", "BOOLEAN DEFAULT TRUE"),
+                    ("rating", "NUMERIC(3, 1) DEFAULT 4.8"),
+                    ("review_count", "INTEGER DEFAULT 120"),
+                    ("price_per_km", "NUMERIC(10, 2) DEFAULT 15.0"),
+                    ("base_fare", "NUMERIC(10, 2) DEFAULT 200.0"),
+                    ("per_hour_rate", "NUMERIC(10, 2) DEFAULT 250.0"),
+                    ("availability_status", "VARCHAR(50) DEFAULT 'available'"),
+                    ("plate_number", "VARCHAR(50)"),
+                ]
+                for col_name, col_type in cab_veh_cols:
+                    try:
+                        conn.execute(text(f"ALTER TABLE cab_vehicles ADD COLUMN IF NOT EXISTS {col_name} {col_type};"))
+                        conn.commit()
+                    except Exception:
+                        pass
+        except Exception as e:
+            logger.warning(f"Schema column check skipped: {e}")
+
+        # ── Email verification migrations (production PostgreSQL) ──
+        try:
+            with engine.connect() as conn:
+                # Add email_verified to users if missing
+                conn.execute(text(
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE;"
+                ))
+                conn.commit()
+
+                # Create email_verifications table if missing
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS email_verifications (
+                        id SERIAL PRIMARY KEY,
+                        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                        email VARCHAR(255) NOT NULL,
+                        code_hash VARCHAR(64) NOT NULL,
+                        purpose VARCHAR(30) NOT NULL,
+                        expires_at TIMESTAMP NOT NULL,
+                        attempts INTEGER NOT NULL DEFAULT 0,
+                        is_used BOOLEAN NOT NULL DEFAULT FALSE,
+                        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                        used_at TIMESTAMP
+                    );
+                """))
+                conn.commit()
+
+                # Indexes
+                conn.execute(text(
+                    "CREATE INDEX IF NOT EXISTS ix_email_verif_email_purpose ON email_verifications (email, purpose);"
+                ))
+                conn.execute(text(
+                    "CREATE INDEX IF NOT EXISTS ix_email_verifications_email ON email_verifications (email);"
+                ))
+                conn.execute(text(
+                    "CREATE INDEX IF NOT EXISTS ix_email_verifications_expires_at ON email_verifications (expires_at);"
+                ))
+                conn.commit()
+                logger.info("Email verification schema migration completed.")
+
+                # Profile & Security schema migrations
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN NOT NULL DEFAULT FALSE;"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;"))
+                conn.execute(text("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(512);"))
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS security_events (
+                        id SERIAL PRIMARY KEY,
+                        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        event_type VARCHAR(50) NOT NULL,
+                        ip_address VARCHAR(100),
+                        user_agent VARCHAR(512),
+                        details VARCHAR(512),
+                        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+                    );
+                """))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_security_events_user_id ON security_events (user_id);"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_security_events_created_at ON security_events (created_at);"))
+                conn.commit()
+                logger.info("Security events and profile columns migration completed.")
+
+                # Notifications & Deliveries schema migrations
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS notifications (
+                        id SERIAL PRIMARY KEY,
+                        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        channel VARCHAR(50) NOT NULL DEFAULT 'in_app',
+                        title VARCHAR(255),
+                        message TEXT,
+                        notification_type VARCHAR(50) NOT NULL DEFAULT 'GENERAL',
+                        booking_reference VARCHAR(50),
+                        vertical VARCHAR(50),
+                        action_url VARCHAR(255),
+                        is_read BOOLEAN NOT NULL DEFAULT FALSE,
+                        read_at TIMESTAMP,
+                        idempotency_key VARCHAR(255) UNIQUE,
+                        delivery_status VARCHAR(50) NOT NULL DEFAULT 'DELIVERED',
+                        payload JSON,
+                        status VARCHAR(50) DEFAULT 'sent',
+                        sent_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+                    );
+                """))
+                conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS title VARCHAR(255);"))
+                conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS message TEXT;"))
+                conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS notification_type VARCHAR(50) DEFAULT 'GENERAL';"))
+                conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS booking_reference VARCHAR(50);"))
+                conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS vertical VARCHAR(50);"))
+                conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS action_url VARCHAR(255);"))
+                conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS is_read BOOLEAN NOT NULL DEFAULT FALSE;"))
+                conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS read_at TIMESTAMP;"))
+                conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(255);"))
+                conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS delivery_status VARCHAR(50) DEFAULT 'DELIVERED';"))
+
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_notif_user_created ON notifications (user_id, created_at);"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_notif_user_unread ON notifications (user_id, is_read);"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_notif_booking_ref ON notifications (booking_reference);"))
+
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS notification_deliveries (
+                        id SERIAL PRIMARY KEY,
+                        notification_id INTEGER NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+                        channel VARCHAR(50) NOT NULL,
+                        provider VARCHAR(50) NOT NULL DEFAULT 'system',
+                        status VARCHAR(50) NOT NULL DEFAULT 'DELIVERED',
+                        attempt_count INTEGER NOT NULL DEFAULT 1,
+                        last_attempt_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                        delivered_at TIMESTAMP,
+                        error_code VARCHAR(100)
+                    );
+                """))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_notif_deliv_notif_id ON notification_deliveries (notification_id);"))
+
+                conn.execute(text("ALTER TABLE notification_preferences ADD COLUMN IF NOT EXISTS push_alerts BOOLEAN NOT NULL DEFAULT TRUE;"))
+                conn.execute(text("ALTER TABLE notification_preferences ADD COLUMN IF NOT EXISTS booking_updates BOOLEAN NOT NULL DEFAULT TRUE;"))
+                conn.execute(text("ALTER TABLE notification_preferences ADD COLUMN IF NOT EXISTS payment_alerts BOOLEAN NOT NULL DEFAULT TRUE;"))
+                conn.execute(text("ALTER TABLE notification_preferences ADD COLUMN IF NOT EXISTS trip_alerts BOOLEAN NOT NULL DEFAULT TRUE;"))
+                conn.execute(text("ALTER TABLE notification_preferences ADD COLUMN IF NOT EXISTS marketing_emails BOOLEAN NOT NULL DEFAULT FALSE;"))
+                conn.commit()
+                logger.info("Notification tables and schema migrations completed.")
+
+        except Exception as ev_err:
+            logger.warning(f"Schema migration skipped: {ev_err}")
+
 
     # Check if database is unseeded, and if so, run full seeding sequence automatically!
     from app.database import SessionLocal
@@ -478,14 +669,16 @@ def startup_db_seed():
                     email=admin_email,
                     role="finance_admin",
                     trust_score=Decimal("4.80"),
-                    password_hash=hash_password(admin_password)
+                    password_hash=hash_password(admin_password),
+                    email_verified=True,
                 )
             else:
                 test_user = User(
                     email=admin_email,
                     role="finance_admin",
                     trust_score=Decimal("4.80"),
-                    password_hash=hash_password(admin_password)
+                    password_hash=hash_password(admin_password),
+                    email_verified=True,
                 )
             db.add(test_user)
             db.commit()
@@ -500,6 +693,7 @@ def startup_db_seed():
             # Update password and role if needed
             test_user.role = "finance_admin"
             test_user.password_hash = hash_password(admin_password)
+            test_user.email_verified = True
             db.commit()
 
 
@@ -627,13 +821,37 @@ async def redirect_openapi():
     return RedirectResponse(url="/api/openapi.json")
 
 @app.get("/healthz", tags=["monitoring"])
+@app.get("/health", tags=["monitoring"])
 def health_check():
     """Liveness probe validating API health"""
     from fastapi.responses import JSONResponse
+    import datetime
     return JSONResponse(
         status_code=200,
-        content={"status": "healthy"}
+        content={"status": "healthy", "service": "travel_os_api", "timestamp": datetime.datetime.utcnow().isoformat()}
     )
+
+@app.get("/ready", tags=["monitoring"])
+def readiness_check():
+    """Readiness probe validating database connectivity"""
+    from fastapi.responses import JSONResponse
+    import datetime
+    from app.database import SessionLocal
+    from sqlalchemy import text
+    db = SessionLocal()
+    try:
+        db.execute(text("SELECT 1")).scalar()
+        return JSONResponse(
+            status_code=200,
+            content={"status": "ready", "database": "connected", "timestamp": datetime.datetime.utcnow().isoformat()}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "not_ready", "database": "unreachable", "error": str(e)}
+        )
+    finally:
+        db.close()
 
 @app.get("/metrics", tags=["monitoring"])
 def get_metrics():

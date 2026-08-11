@@ -698,32 +698,76 @@ async def unified_vertical_search(
     elif v == "cabs":
         db = SessionLocal()
         try:
-            cabs = db.query(CabVehicle).all()
+            # Query active cabs
+            cabs = db.query(CabVehicle).filter(CabVehicle.availability_status == "available").all()
+            if not cabs:
+                cabs = db.query(CabVehicle).all()
+
             if cabs:
                 results = []
+                seen_models = set()
+                pax_filter = 1
+                try:
+                    pax_filter = int(kwargs.get("passengers") or 1)
+                except Exception:
+                    pass
+
                 for cb in cabs:
+                    # Enforce capacity if query passed passengers
+                    if pax_filter > 1 and cb.seating_capacity < pax_filter:
+                        continue
+
+                    model_key = f"{cb.brand}_{cb.model}"
+                    if model_key in seen_models:
+                        continue
+                    seen_models.add(model_key)
+
+                    resolved_image_key = getattr(cb, "image_key", None) or (cb.model.lower().replace(" ", "-") if cb.model else "default-car")
+                    resolved_img = getattr(cb, "image_url", None) or f"/assets/vehicles/{resolved_image_key}.webp"
+
                     results.append({
+                        "id": cb.id,
                         "provider": cb.provider,
                         "type": cb.type,
+                        "vehicle_type": cb.type,
+                        "category": cb.category or cb.type,
+                        "brand": cb.brand or "Maruti",
+                        "model": cb.model or "Dzire",
+                        "variant": getattr(cb, "variant", "Standard") or "Standard",
+                        "display_name": cb.display_name or f"{cb.brand} {cb.model}",
                         "price": float(cb.price),
-                        "eta_minutes": cb.eta_minutes,
-                        "driver_name": cb.driver_name,
-                        "driver_rating": cb.driver_rating
+                        "fare": float(cb.price),
+                        "base_fare": float(cb.base_fare or 200.0),
+                        "price_per_km": float(cb.price_per_km or 16.0),
+                        "seats": cb.seating_capacity or 4,
+                        "seating_capacity": cb.seating_capacity or 4,
+                        "luggage_capacity": cb.luggage_capacity or 2,
+                        "fuel_type": cb.fuel_type or "Petrol",
+                        "transmission": cb.transmission or "Manual",
+                        "ac": cb.ac_available,
+                        "ac_available": cb.ac_available,
+                        "rating": float(cb.rating or 4.8),
+                        "review_count": cb.review_count or 450,
+                        "eta_minutes": cb.eta_minutes or 5,
+                        "eta_mins": cb.eta_minutes or 5,
+                        "image": resolved_img,
+                        "image_url": resolved_img,
+                        "image_key": resolved_image_key,
+                        "thumbnail_url": getattr(cb, "thumbnail_url", resolved_img) or resolved_img,
+                        "driver_name": cb.driver_name or "Verified Chauffeur",
+                        "driver_rating": cb.driver_rating or "4.9 ★",
+                        "plate_number": cb.plate_number or "DL-01-AB-1234"
                     })
                 return {
                     "vertical": "cabs",
-                    "results": attach_media_to_results(results, "vehicle")
+                    "results": results
                 }
         finally:
             db.close()
 
-        results = [
-            {"provider": "Ola Cabs", "type": "Sedan", "price": 1200, "eta_minutes": 5},
-            {"provider": "Uber Intercity", "type": "SUV", "price": 1900, "eta_minutes": 8}
-        ]
         return {
             "vertical": "cabs",
-            "results": attach_media_to_results(results, "vehicle")
+            "results": []
         }
 
     elif v in ["rent-a-ride", "vehicle_rental"]:

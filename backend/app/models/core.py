@@ -1,5 +1,5 @@
 import datetime
-from sqlalchemy import String, Integer, Numeric, DateTime, ForeignKey, Date, Boolean
+from sqlalchemy import String, Integer, Numeric, DateTime, ForeignKey, Date, Boolean, Index, Text
 from typing import Optional
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
@@ -18,6 +18,9 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(50), default="user")
     trust_score: Mapped[float] = mapped_column(Numeric(4, 2), default=4.50, nullable=False)
     fcm_token: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)  # Firebase FCM device token
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)  # Must verify email before full access
+    phone_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
     updated_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow
@@ -168,6 +171,7 @@ class UserProfile(Base):
     state: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     city: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     postal_code: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    avatar_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
 
 
 class Traveller(Base):
@@ -226,6 +230,10 @@ class NotificationPreference(Base):
     sms_alerts: Mapped[bool] = mapped_column(Boolean, default=True)
     whatsapp_alerts: Mapped[bool] = mapped_column(Boolean, default=True)
     push_alerts: Mapped[bool] = mapped_column(Boolean, default=True)  # Firebase FCM push notifications
+    booking_updates: Mapped[bool] = mapped_column(Boolean, default=True)
+    payment_alerts: Mapped[bool] = mapped_column(Boolean, default=True)
+    trip_alerts: Mapped[bool] = mapped_column(Boolean, default=True)
+    marketing_emails: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class RefreshToken(Base):
@@ -245,3 +253,52 @@ class RefreshToken(Base):
     # Relationship
     user = relationship("User")
 
+
+class EmailVerification(Base):
+    """
+    Stores hashed OTPs for email verification and password-reset flows.
+    `purpose` discriminates between the two so a password-reset OTP
+    can never satisfy an email-verification challenge (and vice-versa).
+    """
+    __tablename__ = "email_verifications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    # user_id may be null briefly if the user row is not yet committed (but in practice we commit first)
+    user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    code_hash: Mapped[str] = mapped_column(String(64), nullable=False)  # SHA-256 hex of 6-digit OTP
+    purpose: Mapped[str] = mapped_column(String(30), nullable=False)    # EMAIL_VERIFICATION | PASSWORD_RESET
+    expires_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False, index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    is_used: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    used_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
+
+    __table_args__ = (
+        Index("ix_email_verif_email_purpose", "email", "purpose"),
+    )
+
+
+class SecurityEvent(Base):
+    """
+    Audit log for account security events:
+    LOGIN_SUCCESS, LOGIN_FAILED, PASSWORD_CHANGED, EMAIL_VERIFIED,
+    LOGOUT, SESSION_REVOKED, ACCOUNT_DELETION_REQUESTED.
+    """
+    __tablename__ = "security_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    event_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    ip_address: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    user_agent: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    details: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=datetime.datetime.utcnow, nullable=False, index=True
+    )
+
+    user = relationship("User")

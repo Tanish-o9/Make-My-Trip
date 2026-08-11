@@ -14,8 +14,15 @@ import { BookingDetailPage } from './BookingDetailPage';
 import { DesignTokensPage } from './DesignTokensPage';
 import { ProfilePage } from './ProfilePage';
 import { AdminConsole } from './AdminConsole';
+import LegalPage from './LegalPage';
+import VerifyEmailPage from './VerifyEmailPage';
+import ForgotPasswordPage from './ForgotPasswordPage';
+import NotificationsPage from './NotificationsPage';
+import SupportCenterPage from './SupportCenterPage';
+
 
 import { API_BASE, API_URL, ADMIN_BASE, WS_BASE_API, SPECIAL_FARES, calculatePassengerFare, validateStudentDetails, calculateSearchDisplayFare, normalizeSpecialFareKey } from './config/api';
+import { getVehicleImage, handleVehicleImageError } from './utils/vehicleImages';
 const WS_BASE = WS_BASE_API;
 const API_HOST = API_BASE.replace(/\/api$/, "");
 let globalTabLoadingListeners: ((loadingVerticals: Record<string, boolean>) => void)[] = [];
@@ -789,11 +796,24 @@ export default function App() {
   };
 
   if (!token) {
-    return <LoginScreen onLogin={handleLogin} />;
+    // Allow /verify-email, /forgot-password, /reset-password to be rendered before authentication
+    if (currentPath.startsWith('/verify-email')) {
+      const params = new URLSearchParams(window.location.search);
+      const emailParam = params.get('email') || '';
+      return <VerifyEmailPage email={emailParam} onNavigate={navigate} />;
+    }
+    if (currentPath === '/forgot-password' || currentPath === '/reset-password') {
+      return <ForgotPasswordPage onNavigate={navigate} />;
+    }
+    return <LoginScreen onLogin={handleLogin} onNavigate={navigate} />;
   }
 
   if (currentPath === "/profile") {
     return <ProfilePage onNavigate={navigate} token={token} />;
+  }
+
+  if (currentPath === "/notifications") {
+    return <NotificationsPage onNavigate={navigate} token={token} />;
   }
 
   const checkoutMatch = currentPath.match(/^\/checkout\/([^/]+)$/) || currentPath.match(/^\/payment-failed\/([^/]+)$/);
@@ -856,14 +876,28 @@ export default function App() {
     );
   }
 
+  if (currentPath === '/privacy') {
+    return <LegalPage page="privacy" onNavigate={navigate} />;
+  }
+
+  if (currentPath === '/terms') {
+    return <LegalPage page="terms" onNavigate={navigate} />;
+  }
+
+  if (currentPath === '/support' || currentPath === '/help') {
+    return <SupportCenterPage onNavigate={navigate} token={token} />;
+  }
+
   if (currentPath === '/design-tokens') {
     return <DesignTokensPage onNavigate={navigate} />;
   }
 
   // 404 Page (Phase 17)
-  const validPaths = ["/", "/profile", "/design-tokens", "/admin"];
+  const validPaths = ["/", "/profile", "/notifications", "/design-tokens", "/admin", "/privacy", "/terms", "/support", "/help", "/forgot-password", "/reset-password"];
+
   const isMatch = 
     validPaths.includes(currentPath) || 
+    currentPath.startsWith('/verify-email') ||
     !!checkoutMatch || 
     !!confirmationMatch || 
     !!bookingDetailMatch || 
@@ -1820,12 +1854,14 @@ function ExploreView({
               <li><a href="#" className="hover:text-amber-400 transition-colors">Sustainable Metrics</a></li>
             </ul>
           </div>
+
         </div>
         <div className="max-w-6xl mx-auto mt-10 pt-6 border-t border-slate-900 flex flex-col sm:flex-row justify-between items-center text-[10px] text-slate-500">
           <span>© 2026 Travel OS Inc. All rights reserved.</span>
           <span className="flex gap-4 mt-2 sm:mt-0">
-            <a href="#" className="hover:text-slate-300">Privacy Policy</a>
-            <a href="#" className="hover:text-slate-300">Terms of Service</a>
+            <button onClick={() => onNavigate('/privacy')} style={{background:'none',border:'none',cursor:'pointer',padding:0,fontSize:'10px'}} className="hover:text-slate-300 text-slate-500">Privacy Policy</button>
+            <button onClick={() => onNavigate('/terms')} style={{background:'none',border:'none',cursor:'pointer',padding:0,fontSize:'10px'}} className="hover:text-slate-300 text-slate-500">Terms of Service</button>
+            <button onClick={() => onNavigate('/support')} style={{background:'none',border:'none',cursor:'pointer',padding:0,fontSize:'10px'}} className="hover:text-slate-300 text-slate-500">Help & Support</button>
           </span>
         </div>
       </footer>
@@ -4623,160 +4659,1294 @@ function BusesSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => voi
   );
 }
 
+const CAB_POPULAR_HUBS = [
+  "Indira Gandhi International Airport (DEL), Terminal 3",
+  "Indira Gandhi International Airport (DEL), Terminal 1",
+  "Chhatrapati Shivaji Maharaj International Airport (BOM), Terminal 2",
+  "Kempegowda International Airport (BLR), Bengaluru",
+  "Goa International Airport (GOI), Dabolim",
+  "Manohar International Airport (GOX), Mopa Goa",
+  "Jaipur International Airport (JAI), Sanganer",
+  "New Delhi Railway Station (NDLS), Paharganj",
+  "Chhatrapati Shivaji Maharaj Terminus (CSMT), Mumbai",
+  "Connaught Place, Central Delhi",
+  "Cyber City, DLF Phase 2, Gurugram",
+  "Bandra Kurla Complex (BKC), Mumbai",
+  "Koramangala 4th Block, Bengaluru",
+  "Panaji City Center, Goa",
+  "Baga Beach / Calangute, North Goa",
+  "Taj Mahal West Gate, Agra",
+  "Hawa Mahal, Pink City, Jaipur"
+];
+
 function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void, onDetailClick: (vert: string, item: any) => void }) {
-  const [pickup, setPickup] = useState("");
-  const [drop, setDrop] = useState("");
+  const [tripType, setTripType] = useState<'one_way' | 'round_trip' | 'airport_transfer' | 'hourly'>('one_way');
+  const [pickup, setPickup] = useState("Indira Gandhi International Airport (DEL), Terminal 3");
+  const [drop, setDrop] = useState("Connaught Place, Central Delhi");
   const [showPickupSuggestions, setShowPickupSuggestions] = useState(false);
   const [showDropSuggestions, setShowDropSuggestions] = useState(false);
+  
+  // Date and time
+  const [pickupDate, setPickupDate] = useState("2026-12-15");
+  const [pickupTime, setPickupTime] = useState("10:30");
+  const [returnDate, setReturnDate] = useState("2026-12-16");
+  const [returnTime, setReturnTime] = useState("18:00");
+  
+  // Passenger & luggage counters
+  const [passengers, setPassengers] = useState(1);
+  const [luggage, setLuggage] = useState(1);
+  
+  // Airport transfer specific
+  const [airportMode, setAirportMode] = useState<'to_airport' | 'from_airport'>('from_airport');
+  const [flightNumber, setFlightNumber] = useState("6E-2045");
+  const [terminal, setTerminal] = useState("Terminal 3 (T3)");
+  
+  // Hourly package
+  const [hourlyPackage, setHourlyPackage] = useState<number>(4);
+  
+  // Filters & sorting
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [fuelFilter, setFuelFilter] = useState("all");
+  const [transmissionFilter, setTransmissionFilter] = useState("all");
+  const [acOnly, setAcOnly] = useState(false);
+  const [sortBy, setSortBy] = useState<'recommended' | 'price_asc' | 'rating_desc' | 'capacity_desc' | 'eta_asc'>('recommended');
+  
+  // Results & UI states
   const [results, setResults] = useState<any[]>([]);
+  const [tripDistance, setTripDistance] = useState<number>(24.5);
+  const [tripDuration, setTripDuration] = useState<number>(45);
   const [loading, setLoading] = useTabLoading('cabs');
+  const [expandedFareIdx, setExpandedFareIdx] = useState<number | null>(null);
+  const [selectedVehicleModal, setSelectedVehicleModal] = useState<any | null>(null);
+  
+  // Multi-passenger booking drawer / modal
+  const [bookingVehicle, setBookingVehicle] = useState<any | null>(null);
+  const [passengersList, setPassengersList] = useState<Array<{ name: string; age: number; phone: string; is_primary: boolean }>>([
+    { name: "Aditya Sharma", age: 32, phone: "+91 98765 43210", is_primary: true }
+  ]);
+  const [exactPickup, setExactPickup] = useState("");
+  const [exactDrop, setExactDrop] = useState("");
+  const [specialNotes, setSpecialNotes] = useState("");
+  const [childSeatRequested, setChildSeatRequested] = useState(false);
+  const [meetGreetRequested, setMeetGreetRequested] = useState(false);
+
+  // Sync passenger count with passenger list
+  const updatePassengerCount = (newCount: number) => {
+    const validCount = Math.max(1, Math.min(10, newCount));
+    setPassengers(validCount);
+    setPassengersList(prev => {
+      const current = [...prev];
+      if (validCount > current.length) {
+        for (let i = current.length; i < validCount; i++) {
+          current.push({ name: `Passenger ${i + 1}`, age: 28, phone: "", is_primary: false });
+        }
+      } else if (validCount < current.length) {
+        return current.slice(0, validCount);
+      }
+      return current;
+    });
+  };
+
+  const handleSwapLocations = () => {
+    const temp = pickup;
+    setPickup(drop);
+    setDrop(temp);
+  };
 
   const handleSearch = () => {
     if (!pickup.trim()) {
       alert("Please enter a pickup address.");
       return;
     }
-    if (!drop.trim()) {
+    if (tripType !== 'hourly' && !drop.trim()) {
       alert("Please enter a drop-off address.");
       return;
     }
+    if (tripType !== 'hourly' && pickup.trim().toLowerCase() === drop.trim().toLowerCase()) {
+      alert("Pickup and drop-off locations cannot be identical.");
+      return;
+    }
+
     setLoading(true);
     setResults([]);
-    fetch(`${API_URL}/search?vertical=cabs&origin=${encodeURIComponent(pickup)}&destination=${encodeURIComponent(drop)}`)
+    setExpandedFareIdx(null);
+
+    const payload = {
+      pickup_address: pickup,
+      drop_address: tripType === 'hourly' ? `Local Rental (${hourlyPackage}h Package)` : drop,
+      trip_type: tripType,
+      pickup_date: pickupDate,
+      pickup_time: pickupTime,
+      return_date: returnDate,
+      return_time: returnTime,
+      passengers: passengers,
+      luggage_count: luggage,
+      hourly_duration: hourlyPackage,
+      flight_number: tripType === 'airport_transfer' ? flightNumber : undefined,
+      terminal: tripType === 'airport_transfer' ? terminal : undefined,
+      category: categoryFilter !== 'all' ? categoryFilter : undefined
+    };
+
+    fetch(`${API_URL}/cabs/search`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    })
       .then(res => res.json())
       .then(data => {
         setLoading(false);
-        if (data && Array.isArray(data.results)) {
-          setResults(data.results);
+        if (data && Array.isArray(data.options || data.results)) {
+          const list = data.options || data.results;
+          setResults(list);
+          if (data.distance_km) setTripDistance(data.distance_km);
+          if (data.duration_mins) setTripDuration(data.duration_mins);
         }
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        // Fallback to GET search endpoint
+        fetch(`${API_URL}/search?vertical=cabs&origin=${encodeURIComponent(pickup)}&destination=${encodeURIComponent(drop)}&passengers=${passengers}`)
+          .then(res => res.json())
+          .then(data => {
+            setLoading(false);
+            if (data && Array.isArray(data.results)) {
+              setResults(data.results);
+            }
+          })
+          .catch(() => setLoading(false));
+      });
+  };
+
+  // Filtered & Sorted Results
+  const filteredVehicles = results.filter(vh => {
+    if (categoryFilter !== 'all' && (vh.category || vh.cab_type || vh.type).toLowerCase() !== categoryFilter.toLowerCase()) {
+      return false;
+    }
+    if (fuelFilter !== 'all' && (vh.fuel_type || '').toLowerCase() !== fuelFilter.toLowerCase()) {
+      return false;
+    }
+    if (transmissionFilter !== 'all' && (vh.transmission || '').toLowerCase() !== transmissionFilter.toLowerCase()) {
+      return false;
+    }
+    if (acOnly && vh.ac_available === false) {
+      return false;
+    }
+    if (vh.seating_capacity && vh.seating_capacity < passengers) {
+      return false;
+    }
+    if (luggage > 0 && vh.luggage_capacity && vh.luggage_capacity < luggage) {
+      return false;
+    }
+    return true;
+  }).sort((a, b) => {
+    if (sortBy === 'price_asc') return (a.fare || a.price) - (b.fare || b.price);
+    if (sortBy === 'rating_desc') return (b.rating || 0) - (a.rating || 0);
+    if (sortBy === 'capacity_desc') return (b.seating_capacity || 4) - (a.seating_capacity || 4);
+    if (sortBy === 'eta_asc') return (a.eta_mins || a.eta_minutes || 5) - (b.eta_mins || b.eta_minutes || 5);
+    return 0; // recommended retains verified provider sorting
+  });
+
+  const [bookingDrawerStep, setBookingDrawerStep] = useState<'details' | 'review'>('details');
+
+  const handleStartBooking = (v: any) => {
+    setBookingVehicle(v);
+    setBookingDrawerStep('details');
+    setExactPickup(pickup);
+    setExactDrop(drop);
+  };
+
+  const handleProceedToReview = () => {
+    const primary = passengersList[0];
+    if (!primary || !primary.name.trim()) {
+      alert("Please enter the primary passenger's full name.");
+      return;
+    }
+    if (!primary.phone.trim()) {
+      alert("Please enter a valid mobile contact number.");
+      return;
+    }
+    setBookingDrawerStep('review');
+  };
+
+  const handleConfirmAndProceed = () => {
+    if (!bookingVehicle) return;
+
+    const totalAmount = bookingVehicle.fare || bookingVehicle.price;
+    const finalPickup = exactPickup.trim() || pickup;
+    const finalDrop = tripType === 'hourly' ? `Local City Package (${hourlyPackage} hrs)` : (exactDrop.trim() || drop);
+
+    onBook({
+      vertical: "cabs",
+      amount: totalAmount,
+      currency: "INR",
+      details: {
+        provider_name: bookingVehicle.provider || "TravelOS Fleet",
+        cab_type: bookingVehicle.category || bookingVehicle.cab_type || bookingVehicle.type || "Sedan",
+        vehicle_name: bookingVehicle.display_name || `${bookingVehicle.brand} ${bookingVehicle.model}`,
+        brand: bookingVehicle.brand,
+        model: bookingVehicle.model,
+        image: getVehicleImage(bookingVehicle),
+        image_key: bookingVehicle.image_key || (bookingVehicle.model ? bookingVehicle.model.toLowerCase().replace(/\s+/g, '-') : 'default-car'),
+        image_url: getVehicleImage(bookingVehicle),
+        thumbnail_url: getVehicleImage(bookingVehicle),
+        plate_number: bookingVehicle.plate_number,
+        pickup_address: finalPickup,
+        drop_address: finalDrop,
+        pickup_time: `${pickupDate}T${pickupTime}:00`,
+        return_time: tripType === 'round_trip' ? `${returnDate}T${returnTime}:00` : undefined,
+        trip_type: tripType,
+        passengers_count: passengers,
+        passengers: passengersList,
+        luggage_count: luggage,
+        flight_number: tripType === 'airport_transfer' ? flightNumber : undefined,
+        terminal: tripType === 'airport_transfer' ? terminal : undefined,
+        hourly_duration: tripType === 'hourly' ? hourlyPackage : undefined,
+        distance_km: tripDistance,
+        estimated_duration_mins: tripDuration,
+        special_instructions: [
+          specialNotes,
+          childSeatRequested ? "Child seat requested" : "",
+          meetGreetRequested ? "Airport Meet & Greet requested" : ""
+        ].filter(Boolean).join(" | "),
+        driver_name: bookingVehicle.driver_name || "Verified Chauffeur (Assigned 30m prior)",
+        driver_phone: "+91 98765 43210"
+      },
+      title: `${bookingVehicle.display_name || bookingVehicle.provider} (${bookingVehicle.category || bookingVehicle.cab_type})`,
+      subtitle: `${finalPickup} ➔ ${finalDrop}`
+    });
+
+    setBookingVehicle(null);
   };
 
   return (
     <div className="space-y-6 text-black font-sans">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-900/60 p-4 rounded-2xl border border-slate-800/80">
-        <div className="space-y-1.5 relative">
-          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Pickup Address</span>
-          <input 
-            type="text" 
-            value={pickup} 
-            placeholder="e.g. Airport Terminal"
-            onChange={(e) => {
-              setPickup(e.target.value);
-              setShowPickupSuggestions(true);
-            }} 
-            onFocus={() => setShowPickupSuggestions(true)}
-            onBlur={() => setTimeout(() => setShowPickupSuggestions(false), 200)}
-            className="w-full bg-[#0e1628] border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white font-bold outline-none" 
-          />
-          {showPickupSuggestions && (
-            <div className="absolute left-0 right-0 top-[65px] bg-white border-3 border-black rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] z-50 overflow-y-auto max-h-48 text-black font-sans">
-              {POPULAR_DESTINATIONS.filter(dest => dest.toLowerCase().includes(pickup.toLowerCase()))
-                .map((dest, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onMouseDown={() => {
-                      setPickup(dest);
-                      setShowPickupSuggestions(false);
-                    }}
-                    className="w-full text-left px-3 py-2 hover:bg-yellow-300 transition-colors font-bold text-xs border-b border-slate-100 last:border-0 cursor-pointer"
-                  >
-                    {dest}
-                  </button>
-                ))}
-            </div>
-          )}
-        </div>
-        <div className="space-y-1.5 relative">
-          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Drop Address</span>
-          <input 
-            type="text" 
-            value={drop} 
-            placeholder="e.g. Taj Mahal Hotel"
-            onChange={(e) => {
-              setDrop(e.target.value);
-              setShowDropSuggestions(true);
-            }} 
-            onFocus={() => setShowDropSuggestions(true)}
-            onBlur={() => setTimeout(() => setShowDropSuggestions(false), 200)}
-            className="w-full bg-[#0e1628] border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white font-bold outline-none" 
-          />
-          {showDropSuggestions && (
-            <div className="absolute left-0 right-0 top-[65px] bg-white border-3 border-black rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] z-50 overflow-y-auto max-h-48 text-black font-sans">
-              {POPULAR_DESTINATIONS.filter(dest => dest.toLowerCase().includes(drop.toLowerCase()))
-                .map((dest, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onMouseDown={() => {
-                      setDrop(dest);
-                      setShowDropSuggestions(false);
-                    }}
-                    className="w-full text-left px-3 py-2 hover:bg-yellow-300 transition-colors font-bold text-xs border-b border-slate-100 last:border-0 cursor-pointer"
-                  >
-                    {dest}
-                  </button>
-                ))}
-            </div>
-          )}
-        </div>
-        <div className="space-y-1.5">
-          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Date & Time</span>
-          <input type="datetime-local" defaultValue="2026-12-15T10:00" className="w-full bg-[#0e1628] border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white font-bold outline-none" />
-        </div>
-        <div className="flex items-end">
-          <button 
-            onClick={handleSearch} 
-            className="w-full bg-[var(--color-gold)] hover:bg-[#d6b35d] text-[var(--color-obsidian)] font-bold text-sm py-3 rounded-[var(--radius-card)] transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider border-none"
+      {/* ── TRIP TYPE TABS ────────────────────────────────────────────── */}
+      <div className="flex flex-wrap gap-2 p-1.5 bg-slate-900/80 rounded-2xl border border-slate-800 w-fit max-w-full">
+        {[
+          { id: 'one_way', label: 'One Way Cab', icon: '🚕' },
+          { id: 'round_trip', label: 'Round Trip / Outstation', icon: '🔄' },
+          { id: 'airport_transfer', label: 'Airport Transfer', icon: '✈️' },
+          { id: 'hourly', label: 'Hourly / Local Rental', icon: '⏱️' }
+        ].map(tab => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setTripType(tab.id as any)}
+            className={`px-4 py-2 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer border ${
+              tripType === tab.id
+                ? 'bg-[var(--color-gold)] text-[var(--color-obsidian)] border-[var(--color-gold)] shadow-md font-extrabold'
+                : 'text-slate-300 hover:text-white bg-slate-800/40 border-transparent hover:border-slate-700'
+            }`}
           >
-            <Search size={14} /> Estimate Cab
+            <span>{tab.icon}</span>
+            <span>{tab.label}</span>
           </button>
+        ))}
+      </div>
+
+      {/* ── AIRPORT TRANSFER SUB-TOGGLE ─────────────────────────────────── */}
+      {tripType === 'airport_transfer' && (
+        <div className="flex items-center gap-3 bg-slate-900/60 p-3 rounded-xl border border-slate-800 text-xs">
+          <span className="text-slate-400 font-bold uppercase text-[10px]">Airport Mode:</span>
+          <button
+            type="button"
+            onClick={() => {
+              setAirportMode('from_airport');
+              setPickup("Indira Gandhi International Airport (DEL), Terminal 3");
+              setDrop("Connaught Place, Central Delhi");
+            }}
+            className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
+              airportMode === 'from_airport' ? 'bg-amber-400 text-black shadow' : 'bg-slate-800 text-slate-300'
+            }`}
+          >
+            🛬 Pickup from Airport
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setAirportMode('to_airport');
+              setPickup("Connaught Place, Central Delhi");
+              setDrop("Indira Gandhi International Airport (DEL), Terminal 3");
+            }}
+            className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
+              airportMode === 'to_airport' ? 'bg-amber-400 text-black shadow' : 'bg-slate-800 text-slate-300'
+            }`}
+          >
+            🛫 Drop to Airport
+          </button>
+        </div>
+      )}
+
+      {/* ── SEARCH FORM BAR ────────────────────────────────────────────── */}
+      <div className="bg-slate-900/70 p-5 rounded-2xl border border-slate-800 space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+          
+          {/* Pickup Address */}
+          <div className="md:col-span-4 space-y-1.5 relative">
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
+              📍 Pickup Location
+            </span>
+            <input 
+              type="text" 
+              value={pickup} 
+              placeholder="Enter Airport, Railway Station, Hotel, or Landmark"
+              onChange={(e) => {
+                setPickup(e.target.value);
+                setShowPickupSuggestions(true);
+              }} 
+              onFocus={() => setShowPickupSuggestions(true)}
+              onBlur={() => setTimeout(() => setShowPickupSuggestions(false), 250)}
+              className="w-full bg-[#0e1628] border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white font-bold outline-none focus:border-amber-400" 
+            />
+            {showPickupSuggestions && (
+              <div className="absolute left-0 right-0 top-[68px] bg-white border-2 border-black rounded-xl shadow-2xl z-50 overflow-y-auto max-h-56 text-black font-sans">
+                <div className="p-2 bg-slate-100 border-b border-slate-200 text-[10px] font-black uppercase text-slate-500">
+                  Popular Hubs & Landmarks
+                </div>
+                {CAB_POPULAR_HUBS.filter(dest => dest.toLowerCase().includes(pickup.toLowerCase()))
+                  .map((dest, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onMouseDown={() => {
+                        setPickup(dest);
+                        setShowPickupSuggestions(false);
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-amber-100 transition-colors font-bold text-xs border-b border-slate-100 last:border-0 cursor-pointer flex items-center gap-2"
+                    >
+                      <span>📍</span> {dest}
+                    </button>
+                  ))}
+              </div>
+            )}
+          </div>
+
+          {/* Swap Button */}
+          {tripType !== 'hourly' && (
+            <div className="md:col-span-1 flex items-center justify-center">
+              <button
+                type="button"
+                onClick={handleSwapLocations}
+                title="Swap Pickup and Drop Locations"
+                className="w-9 h-9 rounded-full bg-slate-800 hover:bg-amber-400 hover:text-black text-slate-300 transition-all flex items-center justify-center font-bold border border-slate-700 cursor-pointer"
+              >
+                ⇄
+              </button>
+            </div>
+          )}
+
+          {/* Drop Address (or Hourly Duration Selector) */}
+          {tripType === 'hourly' ? (
+            <div className="md:col-span-4 space-y-1.5">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                ⏱️ Package Duration
+              </span>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { hours: 4, label: '4h / 40km' },
+                  { hours: 8, label: '8h / 80km' },
+                  { hours: 12, label: '12h / 120km' }
+                ].map(pkg => (
+                  <button
+                    key={pkg.hours}
+                    type="button"
+                    onClick={() => setHourlyPackage(pkg.hours)}
+                    className={`py-2 px-2 rounded-xl text-xs font-bold transition-all border ${
+                      hourlyPackage === pkg.hours
+                        ? 'bg-amber-400 text-black border-amber-400 font-black'
+                        : 'bg-[#0e1628] text-slate-300 border-slate-800 hover:border-slate-700'
+                    }`}
+                  >
+                    {pkg.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="md:col-span-4 space-y-1.5 relative">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                🏁 Destination / Drop Location
+              </span>
+              <input 
+                type="text" 
+                value={drop} 
+                placeholder="Enter Hotel, Office, or Destination City"
+                onChange={(e) => {
+                  setDrop(e.target.value);
+                  setShowDropSuggestions(true);
+                }} 
+                onFocus={() => setShowDropSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowDropSuggestions(false), 250)}
+                className="w-full bg-[#0e1628] border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white font-bold outline-none focus:border-amber-400" 
+              />
+              {showDropSuggestions && (
+                <div className="absolute left-0 right-0 top-[68px] bg-white border-2 border-black rounded-xl shadow-2xl z-50 overflow-y-auto max-h-56 text-black font-sans">
+                  <div className="p-2 bg-slate-100 border-b border-slate-200 text-[10px] font-black uppercase text-slate-500">
+                    Popular Destinations
+                  </div>
+                  {CAB_POPULAR_HUBS.filter(dest => dest.toLowerCase().includes(drop.toLowerCase()))
+                    .map((dest, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onMouseDown={() => {
+                          setDrop(dest);
+                          setShowDropSuggestions(false);
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-amber-100 transition-colors font-bold text-xs border-b border-slate-100 last:border-0 cursor-pointer flex items-center gap-2"
+                      >
+                        <span>🏁</span> {dest}
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Search Button */}
+          <div className="md:col-span-3">
+            <button 
+              onClick={handleSearch} 
+              className="w-full bg-[var(--color-gold)] hover:bg-[#d6b35d] text-[var(--color-obsidian)] font-black text-xs py-3 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider border-none shadow-lg"
+            >
+              <Search size={14} /> Search Available Cabs
+            </button>
+          </div>
+        </div>
+
+        {/* ── SECOND ROW: DATES, PASSENGERS, LUGGAGE, FLIGHT INFO ───────── */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3 border-t border-slate-800/80">
+          
+          {/* Pickup Date & Time */}
+          <div className="space-y-1">
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">📅 Pickup Date & Time</span>
+            <div className="grid grid-cols-2 gap-1.5">
+              <input 
+                type="date" 
+                value={pickupDate}
+                onChange={(e) => setPickupDate(e.target.value)}
+                className="w-full bg-[#0e1628] border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white font-bold outline-none" 
+              />
+              <input 
+                type="time" 
+                value={pickupTime}
+                onChange={(e) => setPickupTime(e.target.value)}
+                className="w-full bg-[#0e1628] border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white font-bold outline-none" 
+              />
+            </div>
+          </div>
+
+          {/* Return Date & Time (for Round Trip) or Airport Info */}
+          {tripType === 'round_trip' ? (
+            <div className="space-y-1">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">🔄 Return Date & Time</span>
+              <div className="grid grid-cols-2 gap-1.5">
+                <input 
+                  type="date" 
+                  value={returnDate}
+                  onChange={(e) => setReturnDate(e.target.value)}
+                  className="w-full bg-[#0e1628] border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white font-bold outline-none" 
+                />
+                <input 
+                  type="time" 
+                  value={returnTime}
+                  onChange={(e) => setReturnTime(e.target.value)}
+                  className="w-full bg-[#0e1628] border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white font-bold outline-none" 
+                />
+              </div>
+            </div>
+          ) : tripType === 'airport_transfer' ? (
+            <div className="space-y-1">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">✈️ Flight & Terminal</span>
+              <div className="grid grid-cols-2 gap-1.5">
+                <input 
+                  type="text" 
+                  value={flightNumber}
+                  placeholder="Flight No."
+                  onChange={(e) => setFlightNumber(e.target.value)}
+                  className="w-full bg-[#0e1628] border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white font-bold outline-none" 
+                />
+                <select 
+                  value={terminal}
+                  onChange={(e) => setTerminal(e.target.value)}
+                  className="w-full bg-[#0e1628] border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white font-bold outline-none"
+                >
+                  <option value="Terminal 3 (T3)">T3 (Intl/Dom)</option>
+                  <option value="Terminal 2 (T2)">T2 (Domestic)</option>
+                  <option value="Terminal 1 (T1)">T1 (Domestic)</option>
+                </select>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">🚗 Service Tier</span>
+              <div className="w-full bg-[#0e1628] border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-emerald-400 font-bold flex items-center justify-between">
+                <span>Verified Chauffeur</span>
+                <span className="text-[10px] bg-emerald-950 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-800 font-mono">100% On-Time</span>
+              </div>
+            </div>
+          )}
+
+          {/* Passengers Stepper */}
+          <div className="space-y-1">
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">👥 Passengers</span>
+            <div className="flex items-center justify-between bg-[#0e1628] border border-slate-800 rounded-lg px-3 py-1 text-white">
+              <button 
+                type="button"
+                onClick={() => updatePassengerCount(passengers - 1)}
+                disabled={passengers <= 1}
+                className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-white font-bold flex items-center justify-center cursor-pointer"
+              >
+                -
+              </button>
+              <span className="font-extrabold text-xs">{passengers} {passengers === 1 ? 'Guest' : 'Guests'}</span>
+              <button 
+                type="button"
+                onClick={() => updatePassengerCount(passengers + 1)}
+                disabled={passengers >= 10}
+                className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-white font-bold flex items-center justify-center cursor-pointer"
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          {/* Luggage Stepper */}
+          <div className="space-y-1">
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">🧳 Luggage Bags</span>
+            <div className="flex items-center justify-between bg-[#0e1628] border border-slate-800 rounded-lg px-3 py-1 text-white">
+              <button 
+                type="button"
+                onClick={() => setLuggage(Math.max(0, luggage - 1))}
+                disabled={luggage <= 0}
+                className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-white font-bold flex items-center justify-center cursor-pointer"
+              >
+                -
+              </button>
+              <span className="font-extrabold text-xs">{luggage} {luggage === 1 ? 'Bag' : 'Bags'}</span>
+              <button 
+                type="button"
+                onClick={() => setLuggage(Math.min(8, luggage + 1))}
+                disabled={luggage >= 8}
+                className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-white font-bold flex items-center justify-center cursor-pointer"
+              >
+                +
+              </button>
+            </div>
+          </div>
+
         </div>
       </div>
 
-      {loading ? (
-        <div className="text-center py-6 text-slate-400 text-xs">Computing fuel tolls & routes...</div>
-      ) : results.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left">
-          {results.map((c, i) => (
-            <div key={i} className="bg-white border-3 border-black p-4 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col justify-between gap-3 text-black">
-              <div onClick={() => onDetailClick("cabs", c)} className="cursor-pointer">
-                <CardThumbnail ownerType="vehicle" ownerId={c.provider} blurHash={c.blur_hash_base64} defaultUrl={c.primary_photo_url} />
-                <div className="mt-2">
-                  <span className="text-[8px] bg-amber-100 text-amber-800 font-black px-1.5 py-0.5 rounded border border-amber-200 uppercase">Live GPS Enabled</span>
-                  <h4 className="font-extrabold text-base mt-1 text-black">{c.provider}</h4>
-                  <p className="text-xs text-slate-500 mt-1">Vehicle Class: {c.type} | Pickup ETA: {c.eta_minutes} mins</p>
-                  <p className="text-[9px] text-slate-400 mt-2">*Includes toll taxes & state permissions.</p>
+      {/* ── FILTERS & TRIP METRICS BANNER ───────────────────────────────── */}
+      {results.length > 0 && (
+        <div className="bg-white border-2 border-black p-4 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+            <div className="flex items-center gap-3">
+              <span className="text-xs bg-amber-200 text-amber-950 font-black px-2.5 py-1 rounded-lg border border-black uppercase">
+                Estimated Route: {tripDistance} km · {tripDuration} mins
+              </span>
+              <span className="text-xs font-bold text-slate-600">
+                {filteredVehicles.length} of {results.length} vehicle(s) fit your criteria
+              </span>
+            </div>
+
+            {/* Sort By Dropdown */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-500">Sort by:</span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="bg-slate-100 border border-black rounded-lg px-2.5 py-1 text-xs font-bold outline-none cursor-pointer"
+              >
+                <option value="recommended">⚡ Recommended (Best Match)</option>
+                <option value="price_asc">💰 Lowest Fare</option>
+                <option value="rating_desc">★ Highest Rated (5.0)</option>
+                <option value="capacity_desc">👥 Most Spacious</option>
+                <option value="eta_asc">⏱️ Fastest Pickup ETA</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Category & Transmission Filter Pills */}
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <span className="text-[10px] font-black uppercase text-slate-400 mr-1">Class:</span>
+            {[
+              { id: 'all', label: 'All Fleet' },
+              { id: 'Hatchback', label: 'Hatchback' },
+              { id: 'Sedan', label: 'Sedan' },
+              { id: 'SUV', label: 'SUV' },
+              { id: 'MPV', label: 'MPV / XL' },
+              { id: 'Luxury', label: 'Luxury' },
+              { id: 'EV', label: 'EV Electric' }
+            ].map(cat => (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => setCategoryFilter(cat.id)}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all border ${
+                  categoryFilter === cat.id
+                    ? 'bg-black text-white border-black shadow-sm'
+                    : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
+                }`}
+              >
+                {cat.label}
+              </button>
+            ))}
+
+            <div className="h-4 w-px bg-slate-300 mx-1 hidden sm:block"></div>
+
+            {/* Transmission Pills */}
+            <span className="text-[10px] font-black uppercase text-slate-400 mr-1 hidden sm:inline">Gearbox:</span>
+            {[
+              { id: 'all', label: 'All' },
+              { id: 'Automatic', label: 'Auto ⚙️' },
+              { id: 'Manual', label: 'Manual' }
+            ].map(t => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTransmissionFilter(t.id)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all border ${
+                  transmissionFilter === t.id
+                    ? 'bg-slate-800 text-white border-black'
+                    : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+
+            {/* AC Filter Toggle */}
+            <button
+              type="button"
+              onClick={() => setAcOnly(!acOnly)}
+              className={`ml-auto px-3 py-1 rounded-lg text-xs font-bold transition-all border ${
+                acOnly ? 'bg-blue-600 text-white border-black' : 'bg-slate-100 text-slate-700 border-slate-300'
+              }`}
+            >
+              ❄️ AC Only
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── LOADING STATE ──────────────────────────────────────────────── */}
+      {loading && (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center space-y-3">
+          <div className="w-10 h-10 border-3 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <div className="text-amber-400 font-extrabold text-sm uppercase tracking-wider">
+            Dispatching live route matrix & verified fleet...
+          </div>
+          <p className="text-xs text-slate-400">Comparing real-time tolls, state taxes, and available chauffeurs</p>
+        </div>
+      )}
+
+      {/* ── EMPTY STATE ────────────────────────────────────────────────── */}
+      {!loading && results.length > 0 && filteredVehicles.length === 0 && (
+        <div className="bg-amber-50 border-2 border-black rounded-2xl p-8 text-center space-y-2 text-black">
+          <h4 className="font-black text-base">No vehicles found matching the selected filter criteria</h4>
+          <p className="text-xs text-slate-600">
+            Try adjusting passenger count ({passengers}), luggage bags ({luggage}), or resetting category filters.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setCategoryFilter('all');
+              setFuelFilter('all');
+              setAcOnly(false);
+              setPassengers(1);
+              setLuggage(1);
+            }}
+            className="mt-2 bg-yellow-300 text-black font-extrabold text-xs px-4 py-2 border-2 border-black rounded-lg shadow"
+          >
+            Reset All Filters
+          </button>
+        </div>
+      )}
+
+      {/* ── VEHICLE FLEET CARDS GRID ───────────────────────────────────── */}
+      {!loading && filteredVehicles.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 text-left">
+          {filteredVehicles.map((c, i) => {
+            const fare = c.fare || c.price;
+            const isExpanded = expandedFareIdx === i;
+            const bdown = c.breakdown || {
+              base_fare: Math.round(fare * 0.4),
+              distance_charge: Math.round(fare * 0.4),
+              driver_allowance: 100,
+              toll_parking_estimate: 40,
+              platform_fee: 40,
+              gst_tax: Math.round(fare * 0.05)
+            };
+
+            return (
+              <div 
+                key={c.id || i} 
+                className="bg-white border-3 border-black rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] overflow-hidden flex flex-col justify-between transition-transform hover:-translate-y-0.5"
+              >
+                {/* Vehicle Image Header */}
+                <div className="relative h-44 bg-slate-950 overflow-hidden border-b-2 border-black">
+                  <img
+                    src={getVehicleImage(c)}
+                    alt={c.display_name || c.model || "Cab"}
+                    loading="lazy"
+                    className="w-full h-full object-cover object-center"
+                    onError={(e) => handleVehicleImageError(e, c)}
+                  />
+                  
+                  {/* Category & Status Badges */}
+                  <div className="absolute top-2.5 left-2.5 flex flex-wrap gap-1.5">
+                    <span className="text-[10px] bg-black text-white font-black px-2 py-0.5 rounded shadow border border-slate-700 uppercase tracking-wider">
+                      {c.category || c.cab_type || c.type}
+                    </span>
+                    {c.is_live ? (
+                      <span className="text-[10px] bg-emerald-500 text-black font-black px-2 py-0.5 rounded shadow border border-black uppercase tracking-wider animate-pulse">
+                        ● LIVE INVENTORY
+                      </span>
+                    ) : (
+                      <span className="text-[10px] bg-slate-900/90 text-slate-300 font-bold px-2 py-0.5 rounded shadow border border-slate-700 uppercase tracking-wider">
+                        ● DEMO INVENTORY
+                      </span>
+                    )}
+                  </div>
+
+                  {/* ETA Badge */}
+                  <div className="absolute bottom-2.5 right-2.5 bg-black/80 backdrop-blur-sm text-amber-300 font-mono text-[10px] font-black px-2 py-0.5 rounded border border-amber-400/50">
+                    ⏱️ Pickup in {c.eta_mins || c.eta_minutes || 5} min
+                  </div>
                 </div>
-                <span className="text-[10px] text-blue-600 font-bold block mt-1 hover:underline">View driver reviews & fuel details ➔</span>
+
+                {/* Card Content Body */}
+                <div className="p-4 space-y-3 flex-1 flex flex-col justify-between">
+                  <div>
+                    {/* Model Name & Rating */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h4 className="font-black text-base text-slate-900 leading-tight">
+                          {c.display_name || `${c.brand || ''} ${c.model || c.type}`}
+                        </h4>
+                        <span className="text-xs text-slate-500 font-bold">
+                          {c.provider || "TravelOS Chauffeur"} · {c.plate_number || "Commercial Fleet"}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-xs bg-amber-100 text-amber-900 font-black px-2 py-0.5 rounded border border-amber-300 inline-block">
+                          ★ {c.rating || 4.8}
+                        </span>
+                        <span className="block text-[9px] text-slate-400 font-bold mt-0.5">
+                          {c.review_count || 1240} ratings
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Specification Badges */}
+                    <div className="grid grid-cols-3 gap-1.5 mt-3 pt-2 border-t border-slate-100 text-[10px] font-bold text-slate-700">
+                      <div className="bg-slate-100 p-1.5 rounded-lg flex items-center gap-1">
+                        <span>👥</span>
+                        <span>{c.seating_capacity || 4} Seats</span>
+                      </div>
+                      <div className="bg-slate-100 p-1.5 rounded-lg flex items-center gap-1">
+                        <span>🧳</span>
+                        <span>{c.luggage_capacity || 2} Bags</span>
+                      </div>
+                      <div className="bg-slate-100 p-1.5 rounded-lg flex items-center gap-1">
+                        <span>❄️</span>
+                        <span>{c.ac_available !== false ? 'AC' : 'Non-AC'}</span>
+                      </div>
+                      <div className="bg-slate-100 p-1.5 rounded-lg flex items-center gap-1">
+                        <span>⚙️</span>
+                        <span>{c.transmission || 'Manual'}</span>
+                      </div>
+                      <div className="bg-slate-100 p-1.5 rounded-lg flex items-center gap-1">
+                        <span>⛽</span>
+                        <span>{c.fuel_type || 'Petrol'}</span>
+                      </div>
+                      <div className="bg-slate-100 p-1.5 rounded-lg flex items-center gap-1">
+                        <span>🛡️</span>
+                        <span>Verified</span>
+                      </div>
+                    </div>
+
+                    {/* Chauffeur info */}
+                    <div className="mt-2.5 bg-slate-50 border border-slate-200 p-2 rounded-xl text-[11px] text-slate-600 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 font-bold">
+                        <span>👨‍✈️</span> {c.driver_name || "Verified Professional Chauffeur"}
+                      </span>
+                      <span className="text-[10px] text-emerald-700 font-black">Sanitized Cab</span>
+                    </div>
+
+                    {/* Expandable Transparent Fare Breakdown */}
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedFareIdx(isExpanded ? null : i)}
+                        className="text-[10px] text-blue-600 hover:text-blue-800 font-black flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>{isExpanded ? '▲ Hide Fare Breakdown' : '▼ View Transparent Fare Breakdown'}</span>
+                      </button>
+
+                      {isExpanded && (
+                        <div className="mt-2 bg-slate-900 text-white p-3 rounded-xl border border-slate-800 text-[10px] space-y-1 font-mono">
+                          <div className="flex justify-between text-slate-300">
+                            <span>Base Fare:</span>
+                            <span>₹{bdown.base_fare}</span>
+                          </div>
+                          <div className="flex justify-between text-slate-300">
+                            <span>Distance Charge ({tripDistance} km):</span>
+                            <span>₹{bdown.distance_charge}</span>
+                          </div>
+                          <div className="flex justify-between text-slate-300">
+                            <span>Driver Allowance:</span>
+                            <span>₹{bdown.driver_allowance}</span>
+                          </div>
+                          <div className="flex justify-between text-slate-300">
+                            <span>Toll & Parking Estimate:</span>
+                            <span>₹{bdown.toll_parking_estimate}</span>
+                          </div>
+                          <div className="flex justify-between text-slate-300">
+                            <span>Platform Fee:</span>
+                            <span>₹{bdown.platform_fee}</span>
+                          </div>
+                          <div className="flex justify-between text-slate-300">
+                            <span>GST Tax (5%):</span>
+                            <span>₹{bdown.gst_tax}</span>
+                          </div>
+                          <div className="flex justify-between pt-1 border-t border-slate-700 text-amber-400 font-bold">
+                            <span>Total Estimated:</span>
+                            <span>₹{fare.toLocaleString()}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Pricing & Booking Action Bar */}
+                  <div className="pt-3 border-t-2 border-slate-100 flex items-center justify-between gap-2">
+                    <div>
+                      <span className="text-[9px] text-slate-400 uppercase font-black block">Total Payable</span>
+                      <div className="flex items-baseline gap-1">
+                        <span className="font-black text-red-600 text-lg">₹{fare.toLocaleString()}</span>
+                        <span className="text-[10px] text-slate-500 font-bold">all inclusive</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedVehicleModal(c)}
+                        className="px-2.5 py-2 text-[10px] font-black uppercase text-slate-700 bg-slate-100 hover:bg-slate-200 border-2 border-black rounded-lg transition-all"
+                      >
+                        Specs
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleStartBooking(c)}
+                        className="px-4 py-2 text-xs font-black uppercase bg-yellow-300 hover:bg-yellow-400 text-black border-2 border-black rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer"
+                      >
+                        Book Cab
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="flex justify-between items-center pt-2 border-t border-slate-100">
-                <div>
-                  <span className="text-[8px] text-slate-400 block uppercase font-bold">Estimated Fare</span>
-                  <span className="font-black text-red-500 text-sm">₹{c.price.toLocaleString()}</span>
-                </div>
-                <button 
-                  onClick={() => onBook({
-                    vertical: "cabs",
-                    amount: c.price,
-                    details: {
-                      provider_name: c.provider,
-                      cab_type: c.type,
-                      pickup_address: pickup,
-                      drop_address: drop
-                    },
-                    title: `${c.provider} (${c.type})`,
-                    subtitle: `${pickup} ➔ ${drop}`
-                  })}
-                  className="bg-yellow-300 text-xs font-black px-4 py-2 border-2 border-black rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:bg-yellow-400 transition-all uppercase"
-                >
-                  Book Cab
-                </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── VEHICLE DETAILS MODAL ──────────────────────────────────────── */}
+      {selectedVehicleModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[999] flex items-center justify-center p-4">
+          <div className="bg-white border-3 border-black rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] text-left">
+            <div className="flex items-center justify-between border-b-2 border-black pb-3">
+              <div>
+                <span className="text-[10px] bg-black text-white font-black px-2 py-0.5 rounded uppercase">
+                  {selectedVehicleModal.category || selectedVehicleModal.cab_type}
+                </span>
+                <h3 className="text-xl font-black text-black mt-1">
+                  {selectedVehicleModal.display_name || `${selectedVehicleModal.brand} ${selectedVehicleModal.model}`}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedVehicleModal(null)}
+                className="w-8 h-8 rounded-full border-2 border-black bg-red-500 text-white font-black flex items-center justify-center cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <img
+              src={getVehicleImage(selectedVehicleModal)}
+              alt={selectedVehicleModal.display_name}
+              loading="lazy"
+              className="w-full h-48 object-cover rounded-xl border-2 border-black"
+              onError={(e) => handleVehicleImageError(e, selectedVehicleModal)}
+            />
+
+            <div className="grid grid-cols-2 gap-2 text-xs font-bold text-slate-800">
+              <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                <span className="text-[10px] text-slate-400 block uppercase">Seating Capacity</span>
+                👥 {selectedVehicleModal.seating_capacity || 4} Passengers Max
+              </div>
+              <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                <span className="text-[10px] text-slate-400 block uppercase">Luggage Capacity</span>
+                🧳 {selectedVehicleModal.luggage_capacity || 2} Large Trolley Bags
+              </div>
+              <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                <span className="text-[10px] text-slate-400 block uppercase">Air Conditioning</span>
+                ❄️ {selectedVehicleModal.ac_available !== false ? 'Powerful Climate Control AC' : 'Non-AC'}
+              </div>
+              <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                <span className="text-[10px] text-slate-400 block uppercase">Transmission & Fuel</span>
+                ⚙️ {selectedVehicleModal.transmission} · ⛽ {selectedVehicleModal.fuel_type}
               </div>
             </div>
-          ))}
+
+            <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs space-y-1">
+              <h5 className="font-black text-amber-900">🛡️ Travel OS Chauffeur Guarantee</h5>
+              <p className="text-amber-800 text-[11px]">
+                Free cancellation up to 2 hours before departure. Chauffeur details and live dispatch tracking link are transmitted via SMS/WhatsApp 30 minutes prior to pickup.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setSelectedVehicleModal(null)}
+                className="px-4 py-2 text-xs font-black uppercase bg-slate-200 hover:bg-slate-300 border-2 border-black rounded-lg"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const vh = selectedVehicleModal;
+                  setSelectedVehicleModal(null);
+                  handleStartBooking(vh);
+                }}
+                className="px-5 py-2 text-xs font-black uppercase bg-yellow-300 hover:bg-yellow-400 border-2 border-black rounded-lg shadow"
+              >
+                Proceed to Book
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MULTI-PASSENGER BOOKING DRAWER / MODAL ───────────────────────── */}
+      {bookingVehicle && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[999] flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white border-3 border-black rounded-2xl max-w-2xl w-full p-6 space-y-5 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] text-left max-h-[90vh] overflow-y-auto">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between border-b-2 border-black pb-3">
+              <div>
+                <span className="text-[10px] bg-black text-white font-black px-2 py-0.5 rounded uppercase">
+                  Cab Reservation Details
+                </span>
+                <h3 className="text-xl font-black text-black mt-1">
+                  Booking {bookingVehicle.display_name || bookingVehicle.model} ({bookingVehicle.category || bookingVehicle.cab_type})
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBookingVehicle(null)}
+                className="w-8 h-8 rounded-full border-2 border-black bg-red-500 text-white font-black flex items-center justify-center cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Trip Route Summary */}
+            <div className="bg-slate-900 text-white p-3.5 rounded-xl border border-slate-800 space-y-2 text-xs">
+              <div className="flex justify-between items-center text-[11px] text-amber-400 font-mono font-bold">
+                <span>Trip Type: {tripType.replace('_', ' ').toUpperCase()}</span>
+                <span>Est: {tripDistance} km · {tripDuration} mins</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span className="text-[9px] text-slate-400 uppercase block font-bold">Pickup Location:</span>
+                  <span className="font-bold text-white">{pickup}</span>
+                  <span className="block text-[10px] text-slate-400 font-mono mt-0.5">📅 {pickupDate} at {pickupTime}</span>
+                </div>
+                <div>
+                  <span className="text-[9px] text-slate-400 uppercase block font-bold">Drop Location:</span>
+                  <span className="font-bold text-white">{tripType === 'hourly' ? `Local Rental Package (${hourlyPackage} hrs)` : drop}</span>
+                  {tripType === 'round_trip' && (
+                    <span className="block text-[10px] text-slate-400 font-mono mt-0.5">🔄 Return: {returnDate} at {returnTime}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Step 1: Details */}
+            {bookingDrawerStep === 'details' && (
+              <>
+                {/* Exact Addresses / Landmarks */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-slate-500 font-bold uppercase">Exact Pickup Address / Landmark</span>
+                    <input
+                      type="text"
+                      value={exactPickup}
+                      placeholder="House / Office No., Gate, Landmark"
+                      onChange={(e) => setExactPickup(e.target.value)}
+                      className="w-full bg-slate-50 border-2 border-black rounded-lg px-3 py-2 text-xs font-bold outline-none"
+                    />
+                  </div>
+                  {tripType !== 'hourly' && (
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-500 font-bold uppercase">Exact Drop Address / Landmark</span>
+                      <input
+                        type="text"
+                        value={exactDrop}
+                        placeholder="Hotel Name, Tower, Gate"
+                        onChange={(e) => setExactDrop(e.target.value)}
+                        className="w-full bg-slate-50 border-2 border-black rounded-lg px-3 py-2 text-xs font-bold outline-none"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Multi-Passenger Cards */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h5 className="font-black text-xs uppercase text-slate-800">
+                      Passenger Information ({passengersList.length} {passengersList.length === 1 ? 'Guest' : 'Guests'})
+                    </h5>
+                    <span className="text-[10px] text-slate-500 font-bold">
+                      Vehicle Capacity: {bookingVehicle.seating_capacity || 4} Seats
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {passengersList.map((pax, idx) => (
+                      <div key={idx} className="p-3 bg-slate-50 border border-slate-300 rounded-xl space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black uppercase text-slate-700">
+                            {idx === 0 ? '👤 Primary Passenger (Contact)' : `👤 Passenger ${idx + 1}`}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                          <div>
+                            <input
+                              type="text"
+                              value={pax.name}
+                              placeholder="Full Name"
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setPassengersList(prev => {
+                                  const updated = [...prev];
+                                  updated[idx] = { ...updated[idx], name: val };
+                                  return updated;
+                                });
+                              }}
+                              className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none"
+                            />
+                          </div>
+                          <div>
+                            <input
+                              type="number"
+                              value={pax.age}
+                              placeholder="Age"
+                              min={1}
+                              max={100}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value) || 30;
+                                setPassengersList(prev => {
+                                  const updated = [...prev];
+                                  updated[idx] = { ...updated[idx], age: val };
+                                  return updated;
+                                });
+                              }}
+                              className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none"
+                            />
+                          </div>
+                          <div>
+                            <input
+                              type="tel"
+                              value={pax.phone}
+                              placeholder={idx === 0 ? "Mobile Phone (+91)" : "Phone (Optional)"}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setPassengersList(prev => {
+                                  const updated = [...prev];
+                                  updated[idx] = { ...updated[idx], phone: val };
+                                  return updated;
+                                });
+                              }}
+                              className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Special Instructions & Add-ons */}
+                <div className="space-y-2">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase">Special Instructions / Driver Notes</span>
+                  <input
+                    type="text"
+                    value={specialNotes}
+                    placeholder="e.g. Extra luggage assistance, quiet ride, AC temperature preference"
+                    onChange={(e) => setSpecialNotes(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs font-bold outline-none"
+                  />
+
+                  <div className="flex flex-wrap gap-4 pt-1 text-xs font-bold text-slate-700">
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={childSeatRequested}
+                        onChange={(e) => setChildSeatRequested(e.target.checked)}
+                        className="accent-black"
+                      />
+                      <span>Child Booster Seat</span>
+                    </label>
+                    {tripType === 'airport_transfer' && (
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={meetGreetRequested}
+                          onChange={(e) => setMeetGreetRequested(e.target.checked)}
+                          className="accent-black"
+                        />
+                        <span>Airport Meet & Greet with Nameboard</span>
+                      </label>
+                    )}
+                  </div>
+                </div>
+
+                {/* Step 1 Footer Action */}
+                <div className="pt-3 border-t-2 border-black flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase block">Estimated Fare</span>
+                    <span className="text-2xl font-black text-slate-900">
+                      ₹{(bookingVehicle.fare || bookingVehicle.price).toLocaleString()}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setBookingVehicle(null)}
+                      className="px-4 py-2 text-xs font-black uppercase bg-slate-100 hover:bg-slate-200 border-2 border-black rounded-lg"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleProceedToReview}
+                      className="px-6 py-2.5 text-xs font-black uppercase bg-yellow-300 hover:bg-yellow-400 text-black border-2 border-black rounded-lg shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
+                    >
+                      Review Booking & Fare →
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Step 2: Review Booking & Full Fare Breakdown */}
+            {bookingDrawerStep === 'review' && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-4 bg-slate-50 border-2 border-black p-3.5 rounded-xl">
+                  <img
+                    src={getVehicleImage(bookingVehicle)}
+                    alt={bookingVehicle.display_name}
+                    className="w-24 h-16 object-cover rounded-lg border border-black"
+                    onError={(e) => handleVehicleImageError(e, bookingVehicle)}
+                  />
+                  <div>
+                    <span className="text-[10px] bg-black text-white font-black px-1.5 py-0.5 rounded uppercase">
+                      {bookingVehicle.category || bookingVehicle.cab_type || 'Cab'}
+                    </span>
+                    <h4 className="text-base font-black text-black mt-0.5">
+                      {bookingVehicle.display_name || `${bookingVehicle.brand} ${bookingVehicle.model}`}
+                    </h4>
+                    <span className="text-xs text-slate-600 font-bold">
+                      👥 {passengers} Guests · 🧳 {luggage} Bags · ⚙️ {bookingVehicle.transmission || 'Auto'} · ❄️ AC
+                    </span>
+                  </div>
+                </div>
+
+                {/* Detailed Authoritative Price Breakdown */}
+                <div className="bg-slate-900 text-white p-4 rounded-xl border border-slate-800 space-y-2 text-xs">
+                  <h5 className="text-[11px] font-black uppercase text-amber-400 border-b border-slate-800 pb-1.5 flex items-center justify-between">
+                    <span>🧾 Authoritative Fare Breakdown</span>
+                    <span className="text-emerald-400">Guaranteed Pricing</span>
+                  </h5>
+                  <div className="space-y-1.5 pt-1 text-slate-300 text-xs font-mono">
+                    <div className="flex justify-between">
+                      <span>Base Fare</span>
+                      <span>₹{bookingVehicle.breakdown?.base_fare || bookingVehicle.base_fare || 250}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Distance Charge ({tripDistance} km)</span>
+                      <span>₹{bookingVehicle.breakdown?.distance_charge || Math.round(tripDistance * 16)}</span>
+                    </div>
+                    {bookingVehicle.breakdown?.driver_allowance > 0 && (
+                      <div className="flex justify-between">
+                        <span>Chauffeur Allowance</span>
+                        <span>₹{bookingVehicle.breakdown.driver_allowance}</span>
+                      </div>
+                    )}
+                    {tripType === 'airport_transfer' && (
+                      <div className="flex justify-between">
+                        <span>Airport Terminal Surcharge</span>
+                        <span>₹100</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span>Estimated Tolls & State Taxes</span>
+                      <span>₹{bookingVehicle.breakdown?.toll_parking || 100}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Platform Service Fee</span>
+                      <span>₹40</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>GST (5% Goods & Service Tax)</span>
+                      <span>₹{bookingVehicle.breakdown?.gst || Math.round((bookingVehicle.fare || bookingVehicle.price) * 0.05)}</span>
+                    </div>
+                    <div className="border-t border-slate-700 pt-2 flex justify-between text-base font-black text-amber-400">
+                      <span>Total All-Inclusive Payable</span>
+                      <span>₹{(bookingVehicle.fare || bookingVehicle.price).toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-xs space-y-0.5">
+                  <span className="font-black text-emerald-900 block">🛡️ Free Cancellation Guarantee</span>
+                  <span className="text-emerald-800 text-[11px] block">
+                    Cancel anytime up to 2 hours before pickup for a 95% instant refund to your Travel OS wallet.
+                  </span>
+                </div>
+
+                {/* Step 2 Actions */}
+                <div className="pt-3 border-t-2 border-black flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setBookingDrawerStep('details')}
+                    className="px-4 py-2 text-xs font-black uppercase bg-slate-100 hover:bg-slate-200 border-2 border-black rounded-lg"
+                  >
+                    ← Edit Details
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmAndProceed}
+                    className="px-6 py-2.5 text-xs font-black uppercase bg-yellow-300 hover:bg-yellow-400 text-black border-2 border-black rounded-lg shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span>⚡</span>
+                    <span>Hold & Continue to Payment</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+          </div>
         </div>
       )}
     </div>
@@ -10540,8 +11710,18 @@ function SEOMegaFooter({ onNavigate }: { onNavigate?: (path: string) => void }) 
             </div>
           </div>
           <div className="text-center md:text-right text-[10px] text-[var(--color-ivory-dim)] font-medium max-w-md leading-relaxed">
-            © 2026 Travel OS Monolith Operating System. Built with React, FastAPI, LangGraph, and Tailwind v4. All rights reserved.
+            <div>© 2026 Travel OS Monolith Operating System. Built with React, FastAPI, LangGraph, and Tailwind v4. All rights reserved.</div>
+            <div className="flex gap-3 justify-center md:justify-end mt-1.5 flex-wrap">
+              {onNavigate && (
+                <>
+                  <button onClick={() => onNavigate('/privacy')} style={{background:'none',border:'none',cursor:'pointer',padding:0,fontSize:'10px',color:'inherit'}} className="hover:text-[var(--color-gold)] transition-colors">Privacy Policy</button>
+                  <button onClick={() => onNavigate('/terms')} style={{background:'none',border:'none',cursor:'pointer',padding:0,fontSize:'10px',color:'inherit'}} className="hover:text-[var(--color-gold)] transition-colors">Terms of Service</button>
+                  <button onClick={() => onNavigate('/support')} style={{background:'none',border:'none',cursor:'pointer',padding:0,fontSize:'10px',color:'inherit'}} className="hover:text-[var(--color-gold)] transition-colors">Help &amp; Support</button>
+                </>
+              )}
+            </div>
           </div>
+
         </div>
 
       </div>
@@ -12135,6 +13315,9 @@ function RentARidePage({ city, pickup, drop, initialType, initialSelfDrive, link
   }, [deliveryMode, pickupAddress]);
 
   // Handle filter & sorting logic
+  const flPassengersVal = sessionStorage.getItem("fl_passengers");
+  const numTravelers = flPassengersVal ? parseInt(flPassengersVal, 10) : 1;
+
   const filteredVehicles = vehicles
     .filter(v => {
       if (selectedType !== "all" && v.type.toLowerCase() !== selectedType.toLowerCase()) return false;
@@ -12144,6 +13327,8 @@ function RentARidePage({ city, pickup, drop, initialType, initialSelfDrive, link
       if (selfDrive && !v.self_drive_available) return false;
       if (!selfDrive && !v.with_driver_available) return false;
       if (instantConfirmOnly && !v.instant_confirm) return false;
+      // Filter out vehicles that cannot accommodate the traveler count
+      if (v.seating_capacity < numTravelers) return false;
       return true;
     })
     .sort((a, b) => {
@@ -12204,7 +13389,9 @@ function RentARidePage({ city, pickup, drop, initialType, initialSelfDrive, link
         linked_booking_reference: linkedBookingReference || null,
         delivery_mode: isDelivery ? "Doorstep Delivery" : "Hub Depot Pickup",
         pickup_address: pickupAddress,
-        delivery_fee: isDelivery ? deliveryFee : 0.0
+        delivery_fee: isDelivery ? deliveryFee : 0.0,
+        passenger_count: numTravelers,
+        passengers: Array.from({ length: numTravelers }, (_, i) => ({ name: `Traveler Guest ${i+1}`, age: 32 }))
       }
     });
   };
@@ -12867,193 +14054,345 @@ function ActiveRentalManager({ bookingReference, fetchTrips, setSelectedTrip }: 
 }
 
 
-function LoginScreen({ onLogin }: { onLogin: (token: string, refreshToken: string, role: string, email: string) => void }) {
+function LoginScreen({ onLogin, onNavigate }: {
+  onLogin: (token: string, refreshToken: string, role: string, email: string) => void;
+  onNavigate?: (path: string) => void;
+}) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendMsg, setResendMsg] = useState("");
+
+  // ── Password strength ──
+  const getStrength = (pw: string): { score: number; label: string; color: string } => {
+    if (!pw) return { score: 0, label: "", color: "" };
+    let score = 0;
+    if (pw.length >= 8) score++;
+    if (pw.length >= 12) score++;
+    if (/[A-Z]/.test(pw)) score++;
+    if (/[a-z]/.test(pw)) score++;
+    if (/\d/.test(pw)) score++;
+    if (/[^A-Za-z0-9]/.test(pw)) score++;
+    if (score <= 2) return { score, label: "Weak", color: "#ef4444" };
+    if (score <= 4) return { score, label: "Fair", color: "#f59e0b" };
+    return { score, label: "Strong", color: "#22c55e" };
+  };
+  const strength = getStrength(password);
+
+  // ── Client-side validation ──
+  const validate = (): boolean => {
+    const errs: Record<string, string> = {};
+    if (isSignUp) {
+      const trimmedName = fullName.trim().replace(/\s+/g, " ");
+      if (!trimmedName) errs.fullName = "Please enter your full name.";
+      else if (trimmedName.length < 2) errs.fullName = "Name must be at least 2 characters.";
+      else if (!/[a-zA-Z]/.test(trimmedName)) errs.fullName = "Name must contain at least one letter.";
+    }
+    if (!email.trim()) errs.email = "Please enter your email address.";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) errs.email = "Please enter a valid email address.";
+    if (!password) errs.password = "Please enter a password.";
+    else if (password.length < 8) errs.password = "Password must be at least 8 characters.";
+    else if (!/[A-Z]/.test(password)) errs.password = "Password must contain an uppercase letter.";
+    else if (!/[a-z]/.test(password)) errs.password = "Password must contain a lowercase letter.";
+    else if (!/\d/.test(password)) errs.password = "Password must contain a number.";
+    if (isSignUp && confirmPassword !== password) errs.confirmPassword = "Passwords do not match.";
+    setFieldErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const handleResendCode = async () => {
+    if (!unverifiedEmail) return;
+    setResendLoading(true);
+    setResendMsg("");
+    try {
+      const resp = await fetch(`${API_URL}/auth/resend-verification`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: unverifiedEmail }),
+      });
+      const data = await resp.json();
+      if (resp.status === 429) {
+        setResendMsg(data.detail || "Please wait before requesting another code.");
+      } else {
+        setResendMsg("A new verification code has been sent to your email.");
+        if (onNavigate) onNavigate(`/verify-email?email=${encodeURIComponent(unverifiedEmail)}`);
+      }
+    } catch {
+      setResendMsg("Unable to resend. Please try again.");
+    } finally {
+      setResendLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password || (isSignUp && (!fullName || !phone))) {
-      setErrorMsg("Please fill in all mandatory fields.");
-      return;
-    }
     setErrorMsg("");
+    setResendMsg("");
+    if (!validate()) return;
     setLoading(true);
-
     try {
       if (isSignUp) {
-        // Sign Up
         const signupResp = await fetch(`${API_URL}/auth/signup`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            full_name: fullName,
-            email, 
-            password, 
-            phone 
-          })
+          body: JSON.stringify({
+            full_name: fullName.trim().replace(/\s+/g, " "),
+            email: email.trim().toLowerCase(),
+            password,
+            phone: phone || undefined,
+          }),
         });
         const signupData = await signupResp.json();
         if (!signupResp.ok) {
-          throw new Error(signupData.detail || "Sign up failed");
+          const msg = signupData.detail || "Sign up failed. Please try again.";
+          if (msg.toLowerCase().includes("already exists") || msg.toLowerCase().includes("already registered")) {
+            setErrorMsg("An account with this email already exists. Please log in or reset your password.");
+          } else {
+            setErrorMsg(msg);
+          }
+          return;
         }
+        // Success — navigate to verify-email
+        if (onNavigate) {
+          onNavigate(`/verify-email?email=${encodeURIComponent(email.trim().toLowerCase())}`);
+        } else {
+          setErrorMsg("Account created! Please check your email for a verification code, then log in.");
+          setIsSignUp(false);
+        }
+        return;
       }
 
-      // Login
-      const details = {
-        'username': email,
-        'password': password
-      };
-      
-      const formBody = Object.keys(details)
-        .map(key => encodeURIComponent(key) + '=' + encodeURIComponent((details as any)[key]))
-        .join('&');
-
-      let loginResp;
+      // ── Login ──
+      const formBody = `username=${encodeURIComponent(email.trim())}&password=${encodeURIComponent(password)}`;
+      let loginResp: Response;
       try {
         loginResp = await fetch(`${API_URL}/auth/token`, {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: formBody
+          body: formBody,
         });
-      } catch (networkErr: any) {
-        throw new Error("Network / CORS preflight error: Unable to connect to the authentication server. Please check your internet connection or verify DNS/CORS configuration.");
+      } catch {
+        throw new Error("Unable to connect to the server. Please check your internet connection.");
       }
 
-      let loginData;
-      try {
-        loginData = await loginResp.json();
-      } catch (jsonErr) {
-        throw new Error(`Server returned invalid response structure (HTTP ${loginResp.status}).`);
+      let loginData: any;
+      try { loginData = await loginResp.json(); } catch {
+        throw new Error(`Server returned an unexpected response (HTTP ${loginResp.status}).`);
       }
 
       if (!loginResp.ok) {
-        if (loginResp.status === 401) {
-          throw new Error(loginData.detail || "Incorrect email or password. Access Denied.");
-        } else if (loginResp.status === 422) {
-          throw new Error("Validation Error: Please ensure you entered a valid email and password.");
-        } else if (loginResp.status === 429) {
-          throw new Error("Too Many Requests: Rate limit exceeded. Please wait a minute and try again.");
-        } else {
-          throw new Error(loginData.detail || `Server Error (HTTP ${loginResp.status}). Please contact support.`);
+        if (loginResp.status === 403 && loginData.detail === "EMAIL_NOT_VERIFIED") {
+          setUnverifiedEmail(email.trim());
+          setErrorMsg("Please verify your email before logging in.");
+          return;
         }
+        if (loginResp.status === 401) throw new Error("Incorrect email or password.");
+        if (loginResp.status === 429) throw new Error("Too many requests. Please wait a moment and try again.");
+        throw new Error(loginData.detail || `Login failed (HTTP ${loginResp.status}).`);
       }
 
+      setUnverifiedEmail(null);
       const accessToken = loginData.access_token;
       const decoded = decodeJwt(accessToken);
-      if (!decoded) {
-        throw new Error("Could not parse login token.");
-      }
-
+      if (!decoded) throw new Error("Could not parse login token.");
       onLogin(accessToken, loginData.refresh_token, decoded.role || "user", decoded.sub || email);
     } catch (err: any) {
-      setErrorMsg(err.message || "Something went wrong.");
+      setErrorMsg(err.message || "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
+  const inputCls = "w-full bg-slate-50 border-2 border-black p-2.5 text-xs font-semibold placeholder-slate-400 focus:bg-white focus:border-blue-600 focus:outline-none rounded-lg transition-colors";
+  const errorCls = "text-red-500 text-[10px] mt-1 font-semibold";
+
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-[var(--color-obsidian)] p-4 z-50 overflow-y-auto">
       <div className="absolute inset-0 bg-[radial-gradient(#d4af37_1px,transparent_1px)] [background-size:24px_24px] opacity-10" />
-      
-      <div className="bg-white text-black border-4 border-black p-8 max-w-md w-full relative z-10 shadow-[8px_8px_0px_0px_#000000] rounded-[24px]">
+
+      <div className="bg-white text-black border-4 border-black p-8 max-w-md w-full relative z-10 shadow-[8px_8px_0px_0px_#000000] rounded-[24px] my-8">
         <div className="text-center mb-6">
           <span className="font-serif italic font-black text-2xl text-[var(--color-gold)] bg-black px-4 py-1.5 inline-block text-white shadow-[4px_4px_0px_0px_rgba(212,175,55,1)]">
             TRAVEL OS
           </span>
           <h2 className="text-xl font-extrabold uppercase mt-6 tracking-wide">
-            {isSignUp ? "Create Secure Account" : "Secure System Initialize"}
+            {isSignUp ? "Create Account" : "Welcome Back"}
           </h2>
           <p className="text-xs text-slate-500 font-bold uppercase mt-1">
-            {isSignUp ? "Join the premium travel network" : "Enter credentials to access travel desk"}
+            {isSignUp ? "Join the premium travel network" : "Sign in to your account"}
           </p>
         </div>
 
         {errorMsg && (
-          <div className="bg-red-50 border-2 border-red-600 p-3 text-red-600 font-black text-xs uppercase text-left rounded-lg shadow-[2px_2px_0px_0px_#000000] mb-4">
-            ⚠️ {errorMsg}
+          <div className="bg-red-50 border-2 border-red-500 p-3 rounded-lg mb-4">
+            <p className="text-red-600 font-bold text-xs">⚠️ {errorMsg}</p>
+            {unverifiedEmail && (
+              <div className="mt-3 flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => onNavigate && onNavigate(`/verify-email?email=${encodeURIComponent(unverifiedEmail)}`)}
+                  className="w-full bg-blue-600 text-white text-[10px] font-black uppercase py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Enter Verification Code →
+                </button>
+                <button
+                  type="button"
+                  disabled={resendLoading}
+                  onClick={handleResendCode}
+                  className="w-full bg-slate-100 text-slate-700 text-[10px] font-bold uppercase py-2 rounded-lg hover:bg-slate-200 transition-colors"
+                >
+                  {resendLoading ? "Sending..." : "Resend Verification Code"}
+                </button>
+                {resendMsg && <p className="text-[10px] text-blue-600 font-semibold text-center">{resendMsg}</p>}
+              </div>
+            )}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4 text-left">
+        <form onSubmit={handleSubmit} className="space-y-4 text-left" noValidate>
           {isSignUp && (
             <div>
-              <label className="text-[10px] uppercase font-black text-slate-600 block mb-1">Full Name (Auto-fills Ticket Bookings)</label>
-              <input 
-                type="text" 
-                required
+              <label className="text-[10px] uppercase font-black text-slate-600 block mb-1">Full Name *</label>
+              <input
+                type="text"
                 value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="John Doe"
-                className="w-full bg-slate-50 border-3 border-black p-2.5 text-xs font-black placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-0 rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                onChange={e => { setFullName(e.target.value); setFieldErrors(p => ({ ...p, fullName: "" })); }}
+                placeholder="e.g. Priya Sharma"
+                className={`${inputCls} ${fieldErrors.fullName ? "border-red-500" : ""}`}
+                autoComplete="name"
               />
+              {fieldErrors.fullName && <p className={errorCls}>{fieldErrors.fullName}</p>}
             </div>
           )}
 
           <div>
-            <label className="text-[10px] uppercase font-black text-slate-600 block mb-1">Email Desk Authority</label>
-            <input 
-              type="email" 
-              required
+            <label className="text-[10px] uppercase font-black text-slate-600 block mb-1">Email Address *</label>
+            <input
+              type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="user@example.com"
-              className="w-full bg-slate-50 border-3 border-black p-2.5 text-xs font-black placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-0 rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+              onChange={e => { setEmail(e.target.value); setFieldErrors(p => ({ ...p, email: "" })); setUnverifiedEmail(null); }}
+              placeholder="you@example.com"
+              className={`${inputCls} ${fieldErrors.email ? "border-red-500" : ""}`}
+              autoComplete={isSignUp ? "email" : "username"}
             />
+            {fieldErrors.email && <p className={errorCls}>{fieldErrors.email}</p>}
           </div>
 
           <div>
-            <label className="text-[10px] uppercase font-black text-slate-600 block mb-1">Access Password</label>
-            <input 
-              type="password" 
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full bg-slate-50 border-3 border-black p-2.5 text-xs font-black placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-0 rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
-            />
+            <label className="text-[10px] uppercase font-black text-slate-600 block mb-1">Password *</label>
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={e => { setPassword(e.target.value); setFieldErrors(p => ({ ...p, password: "" })); }}
+                placeholder="••••••••"
+                className={`${inputCls} pr-10 ${fieldErrors.password ? "border-red-500" : ""}`}
+                autoComplete={isSignUp ? "new-password" : "current-password"}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(v => !v)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-[11px] font-bold"
+                tabIndex={-1}
+              >
+                {showPassword ? "HIDE" : "SHOW"}
+              </button>
+            </div>
+            {fieldErrors.password && <p className={errorCls}>{fieldErrors.password}</p>}
+            {isSignUp && password && (
+              <div className="mt-1.5">
+                <div className="flex gap-1 mb-1">
+                  {[1,2,3,4,5,6].map(i => (
+                    <div key={i} className="h-1 flex-1 rounded-full transition-all" style={{ background: i <= strength.score ? strength.color : "#e2e8f0" }} />
+                  ))}
+                </div>
+                {strength.label && <p className="text-[10px] font-bold" style={{ color: strength.color }}>{strength.label} password</p>}
+              </div>
+            )}
           </div>
 
           {isSignUp && (
             <div>
-              <label className="text-[10px] uppercase font-black text-slate-600 block mb-1">Phone Contact</label>
-              <input 
-                type="tel" 
-                required
+              <label className="text-[10px] uppercase font-black text-slate-600 block mb-1">Confirm Password *</label>
+              <div className="relative">
+                <input
+                  type={showConfirm ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={e => { setConfirmPassword(e.target.value); setFieldErrors(p => ({ ...p, confirmPassword: "" })); }}
+                  placeholder="••••••••"
+                  className={`${inputCls} pr-10 ${fieldErrors.confirmPassword ? "border-red-500" : confirmPassword && confirmPassword === password ? "border-green-500" : ""}`}
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirm(v => !v)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-[11px] font-bold"
+                  tabIndex={-1}
+                >
+                  {showConfirm ? "HIDE" : "SHOW"}
+                </button>
+              </div>
+              {fieldErrors.confirmPassword && <p className={errorCls}>{fieldErrors.confirmPassword}</p>}
+              {!fieldErrors.confirmPassword && confirmPassword && confirmPassword === password && (
+                <p className="text-green-600 text-[10px] mt-1 font-semibold">✓ Passwords match</p>
+              )}
+            </div>
+          )}
+
+          {isSignUp && (
+            <div>
+              <label className="text-[10px] uppercase font-black text-slate-600 block mb-1">Phone <span className="font-normal text-slate-400">(optional)</span></label>
+              <input
+                type="tel"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={e => setPhone(e.target.value)}
                 placeholder="+91 98765 43210"
-                className="w-full bg-slate-50 border-3 border-black p-2.5 text-xs font-black placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-0 rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                className={inputCls}
+                autoComplete="tel"
               />
             </div>
           )}
 
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             disabled={loading}
-            className="w-full bg-yellow-300 hover:bg-yellow-400 text-black font-black uppercase text-xs p-3.5 border-3 border-black rounded-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all flex items-center justify-center gap-2 cursor-pointer mt-4"
+            className="w-full bg-yellow-300 hover:bg-yellow-400 disabled:opacity-60 disabled:cursor-not-allowed text-black font-black uppercase text-xs p-3.5 border-3 border-black rounded-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all flex items-center justify-center gap-2 cursor-pointer mt-4"
           >
-            {loading ? "PROCESSING KEY EXCHANGE..." : isSignUp ? "PROCEED SIGNUP" : "INITIALIZE SESSION"}
+            {loading ? (
+              <span className="flex items-center gap-2"><span className="inline-block w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" />Processing...</span>
+            ) : isSignUp ? "CREATE ACCOUNT →" : "SIGN IN →"}
           </button>
         </form>
 
-        <div className="text-center mt-6 pt-4 border-t-2 border-black/10">
-          <button 
+        <div className="text-center mt-6 pt-4 border-t-2 border-black/10 space-y-2">
+          <button
             type="button"
-            onClick={() => {
-              setIsSignUp(!isSignUp);
-              setErrorMsg("");
-            }} 
+            onClick={() => { setIsSignUp(!isSignUp); setErrorMsg(""); setFieldErrors({}); setUnverifiedEmail(null); setConfirmPassword(""); }}
             className="text-[10px] uppercase font-extrabold text-blue-600 hover:underline cursor-pointer"
           >
-            {isSignUp ? "Already registered? Login here ➔" : "Need credentials? Register here ➔"}
+            {isSignUp ? "Already have an account? Sign In →" : "New here? Create Account →"}
           </button>
+          {!isSignUp && (
+            <div>
+              <button
+                type="button"
+                onClick={() => onNavigate && onNavigate("/forgot-password")}
+                className="text-[10px] text-slate-400 hover:text-slate-600 font-semibold uppercase block w-full"
+              >
+                Forgot Password?
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

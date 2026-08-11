@@ -184,8 +184,12 @@ def create_payment_order(
     Creates a Razorpay order, updates booking status, registers a payment record,
     and logs the transaction.
     """
+    from app.payments.config import validate_live_safety_gates
+    validate_live_safety_gates()
+
     # 1. Rate limiting check
     check_booking_rate_limit(req.booking_id)
+
     
     # 2. Locate booking across all 12 tables
     booking = None
@@ -424,8 +428,12 @@ def verify_payment(
     """
     Verify payment signature after client-side checkout.
     """
+    from app.payments.config import validate_live_safety_gates
+    validate_live_safety_gates()
+
     # Rate limit check on verification
     check_booking_rate_limit(req.razorpay_order_id)
+
     
     from app.payments.config import settings
     secret = settings.RAZORPAY_KEY_SECRET or "whsec_razorpay_test_secret"

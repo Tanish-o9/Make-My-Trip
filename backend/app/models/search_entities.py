@@ -178,11 +178,31 @@ class CabVehicle(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     city_id: Mapped[int] = mapped_column(Integer, ForeignKey("cities.id"), nullable=False)
     provider: Mapped[str] = mapped_column(String(100), nullable=False)
-    type: Mapped[str] = mapped_column(String(50), nullable=False)
+    type: Mapped[str] = mapped_column(String(50), nullable=False) # Hatchback, Sedan, SUV, MPV, Luxury, EV, Bike
     price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     eta_minutes: Mapped[int] = mapped_column(Integer, default=5)
-    driver_name: Mapped[str] = mapped_column(String(150), nullable=True)
-    driver_rating: Mapped[str] = mapped_column(String(10), nullable=True)
+    driver_name: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
+    driver_rating: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    brand: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    model: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    display_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    category: Mapped[Optional[str]] = mapped_column(String(50), default="Sedan")
+    variant: Mapped[Optional[str]] = mapped_column(String(100), nullable=True) # VXi, ZXi Plus, ZX, etc.
+    image_key: Mapped[Optional[str]] = mapped_column(String(100), nullable=True) # swift, dzire, creta, etc.
+    image_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    thumbnail_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    seating_capacity: Mapped[int] = mapped_column(Integer, default=4)
+    luggage_capacity: Mapped[int] = mapped_column(Integer, default=2)
+    fuel_type: Mapped[Optional[str]] = mapped_column(String(50), default="Petrol")
+    transmission: Mapped[Optional[str]] = mapped_column(String(50), default="Manual")
+    ac_available: Mapped[bool] = mapped_column(Boolean, default=True)
+    rating: Mapped[float] = mapped_column(Numeric(3, 1), default=4.8)
+    review_count: Mapped[int] = mapped_column(Integer, default=120)
+    price_per_km: Mapped[float] = mapped_column(Numeric(10, 2), default=15.0)
+    base_fare: Mapped[float] = mapped_column(Numeric(10, 2), default=200.0)
+    per_hour_rate: Mapped[float] = mapped_column(Numeric(10, 2), default=250.0)
+    availability_status: Mapped[str] = mapped_column(String(50), default="available") # available, reserved, booked, maintenance
+    plate_number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     seed_batch_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
 

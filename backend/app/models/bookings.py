@@ -28,6 +28,7 @@ class BookingStatus(PyEnum):
     OFFER_SELECTED = "offer_selected"
     AWAITING_HUMAN_PAYMENT_APPROVAL = "awaiting_human_payment_approval"
     PAYMENT_PROCESSING = "payment_processing"
+    PAYMENT_CAPTURED_PROVIDER_PENDING = "payment_captured_provider_pending"
     EXPIRED = "expired"
 
 class BookingMixin:
@@ -107,11 +108,26 @@ class BusBooking(Base, BookingMixin):
 class CabBooking(Base, BookingMixin):
     __tablename__ = "cab_bookings"
 
-    provider_name: Mapped[str] = mapped_column(String(100), nullable=False) # Uber, Ola, local
-    cab_type: Mapped[str] = mapped_column(String(50), nullable=False) # Sedan, SUV
+    provider_name: Mapped[str] = mapped_column(String(100), nullable=False) # Uber, Ola, local, TravelOS Fleet
+    cab_type: Mapped[str] = mapped_column(String(50), nullable=False) # Hatchback, Sedan, SUV, MPV, Luxury, EV, Bike
     pickup_address: Mapped[str] = mapped_column(String(500), nullable=False)
     drop_address: Mapped[str] = mapped_column(String(500), nullable=False)
     pickup_time: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
+    trip_type: Mapped[Optional[str]] = mapped_column(String(50), default="one_way") # one_way, round_trip, airport_transfer, hourly
+    return_time: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
+    flight_number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    terminal: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    hourly_duration: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    passengers_count: Mapped[int] = mapped_column(Integer, default=1)
+    passenger_details: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
+    luggage_count: Mapped[int] = mapped_column(Integer, default=1)
+    special_instructions: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
+    driver_name: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
+    driver_phone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    vehicle_number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    distance_km: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
+    estimated_duration_mins: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    voucher_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
 
 class HolidayPackageBooking(Base, BookingMixin):
@@ -287,3 +303,20 @@ class SpecialFareConfig(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     valid_from: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
     valid_until: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
+
+
+class ProviderReconciliation(Base):
+    __tablename__ = "provider_reconciliations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    provider: Mapped[str] = mapped_column(String(50), index=True, nullable=False)
+    provider_offer_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    payment_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    booking_reference: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
+    amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(10), default="INR")
+    failure_reason: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    retry_count: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(50), default="PENDING_MANUAL_REVIEW")
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
+

@@ -1,0 +1,70 @@
+{
+  "timestamp": "20260811_123440",
+  "database": "<configured>",
+  "tables": {
+    "users": [
+      {
+        "id": 1,
+        "tenant_id": null,
+        "email": "backup_test@travelos.com",
+        "phone": null,
+        "password_hash": null,
+        "auth_provider": "local",
+        "preferred_language": "en",
+        "preferred_currency": "INR",
+        "role": "user",
+        "trust_score": 4.5,
+        "fcm_token": null,
+        "created_at": "2026-08-11 07:04:40.800999",
+        "updated_at": "2026-08-11 07:04:40.801006",
+        "seed_batch_id": null
+      }
+    ],
+    "user_profiles": [
+      {
+        "id": 1,
+        "user_id": 1,
+        "full_name": "Backup Tester",
+        "dob": null,
+        "gender": null,
+        "nationality": null,
+        "mobile_number": "9999999999",
+        "alternate_phone": null,
+        "email": null,
+        "passport_number": null,
+        "passport_expiry": null,
+        "pan_card": null,
+        "aadhaar": null,
+        "country": null,
+        "state": null,
+        "city": null,
+        "postal_code": null
+      }
+    ],
+    "travel_preferences": [],
+    "saved_travelers": [],
+    "flight_bookings": [],
+    "hotel_bookings": [],
+    "cab_bookings": [],
+    "train_bookings": [],
+    "bus_bookings": [],
+    "holiday_package_bookings": [],
+    "villa_bookings": [],
+    "wallet_accounts": [
+      {
+        "id": 1,
+        "user_id": 1,
+        "balance": 12000,
+        "currency": "INR",
+        "seed_batch_id": null
+      }
+    ],
+    "wallet_transactions": [],
+    "loyalty_accounts": [],
+    "loyalty_transactions": [],
+    "user_preference_embeddings": [],
+    "agent_execution_logs": [],
+    "llm_router_decision_logs": [],
+    "payment_attempts": []
+  }
+}

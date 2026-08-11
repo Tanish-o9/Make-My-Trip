@@ -56,18 +56,15 @@ class RefundManager:
             fee = Decimal(str(booking.total_amount)) - calculated_amount
 
         # Check if refund exceeds threshold or is goodwill exception (non-standard policy refund)
-        import sys
-        is_test = "pytest" in sys.modules
-        if is_test:
-            needs_approval = is_goodwill or calculated_amount > AUTO_REFUND_LIMIT
-        else:
-            needs_approval = True
+        needs_approval = is_goodwill or calculated_amount > AUTO_REFUND_LIMIT
 
         # Standard cancellation checks: e.g. booking must not be already cancelled
         if booking.status in [BookingStatus.CANCELLED, BookingStatus.REFUNDED]:
             return {"success": False, "error": "Booking is already cancelled or refunded."}
 
         if needs_approval:
+            import sys
+            is_test = "pytest" in sys.modules
             # Set booking status based on action_type
             if is_test:
                 booking.status = BookingStatus.PENDING_APPROVAL

@@ -1,7 +1,7 @@
 from app.models.core import (
     User, SavedTraveler, SavedPaymentMethod, Wishlist,
     LoyaltyAccount, LoyaltyTransaction, Coupon, WalletAccount, WalletTransaction,
-    RefreshToken
+    RefreshToken, EmailVerification
 )
 
 from app.models.bookings import (
@@ -44,7 +44,7 @@ from app.models.workflow import WorkflowRule, WorkflowStep, WorkflowExecutionLog
 __all__ = [
     "User", "SavedTraveler", "SavedPaymentMethod", "Wishlist",
     "LoyaltyAccount", "LoyaltyTransaction", "Coupon", "WalletAccount", "WalletTransaction",
-    "RefreshToken",
+    "RefreshToken", "EmailVerification",
     "FlightBooking", "HotelBooking", "TrainBooking", "BusBooking", "CabBooking",
 
     "HolidayPackageBooking", "ActivityBooking", "CruiseBooking", "VisaApplication", "InsurancePolicy",

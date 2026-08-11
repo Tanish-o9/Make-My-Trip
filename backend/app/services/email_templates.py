@@ -370,3 +370,104 @@ def get_trip_completed_html(user_name: str, destination: str) -> tuple:
     """
     return subject, _base_template(content)
 
+
+def get_email_verification_html(
+    user_name: str,
+    otp_code: str,
+    expiry_minutes: int = 10,
+) -> tuple:
+    """
+    Professional email verification template.
+    Returns (subject, html_body).
+    NOTE: otp_code is the plain 6-digit code — only call this immediately
+    before sending; never log or persist the plain code.
+    """
+    subject = "Verify your Travel OS account"
+    first_name = user_name.split()[0] if user_name else "Traveler"
+
+    # Format OTP as spaced digits for readability
+    spaced_otp = " ".join(list(otp_code))
+
+    content = f"""
+      <h2 style="color:#1a237e; margin:0 0 8px;">Verify your email address</h2>
+      <p style="color:#546e7a; margin:0 0 28px;">Hello {first_name}, welcome to Travel OS!</p>
+
+      <p style="color:#37474f; margin:0 0 16px;">
+        To complete your account setup, please use the verification code below:
+      </p>
+
+      <div style="background:linear-gradient(135deg,#1a237e,#0d47a1);border-radius:16px;padding:32px;text-align:center;margin:24px 0;">
+        <p style="color:#90caf9;font-size:12px;text-transform:uppercase;letter-spacing:2px;margin:0 0 12px;">Your verification code</p>
+        <div style="font-size:48px;font-weight:900;letter-spacing:12px;color:#ffffff;font-family:monospace;">{otp_code}</div>
+        <p style="color:#90caf9;font-size:13px;margin:12px 0 0;">Expires in <strong style="color:#fff;">{expiry_minutes} minutes</strong></p>
+      </div>
+
+      <div class="card" style="margin:20px 0;">
+        <p style="margin:0;color:#37474f;font-size:14px;line-height:1.6;">
+          Enter this code on the verification page. Each code is valid for <strong>{expiry_minutes} minutes</strong> and can only be used once.
+        </p>
+      </div>
+
+      <hr class="divider" />
+
+      <div style="background:#fff8e1;border-left:4px solid #f59e0b;border-radius:4px;padding:14px 18px;margin:20px 0;">
+        <p style="margin:0;font-size:13px;color:#78350f;">
+          <strong>Security notice:</strong> Travel OS will never ask for your password, OTP, or card details over email or phone. 
+          If you did not create a Travel OS account, please ignore this email or contact 
+          <a href="mailto:support@travelos.com" style="color:#d97706;">support@travelos.com</a>.
+        </p>
+      </div>
+
+      <p style="color:#90a4ae;font-size:12px;text-align:center;margin-top:24px;">
+        Need help? Contact us at <a href="mailto:support@travelos.com" style="color:#7986cb;">support@travelos.com</a>
+      </p>
+    """
+    return subject, _base_template(content)
+
+
+def get_password_reset_otp_html(
+    user_name: str,
+    otp_code: str,
+    expiry_minutes: int = 10,
+) -> tuple:
+    """
+    Professional password reset OTP email template.
+    Returns (subject, html_body).
+    """
+    subject = "Reset your Travel OS password"
+    first_name = user_name.split()[0] if user_name else "Traveler"
+
+    content = f"""
+      <h2 style="color:#1a237e; margin:0 0 8px;">Password Reset Request</h2>
+      <p style="color:#546e7a; margin:0 0 28px;">Hello {first_name},</p>
+
+      <p style="color:#37474f; margin:0 0 16px;">
+        We received a request to reset the password for your Travel OS account. Use the 6-digit verification code below to complete your reset:
+      </p>
+
+      <div style="background:linear-gradient(135deg,#1a237e,#0d47a1);border-radius:16px;padding:32px;text-align:center;margin:24px 0;">
+        <p style="color:#90caf9;font-size:12px;text-transform:uppercase;letter-spacing:2px;margin:0 0 12px;">Your Password Reset Code</p>
+        <div style="font-size:48px;font-weight:900;letter-spacing:12px;color:#ffffff;font-family:monospace;">{otp_code}</div>
+        <p style="color:#90caf9;font-size:13px;margin:12px 0 0;">Valid for <strong style="color:#fff;">{expiry_minutes} minutes</strong></p>
+      </div>
+
+      <div class="card" style="margin:20px 0;">
+        <p style="margin:0;color:#37474f;font-size:14px;line-height:1.6;">
+          Enter this code on the password reset screen along with your new password. This code can only be used once.
+        </p>
+      </div>
+
+      <hr class="divider" />
+
+      <div style="background:#fff8e1;border-left:4px solid #f59e0b;border-radius:4px;padding:14px 18px;margin:20px 0;">
+        <p style="margin:0;font-size:13px;color:#78350f;">
+          <strong>Security alert:</strong> If you did NOT request a password reset, your account is still secure. Please ignore this email or change your password immediately if you suspect unauthorized access.
+        </p>
+      </div>
+
+      <p style="color:#90a4ae;font-size:12px;text-align:center;margin-top:24px;">
+        Need assistance? Contact our security desk at <a href="mailto:support@travelos.com" style="color:#7986cb;">support@travelos.com</a>
+      </p>
+    """
+    return subject, _base_template(content)
+

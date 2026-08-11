@@ -35,6 +35,13 @@ export const resolveWsBase = () => {
     if (hostname === "localhost" || hostname === "127.0.0.1") {
       return API_BASE.replace(/^http/, "ws");
     } else {
+      const envUrl = import.meta.env.VITE_API_URL;
+      if (envUrl && !envUrl.includes("localhost") && !envUrl.includes("127.0.0.1")) {
+        let wsUrl = envUrl.replace(/^http/, "ws");
+        if (wsUrl.endsWith("/")) wsUrl = wsUrl.slice(0, -1);
+        if (wsUrl.endsWith("/api")) return wsUrl;
+        return `${wsUrl}/api`;
+      }
       return "wss://make-my-trip-production.up.railway.app/api";
     }
   }
@@ -47,6 +54,13 @@ export const resolveWsAdminBase = () => {
     if (hostname === "localhost" || hostname === "127.0.0.1") {
       return API_BASE.replace(/^http/, "ws").replace(/\/api$/, "/ws");
     } else {
+      const envUrl = import.meta.env.VITE_API_URL;
+      if (envUrl && !envUrl.includes("localhost") && !envUrl.includes("127.0.0.1")) {
+        let wsUrl = envUrl.replace(/^http/, "ws");
+        if (wsUrl.endsWith("/")) wsUrl = wsUrl.slice(0, -1);
+        if (wsUrl.endsWith("/api")) wsUrl = wsUrl.slice(0, -4);
+        return `${wsUrl}/ws`;
+      }
       return "wss://make-my-trip-production.up.railway.app/ws";
     }
   }

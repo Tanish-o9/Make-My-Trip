@@ -767,32 +767,203 @@ def run_buses():
     print("Buses seeded successfully.")
 
 def run_cabs():
+    # Ensure cab_vehicles & cab_bookings tables match the updated schema
+    try:
+        CabVehicle.__table__.drop(engine, checkfirst=True)
+        CabVehicle.__table__.create(engine, checkfirst=True)
+        CabBooking.__table__.drop(engine, checkfirst=True)
+        CabBooking.__table__.create(engine, checkfirst=True)
+    except Exception as e:
+        print(f"Table recreation notice: {e}")
+
     db = SessionLocal()
-    print("Seeding Cabs...")
+    print("Seeding Cabs & Chauffeur Vehicles...")
+
     cities = db.query(City).all()
     if not cities:
         db.close()
         return
 
-    providers = [("Ola Cabs", "Sedan", 1200.0), ("Uber Intercity", "SUV", 1900.0), ("Savaari Cabs", "Prime SUV", 2400.0)]
+    cab_fleet_templates = [
+        # Hatchbacks
+        {
+            "brand": "Maruti Suzuki", "model": "Swift", "display_name": "Maruti Suzuki Swift",
+            "type": "Hatchback", "category": "Hatchback", "variant": "ZXi Plus", "image_key": "swift",
+            "seats": 4, "luggage": 2, "fuel": "Petrol", "trans": "Manual", "ac": True,
+            "base_fare": 150.0, "price_per_km": 13.0, "per_hour": 180.0,
+            "rating": 4.8, "reviews": 1420, "provider": "TravelOS Mini",
+            "image": "/assets/vehicles/swift.webp"
+        },
+        {
+            "brand": "Hyundai", "model": "Grand i10 Nios", "display_name": "Hyundai Grand i10 Nios",
+            "type": "Hatchback", "category": "Hatchback", "variant": "Sportz CNG", "image_key": "grand-i10",
+            "seats": 4, "luggage": 2, "fuel": "CNG", "trans": "Manual", "ac": True,
+            "base_fare": 140.0, "price_per_km": 12.5, "per_hour": 175.0,
+            "rating": 4.7, "reviews": 980, "provider": "Uber Go",
+            "image": "/assets/vehicles/grand-i10.webp"
+        },
+        # Sedans
+        {
+            "brand": "Maruti Suzuki", "model": "Dzire", "display_name": "Maruti Suzuki Dzire",
+            "type": "Sedan", "category": "Sedan", "variant": "ZXi Auto", "image_key": "dzire",
+            "seats": 4, "luggage": 3, "fuel": "Petrol", "trans": "Automatic", "ac": True,
+            "base_fare": 200.0, "price_per_km": 16.0, "per_hour": 220.0,
+            "rating": 4.9, "reviews": 2840, "provider": "Ola Prime Sedan",
+            "image": "/assets/vehicles/dzire.webp"
+        },
+        {
+            "brand": "Honda", "model": "Amaze", "display_name": "Honda Amaze",
+            "type": "Sedan", "category": "Sedan", "variant": "VX CVT", "image_key": "amaze",
+            "seats": 4, "luggage": 3, "fuel": "Petrol", "trans": "Automatic", "ac": True,
+            "base_fare": 220.0, "price_per_km": 17.5, "per_hour": 240.0,
+            "rating": 4.8, "reviews": 1150, "provider": "TravelOS Premier",
+            "image": "/assets/vehicles/amaze.webp"
+        },
+        {
+            "brand": "Hyundai", "model": "Verna", "display_name": "Hyundai Verna Turbo",
+            "type": "Sedan", "category": "Sedan", "variant": "SX(O) Turbo", "image_key": "verna",
+            "seats": 4, "luggage": 3, "fuel": "Diesel", "trans": "Automatic", "ac": True,
+            "base_fare": 250.0, "price_per_km": 19.0, "per_hour": 260.0,
+            "rating": 4.9, "reviews": 870, "provider": "Uber Premier",
+            "image": "/assets/vehicles/verna.webp"
+        },
+        # SUVs
+        {
+            "brand": "Hyundai", "model": "Creta", "display_name": "Hyundai Creta",
+            "type": "SUV", "category": "SUV", "variant": "SX(O) Diesel", "image_key": "creta",
+            "seats": 5, "luggage": 4, "fuel": "Diesel", "trans": "Automatic", "ac": True,
+            "base_fare": 300.0, "price_per_km": 21.0, "per_hour": 320.0,
+            "rating": 4.9, "reviews": 1920, "provider": "TravelOS SUV",
+            "image": "/assets/vehicles/creta.webp"
+        },
+        {
+            "brand": "Kia", "model": "Seltos", "display_name": "Kia Seltos",
+            "type": "SUV", "category": "SUV", "variant": "GTX Plus", "image_key": "seltos",
+            "seats": 5, "luggage": 4, "fuel": "Petrol", "trans": "Automatic", "ac": True,
+            "base_fare": 310.0, "price_per_km": 22.0, "per_hour": 330.0,
+            "rating": 4.8, "reviews": 1340, "provider": "Uber XL",
+            "image": "/assets/vehicles/seltos.webp"
+        },
+        {
+            "brand": "Mahindra", "model": "XUV700", "display_name": "Mahindra XUV700",
+            "type": "SUV", "category": "SUV", "variant": "AX7 Luxury", "image_key": "xuv700",
+            "seats": 6, "luggage": 4, "fuel": "Diesel", "trans": "Automatic", "ac": True,
+            "base_fare": 380.0, "price_per_km": 25.0, "per_hour": 400.0,
+            "rating": 4.9, "reviews": 1610, "provider": "Ola Prime Plus",
+            "image": "/assets/vehicles/xuv700.webp"
+        },
+        # MPVs
+        {
+            "brand": "Maruti Suzuki", "model": "Ertiga", "display_name": "Maruti Suzuki Ertiga",
+            "type": "MPV", "category": "MPV", "variant": "ZXi CNG", "image_key": "ertiga",
+            "seats": 6, "luggage": 4, "fuel": "CNG", "trans": "Manual", "ac": True,
+            "base_fare": 320.0, "price_per_km": 20.0, "per_hour": 340.0,
+            "rating": 4.8, "reviews": 3100, "provider": "TravelOS XL",
+            "image": "/assets/vehicles/ertiga.webp"
+        },
+        {
+            "brand": "Toyota", "model": "Innova Crysta", "display_name": "Toyota Innova Crysta",
+            "type": "MPV", "category": "MPV", "variant": "ZX 7-Seater", "image_key": "innova-crysta",
+            "seats": 7, "luggage": 5, "fuel": "Diesel", "trans": "Automatic", "ac": True,
+            "base_fare": 450.0, "price_per_km": 28.0, "per_hour": 480.0,
+            "rating": 5.0, "reviews": 4200, "provider": "Savaari Premier",
+            "image": "/assets/vehicles/innova-crysta.webp"
+        },
+        {
+            "brand": "Kia", "model": "Carens", "display_name": "Kia Carens",
+            "type": "MPV", "category": "MPV", "variant": "Luxury Plus 7S", "image_key": "carens",
+            "seats": 7, "luggage": 4, "fuel": "Diesel", "trans": "Automatic", "ac": True,
+            "base_fare": 400.0, "price_per_km": 26.0, "per_hour": 440.0,
+            "rating": 4.9, "reviews": 1120, "provider": "Ola Prime XL",
+            "image": "/assets/vehicles/carens.webp"
+        },
+        # Luxury / Premium
+        {
+            "brand": "Toyota", "model": "Camry Hybrid", "display_name": "Toyota Camry Luxury",
+            "type": "Luxury", "category": "Luxury", "variant": "Hybrid Luxury", "image_key": "camry",
+            "seats": 4, "luggage": 3, "fuel": "EV", "trans": "Automatic", "ac": True,
+            "base_fare": 650.0, "price_per_km": 42.0, "per_hour": 750.0,
+            "rating": 5.0, "reviews": 640, "provider": "TravelOS Black",
+            "image": "/assets/vehicles/camry.webp"
+        },
+        {
+            "brand": "Mercedes-Benz", "model": "E-Class", "display_name": "Mercedes-Benz E-Class Chauffeur",
+            "type": "Luxury", "category": "Luxury", "variant": "Exclusive Edition", "image_key": "mercedes-e-class",
+            "seats": 4, "luggage": 3, "fuel": "Petrol", "trans": "Automatic", "ac": True,
+            "base_fare": 1200.0, "price_per_km": 75.0, "per_hour": 1400.0,
+            "rating": 5.0, "reviews": 480, "provider": "Uber Black Chauffeur",
+            "image": "/assets/vehicles/mercedes-e-class.webp"
+        },
+        # EV
+        {
+            "brand": "Tata", "model": "Nexon EV", "display_name": "Tata Nexon EV",
+            "type": "EV", "category": "EV", "variant": "Empowered Plus LR", "image_key": "nexon-ev",
+            "seats": 4, "luggage": 3, "fuel": "EV", "trans": "Automatic", "ac": True,
+            "base_fare": 200.0, "price_per_km": 15.0, "per_hour": 220.0,
+            "rating": 4.8, "reviews": 890, "provider": "BluSmart EV",
+            "image": "/assets/vehicles/nexon-ev.webp"
+        },
+        # Bike / Scooter
+        {
+            "brand": "Honda", "model": "Activa 6G", "display_name": "Honda Activa Scooter",
+            "type": "Bike", "category": "Bike", "variant": "6G Deluxe", "image_key": "activa",
+            "seats": 1, "luggage": 1, "fuel": "Petrol", "trans": "Automatic", "ac": False,
+            "base_fare": 40.0, "price_per_km": 8.0, "per_hour": 70.0,
+            "rating": 4.7, "reviews": 2100, "provider": "Rapido Bike",
+            "image": "/assets/vehicles/activa.webp"
+        }
+    ]
+
+    total_cabs = 0
+    city_plate_map = {
+        "delhi": "DL", "mumbai": "MH", "pune": "MH", "bengaluru": "KA", "bangalore": "KA",
+        "chennai": "TN", "hyderabad": "TS", "kolkata": "WB", "jaipur": "RJ", "goa": "GA",
+        "ahmedabad": "GJ", "lucknow": "UP", "varanasi": "UP", "agra": "UP", "chandigarh": "CH",
+        "kochi": "KL", "thiruvananthapuram": "KL", "bhopal": "MP", "indore": "MP", "patna": "BR"
+    }
 
     for city in cities:
-        for idx, (provider, v_type, price) in enumerate(providers):
-            exists = db.query(CabVehicle).filter(CabVehicle.city_id == city.id, CabVehicle.provider == provider).first()
-            if not exists:
-                db.add(CabVehicle(
-                    city_id=city.id,
-                    provider=provider,
-                    type=v_type,
-                    price=price,
-                    eta_minutes=5 + idx,
-                    driver_name=fake.name(),
-                    driver_rating=f"{random.choice([4.5, 4.6, 4.7, 4.8, 4.9])} ★",
-                    seed_batch_id=SEED_BATCH_ID
-                ))
+        prefix = city_plate_map.get(city.name.lower(), "DL")
+        for idx, tmpl in enumerate(cab_fleet_templates):
+            plate = f"{prefix}-{random.randint(1, 12):02d}-C-{random.randint(1000, 9999)}"
+            est_trip_price = round(tmpl["base_fare"] + (18.5 * tmpl["price_per_km"]))
+            
+            veh = CabVehicle(
+                city_id=city.id,
+                provider=tmpl["provider"],
+                type=tmpl["type"],
+                category=tmpl["category"],
+                brand=tmpl["brand"],
+                model=tmpl["model"],
+                display_name=tmpl["display_name"],
+                variant=tmpl.get("variant", "Standard"),
+                image_key=tmpl.get("image_key", tmpl["model"].lower().replace(" ", "-")),
+                price=est_trip_price,
+                base_fare=tmpl["base_fare"],
+                price_per_km=tmpl["price_per_km"],
+                per_hour_rate=tmpl["per_hour"],
+                seating_capacity=tmpl["seats"],
+                luggage_capacity=tmpl["luggage"],
+                fuel_type=tmpl["fuel"],
+                transmission=tmpl["trans"],
+                ac_available=tmpl["ac"],
+                rating=tmpl["rating"],
+                review_count=tmpl["reviews"],
+                image_url=tmpl["image"],
+                thumbnail_url=tmpl["image"],
+                plate_number=plate,
+                eta_minutes=3 + (idx % 6) * 2,
+                driver_name=fake.name(),
+                driver_rating=f"{tmpl['rating']} ★",
+                availability_status="available",
+                seed_batch_id=SEED_BATCH_ID
+            )
+            db.add(veh)
+            total_cabs += 1
+
     db.commit()
     db.close()
-    print("Cabs seeded successfully.")
+    print(f"Successfully seeded {total_cabs} cabs across {len(cities)} cities with realistic specifications & verified assets.")
 
 
 def run_rental_vehicles():
@@ -840,10 +1011,11 @@ def run_rental_vehicles():
 
     images = {
         "Hatchback": "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800",
-        "Sedan": "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=800",
+        "Sedan": "https://images.unsplash.com/photo-1547891654-e66ed7edd96c?w=800",
         "SUV": "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=800",
         "Bike": "https://images.unsplash.com/photo-1558981806-ec527fa84c39?w=800",
-        "EV": "https://images.unsplash.com/photo-1563720223185-11003d516935?w=800"
+        "EV": "https://images.unsplash.com/photo-1563720223185-11003d516935?w=800",
+        "EV_scooter": "https://images.unsplash.com/photo-1609630875171-b1321377ee65?w=800"
     }
 
     # Count categories for reporting
@@ -944,7 +1116,7 @@ def run_rental_vehicles():
                 distance_km=round(random.uniform(0.1, 5.0), 1),
                 instant_confirm=random.choice([True, True, False]), # 66% instant confirm
                 rating=round(random.uniform(4.0, 5.0), 1),
-                image_url=images[v_type],
+                image_url=images["EV_scooter"] if (v_type == "EV" and model in ["S1 Pro", "450X"]) else images[v_type],
                 is_active=True,
                 seed_batch_id=SEED_BATCH_ID
             )

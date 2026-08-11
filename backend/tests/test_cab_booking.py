@@ -22,8 +22,12 @@ def clean_cab_user():
     db.commit()
     db.refresh(user)
     
+    from app.auth.dependencies import get_current_user
+    app.dependency_overrides[get_current_user] = lambda: user
+    
     yield user
     
+    app.dependency_overrides.clear()
     db = SessionLocal()
     user = db.query(User).filter(User.email == user_email).first()
     if user:
@@ -34,7 +38,7 @@ def clean_cab_user():
 def test_cab_booking_engine_lifecycle(clean_cab_user):
     user = clean_cab_user
     from app.auth.jwt import create_access_token
-    token = create_access_token(data={"sub": user.email, "role": "user"})
+    token = create_access_token(data={"sub": str(user.id), "email": user.email, "role": "user"})
     headers = {"Authorization": f"Bearer {token}"}
     
     # 1. Search Cabs

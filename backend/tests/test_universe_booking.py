@@ -327,3 +327,80 @@ def test_multi_passenger_hold_flow(test_user_and_wallet):
     assert booking.passenger_details[1]["studentFare"] is True
     db.close()
 
+
+def test_vehicle_rental_seating_capacity_validation(test_user_and_wallet):
+    user, wallet = test_user_and_wallet
+    from app.auth.jwt import create_access_token
+    token = create_access_token(data={"sub": user.email, "role": "user"})
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    from app.database import SessionLocal
+    from app.models.search_entities import RentalVehicle, City
+    db = SessionLocal()
+    
+    city_obj = db.query(City).first()
+    if not city_obj:
+        city_obj = City(
+            name="Goa Test City",
+            country="India",
+            lat=15.4989,
+            lng=73.8278,
+            timezone="Asia/Kolkata"
+        )
+        db.add(city_obj)
+        db.commit()
+        db.refresh(city_obj)
+        
+    veh = RentalVehicle(
+        city_id=city_obj.id,
+        hub_locality_id=None,
+        name="Test Capacity Bike",
+        brand="Honda",
+        model="Activa",
+        type="Bike",
+        vehicle_type="Bike",
+        price_per_day=500.0,
+        fuel_type="Petrol",
+        transmission="Automatic",
+        seating_capacity=2,
+        self_drive_available=True,
+        with_driver_available=False,
+        rental_mode="self_drive",
+        distance_km=1.2,
+        instant_confirm=True,
+        rating=4.5,
+        image_url="http://example.com/bike.jpg",
+        is_active=True,
+        seed_batch_id="test_batch"
+    )
+    db.add(veh)
+    db.commit()
+    
+    hold_payload = {
+        "vertical": "rent-a-ride",
+        "amount": 1500.00,
+        "user_id": user.id,
+        "details": {
+            "vehicle_name": "Test Capacity Bike",
+            "vehicle_type": "Bike",
+            "pickup_time": "2026-12-15T10:00:00",
+            "drop_time": "2026-12-18T10:00:00",
+            "passenger_count": 3,
+            "passengers": [
+                {"name": "P1", "age": 30},
+                {"name": "P2", "age": 28},
+                {"name": "P3", "age": 25}
+            ]
+        }
+    }
+    
+    try:
+        response = client.post("/api/v1/bookings/hold", json=hold_payload, headers=headers)
+        assert response.status_code == 400
+        assert "seating capacity" in response.json()["detail"].lower()
+    finally:
+        db.delete(veh)
+        db.commit()
+        db.close()
+
+

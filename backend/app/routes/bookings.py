@@ -6,6 +6,7 @@ logger = logging.getLogger(__name__)
 from typing import Dict, Any, List, Optional
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.bookings import (
@@ -26,7 +27,7 @@ from pydantic import BaseModel
 class BookingHoldRequest(BaseModel):
     vertical: str
     amount: float
-    user_id: int
+    user_id: Optional[int] = None
     details: Dict[str, Any]
 
 from app.auth.dependencies import get_current_user
@@ -55,7 +56,7 @@ async def create_booking_hold(
     
     hold_id = None
     hold_ttl_minutes = 60
-    if provider:
+    if provider and hasattr(provider, "hold"):
         hold_ttl_minutes = 5
         try:
             passengers = details.get("passengers", details.get("guests", [{"name": "Guest User", "age": 30}]))
@@ -64,6 +65,8 @@ async def create_booking_hold(
                 raise HTTPException(status_code=400, detail=f"Failed to place hold with {provider_name}: {hold_res.get('message', 'Unknown error')}")
             hold_id = hold_res.get("hold_id")
             details["provider_hold_id"] = hold_id
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Provider hold execution error: {str(e)}")
     
@@ -251,7 +254,7 @@ async def create_booking_hold(
         booking = HotelBooking(
             booking_reference=booking_ref, user_id=user_id, status=BookingStatus.HOLD,
             total_amount=amount, currency="INR", pricing_snapshot=pricing_snapshot, held_until=held_until,
-            hotel_name=details.get("hotel_name", "Grand Hyatt Resort"), hotel_id=details.get("hotel_id", "H101"),
+            hotel_name=details.get("hotel_name", "Grand Hyatt Resort"), hotel_id=str(details.get("hotel_id") or "H101"),
             check_in=datetime.datetime.utcnow() + datetime.timedelta(days=5),
             check_out=datetime.datetime.utcnow() + datetime.timedelta(days=10),
             room_type=details.get("room_type", "Deluxe Room"), guest_details=details.get("guests", [{"name": "Guest", "age": 30}]),
@@ -297,14 +300,75 @@ async def create_booking_hold(
             seat_numbers=details.get("seat_numbers", ["12A"])
         )
     elif vertical == "cabs":
+        pax_count = int(details.get("passengers_count") or len(details.get("passengers", [])) or 1)
+        luggage_cnt = int(details.get("luggage_count") or 1)
+        
+        # Validate vehicle capacity
+        veh_name = details.get("vehicle_name") or details.get("display_name") or details.get("model")
+        cab_type = details.get("cab_type") or details.get("category") or "Sedan"
+        cab_db = None
+        try:
+            if veh_name:
+                v_clean = str(veh_name).strip().lower()
+                cab_db = db.query(CabVehicle).filter(
+                    (func.lower(CabVehicle.display_name).contains(v_clean)) |
+                    (func.lower(CabVehicle.model).contains(v_clean)) |
+                    (func.lower(CabVehicle.brand).contains(v_clean)) |
+                    (func.lower(CabVehicle.provider).contains(v_clean))
+                ).first()
+            if not cab_db and cab_type:
+                cab_db = db.query(CabVehicle).filter(func.lower(CabVehicle.type) == str(cab_type).lower()).first()
+        except Exception:
+            db.rollback()
+            cab_db = None
+
+        effective_capacity = cab_db.seating_capacity if cab_db else (4 if str(cab_type).lower() in ["sedan", "hatchback", "ev"] else (1 if str(cab_type).lower() == "bike" else 6))
+        if pax_count > effective_capacity:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Vehicle seating capacity ({effective_capacity}) is insufficient for {pax_count} passenger(s)."
+            )
+
+        p_time = datetime.datetime.utcnow() + datetime.timedelta(days=3)
+        if details.get("pickup_time"):
+            try:
+                p_str = str(details.get("pickup_time")).replace("Z", "")
+                p_time = datetime.datetime.fromisoformat(p_str)
+            except Exception:
+                pass
+
+        r_time = None
+        if details.get("return_time"):
+            try:
+                r_str = str(details.get("return_time")).replace("Z", "")
+                r_time = datetime.datetime.fromisoformat(r_str)
+            except Exception:
+                pass
+
         booking = CabBooking(
             booking_reference=booking_ref, user_id=user_id, status=BookingStatus.HOLD,
             total_amount=amount, currency="INR", pricing_snapshot=pricing_snapshot, held_until=held_until,
-            provider_name=details.get("provider_name", "Ola"), cab_type=details.get("cab_type", "SUV"),
-            pickup_address=details.get("pickup_address", "Airport"), drop_address=details.get("drop_address", "Resort"),
-            pickup_time=datetime.datetime.utcnow() + datetime.timedelta(days=3)
+            provider_name=details.get("provider_name", "TravelOS Fleet"),
+            cab_type=details.get("cab_type", details.get("category", "Sedan")),
+            pickup_address=details.get("pickup_address", "Airport"),
+            drop_address=details.get("drop_address", "Resort"),
+            pickup_time=p_time,
+            trip_type=details.get("trip_type", "one_way"),
+            return_time=r_time,
+            flight_number=details.get("flight_number"),
+            terminal=details.get("terminal"),
+            hourly_duration=int(details.get("hourly_duration")) if details.get("hourly_duration") else None,
+            passengers_count=pax_count,
+            passenger_details=details.get("passengers") or details.get("passenger_details") or [{"name": "Primary Guest", "age": 30}],
+            luggage_count=luggage_cnt,
+            special_instructions=details.get("special_instructions"),
+            driver_name=details.get("driver_name"),
+            driver_phone=details.get("driver_phone"),
+            vehicle_number=details.get("vehicle_number") or details.get("plate_number"),
+            distance_km=float(details.get("distance_km", 18.5)) if details.get("distance_km") else 18.5,
+            estimated_duration_mins=int(details.get("estimated_duration_mins", 40)) if details.get("estimated_duration_mins") else 40
         )
-    elif vertical == "tours":
+    elif vertical in ["tours", "activities", "activity"]:
         booking = ActivityBooking(
             booking_reference=booking_ref, user_id=user_id, status=BookingStatus.HOLD,
             total_amount=amount, currency="INR", pricing_snapshot=pricing_snapshot, held_until=held_until,
@@ -347,6 +411,20 @@ async def create_booking_hold(
             end_date=datetime.datetime.utcnow() + datetime.timedelta(days=12)
         )
     elif vertical in ["rent-a-ride", "vehicle_rental"]:
+        # Validate seating capacity backend-side
+        from app.models.search_entities import RentalVehicle
+        vehicle = db.query(RentalVehicle).filter(
+            RentalVehicle.name == details.get("vehicle_name"),
+            RentalVehicle.type == details.get("vehicle_type")
+        ).first()
+        if vehicle:
+            pax_count = int(details.get("passenger_count") or 1)
+            if pax_count > vehicle.seating_capacity:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Vehicle seating capacity ({vehicle.seating_capacity}) is insufficient for {pax_count} passenger(s)."
+                )
+
         booking = VehicleRentalBooking(
             booking_reference=booking_ref, user_id=user_id, status=BookingStatus.HOLD,
             total_amount=amount, currency="INR", pricing_snapshot=pricing_snapshot, held_until=held_until,
@@ -402,8 +480,8 @@ def confirm_booking(
     models_mapping = {
         "flights": FlightBooking, "hotels": HotelBooking, "trains": TrainBooking,
         "cabs": CabBooking, "visa": VisaApplication, "holidays": HolidayPackageBooking,
-        "buses": BusBooking, "tours": ActivityBooking, "cruises": CruiseBooking,
-        "insurance": InsurancePolicy, "villas": VillaBooking, "forex": ForexOrder,
+        "buses": BusBooking, "tours": ActivityBooking, "activities": ActivityBooking, "activity": ActivityBooking,
+        "cruises": CruiseBooking, "insurance": InsurancePolicy, "villas": VillaBooking, "forex": ForexOrder,
         "rent-a-ride": VehicleRentalBooking, "vehicle_rental": VehicleRentalBooking
     }
     
@@ -423,6 +501,14 @@ def confirm_booking(
 
     if booking.status != BookingStatus.HOLD:
         raise HTTPException(status_code=400, detail="Booking is not on hold status.")
+
+    if getattr(booking, "held_until", None) and datetime.datetime.utcnow() > booking.held_until:
+        booking.status = BookingStatus.EXPIRED
+        db.commit()
+        raise HTTPException(
+            status_code=400,
+            detail="Booking hold has expired. Please initiate a fresh search to reserve this vehicle."
+        )
 
     # 1. Villa Host Confirmation Approval Path
     if vertical.lower() == "villas":
@@ -555,6 +641,19 @@ def confirm_booking(
         db.add(pay_log)
         
         BookingStateMachine.transition_to(booking, BookingStatus.CONFIRMED)
+        
+        if vertical.lower() == "cabs":
+            if not getattr(booking, "driver_name", None):
+                booking.driver_name = "Rahul Sharma"
+                booking.driver_phone = "+91 98765 43210"
+            if not getattr(booking, "vehicle_number", None):
+                booking.vehicle_number = "DL 01 AB 1234"
+            db.add(BookingEvent(
+                booking_reference=booking.booking_reference,
+                event_type="driver_assigned",
+                description=f"Chauffeur {booking.driver_name} ({booking.driver_phone}) assigned for vehicle {booking.vehicle_number}."
+            ))
+
         db.commit()
 
         emit_event("booking_confirmed", {
@@ -597,8 +696,9 @@ def cancel_booking(
     models_mapping = {
         "flights": FlightBooking, "hotels": HotelBooking, "trains": TrainBooking,
         "cabs": CabBooking, "visa": VisaApplication, "holidays": HolidayPackageBooking,
-        "buses": BusBooking, "tours": ActivityBooking, "cruises": CruiseBooking,
-        "insurance": InsurancePolicy, "villas": VillaBooking, "forex": ForexOrder
+        "buses": BusBooking, "tours": ActivityBooking, "activities": ActivityBooking, "activity": ActivityBooking,
+        "cruises": CruiseBooking, "insurance": InsurancePolicy, "villas": VillaBooking, "forex": ForexOrder,
+        "rent-a-ride": VehicleRentalBooking, "vehicle_rental": VehicleRentalBooking
     }
     
     model_cls = models_mapping.get(vertical.lower())
@@ -1062,10 +1162,44 @@ def find_booking_by_reference(db: Session, booking_ref: str):
         InsurancePolicy, VillaBooking, ForexOrder, VehicleRentalBooking
     ]
     for table in tables:
-        booking = db.query(table).filter(table.booking_reference == booking_ref).first()
-        if booking:
-            return booking
+        try:
+            booking = db.query(table).filter(table.booking_reference == booking_ref).first()
+            if booking:
+                return booking
+        except Exception:
+            db.rollback()
+            continue
     return None
+
+
+@router.get("/my-trips")
+def get_user_my_trips(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    tables = [
+        FlightBooking, HotelBooking, TrainBooking, BusBooking, CabBooking,
+        HolidayPackageBooking, ActivityBooking, VisaApplication, CruiseBooking,
+        InsurancePolicy, VillaBooking, ForexOrder, VehicleRentalBooking
+    ]
+    all_trips = []
+    for table in tables:
+        try:
+            bookings = db.query(table).filter(table.user_id == current_user.id).order_by(table.created_at.desc()).limit(20).all()
+            for b in bookings:
+                vertical = getattr(b, "__tablename__", "").replace("_bookings", "")
+                all_trips.append({
+                    "booking_reference": b.booking_reference,
+                    "vertical": vertical,
+                    "status": b.status.value if hasattr(b.status, "value") else str(b.status),
+                    "total_amount": float(b.total_amount) if getattr(b, "total_amount", None) is not None else 0.0,
+                    "currency": getattr(b, "currency", "INR"),
+                    "created_at": b.created_at.isoformat() if getattr(b, "created_at", None) else None
+                })
+        except Exception:
+            db.rollback()
+            continue
+    return all_trips
 
 
 @router.get("/{booking_reference}/public")

@@ -3,6 +3,7 @@ import json
 import zipfile
 import logging
 import datetime
+import time
 from typing import Dict, Any
 from sqlalchemy import text
 from app.database import SessionLocal
@@ -149,6 +150,75 @@ def run_full_backup() -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Full backup job failed: {e}")
         return {"success": False, "error": str(e)}
+
+
+def restore_database(backup_file_path: str) -> bool:
+    """
+    Restores database from a JSON backup file.
+    """
+    if not os.path.exists(backup_file_path):
+        logger.error(f"Backup file not found: {backup_file_path}")
+        return False
+        
+    db = SessionLocal()
+    try:
+        with open(backup_file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            
+        tables_data = data.get("tables", {})
+        
+        # Whitelist tables check
+        tables_order = [
+            "users", "user_profiles", "travel_preferences", "saved_travelers",
+            "flight_bookings", "hotel_bookings", "cab_bookings", "train_bookings",
+            "bus_bookings", "holiday_package_bookings", "villa_bookings",
+            "wallet_accounts", "wallet_transactions", "loyalty_accounts",
+            "loyalty_transactions", "user_preference_embeddings",
+            "agent_execution_logs", "llm_router_decision_logs", "payment_attempts"
+        ]
+        
+        # Deletions in reverse order to respect foreign key constraints
+        for table in reversed(tables_order):
+            if table in tables_data:
+                db.execute(text(f"DELETE FROM {table}"))
+        db.commit()
+        
+        # Insertions in original order
+        from sqlalchemy import MetaData, Table, DateTime, Date
+        metadata = MetaData()
+        metadata.reflect(bind=db.bind)
+        
+        for table in tables_order:
+            if table in tables_data and tables_data[table]:
+                rows = tables_data[table]
+                target_table = Table(table, metadata, autoload_with=db.bind)
+                
+                # Convert date/time string representations back to datetime objects
+                for r in rows:
+                    for col_name, col in target_table.columns.items():
+                        if col_name in r and isinstance(r[col_name], str):
+                            val = r[col_name]
+                            if isinstance(col.type, DateTime):
+                                try:
+                                    r[col_name] = datetime.datetime.fromisoformat(val)
+                                except Exception:
+                                    pass
+                            elif isinstance(col.type, Date):
+                                try:
+                                    r[col_name] = datetime.date.fromisoformat(val)
+                                except Exception:
+                                    pass
+                db.execute(target_table.insert(), rows)
+                
+        db.commit()
+        logger.info(f"Database successfully restored from: {backup_file_path}")
+        return True
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Database restoration failed: {e}")
+        return False
+    finally:
+        db.close()
 
 if __name__ == "__main__":
     import time
