@@ -602,31 +602,38 @@ def startup_db_seed():
             logger.info("Special Fare Configurations seeded successfully!")
 
         if db_init.query(City).count() < 22 or db_init.query(HotelProperty).count() < 550:
-            logger.info("Database has incomplete cities or hotel properties. Triggering automatic database seeding...")
-            from app.commands.seed import (
-                run_reference, run_locations, run_flights, run_hotels,
-                run_villas, run_packages, run_trains, run_buses, run_cabs,
-                run_rental_vehicles, run_tours, run_cruises, run_insurance,
-                run_content, run_users
-            )
-            run_reference()
-            run_locations()
-            run_flights()
-            run_hotels()
-            run_villas()
-            run_packages()
-            run_trains()
-            run_buses()
-            run_cabs()
-            run_rental_vehicles()
-            run_tours()
-            run_cruises()
-            run_insurance()
-            run_content()
-            run_users()
-            logger.info("Automatic database seeding completed successfully!")
+            logger.info("Database has incomplete data. Triggering background database seeding...")
+            def _run_seed_in_background():
+                try:
+                    from app.commands.seed import (
+                        run_reference, run_locations, run_flights, run_hotels,
+                        run_villas, run_packages, run_trains, run_buses, run_cabs,
+                        run_rental_vehicles, run_tours, run_cruises, run_insurance,
+                        run_content, run_users
+                    )
+                    run_reference()
+                    run_locations()
+                    run_flights()
+                    run_hotels()
+                    run_villas()
+                    run_packages()
+                    run_trains()
+                    run_buses()
+                    run_cabs()
+                    run_rental_vehicles()
+                    run_tours()
+                    run_cruises()
+                    run_insurance()
+                    run_content()
+                    run_users()
+                    logger.info("Background database seeding completed successfully!")
+                except Exception as seed_err:
+                    logger.error(f"Background database seeding failed: {seed_err}", exc_info=True)
+            import threading
+            seed_thread = threading.Thread(target=_run_seed_in_background, daemon=True)
+            seed_thread.start()
     except Exception as seed_err:
-        logger.error(f"Failed during automatic database seeding on startup: {seed_err}", exc_info=True)
+        logger.error(f"Failed during startup DB check: {seed_err}", exc_info=True)
     finally:
         db_init.close()
     
