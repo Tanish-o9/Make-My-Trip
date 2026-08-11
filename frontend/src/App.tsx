@@ -2449,6 +2449,8 @@ function FlightsSearchForm({
   const [loading, setLoading] = useTabLoading('flights');
   const [showPayoutModal, setShowPayoutModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showFlightSeatModal, setShowFlightSeatModal] = useState<any | null>(null);
+  const [selectedFlightSeats, setSelectedFlightSeats] = useState<string[]>([]);
 
   const getIATACode = (cityInput: string): string => {
     if (!cityInput) return "";
@@ -2975,26 +2977,24 @@ function FlightsSearchForm({
                             )}
                           </div>
                           <button 
-                            onClick={() => onBook({
-                              vertical: "flights",
-                              amount: res.total_price || res.price,
-                              details: {
-                                origin: origin.split(" ")[0],
-                                destination: destination.split(" ")[0],
-                                airline_code: airlineCode,
-                                flight_number: flightNumber.split("-")[1] || flightNumber,
-                                cabin_class: cabinClass.toUpperCase(),
+                            onClick={() => {
+                              setSelectedFlightSeats([]);
+                              setShowFlightSeatModal({
+                                res,
+                                airlineName,
+                                flightNumber,
+                                origin,
+                                destination,
+                                cabinClass,
                                 specialFareType: fareCalc.fareKey,
-                                passengers: Array.from({ length: passengers }, (_, i) => ({ name: `Traveler Guest ${i+1}`, age: 32 })),
+                                amount: res.total_price || res.price,
                                 provider_name: res.provider_name,
                                 offer_id: res.offer_id
-                              },
-                              title: `${airlineName} ${flightNumber}`,
-                              subtitle: `${origin.split(" ")[0]} ➔ ${destination.split(" ")[0]}`
-                            })}
+                              });
+                            }}
                             className="bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-[11px] font-extrabold px-4 py-2 rounded-xl flex items-center gap-1 shadow-lg shadow-blue-600/10 cursor-pointer transition-all"
                           >
-                            Book Flight <ArrowRight size={12} />
+                            Select Seats <ArrowRight size={12} />
                           </button>
                         </div>
                       );
@@ -3006,6 +3006,112 @@ function FlightsSearchForm({
           </div>
         )}
       </div>
+
+      {/* Flight Seat Selector Modal */}
+      {showFlightSeatModal && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#0b1021] border border-slate-800 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl text-slate-200">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <div>
+                <h4 className="font-black text-sm uppercase text-slate-100">Select Cabin Seats</h4>
+                <p className="text-[10px] text-slate-400 font-semibold">{showFlightSeatModal.airlineName} {showFlightSeatModal.flightNumber}</p>
+              </div>
+              <button onClick={() => setShowFlightSeatModal(null)} className="text-slate-400 hover:text-white font-extrabold text-sm">✕</button>
+            </div>
+            
+            <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 text-[10px] font-bold text-slate-400 flex justify-between">
+              <span>Window (A-C)</span>
+              <span className="text-yellow-400">✈️ Front of Aircraft</span>
+              <span>Window (D-F)</span>
+            </div>
+
+            {/* Scrollable Cabin Seating */}
+            <div className="max-h-64 overflow-y-auto pr-1 py-2 space-y-2">
+              {Array.from({ length: 10 }, (_, rIdx) => {
+                const row = rIdx + 1;
+                const cols = ["A", "B", "C", "D", "E", "F"];
+                return (
+                  <div key={row} className="flex justify-between items-center gap-2">
+                    <span className="text-[10px] font-bold text-slate-500 w-4 text-center">{row}</span>
+                    <div className="flex-1 grid grid-cols-6 gap-1">
+                      {cols.map((col, cIdx) => {
+                        const seat = `${row}${col}`;
+                        const isAisleSpacer = cIdx === 3;
+                        const isTaken = (row % 3 === 0 && col === "C") || (col === "D" && row > 4) || seat === "1B" || seat === "4F";
+                        const isSelected = selectedFlightSeats.includes(seat);
+                        
+                        return (
+                          <div key={col} className={`flex items-center gap-1 ${isAisleSpacer ? 'ml-3' : ''}`}>
+                            <button
+                              disabled={isTaken}
+                              onClick={() => {
+                                if (isSelected) {
+                                  setSelectedFlightSeats(prev => prev.filter(s => s !== seat));
+                                } else {
+                                  if (selectedFlightSeats.length < passengers) {
+                                    setSelectedFlightSeats(prev => [...prev, seat]);
+                                  } else {
+                                    alert(`You can only select up to ${passengers} seat(s) for this booking.`);
+                                  }
+                                }
+                              }}
+                              className={`w-8 h-8 rounded border text-[10px] font-black transition-all flex items-center justify-center cursor-pointer ${
+                                isTaken 
+                                  ? 'bg-slate-800/40 border-slate-850 text-slate-600 cursor-not-allowed' 
+                                  : isSelected
+                                    ? 'bg-yellow-400 border-yellow-500 text-slate-900 shadow-md shadow-yellow-400/20'
+                                    : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
+                              }`}
+                            >
+                              {col}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="border-t border-slate-800 pt-3 flex justify-between items-center text-xs font-bold text-slate-300">
+              <span>Selected: {selectedFlightSeats.length} / {passengers}</span>
+              <span className="text-yellow-400">Seats: {selectedFlightSeats.join(", ") || "None"}</span>
+            </div>
+
+            <button 
+              onClick={() => {
+                if (selectedFlightSeats.length < passengers) {
+                  alert(`Please select all ${passengers} seat(s) before booking.`);
+                  return;
+                }
+                onBook({
+                  vertical: "flights",
+                  amount: showFlightSeatModal.amount,
+                  details: {
+                    origin: showFlightSeatModal.origin.split(" ")[0],
+                    destination: showFlightSeatModal.destination.split(" ")[0],
+                    airline_code: showFlightSeatModal.res.airline,
+                    flight_number: showFlightSeatModal.flightNumber.split("-")[1] || showFlightSeatModal.flightNumber,
+                    cabin_class: showFlightSeatModal.cabinClass.toUpperCase(),
+                    specialFareType: showFlightSeatModal.specialFareType,
+                    passengers: Array.from({ length: passengers }, (_, i) => ({ name: `Traveler Guest ${i+1}`, age: 32 })),
+                    provider_name: showFlightSeatModal.provider_name,
+                    offer_id: showFlightSeatModal.offer_id,
+                    seat_numbers: selectedFlightSeats
+                  },
+                  title: `${showFlightSeatModal.airlineName} ${showFlightSeatModal.flightNumber}`,
+                  subtitle: `Seats: ${selectedFlightSeats.join(", ")} | ${showFlightSeatModal.origin.split(" ")[0]} ➔ ${showFlightSeatModal.destination.split(" ")[0]}`
+                });
+                setShowFlightSeatModal(null);
+              }}
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-extrabold py-2.5 rounded-xl text-xs uppercase transition-all cursor-pointer shadow-lg shadow-blue-600/10"
+            >
+              Confirm Seats & Book Flight
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Price Drop Protection Modal */}
       {showPayoutModal && (
@@ -4277,6 +4383,9 @@ function TrainsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
   const [coach, setCoach] = useState("3A");
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useTabLoading('trains');
+  const [trainPassengers, setTrainPassengers] = useState(1);
+  const [showTrainSeatModal, setShowTrainSeatModal] = useState<any | null>(null);
+  const [selectedTrainSeats, setSelectedTrainSeats] = useState<string[]>([]);
 
   const handleSearch = () => {
     if (!fromStn.trim()) {
@@ -4302,7 +4411,7 @@ function TrainsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
 
   return (
     <div className="space-y-6 text-black font-sans">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-900/60 p-4 rounded-2xl border border-slate-800/80">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 bg-slate-900/60 p-4 rounded-2xl border border-slate-800/80">
         <div className="space-y-1.5 relative">
           <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">From Station</span>
           <input 
@@ -4378,6 +4487,28 @@ function TrainsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
             <option value="SL">Sleeper Class (SL)</option>
           </select>
         </div>
+        <div className="space-y-1.5">
+          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Passengers</span>
+          <div className="flex gap-2 bg-[#0e1628] border border-slate-800 rounded-xl px-3 py-2 justify-between items-center h-[46px]">
+            <span className="font-bold text-xs text-white">{trainPassengers} Pax</span>
+            <div className="flex gap-1.5 items-center">
+              <button 
+                type="button"
+                onClick={() => setTrainPassengers(Math.max(1, trainPassengers - 1))} 
+                className="w-5 h-5 rounded bg-yellow-400 hover:bg-yellow-300 text-black border border-black flex items-center justify-center font-bold text-xs cursor-pointer"
+              >
+                -
+              </button>
+              <button 
+                type="button"
+                onClick={() => setTrainPassengers(trainPassengers + 1)} 
+                className="w-5 h-5 rounded bg-yellow-400 hover:bg-yellow-300 text-black border border-black flex items-center justify-center font-bold text-xs cursor-pointer"
+              >
+                +
+              </button>
+            </div>
+          </div>
+        </div>
         <div className="flex items-end">
           <button 
             onClick={handleSearch} 
@@ -4408,27 +4539,133 @@ function TrainsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
               <div className="text-right">
                 <span className="font-black text-red-500 text-base block">₹{t.price}</span>
                 <button 
-                  onClick={() => onBook({
-                    vertical: "trains",
-                    amount: t.price,
-                    details: {
-                      train_number: t.train_number,
-                      train_name: t.train_name,
-                      origin_station: fromStn.split(" ")[0],
-                      destination_station: toStn.split(" ")[0],
-                      coach_class: coach,
-                      passengers: [{ name: "Traveler Guest", age: 32 }]
-                    },
-                    title: `${t.train_number} ${t.train_name}`,
-                    subtitle: `Coach: ${coach} | ${fromStn} ➔ ${toStn}`
-                  })}
+                  onClick={() => {
+                    setSelectedTrainSeats([]);
+                    setShowTrainSeatModal({
+                      t,
+                      coach,
+                      fromStn,
+                      toStn,
+                      amount: t.price
+                    });
+                  }}
                   className="mt-1 bg-yellow-300 text-[10px] font-black px-3 py-1.5 border-2 border-black rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:bg-yellow-400 transition-all uppercase block"
                 >
-                  Book Seat
+                  Select Seats
                 </button>
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Train Seat Selector Modal */}
+      {showTrainSeatModal && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#0b1021] border border-slate-800 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl text-slate-200">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <div>
+                <h4 className="font-black text-sm uppercase text-slate-100">Select Train Berths</h4>
+                <p className="text-[10px] text-slate-400 font-semibold">{showTrainSeatModal.t.train_number} {showTrainSeatModal.t.train_name}</p>
+              </div>
+              <button onClick={() => setShowTrainSeatModal(null)} className="text-slate-400 hover:text-white font-extrabold text-sm">✕</button>
+            </div>
+            
+            <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 text-[9px] font-bold text-slate-400 flex justify-between">
+              <span>Lower (LB) / Mid (MB) / Upper (UB)</span>
+              <span className="text-yellow-400">Side (SL/SU)</span>
+            </div>
+
+            {/* Indian Railways 3AC Coach Layout representation */}
+            <div className="max-h-64 overflow-y-auto pr-1 py-2 space-y-3">
+              {Array.from({ length: 4 }, (_, bayIdx) => {
+                const startSeat = bayIdx * 6 + 1;
+                const types = ["LB", "MB", "UB", "LB", "MB", "UB", "SL", "SU"];
+                const seats = Array.from({ length: 8 }, (_, i) => {
+                  const num = startSeat + i;
+                  const type = types[i] || "LB";
+                  return `${num}-${type}`;
+                });
+
+                return (
+                  <div key={bayIdx} className="bg-slate-900/40 p-2 rounded-xl border border-slate-800 space-y-2">
+                    <div className="text-[9px] text-slate-500 font-black uppercase">Bay {bayIdx + 1}</div>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {seats.map((seat, sIdx) => {
+                        const isSideBerth = sIdx >= 6;
+                        const isTaken = (startSeat + sIdx) % 5 === 0 || seat === "3-UB" || seat === "17-SL";
+                        const isSelected = selectedTrainSeats.includes(seat);
+                        
+                        return (
+                          <button
+                            key={seat}
+                            disabled={isTaken}
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedTrainSeats(prev => prev.filter(s => s !== seat));
+                              } else {
+                                if (selectedTrainSeats.length < trainPassengers) {
+                                  setSelectedTrainSeats(prev => [...prev, seat]);
+                                } else {
+                                  alert(`You can only select up to ${trainPassengers} seat(s) for this booking.`);
+                                }
+                              }
+                            }}
+                            className={`h-10 rounded border text-[9px] font-black transition-all flex flex-col items-center justify-center cursor-pointer ${
+                              isTaken 
+                                ? 'bg-slate-800/40 border-slate-850 text-slate-600 cursor-not-allowed' 
+                                : isSelected
+                                  ? 'bg-yellow-400 border-yellow-500 text-slate-900 shadow-md shadow-yellow-400/20'
+                                  : isSideBerth
+                                    ? 'bg-blue-950/40 border-blue-900/50 text-blue-300 hover:border-blue-800'
+                                    : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
+                            }`}
+                          >
+                            <span className="font-mono text-[9px]">{startSeat + sIdx}</span>
+                            <span className="text-[7px] opacity-75">{types[sIdx]}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="border-t border-slate-800 pt-3 flex justify-between items-center text-xs font-bold text-slate-300">
+              <span>Selected: {selectedTrainSeats.length} / {trainPassengers}</span>
+              <span className="text-yellow-400">Seats: {selectedTrainSeats.join(", ") || "None"}</span>
+            </div>
+
+            <button 
+              onClick={() => {
+                if (selectedTrainSeats.length < trainPassengers) {
+                  alert(`Please select all ${trainPassengers} seat(s) before booking.`);
+                  return;
+                }
+                const totalBookingAmount = showTrainSeatModal.amount * trainPassengers;
+                onBook({
+                  vertical: "trains",
+                  amount: totalBookingAmount,
+                  details: {
+                    train_number: showTrainSeatModal.t.train_number,
+                    train_name: showTrainSeatModal.t.train_name,
+                    origin_station: showTrainSeatModal.fromStn.split(" ")[0],
+                    destination_station: showTrainSeatModal.toStn.split(" ")[0],
+                    coach_class: showTrainSeatModal.coach,
+                    passengers: Array.from({ length: trainPassengers }, (_, i) => ({ name: `Traveler Guest ${i+1}`, age: 30 })),
+                    seat_numbers: selectedTrainSeats
+                  },
+                  title: `${showTrainSeatModal.t.train_number} ${showTrainSeatModal.t.train_name}`,
+                  subtitle: `Berths: ${selectedTrainSeats.join(", ")} | Coach: ${showTrainSeatModal.coach} | ${showTrainSeatModal.fromStn} ➔ ${showTrainSeatModal.toStn}`
+                });
+                setShowTrainSeatModal(null);
+              }}
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-extrabold py-2.5 rounded-xl text-xs uppercase transition-all cursor-pointer shadow-lg shadow-blue-600/10"
+            >
+              Confirm Seats & Book Train
+            </button>
+          </div>
         </div>
       )}
     </div>
