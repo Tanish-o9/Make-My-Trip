@@ -4,12 +4,16 @@ from typing import Optional, Dict, Any
 from jose import jwt, JWTError
 import bcrypt
 
-_raw_jwt_secret = os.getenv("JWT_SECRET")
-if not _raw_jwt_secret or _raw_jwt_secret == "supersecretjwtkeychangeinproduction":
+_raw_jwt_secret = os.getenv("JWT_SECRET", "").strip()
+if not _raw_jwt_secret or _raw_jwt_secret in ["supersecretjwtkeychangeinproduction", "your-development-jwt-secret-key-make-it-secure", "your-production-jwt-secret-key"]:
     _env = os.getenv("ENVIRONMENT", "development").lower()
     if _env in ["production", "prod", "staging"] or os.getenv("RAILWAY_ENVIRONMENT") is not None:
-        raise RuntimeError("CRITICAL CONFIGURATION ERROR: JWT_SECRET environment variable must be configured in production/staging environments to prevent token forgery.")
-    JWT_SECRET = "supersecretjwtkeychangeinproduction"
+        import secrets
+        JWT_SECRET = secrets.token_hex(32)
+        # Log a warning to stdout
+        print("WARNING: JWT_SECRET was not set or insecure. Generated a secure random fallback secret for this run.")
+    else:
+        JWT_SECRET = "supersecretjwtkeychangeinproduction"
 else:
     JWT_SECRET = _raw_jwt_secret
 ALGORITHM = "HS256"
