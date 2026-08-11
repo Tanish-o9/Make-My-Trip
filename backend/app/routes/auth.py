@@ -484,7 +484,8 @@ def login(
     db: Session = Depends(get_db),
 ):
     try:
-        user = db.query(User).filter(User.email == form_data.username).first()
+        clean_username = form_data.username.strip().lower()
+        user = db.query(User).filter(User.email == clean_username).first()
 
         if not user:
             raise HTTPException(
