@@ -8,10 +8,7 @@ _raw_jwt_secret = os.getenv("JWT_SECRET", "").strip()
 if not _raw_jwt_secret or _raw_jwt_secret in ["supersecretjwtkeychangeinproduction", "your-development-jwt-secret-key-make-it-secure", "your-production-jwt-secret-key"]:
     _env = os.getenv("ENVIRONMENT", "development").lower()
     if _env in ["production", "prod", "staging"] or os.getenv("RAILWAY_ENVIRONMENT") is not None:
-        import secrets
-        JWT_SECRET = secrets.token_hex(32)
-        # Log a warning to stdout
-        print("WARNING: JWT_SECRET was not set or insecure. Generated a secure random fallback secret for this run.")
+        raise RuntimeError("CRITICAL CONFIGURATION ERROR: JWT_SECRET environment variable must be configured in production/staging environments to prevent token forgery.")
     else:
         JWT_SECRET = "supersecretjwtkeychangeinproduction"
 else:

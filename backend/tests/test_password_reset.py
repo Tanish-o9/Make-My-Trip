@@ -403,3 +403,49 @@ def test_14_admin_login_regression():
     })
     assert resp.status_code == 200
     assert "access_token" in resp.json()
+
+
+# ─── 15. Resend hourly limit (limit 5) ─────────────────────────────────────────
+
+def test_15_resend_hourly_limit():
+    _create_user("reset_cooldown@example.com")
+    with patch("app.routes.auth._send_password_reset_email"), \
+         patch("app.routes.auth.RESEND_COOLDOWN_SECONDS", 0):
+        
+        # 1. Trigger forgot password (1st request)
+        r0 = client.post("/api/v1/auth/forgot-password", json={"email": "reset_cooldown@example.com"})
+        assert r0.status_code == 200
+        
+        # 2. Trigger resend 4 times (total 5 requests)
+        for _ in range(4):
+            r = client.post("/api/v1/auth/resend-password-reset", json={"email": "reset_cooldown@example.com"})
+            assert r.status_code == 200
+            
+        # 3. 6th request overall (5th resend) -> must fail due to hourly limit
+        r_fail = client.post("/api/v1/auth/resend-password-reset", json={"email": "reset_cooldown@example.com"})
+        assert r_fail.status_code == 429
+        assert "too many password reset requests" in r_fail.json()["detail"].lower()
+
+
+# ─── 16. Rate limiting on forgot password ──────────────────────────────────────
+
+def test_16_rate_limiting():
+    _create_user("reset_test_user@example.com")
+    # Mock _is_pytest to return False, forcing the rate limiter to execute
+    with patch("app.routes.auth._send_password_reset_email"), \
+         patch("app.utils.rate_limiter.RateLimiter._is_pytest", return_value=False):
+        
+        # Clear any existing local store state for this test run
+        from app.routes.auth import _reset_limiter
+        _reset_limiter.local_store.clear()
+        
+        # Max requests is 5. Call 5 times successfully
+        for _ in range(5):
+            r = client.post("/api/v1/auth/forgot-password", json={"email": "reset_test_user@example.com"})
+            assert r.status_code == 200
+            
+        # 6th call must fail with 429
+        r_fail = client.post("/api/v1/auth/forgot-password", json={"email": "reset_test_user@example.com"})
+        assert r_fail.status_code == 429
+        assert "too many requests" in r_fail.json()["detail"].lower()
+
