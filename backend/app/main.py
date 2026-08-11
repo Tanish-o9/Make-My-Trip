@@ -340,7 +340,7 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 @app.on_event("startup")
 def startup_db_seed():
-    # ── Startup Environment Variable Validation ──
+    # ── Startup Environment Variable Validation (keep synchronous) ──
     critical_missing = []
     
     # 1. DATABASE_URL check
@@ -378,434 +378,296 @@ def startup_db_seed():
         logger.error(err_msg)
         raise SystemExit(err_msg)
 
-    # Duffel validation print
-    from app.payments.config import settings
-    dkey = settings.DUFFEL_API_KEY
-    dbase = settings.DUFFEL_BASE_URL
-    dver = settings.DUFFEL_VERSION
-    if dkey and dkey.strip() not in ["", "your-duffel-key"] and dbase and dver:
-        # Mask key for diagnostics
-        masked = dkey[:12] + "xxxxxxxx" + "*" * (len(dkey) - 20) if len(dkey) > 20 else "xxxx"
-        logger.info(f"Duffel configuration loaded. Base URL: {dbase}, Version: {dver}, Key: {masked}")
+    # ── All heavy work runs in a background thread so healthcheck passes immediately ──
+    def _background_startup():
         try:
-            print("✓ Duffel Provider Loaded")
-        except UnicodeEncodeError:
-            print("Duffel Provider Loaded")
-    else:
-        try:
-            print("⚠ Duffel Provider Disabled")
-        except UnicodeEncodeError:
-            print("Duffel Provider Disabled")
+            # Duffel validation
+            from app.payments.config import settings
+            dkey = settings.DUFFEL_API_KEY
+            dbase = settings.DUFFEL_BASE_URL
+            dver = settings.DUFFEL_VERSION
+            if dkey and dkey.strip() not in ["", "your-duffel-key"] and dbase and dver:
+                masked = dkey[:12] + "xxxxxxxx" + "*" * (len(dkey) - 20) if len(dkey) > 20 else "xxxx"
+                logger.info(f"Duffel configuration loaded. Base URL: {dbase}, Version: {dver}, Key: {masked}")
+            else:
+                logger.info("Duffel Provider Disabled")
 
-    logger.info("Initializing database schemas...")
-    # Create tables locally if using SQLite database
-    if "sqlite" in str(engine.url):
-        Base.metadata.create_all(bind=engine)
-    else:
-        try:
-            from sqlalchemy import text
-            with engine.connect() as conn:
-                cab_booking_cols = [
-                    ("trip_type", "VARCHAR(50) DEFAULT 'one_way'"),
-                    ("return_time", "TIMESTAMP"),
-                    ("flight_number", "VARCHAR(50)"),
-                    ("terminal", "VARCHAR(50)"),
-                    ("hourly_duration", "INTEGER"),
-                    ("passengers_count", "INTEGER DEFAULT 1"),
-                    ("passenger_details", "JSON"),
-                    ("luggage_count", "INTEGER DEFAULT 1"),
-                    ("special_instructions", "TEXT"),
-                    ("driver_name", "VARCHAR(150)"),
-                    ("driver_phone", "VARCHAR(50)"),
-                    ("vehicle_number", "VARCHAR(50)"),
-                    ("distance_km", "NUMERIC(10, 2) DEFAULT 0.0"),
-                    ("estimated_duration_mins", "INTEGER DEFAULT 30"),
-                    ("voucher_url", "VARCHAR(500)"),
-                ]
-                for col_name, col_type in cab_booking_cols:
-                    try:
-                        conn.execute(text(f"ALTER TABLE cab_bookings ADD COLUMN IF NOT EXISTS {col_name} {col_type};"))
-                        conn.commit()
-                    except Exception:
-                        pass
-
-                cab_veh_cols = [
-                    ("brand", "VARCHAR(100)"),
-                    ("model", "VARCHAR(100)"),
-                    ("display_name", "VARCHAR(255)"),
-                    ("category", "VARCHAR(50) DEFAULT 'Sedan'"),
-                    ("variant", "VARCHAR(100)"),
-                    ("image_key", "VARCHAR(100)"),
-                    ("image_url", "VARCHAR(500)"),
-                    ("thumbnail_url", "VARCHAR(500)"),
-                    ("seating_capacity", "INTEGER DEFAULT 4"),
-                    ("luggage_capacity", "INTEGER DEFAULT 2"),
-                    ("fuel_type", "VARCHAR(50) DEFAULT 'Petrol'"),
-                    ("transmission", "VARCHAR(50) DEFAULT 'Manual'"),
-                    ("ac_available", "BOOLEAN DEFAULT TRUE"),
-                    ("rating", "NUMERIC(3, 1) DEFAULT 4.8"),
-                    ("review_count", "INTEGER DEFAULT 120"),
-                    ("price_per_km", "NUMERIC(10, 2) DEFAULT 15.0"),
-                    ("base_fare", "NUMERIC(10, 2) DEFAULT 200.0"),
-                    ("per_hour_rate", "NUMERIC(10, 2) DEFAULT 250.0"),
-                    ("availability_status", "VARCHAR(50) DEFAULT 'available'"),
-                    ("plate_number", "VARCHAR(50)"),
-                ]
-                for col_name, col_type in cab_veh_cols:
-                    try:
-                        conn.execute(text(f"ALTER TABLE cab_vehicles ADD COLUMN IF NOT EXISTS {col_name} {col_type};"))
-                        conn.commit()
-                    except Exception:
-                        pass
-        except Exception as e:
-            logger.warning(f"Schema column check skipped: {e}")
-
-        # ── Email verification migrations (production PostgreSQL) ──
-        try:
-            with engine.connect() as conn:
-                # Add email_verified to users if missing
-                conn.execute(text(
-                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE;"
-                ))
-                conn.commit()
-
-                # Create email_verifications table if missing
-                conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS email_verifications (
-                        id SERIAL PRIMARY KEY,
-                        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-                        email VARCHAR(255) NOT NULL,
-                        code_hash VARCHAR(64) NOT NULL,
-                        purpose VARCHAR(30) NOT NULL,
-                        expires_at TIMESTAMP NOT NULL,
-                        attempts INTEGER NOT NULL DEFAULT 0,
-                        is_used BOOLEAN NOT NULL DEFAULT FALSE,
-                        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-                        used_at TIMESTAMP
-                    );
-                """))
-                conn.commit()
-
-                # Indexes
-                conn.execute(text(
-                    "CREATE INDEX IF NOT EXISTS ix_email_verif_email_purpose ON email_verifications (email, purpose);"
-                ))
-                conn.execute(text(
-                    "CREATE INDEX IF NOT EXISTS ix_email_verifications_email ON email_verifications (email);"
-                ))
-                conn.execute(text(
-                    "CREATE INDEX IF NOT EXISTS ix_email_verifications_expires_at ON email_verifications (expires_at);"
-                ))
-                conn.commit()
-                logger.info("Email verification schema migration completed.")
-
-                # Profile & Security schema migrations
-                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN NOT NULL DEFAULT FALSE;"))
-                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;"))
-                conn.execute(text("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(512);"))
-                conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS security_events (
-                        id SERIAL PRIMARY KEY,
-                        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                        event_type VARCHAR(50) NOT NULL,
-                        ip_address VARCHAR(100),
-                        user_agent VARCHAR(512),
-                        details VARCHAR(512),
-                        created_at TIMESTAMP NOT NULL DEFAULT NOW()
-                    );
-                """))
-                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_security_events_user_id ON security_events (user_id);"))
-                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_security_events_created_at ON security_events (created_at);"))
-                conn.commit()
-                logger.info("Security events and profile columns migration completed.")
-
-                # Notifications & Deliveries schema migrations
-                conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS notifications (
-                        id SERIAL PRIMARY KEY,
-                        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                        channel VARCHAR(50) NOT NULL DEFAULT 'in_app',
-                        title VARCHAR(255),
-                        message TEXT,
-                        notification_type VARCHAR(50) NOT NULL DEFAULT 'GENERAL',
-                        booking_reference VARCHAR(50),
-                        vertical VARCHAR(50),
-                        action_url VARCHAR(255),
-                        is_read BOOLEAN NOT NULL DEFAULT FALSE,
-                        read_at TIMESTAMP,
-                        idempotency_key VARCHAR(255) UNIQUE,
-                        delivery_status VARCHAR(50) NOT NULL DEFAULT 'DELIVERED',
-                        payload JSON,
-                        status VARCHAR(50) DEFAULT 'sent',
-                        sent_at TIMESTAMP NOT NULL DEFAULT NOW(),
-                        created_at TIMESTAMP NOT NULL DEFAULT NOW()
-                    );
-                """))
-                conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS title VARCHAR(255);"))
-                conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS message TEXT;"))
-                conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS notification_type VARCHAR(50) DEFAULT 'GENERAL';"))
-                conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS booking_reference VARCHAR(50);"))
-                conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS vertical VARCHAR(50);"))
-                conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS action_url VARCHAR(255);"))
-                conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS is_read BOOLEAN NOT NULL DEFAULT FALSE;"))
-                conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS read_at TIMESTAMP;"))
-                conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(255);"))
-                conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS delivery_status VARCHAR(50) DEFAULT 'DELIVERED';"))
-
-                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_notif_user_created ON notifications (user_id, created_at);"))
-                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_notif_user_unread ON notifications (user_id, is_read);"))
-                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_notif_booking_ref ON notifications (booking_reference);"))
-
-                conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS notification_deliveries (
-                        id SERIAL PRIMARY KEY,
-                        notification_id INTEGER NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
-                        channel VARCHAR(50) NOT NULL,
-                        provider VARCHAR(50) NOT NULL DEFAULT 'system',
-                        status VARCHAR(50) NOT NULL DEFAULT 'DELIVERED',
-                        attempt_count INTEGER NOT NULL DEFAULT 1,
-                        last_attempt_at TIMESTAMP NOT NULL DEFAULT NOW(),
-                        delivered_at TIMESTAMP,
-                        error_code VARCHAR(100)
-                    );
-                """))
-                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_notif_deliv_notif_id ON notification_deliveries (notification_id);"))
-
-                conn.execute(text("ALTER TABLE notification_preferences ADD COLUMN IF NOT EXISTS push_alerts BOOLEAN NOT NULL DEFAULT TRUE;"))
-                conn.execute(text("ALTER TABLE notification_preferences ADD COLUMN IF NOT EXISTS booking_updates BOOLEAN NOT NULL DEFAULT TRUE;"))
-                conn.execute(text("ALTER TABLE notification_preferences ADD COLUMN IF NOT EXISTS payment_alerts BOOLEAN NOT NULL DEFAULT TRUE;"))
-                conn.execute(text("ALTER TABLE notification_preferences ADD COLUMN IF NOT EXISTS trip_alerts BOOLEAN NOT NULL DEFAULT TRUE;"))
-                conn.execute(text("ALTER TABLE notification_preferences ADD COLUMN IF NOT EXISTS marketing_emails BOOLEAN NOT NULL DEFAULT FALSE;"))
-                conn.commit()
-                logger.info("Notification tables and schema migrations completed.")
-
-        except Exception as ev_err:
-            logger.warning(f"Schema migration skipped: {ev_err}")
-
-
-    # Check if database is unseeded, and if so, run full seeding sequence automatically!
-    from app.database import SessionLocal
-    from app.models.search_entities import City, HotelProperty
-    db_init = SessionLocal()
-    try:
-        from app.models.bookings import SpecialFareConfig
-        if db_init.query(SpecialFareConfig).count() == 0:
-            logger.info("Pre-seeding default Special Fare Configurations...")
-            defaults = [
-                SpecialFareConfig(fare_type="regular", discount_percent=0.0, minimum_age=None, maximum_age=None, verification_required=False, active=True),
-                SpecialFareConfig(fare_type="student", discount_percent=10.0, minimum_age=5, maximum_age=30, verification_required=True, active=True),
-                SpecialFareConfig(fare_type="senior", discount_percent=5.0, minimum_age=60, maximum_age=None, verification_required=False, active=True),
-                SpecialFareConfig(fare_type="armed_forces", discount_percent=10.0, minimum_age=None, maximum_age=None, verification_required=True, active=True)
-            ]
-            db_init.add_all(defaults)
-            db_init.commit()
-            logger.info("Special Fare Configurations seeded successfully!")
-
-        if db_init.query(City).count() < 22 or db_init.query(HotelProperty).count() < 550:
-            logger.info("Database has incomplete data. Triggering background database seeding...")
-            def _run_seed_in_background():
+            # ── Schema Migrations ──
+            logger.info("Initializing database schemas in background...")
+            if "sqlite" in str(engine.url):
+                Base.metadata.create_all(bind=engine)
+            else:
                 try:
+                    from sqlalchemy import text
+                    with engine.connect() as conn:
+                        cab_booking_cols = [
+                            ("trip_type", "VARCHAR(50) DEFAULT 'one_way'"),
+                            ("return_time", "TIMESTAMP"),
+                            ("flight_number", "VARCHAR(50)"),
+                            ("terminal", "VARCHAR(50)"),
+                            ("hourly_duration", "INTEGER"),
+                            ("passengers_count", "INTEGER DEFAULT 1"),
+                            ("passenger_details", "JSON"),
+                            ("luggage_count", "INTEGER DEFAULT 1"),
+                            ("special_instructions", "TEXT"),
+                            ("driver_name", "VARCHAR(150)"),
+                            ("driver_phone", "VARCHAR(50)"),
+                            ("vehicle_number", "VARCHAR(50)"),
+                            ("distance_km", "NUMERIC(10, 2) DEFAULT 0.0"),
+                            ("estimated_duration_mins", "INTEGER DEFAULT 30"),
+                            ("voucher_url", "VARCHAR(500)"),
+                        ]
+                        for col_name, col_type in cab_booking_cols:
+                            try:
+                                conn.execute(text(f"ALTER TABLE cab_bookings ADD COLUMN IF NOT EXISTS {col_name} {col_type};"))
+                                conn.commit()
+                            except Exception:
+                                pass
+
+                        cab_veh_cols = [
+                            ("brand", "VARCHAR(100)"),
+                            ("model", "VARCHAR(100)"),
+                            ("display_name", "VARCHAR(255)"),
+                            ("category", "VARCHAR(50) DEFAULT 'Sedan'"),
+                            ("variant", "VARCHAR(100)"),
+                            ("image_key", "VARCHAR(100)"),
+                            ("image_url", "VARCHAR(500)"),
+                            ("thumbnail_url", "VARCHAR(500)"),
+                            ("seating_capacity", "INTEGER DEFAULT 4"),
+                            ("luggage_capacity", "INTEGER DEFAULT 2"),
+                            ("fuel_type", "VARCHAR(50) DEFAULT 'Petrol'"),
+                            ("transmission", "VARCHAR(50) DEFAULT 'Manual'"),
+                            ("ac_available", "BOOLEAN DEFAULT TRUE"),
+                            ("rating", "NUMERIC(3, 1) DEFAULT 4.8"),
+                            ("review_count", "INTEGER DEFAULT 120"),
+                            ("price_per_km", "NUMERIC(10, 2) DEFAULT 15.0"),
+                            ("base_fare", "NUMERIC(10, 2) DEFAULT 200.0"),
+                            ("per_hour_rate", "NUMERIC(10, 2) DEFAULT 250.0"),
+                            ("availability_status", "VARCHAR(50) DEFAULT 'available'"),
+                            ("plate_number", "VARCHAR(50)"),
+                        ]
+                        for col_name, col_type in cab_veh_cols:
+                            try:
+                                conn.execute(text(f"ALTER TABLE cab_vehicles ADD COLUMN IF NOT EXISTS {col_name} {col_type};"))
+                                conn.commit()
+                            except Exception:
+                                pass
+                except Exception as e:
+                    logger.warning(f"Schema column check skipped: {e}")
+
+                try:
+                    from sqlalchemy import text
+                    with engine.connect() as conn:
+                        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE;"))
+                        conn.commit()
+                        conn.execute(text("""
+                            CREATE TABLE IF NOT EXISTS email_verifications (
+                                id SERIAL PRIMARY KEY,
+                                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                                email VARCHAR(255) NOT NULL,
+                                code_hash VARCHAR(64) NOT NULL,
+                                purpose VARCHAR(30) NOT NULL,
+                                expires_at TIMESTAMP NOT NULL,
+                                attempts INTEGER NOT NULL DEFAULT 0,
+                                is_used BOOLEAN NOT NULL DEFAULT FALSE,
+                                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                                used_at TIMESTAMP
+                            );
+                        """))
+                        conn.commit()
+                        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_email_verif_email_purpose ON email_verifications (email, purpose);"))
+                        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_email_verifications_email ON email_verifications (email);"))
+                        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_email_verifications_expires_at ON email_verifications (expires_at);"))
+                        conn.commit()
+                        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN NOT NULL DEFAULT FALSE;"))
+                        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;"))
+                        conn.execute(text("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(512);"))
+                        conn.execute(text("""
+                            CREATE TABLE IF NOT EXISTS security_events (
+                                id SERIAL PRIMARY KEY,
+                                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                                event_type VARCHAR(50) NOT NULL,
+                                ip_address VARCHAR(100),
+                                user_agent VARCHAR(512),
+                                details VARCHAR(512),
+                                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+                            );
+                        """))
+                        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_security_events_user_id ON security_events (user_id);"))
+                        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_security_events_created_at ON security_events (created_at);"))
+                        conn.commit()
+                        conn.execute(text("""
+                            CREATE TABLE IF NOT EXISTS notifications (
+                                id SERIAL PRIMARY KEY,
+                                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                                channel VARCHAR(50) NOT NULL DEFAULT 'in_app',
+                                title VARCHAR(255),
+                                message TEXT,
+                                notification_type VARCHAR(50) NOT NULL DEFAULT 'GENERAL',
+                                booking_reference VARCHAR(50),
+                                vertical VARCHAR(50),
+                                action_url VARCHAR(255),
+                                is_read BOOLEAN NOT NULL DEFAULT FALSE,
+                                read_at TIMESTAMP,
+                                idempotency_key VARCHAR(255) UNIQUE,
+                                delivery_status VARCHAR(50) NOT NULL DEFAULT 'DELIVERED',
+                                payload JSON,
+                                status VARCHAR(50) DEFAULT 'sent',
+                                sent_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+                            );
+                        """))
+                        conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS title VARCHAR(255);"))
+                        conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS message TEXT;"))
+                        conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS notification_type VARCHAR(50) DEFAULT 'GENERAL';"))
+                        conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS booking_reference VARCHAR(50);"))
+                        conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS vertical VARCHAR(50);"))
+                        conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS action_url VARCHAR(255);"))
+                        conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS is_read BOOLEAN NOT NULL DEFAULT FALSE;"))
+                        conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS read_at TIMESTAMP;"))
+                        conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(255);"))
+                        conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS delivery_status VARCHAR(50) DEFAULT 'DELIVERED';"))
+                        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_notif_user_created ON notifications (user_id, created_at);"))
+                        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_notif_user_unread ON notifications (user_id, is_read);"))
+                        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_notif_booking_ref ON notifications (booking_reference);"))
+                        conn.execute(text("""
+                            CREATE TABLE IF NOT EXISTS notification_deliveries (
+                                id SERIAL PRIMARY KEY,
+                                notification_id INTEGER NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+                                channel VARCHAR(50) NOT NULL,
+                                provider VARCHAR(50) NOT NULL DEFAULT 'system',
+                                status VARCHAR(50) NOT NULL DEFAULT 'DELIVERED',
+                                attempt_count INTEGER NOT NULL DEFAULT 1,
+                                last_attempt_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                                delivered_at TIMESTAMP,
+                                error_code VARCHAR(100)
+                            );
+                        """))
+                        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_notif_deliv_notif_id ON notification_deliveries (notification_id);"))
+                        conn.execute(text("ALTER TABLE notification_preferences ADD COLUMN IF NOT EXISTS push_alerts BOOLEAN NOT NULL DEFAULT TRUE;"))
+                        conn.execute(text("ALTER TABLE notification_preferences ADD COLUMN IF NOT EXISTS booking_updates BOOLEAN NOT NULL DEFAULT TRUE;"))
+                        conn.execute(text("ALTER TABLE notification_preferences ADD COLUMN IF NOT EXISTS payment_alerts BOOLEAN NOT NULL DEFAULT TRUE;"))
+                        conn.execute(text("ALTER TABLE notification_preferences ADD COLUMN IF NOT EXISTS trip_alerts BOOLEAN NOT NULL DEFAULT TRUE;"))
+                        conn.execute(text("ALTER TABLE notification_preferences ADD COLUMN IF NOT EXISTS marketing_emails BOOLEAN NOT NULL DEFAULT FALSE;"))
+                        conn.commit()
+                        logger.info("Schema migrations completed in background.")
+                except Exception as ev_err:
+                    logger.warning(f"Schema migration skipped: {ev_err}")
+
+            # ── Data Seeding ──
+            from app.database import SessionLocal
+            from app.models.search_entities import City, HotelProperty
+            from app.models.bookings import SpecialFareConfig
+            db_init = SessionLocal()
+            try:
+                if db_init.query(SpecialFareConfig).count() == 0:
+                    logger.info("Pre-seeding default Special Fare Configurations...")
+                    defaults = [
+                        SpecialFareConfig(fare_type="regular", discount_percent=0.0, minimum_age=None, maximum_age=None, verification_required=False, active=True),
+                        SpecialFareConfig(fare_type="student", discount_percent=10.0, minimum_age=5, maximum_age=30, verification_required=True, active=True),
+                        SpecialFareConfig(fare_type="senior", discount_percent=5.0, minimum_age=60, maximum_age=None, verification_required=False, active=True),
+                        SpecialFareConfig(fare_type="armed_forces", discount_percent=10.0, minimum_age=None, maximum_age=None, verification_required=True, active=True)
+                    ]
+                    db_init.add_all(defaults)
+                    db_init.commit()
+
+                if db_init.query(City).count() < 22 or db_init.query(HotelProperty).count() < 550:
+                    logger.info("Triggering full database seeding in background...")
                     from app.commands.seed import (
                         run_reference, run_locations, run_flights, run_hotels,
                         run_villas, run_packages, run_trains, run_buses, run_cabs,
                         run_rental_vehicles, run_tours, run_cruises, run_insurance,
                         run_content, run_users
                     )
-                    run_reference()
-                    run_locations()
-                    run_flights()
-                    run_hotels()
-                    run_villas()
-                    run_packages()
-                    run_trains()
-                    run_buses()
-                    run_cabs()
-                    run_rental_vehicles()
-                    run_tours()
-                    run_cruises()
-                    run_insurance()
-                    run_content()
-                    run_users()
-                    logger.info("Background database seeding completed successfully!")
-                except Exception as seed_err:
-                    logger.error(f"Background database seeding failed: {seed_err}", exc_info=True)
-            import threading
-            seed_thread = threading.Thread(target=_run_seed_in_background, daemon=True)
-            seed_thread.start()
-    except Exception as seed_err:
-        logger.error(f"Failed during startup DB check: {seed_err}", exc_info=True)
-    finally:
-        db_init.close()
-    
-    # Pre-seed default pending approvals for the Admin Queue
-    from app.database import SessionLocal
-    from app.models.payments import ApprovalRequest, VendorPayout, Dispute, AutoApprovalRule
-    from app.models.bookings import FlightBooking, BookingStatus
-    from app.models.core import User, WalletAccount
-    import datetime
-    from decimal import Decimal
-    
-    db = SessionLocal()
-    try:
-        # Seed default auto-approval rules if empty
-        if db.query(AutoApprovalRule).count() == 0:
-            logger.info("Pre-seeding default conservative auto-approval rule...")
-            rule = AutoApprovalRule(
-                applies_to="all",
-                max_amount=Decimal("5000.00"),
-                min_user_trust_score=Decimal("4.00"),
-                requires_clean_fraud_check=True,
-                active=False
-            )
-            db.add(rule)
-            db.commit()
+                    run_reference(); run_locations(); run_flights(); run_hotels()
+                    run_villas(); run_packages(); run_trains(); run_buses()
+                    run_cabs(); run_rental_vehicles(); run_tours(); run_cruises()
+                    run_insurance(); run_content(); run_users()
+                    logger.info("Database seeding completed.")
+            except Exception as seed_err:
+                logger.error(f"Database seeding failed: {seed_err}", exc_info=True)
+            finally:
+                db_init.close()
 
-        # Seed test user if not exist
-        from app.auth.jwt import hash_password
-        admin_email = os.getenv("ADMIN_SEED_EMAIL", "admin_test@travelos.com")
-        admin_password = os.getenv("ADMIN_SEED_PASSWORD", "adminpass123")
-        
-        # Query by email first to avoid unique constraint violations
-        test_user = db.query(User).filter(User.email == admin_email).first()
-        if not test_user:
-            # Check if id=1 is already taken by some other email
-            id_one_user = db.query(User).filter(User.id == 1).first()
-            if not id_one_user:
-                test_user = User(
-                    id=1,
-                    email=admin_email,
-                    role="finance_admin",
-                    trust_score=Decimal("4.80"),
-                    password_hash=hash_password(admin_password),
-                    email_verified=True,
-                )
-            else:
-                test_user = User(
-                    email=admin_email,
-                    role="finance_admin",
-                    trust_score=Decimal("4.80"),
-                    password_hash=hash_password(admin_password),
-                    email_verified=True,
-                )
-            db.add(test_user)
-            db.commit()
-            db.refresh(test_user)
-            
-            # Seed wallet if not exists
-            if not db.query(WalletAccount).filter(WalletAccount.user_id == test_user.id).first():
-                wallet = WalletAccount(user_id=test_user.id, balance=Decimal("150000.00"), currency="INR")
-                db.add(wallet)
-                db.commit()
-        else:
-            # Update password and role if needed
-            test_user.role = "finance_admin"
-            test_user.password_hash = hash_password(admin_password)
-            test_user.email_verified = True
-            db.commit()
+            # ── Admin Pre-seeding ──
+            from app.database import SessionLocal
+            from app.models.payments import ApprovalRequest, VendorPayout, Dispute, AutoApprovalRule
+            from app.models.bookings import FlightBooking, BookingStatus
+            from app.models.core import User, WalletAccount
+            import datetime
+            from decimal import Decimal
+            db = SessionLocal()
+            try:
+                if db.query(AutoApprovalRule).count() == 0:
+                    rule = AutoApprovalRule(applies_to="all", max_amount=Decimal("5000.00"), min_user_trust_score=Decimal("4.00"), requires_clean_fraud_check=True, active=False)
+                    db.add(rule)
+                    db.commit()
 
+                from app.auth.jwt import hash_password
+                admin_email = os.getenv("ADMIN_SEED_EMAIL", "admin_test@travelos.com")
+                admin_password = os.getenv("ADMIN_SEED_PASSWORD", "adminpass123")
+                test_user = db.query(User).filter(User.email == admin_email).first()
+                if not test_user:
+                    id_one_user = db.query(User).filter(User.id == 1).first()
+                    if not id_one_user:
+                        test_user = User(id=1, email=admin_email, role="finance_admin", trust_score=Decimal("4.80"), password_hash=hash_password(admin_password), email_verified=True)
+                    else:
+                        test_user = User(email=admin_email, role="finance_admin", trust_score=Decimal("4.80"), password_hash=hash_password(admin_password), email_verified=True)
+                    db.add(test_user)
+                    db.commit()
+                    db.refresh(test_user)
+                    if not db.query(WalletAccount).filter(WalletAccount.user_id == test_user.id).first():
+                        db.add(WalletAccount(user_id=test_user.id, balance=Decimal("150000.00"), currency="INR"))
+                        db.commit()
+                else:
+                    test_user.role = "finance_admin"
+                    test_user.password_hash = hash_password(admin_password)
+                    test_user.email_verified = True
+                    db.commit()
 
-        # Seed approval requests if empty
-        if db.query(ApprovalRequest).count() == 0:
-            logger.info("Pre-seeding mock pending approval requests for the Admin Console...")
-            
-            # 1. Suspicious Fraud Review Case
-            fb = FlightBooking(
-                booking_reference="BK-FRD-998",
-                user_id=1,
-                status=BookingStatus.PENDING_APPROVAL,
-                total_amount=Decimal("18500.00"),
-                origin="DEL", destination="DXB",
-                departure_time=datetime.datetime.utcnow() + datetime.timedelta(days=10),
-                arrival_time=datetime.datetime.utcnow() + datetime.timedelta(days=10, hours=4),
-                airline_code="EK", flight_number="512",
-                pricing_snapshot={"base": 16000.0, "tax": 2500.0, "discount": 0.0},
-                passenger_details=[{"name": "John Doe", "age": 34}]
-            )
-            db.add(fb)
-            db.commit()
-            
-            req1 = ApprovalRequest(
-                request_type="fraud_review",
-                reference_id="BK-FRD-998",
-                requested_by="system_fraud_guard",
-                amount=18500.00,
-                reason="Fraud review: Risk score exceeds threshold. Card billing country mismatch with user IP.",
-                status="PENDING"
-            )
-            db.add(req1)
-            
-            # 2. High-value Payout Case
-            vp = VendorPayout(
-                vendor_id="host_premium",
-                gross_bookings_amount=Decimal("3500.00"),
-                commission_deducted=Decimal("3500.00"),
-                net_payout_amount=Decimal("31500.00"),
-                period="2026-31",
-                status="pending_approval"
-            )
-            db.add(vp)
-            db.commit()
-            
-            req2 = ApprovalRequest(
-                request_type="high_value_payout",
-                reference_id=str(vp.id),
-                requested_by="payout_scheduler",
-                amount=31500.00,
-                reason="Vendor host_premium payout of ₹31,500 net exceeds automated clearance threshold of ₹25,000.",
-                status="PENDING"
-            )
-            db.add(req2)
-            
-            # 3. Dispute/Chargeback Claim Case
-            disp = Dispute(
-                booking_reference="BK-DSP-404",
-                amount=Decimal("4500.00"),
-                reason_code="unrecognized_charge",
-                status="under_review",
-                evidence_due_by=datetime.datetime.utcnow() + datetime.timedelta(days=7)
-            )
-            db.add(disp)
-            db.commit()
-            
-            req3 = ApprovalRequest(
-                request_type="price_drop_claim_dispute",
-                reference_id=str(disp.id),
-                requested_by="stripe_webhook",
-                amount=4500.00,
-                reason="Chargeback dispute raised by customer for booking BK-DSP-404 (Stripe ref: dp_101_chargeback). Reason: unrecognized charge.",
-                status="PENDING"
-            )
-            db.add(req3)
-            db.commit()
-            logger.info("Pre-seeding completed successfully.")
-    except Exception as e:
-        logger.error(f"Failed to seed approvals: {e}")
-        db.rollback()
-    finally:
-        db.close()
-    
-    logger.info("Starting WebSocket Redis Pub/Sub gateway listener...")
+                if db.query(ApprovalRequest).count() == 0:
+                    fb = FlightBooking(booking_reference="BK-FRD-998", user_id=1, status=BookingStatus.PENDING_APPROVAL, total_amount=Decimal("18500.00"), origin="DEL", destination="DXB", departure_time=datetime.datetime.utcnow() + datetime.timedelta(days=10), arrival_time=datetime.datetime.utcnow() + datetime.timedelta(days=10, hours=4), airline_code="EK", flight_number="512", pricing_snapshot={"base": 16000.0, "tax": 2500.0, "discount": 0.0}, passenger_details=[{"name": "John Doe", "age": 34}])
+                    db.add(fb); db.commit()
+                    db.add(ApprovalRequest(request_type="fraud_review", reference_id="BK-FRD-998", requested_by="system_fraud_guard", amount=18500.00, reason="Fraud review: Risk score exceeds threshold.", status="PENDING"))
+                    vp = VendorPayout(vendor_id="host_premium", gross_bookings_amount=Decimal("3500.00"), commission_deducted=Decimal("3500.00"), net_payout_amount=Decimal("31500.00"), period="2026-31", status="pending_approval")
+                    db.add(vp); db.commit()
+                    db.add(ApprovalRequest(request_type="high_value_payout", reference_id=str(vp.id), requested_by="payout_scheduler", amount=31500.00, reason="Payout exceeds threshold.", status="PENDING"))
+                    disp = Dispute(booking_reference="BK-DSP-404", amount=Decimal("4500.00"), reason_code="unrecognized_charge", status="under_review", evidence_due_by=datetime.datetime.utcnow() + datetime.timedelta(days=7))
+                    db.add(disp); db.commit()
+                    db.add(ApprovalRequest(request_type="price_drop_claim_dispute", reference_id=str(disp.id), requested_by="stripe_webhook", amount=4500.00, reason="Chargeback dispute for BK-DSP-404.", status="PENDING"))
+                    db.commit()
+                    logger.info("Admin pre-seeding completed.")
+            except Exception as e:
+                logger.error(f"Admin seeding failed: {e}")
+                db.rollback()
+            finally:
+                db.close()
+
+            logger.info("All background startup tasks completed.")
+        except Exception as bg_err:
+            logger.error(f"Background startup failed: {bg_err}", exc_info=True)
+
+    import threading
+    threading.Thread(target=_background_startup, daemon=True).start()
+    logger.info("Server ready. Background startup tasks launched.")
+
+    # WebSocket gateway (quick, keep synchronous)
     try:
         ws_gateway.start_redis_listener(asyncio.get_event_loop())
     except Exception as e:
         logger.warning(f"Could not start Redis Pub/Sub gateway: {e}")
 
-    logger.info("Initializing SLA / Timeout background checker thread...")
+    # SLA daemon
     try:
         from app.tasks import start_sla_daemon
         start_sla_daemon()
-        logger.info("SLA background daemon started successfully.")
     except Exception as e:
         logger.warning(f"Could not start SLA background daemon: {e}")
 
-    logger.info("Seeding verified travel rules in RAG vector database in background...")
-    try:
-        import threading
-        thread = threading.Thread(target=rag_system.seed_Schengen_visa_data, daemon=True)
-        thread.start()
-        logger.info("RAG pre-seeding background thread started.")
-    except Exception as e:
-        logger.warning(f"Could not start RAG pre-seeding background thread: {e}")
+
+
+
+
 
 @app.on_event("shutdown")
 def shutdown_event():
