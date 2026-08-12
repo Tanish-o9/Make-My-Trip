@@ -594,12 +594,19 @@ def refresh_token(request: Request, payload: TokenRefreshRequest, db: Session = 
     db_token = db.query(RefreshToken).filter(RefreshToken.token_hash == t_hash).first()
 
     if db_token and db_token.revoked:
-        logger.warning(
-            f"SECURITY EXCEPTION: Replay attack detected for user ID {db_token.user_id} using rotated token!"
-        )
-        db.query(RefreshToken).filter(RefreshToken.user_id == db_token.user_id).update({"revoked": True})
-        db.commit()
-        raise HTTPException(status_code=401, detail="Token compromised. All sessions revoked.")
+        # Grace period for token rotation (e.g. 20 seconds) to prevent parallel request race conditions
+        grace_period = datetime.timedelta(seconds=20)
+        if db_token.last_used_at and (datetime.datetime.utcnow() - db_token.last_used_at) < grace_period:
+            logger.info(
+                f"Grace period hit for user ID {db_token.user_id}. Allowing rotated token reuse."
+            )
+        else:
+            logger.warning(
+                f"SECURITY EXCEPTION: Replay attack detected for user ID {db_token.user_id} using rotated token!"
+            )
+            db.query(RefreshToken).filter(RefreshToken.user_id == db_token.user_id).update({"revoked": True})
+            db.commit()
+            raise HTTPException(status_code=401, detail="Token compromised. All sessions revoked.")
 
     if not db_token:
         raise HTTPException(status_code=401, detail="Invalid or untracked refresh token")
