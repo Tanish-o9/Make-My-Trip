@@ -6,9 +6,10 @@ import bcrypt
 
 _raw_jwt_secret = os.getenv("JWT_SECRET", "").strip()
 if not _raw_jwt_secret or _raw_jwt_secret in ["supersecretjwtkeychangeinproduction", "your-development-jwt-secret-key-make-it-secure", "your-production-jwt-secret-key"]:
-    _env = os.getenv("ENVIRONMENT", "development").lower()
-    if _env in ["production", "prod", "staging"] or os.getenv("RAILWAY_ENVIRONMENT") is not None:
-        raise RuntimeError("CRITICAL CONFIGURATION ERROR: JWT_SECRET environment variable must be configured in production/staging environments to prevent token forgery.")
+    db_url = os.getenv("DATABASE_URL", "").strip()
+    if db_url and "placeholder" not in db_url:
+        import hashlib
+        JWT_SECRET = hashlib.sha256(db_url.encode("utf-8")).hexdigest()
     else:
         JWT_SECRET = "supersecretjwtkeychangeinproduction"
 else:

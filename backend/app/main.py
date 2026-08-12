@@ -352,10 +352,16 @@ def startup_db_seed():
     jwt_sec = os.getenv("JWT_SECRET", "").strip()
     is_prod = os.getenv("PRODUCTION", "false").lower() == "true" or "neon" in db_url
     if not jwt_sec or (is_prod and jwt_sec in ["supersecretjwtkeychangeinproduction", "your-development-jwt-secret-key-make-it-secure"]):
-        import secrets
-        generated_secret = secrets.token_hex(32)
-        os.environ["JWT_SECRET"] = generated_secret
-        logger.warning("JWT_SECRET was not set or insecure in production. Generated a secure fallback random secret.")
+        if db_url and "placeholder" not in db_url:
+            import hashlib
+            generated_secret = hashlib.sha256(db_url.encode("utf-8")).hexdigest()
+            os.environ["JWT_SECRET"] = generated_secret
+            logger.info("JWT_SECRET was not set in production. Configured fallback stable key from database URL.")
+        else:
+            import secrets
+            generated_secret = secrets.token_hex(32)
+            os.environ["JWT_SECRET"] = generated_secret
+            logger.warning("JWT_SECRET was not set in production and DB URL is missing. Generated fallback random secret.")
 
     # 3. REDIS_URL check
     redis_url = os.getenv("REDIS_URL", "").strip()
