@@ -24,7 +24,7 @@ function PageWrapper({ children, title, subtitle, icon: Icon, onNavigate }: {
             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#94a3b8'; (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
           >
             <ArrowLeft size={16} />
-            Back to Travel OS
+            Back to Ghumne Chale
           </button>
           <div style={{ flex: 1 }} />
           <div style={{ fontSize: 13, color: '#64748b' }}>Last updated: August 2026</div>
@@ -57,7 +57,7 @@ function PageWrapper({ children, title, subtitle, icon: Icon, onNavigate }: {
             </button>
           ))}
         </div>
-        <div style={{ marginTop: 12 }}>&copy; 2026 Travel OS Inc. All rights reserved.</div>
+        <div style={{ marginTop: 12 }}>&copy; 2026 Ghumne Chale Inc. All rights reserved.</div>
       </div>
     </div>
   );
@@ -86,7 +86,7 @@ function Ul({ items }: { items: string[] }) {
 
 function PrivacyPolicy({ onNavigate }: { onNavigate: (path: string) => void }) {
   return (
-    <PageWrapper title="Privacy Policy" subtitle="How Travel OS collects, uses, and protects your personal data" icon={Shield} onNavigate={onNavigate}>
+    <PageWrapper title="Privacy Policy" subtitle="How Ghumne Chale collects, uses, and protects your personal data" icon={Shield} onNavigate={onNavigate}>
       <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 12, padding: '16px 20px', marginBottom: 36, fontSize: 14, color: '#fcd34d' }}>
         <strong>Summary:</strong> We collect only what is necessary to operate your travel bookings. We never sell your personal data. You have full control over your information.
       </div>
@@ -151,12 +151,12 @@ function PrivacyPolicy({ onNavigate }: { onNavigate: (path: string) => void }) {
 
 function TermsOfService({ onNavigate }: { onNavigate: (path: string) => void }) {
   return (
-    <PageWrapper title="Terms of Service" subtitle="The rules and guidelines for using the Travel OS platform" icon={FileText} onNavigate={onNavigate}>
+    <PageWrapper title="Terms of Service" subtitle="The rules and guidelines for using the Ghumne Chale platform" icon={FileText} onNavigate={onNavigate}>
       <div style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: 12, padding: '16px 20px', marginBottom: 36, fontSize: 14, color: '#93c5fd' }}>
-        <strong>Important:</strong> By using Travel OS you agree to these terms. Please read them carefully.
+        <strong>Important:</strong> By using Ghumne Chale you agree to these terms. Please read them carefully.
       </div>
       <Section title="1. Acceptance of Terms">
-        <Para>By accessing or using Travel OS you agree to be bound by these Terms of Service and our Privacy Policy. If you do not agree, you must not use the Platform.</Para>
+        <Para>By accessing or using Ghumne Chale you agree to be bound by these Terms of Service and our Privacy Policy. If you do not agree, you must not use the Platform.</Para>
       </Section>
       <Section title="2. Eligibility">
         <Ul items={[
@@ -167,7 +167,7 @@ function TermsOfService({ onNavigate }: { onNavigate: (path: string) => void }) 
         ]} />
       </Section>
       <Section title="3. Booking Services">
-        <Para>Travel OS acts as an intermediary between you and travel service providers. We do not operate any transport service or accommodation ourselves. By making a booking, you agree to the terms of the underlying service provider and confirm all traveller details are accurate.</Para>
+        <Para>Ghumne Chale acts as an intermediary between you and travel service providers. We do not operate any transport service or accommodation ourselves. By making a booking, you agree to the terms of the underlying service provider and confirm all traveller details are accurate.</Para>
       </Section>
       <Section title="4. Payments">
         <Para>All payments are processed via PCI-DSS compliant payment processors. Prices are inclusive of all applicable taxes and fees unless otherwise stated. In the event of a pricing error, we reserve the right to cancel a booking and issue a full refund.</Para>
@@ -189,7 +189,7 @@ function TermsOfService({ onNavigate }: { onNavigate: (path: string) => void }) 
         ]} />
       </Section>
       <Section title="7. Limitation of Liability">
-        <Para>Travel OS is not liable for delays, cancellations, or service failures by third-party providers. Our total liability for any claim shall not exceed the amount paid for the specific booking giving rise to the claim.</Para>
+        <Para>Ghumne Chale is not liable for delays, cancellations, or service failures by third-party providers. Our total liability for any claim shall not exceed the amount paid for the specific booking giving rise to the claim.</Para>
       </Section>
       <Section title="8. Governing Law">
         <Para>These terms are governed by the laws of India. Disputes are subject to the exclusive jurisdiction of courts in Bangalore, Karnataka, India.</Para>

@@ -21,6 +21,68 @@ from app.utils.event_bus import emit_event
 from app.models.mybiz import EmployeeLink, Organization
 from app.providers.registry import provider_registry
 from app.services.student_verification import StudentVerificationService
+from app.services.seat_service import SeatInventoryService
+
+def validate_and_hold_seats(db: Session, vertical: str, details: dict, booking_ref: str, user_id: int, expires_at: datetime.datetime):
+    vertical = vertical.lower()
+    if vertical not in ["flights", "trains"]:
+        return 0.0, []
+
+    seat_numbers = details.get("seat_numbers", [])
+    passengers = details.get("passengers", details.get("guests", []))
+    pax_count = len(passengers)
+
+    if not seat_numbers:
+        return 0.0, []
+
+    if len(seat_numbers) != pax_count:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Selected seat count ({len(seat_numbers)}) must match passenger count ({pax_count})."
+        )
+
+    if len(set(seat_numbers)) != len(seat_numbers):
+        raise HTTPException(status_code=400, detail="Duplicate seats in selection are not allowed.")
+
+    import re
+    total_seat_fare = 0.0
+    seat_breakdown = []
+    
+    reference = details.get("flight_number") or details.get("train_number") or "Unknown"
+
+    for seat in seat_numbers:
+        if vertical == "flights":
+            if not re.match(r"^(10|[1-9])[A-F]$", seat):
+                raise HTTPException(status_code=400, detail=f"Invalid seat ID: {seat}. Flights support rows 1-10 and seats A-F.")
+            meta = SeatInventoryService.get_flight_seat_meta(seat)
+        else: # trains
+            match = re.match(r"^(\d+)-(LB|MB|UB|SL|SU)$", seat)
+            if not match:
+                raise HTTPException(status_code=400, detail=f"Invalid berth ID format: {seat}. Correct format is e.g. 1-LB.")
+            berth_num = int(match.group(1))
+            if berth_num < 1 or berth_num > 32:
+                raise HTTPException(status_code=400, detail=f"Invalid berth number: {berth_num}. Train 3AC supports berths 1-32.")
+            meta = SeatInventoryService.get_train_seat_meta(seat)
+
+        total_seat_fare += meta["price"]
+        seat_breakdown.append({
+            "seat_number": seat,
+            "seat_type": meta["type"],
+            "price": meta["price"]
+        })
+
+    # Hold seats in database (concurrency safe)
+    SeatInventoryService.hold_seats(
+        db=db,
+        booking_ref=booking_ref,
+        vertical=vertical,
+        reference=reference,
+        seat_numbers=seat_numbers,
+        user_id=user_id,
+        expires_at=expires_at
+    )
+
+    return total_seat_fare, seat_breakdown
 
 from pydantic import BaseModel
 
@@ -225,11 +287,26 @@ async def create_booking_hold(
             promo_discount = 0.0
             
         total_discount = student_discount_total + senior_discount_total + armed_forces_discount_total
-        final_payable = round(total_base - total_discount + total_tax - promo_discount, 2)
+        
+        # Seat selection validation and holding
+        total_seat_fare, seat_breakdown = validate_and_hold_seats(db, vertical, details, booking_ref, user_id, held_until)
+        
+        final_payable = round(total_base + total_seat_fare - total_discount + total_tax - promo_discount, 2)
         amount = max(100.0, final_payable)
         
+        seat_numbers = details.get("seat_numbers", [])
+        if seat_numbers:
+            pre_discount_amount = round(total_base + total_seat_fare + total_tax, 2)
+            if abs(amount - req.amount) > 0.01 and abs(pre_discount_amount - req.amount) > 0.01:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Authoritative recalculated amount (INR {amount}) does not match requested amount (INR {req.amount})."
+                )
+
         pricing_snapshot = {
             "base_fare": total_base,
+            "seat_fare": total_seat_fare,
+            "seat_details": seat_breakdown,
             "discount": total_discount + promo_discount,
             "discounts": {
                 "student": student_discount_total,
@@ -241,6 +318,14 @@ async def create_booking_hold(
             "final_payable": amount
         }
         
+        # Add seats mapping to validated passengers
+        seat_numbers = details.get("seat_numbers", [])
+        for idx, pax in enumerate(validated_passengers):
+            if idx < len(seat_numbers):
+                pax["seat_number"] = seat_numbers[idx]
+                pax["seat_type"] = seat_breakdown[idx]["seat_type"]
+                pax["seat_price"] = seat_breakdown[idx]["price"]
+
         booking = FlightBooking(
             booking_reference=booking_ref, user_id=user_id, status=BookingStatus.HOLD,
             total_amount=amount, currency="INR", pricing_snapshot=pricing_snapshot, held_until=held_until,
@@ -282,13 +367,58 @@ async def create_booking_hold(
             included_services=details.get("included_services", {"hotel": True, "flights": True})
         )
     elif vertical == "trains":
+        from app.models.search_entities import TrainRoute
+        coach_class = details.get("coach_class", "3A")
+        train_num = details.get("train_number", "12626")
+        route = db.query(TrainRoute).filter(TrainRoute.train_number == train_num).first()
+        base_price = 1850.0
+        if route and route.classes_json and coach_class in route.classes_json:
+            base_price = float(route.classes_json[coach_class])
+
+        passengers = details.get("passengers", [])
+        pax_count = len(passengers)
+        total_base = base_price * pax_count
+
+        total_seat_fare, seat_breakdown = validate_and_hold_seats(db, vertical, details, booking_ref, user_id, held_until)
+        
+        amount = round(total_base + total_seat_fare, 2)
+
+        if abs(amount - req.amount) > 0.01:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Authoritative recalculated amount (INR {amount}) does not match requested amount (INR {req.amount})."
+            )
+
+        pricing_snapshot = {
+            "base_fare": total_base,
+            "seat_fare": total_seat_fare,
+            "seat_details": seat_breakdown,
+            "discount": 0.0,
+            "tax": 0.0,
+            "final_payable": amount
+        }
+
+        # Add seat information to passenger details
+        seat_numbers = details.get("seat_numbers", [])
+        validated_passengers = []
+        for idx, p in enumerate(passengers):
+            pax_dict = {
+                "name": p.get("name"),
+                "age": p.get("age"),
+            }
+            if idx < len(seat_numbers):
+                pax_dict["seat_number"] = seat_numbers[idx]
+                pax_dict["seat_type"] = seat_breakdown[idx]["seat_type"]
+                pax_dict["seat_price"] = seat_breakdown[idx]["price"]
+            validated_passengers.append(pax_dict)
+
         booking = TrainBooking(
             booking_reference=booking_ref, user_id=user_id, status=BookingStatus.HOLD,
             total_amount=amount, currency="INR", pricing_snapshot=pricing_snapshot, held_until=held_until,
-            train_number=details.get("train_number", "12626"), train_name=details.get("train_name", "Kerala Express"),
+            train_number=train_num, train_name=details.get("train_name", "Kerala Express"),
             origin_station=details.get("origin_station", "DEL"), destination_station=details.get("destination_station", "GOA"),
             departure_time=datetime.datetime.utcnow() + datetime.timedelta(days=7),
-            coach_class=details.get("coach_class", "3A"), passenger_details=details.get("passengers", [])
+            coach_class=coach_class, passenger_details=validated_passengers
         )
     elif vertical == "buses":
         booking = BusBooking(
@@ -348,7 +478,7 @@ async def create_booking_hold(
         booking = CabBooking(
             booking_reference=booking_ref, user_id=user_id, status=BookingStatus.HOLD,
             total_amount=amount, currency="INR", pricing_snapshot=pricing_snapshot, held_until=held_until,
-            provider_name=details.get("provider_name", "TravelOS Fleet"),
+            provider_name=details.get("provider_name", "Ghumne Chale Fleet"),
             cab_type=details.get("cab_type", details.get("category", "Sedan")),
             pickup_address=details.get("pickup_address", "Airport"),
             drop_address=details.get("drop_address", "Resort"),
@@ -731,6 +861,40 @@ def cancel_booking(
     return res
 
 
+@router.get("/seats/availability")
+def get_seats_availability(
+    vertical: str,
+    reference: str,
+    provider_name: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    import os
+    is_live = False
+    if provider_name:
+        p_lower = provider_name.lower()
+        if p_lower not in ["local", "local database", "local simulator", "demo", "sandbox", "simulator"]:
+            is_live = True
+    
+    live_env = os.getenv("ENABLE_LIVE_INVENTORY", "false").lower() in ("true", "1", "yes")
+    provider_mode = os.getenv("PROVIDER_MODE", "demo").lower()
+    if live_env or provider_mode == "live":
+        if provider_name:
+            p_lower = provider_name.lower()
+            if p_lower not in ["local", "local database", "local simulator", "demo", "sandbox", "simulator"]:
+                is_live = True
+
+    try:
+        return SeatInventoryService.get_seat_map(
+            db=db,
+            vertical=vertical,
+            reference=reference,
+            provider_name=provider_name,
+            is_live=is_live
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch seat map: {str(e)}")
+
+
 @router.get("/{booking_reference}/invoice")
 def get_booking_invoice(
     booking_reference: str,
@@ -789,9 +953,42 @@ def get_booking_invoice(
     elif vertical in ["rent-a-ride", "vehicle_rental"]:
         desc = f"Vehicle Rental: {booking.vehicle_name} ({booking.vehicle_type})"
 
-    items = [
-        {"name": desc, "price": float(booking.total_amount)}
-    ]
+    items = []
+    pricing_snap = getattr(booking, "pricing_snapshot", {}) or {}
+    
+    if vertical in ["flights", "trains"] and pricing_snap:
+        base_fare = float(pricing_snap.get("base_fare", float(booking.total_amount)))
+        items.append({"name": f"{desc} (Base)", "price": base_fare})
+        
+        # Add seats itemization
+        seat_details = pricing_snap.get("seat_details", [])
+        if not seat_details:
+            from app.models.bookings import SeatHold
+            holds = db.query(SeatHold).filter(
+                SeatHold.booking_reference == booking_reference,
+                SeatHold.status == "CONFIRMED"
+            ).all()
+            seat_details = [{"seat_number": h.seat_number, "seat_type": h.seat_type, "price": h.price} for h in holds]
+
+        for s in seat_details:
+            s_num = s.get("seat_number", "—")
+            s_type = s.get("seat_type", "Standard")
+            s_price = float(s.get("price", 0.0) or 0.0)
+            items.append({"name": f"Seat Selection: {s_num} ({s_type})", "price": s_price})
+
+        # Add tax if present
+        tax = float(pricing_snap.get("tax", 0.0) or 0.0)
+        if tax > 0:
+            items.append({"name": "Taxes & Airport Fees", "price": tax})
+
+        # Add discount if present
+        discount = float(pricing_snap.get("discount", 0.0) or 0.0)
+        if discount > 0:
+            items.append({"name": "Discounts & Promos", "price": -discount})
+    else:
+        items = [
+            {"name": desc, "price": float(booking.total_amount)}
+        ]
 
     receipt = InvoiceGenerator.generate_invoice(booking, items)
     return {"invoice_text": receipt}
@@ -841,9 +1038,18 @@ def get_user_bookings(
                 "held_until": b.held_until.isoformat() if b.held_until else None,
             }
             if vertical == "flights":
+                from app.models.bookings import SeatHold
+                holds = db.query(SeatHold).filter(
+                    SeatHold.booking_reference == b.booking_reference,
+                    SeatHold.status.in_(["HELD", "CONFIRMED"])
+                ).all()
+                seats_str = ", ".join([f"{h.seat_number} ({h.seat_type})" for h in holds])
+                subtitle = f"{b.origin} ➔ {b.destination} | Cabin: {b.cabin_class}"
+                if seats_str:
+                    subtitle = f"Seats: {seats_str} | {subtitle}"
                 details.update({
                     "title": f"Flight {b.airline_code}-{b.flight_number}",
-                    "subtitle": f"{b.origin} ➔ {b.destination}",
+                    "subtitle": subtitle,
                     "date": b.departure_time.strftime("%Y-%m-%d") if b.departure_time else None
                 })
             elif vertical == "hotels":
@@ -853,9 +1059,18 @@ def get_user_bookings(
                     "date": b.check_in.strftime("%Y-%m-%d") if b.check_in else None
                 })
             elif vertical == "trains":
+                from app.models.bookings import SeatHold
+                holds = db.query(SeatHold).filter(
+                    SeatHold.booking_reference == b.booking_reference,
+                    SeatHold.status.in_(["HELD", "CONFIRMED"])
+                ).all()
+                berths_str = ", ".join([f"{h.seat_number} ({h.seat_type})" for h in holds])
+                subtitle = f"{b.origin_station} ➔ {b.destination_station} | Coach: {b.coach_class}"
+                if berths_str:
+                    subtitle = f"Berths: {berths_str} | {subtitle}"
                 details.update({
                     "title": f"Train {b.train_number} - {b.train_name}",
-                    "subtitle": f"{b.origin_station} ➔ {b.destination_station}",
+                    "subtitle": subtitle,
                     "date": b.departure_time.strftime("%Y-%m-%d") if b.departure_time else None
                 })
             elif vertical == "cabs":
@@ -1239,13 +1454,19 @@ def get_booking_full_details(
     if booking.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied: Booking belongs to another user.")
     
-    from app.models.bookings import BookingTicket, BookingInvoice, BookingEvent
+    from app.models.bookings import BookingTicket, BookingInvoice, BookingEvent, SeatHold
     from app.models.payments import Payment
     
     ticket = db.query(BookingTicket).filter(BookingTicket.booking_reference == booking_reference).first()
     invoice = db.query(BookingInvoice).filter(BookingInvoice.booking_reference == booking_reference).first()
     events = db.query(BookingEvent).filter(BookingEvent.booking_reference == booking_reference).order_by(BookingEvent.created_at.asc()).all()
     payment = db.query(Payment).filter(Payment.booking_id == booking_reference).first()
+    
+    # Query active seat/berth holds (HELD, CONFIRMED)
+    holds = db.query(SeatHold).filter(
+        SeatHold.booking_reference == booking_reference,
+        SeatHold.status.in_(["HELD", "CONFIRMED"])
+    ).all()
     
     vertical = getattr(booking, "__tablename__", "").replace("_bookings", "")
     
@@ -1257,6 +1478,14 @@ def get_booking_full_details(
     return {
         "booking": booking_dict,
         "vertical": vertical,
+        "seats": [
+            {
+                "seat_number": h.seat_number,
+                "seat_type": h.seat_type,
+                "price": h.price,
+                "status": h.status
+            } for h in holds
+        ],
         "ticket": {
             "id": ticket.id,
             "ticket_number": ticket.ticket_number,
@@ -1362,8 +1591,8 @@ def get_booking_ticket(
     return FileResponse(
         pdf_path, 
         media_type="application/pdf", 
-        filename=f"TravelOS-Eticket-{booking_reference}.pdf",
-        headers={"Content-Disposition": f"{disposition}; filename=\"TravelOS-Eticket-{booking_reference}.pdf\""}
+        filename=f"GhumneChale-Eticket-{booking_reference}.pdf",
+        headers={"Content-Disposition": f"{disposition}; filename=\"GhumneChale-Eticket-{booking_reference}.pdf\""}
     )
 
 
@@ -1438,7 +1667,7 @@ def share_booking_details(
         raise HTTPException(status_code=403, detail="Access denied.")
         
     share_url = f"http://localhost:5173/booking/{booking_reference}"
-    share_msg = f"Hey! Here are my Travel OS booking details: {share_url}"
+    share_msg = f"Hey! Here are my Ghumne Chale booking details: {share_url}"
     return {
         "success": True,
         "platform": req.platform,

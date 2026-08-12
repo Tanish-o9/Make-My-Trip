@@ -440,7 +440,7 @@ export default function SupportCenterPage({ onNavigate, token }: SupportCenterPa
                             }`}
                           >
                             <div className="flex items-center gap-2 text-[10px] opacity-75 font-mono mb-1">
-                              <span>{isMe ? 'You' : 'Travel OS Support Agent'}</span>
+                              <span>{isMe ? 'You' : 'Ghumne Chale Support Agent'}</span>
                               <span>•</span>
                               <span>{reply.created_at.slice(11, 16)}</span>
                             </div>

@@ -52,6 +52,16 @@ try:
                     print("Auto-migrating database: adding fcm_token column to users table.")
                     conn.execute(text("ALTER TABLE users ADD COLUMN fcm_token VARCHAR(512)"))
                     conn.commit()
+            if "seat_holds" in inspector.get_table_names():
+                columns = [c["name"] for c in inspector.get_columns("seat_holds")]
+                if "seat_type" not in columns:
+                    print("Auto-migrating database: adding seat_type column to seat_holds table.")
+                    conn.execute(text("ALTER TABLE seat_holds ADD COLUMN seat_type VARCHAR(50)"))
+                    conn.commit()
+                if "price" not in columns:
+                    print("Auto-migrating database: adding price column to seat_holds table.")
+                    conn.execute(text("ALTER TABLE seat_holds ADD COLUMN price FLOAT"))
+                    conn.commit()
         except Exception as migrate_err:
             print(f"WARNING: Schema auto-migration failed: {migrate_err}", file=sys.stderr)
 except Exception as e:

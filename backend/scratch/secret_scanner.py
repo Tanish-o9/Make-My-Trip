@@ -10,7 +10,7 @@ EXCLUDED_DIRS = {".git", "node_modules", "dist", ".venv", "venv", "env", "chroma
 
 def scan_for_secrets():
     print("=======================================================")
-    print("TRAVEL OS - SECURITY HARDENING SECRET SCANNER")
+    print("GHUMNE CHALE - SECURITY HARDENING SECRET SCANNER")
     print("=======================================================")
     
     workspace_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))

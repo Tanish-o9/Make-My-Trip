@@ -9,7 +9,7 @@ logger = logging.getLogger("travel_os.notifications")
 
 class NotificationService:
     """
-    Unified, idempotent Notification & Communication Service for Travel OS.
+    Unified, idempotent Notification & Communication Service for Ghumne Chale.
     Dispatches in-app notifications, WebSocket alerts, and transactional emails.
     Integrated with circuit breaker and failure tolerance.
     """

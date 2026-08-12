@@ -9,7 +9,7 @@ user_id_ctx_var: ContextVar[str] = ContextVar("user_id", default="")
 
 class JSONLogFormatter(logging.Formatter):
     """
-    Structured JSON log formatter for Travel OS.
+    Structured JSON log formatter for Ghumne Chale.
     Standardizes log formats across services to include request_id and user_id context.
     """
     def format(self, record: logging.LogRecord) -> str:

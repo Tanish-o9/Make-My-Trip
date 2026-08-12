@@ -10,7 +10,7 @@ class LocalCarRentalProvider(CarRentalProvider):
     """Local first-party self-drive fleet provider"""
 
     def __init__(self):
-        self.name = "TravelOS Drive"
+        self.name = "Ghumne Chale Drive"
         self.is_live = False
 
     async def search(

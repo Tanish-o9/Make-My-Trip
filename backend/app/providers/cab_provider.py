@@ -16,7 +16,7 @@ logger = logging.getLogger("travel_os.providers.cabs")
 
 class NormalizedCabOffer(BaseModel):
     id: str = Field(..., description="Unique offer identifier")
-    provider: str = Field("TravelOS Fleet", description="Provider name")
+    provider: str = Field("Ghumne Chale Fleet", description="Provider name")
     provider_offer_id: str = Field(..., description="Raw provider offer ID")
     brand: str
     model: str
@@ -129,7 +129,7 @@ class LocalCabProvider(CabProvider):
     """Local / First-Party deterministic fleet provider (330 vehicles across 22 cities)"""
     
     def __init__(self):
-        self.name = "TravelOS Local Fleet"
+        self.name = "Ghumne Chale Local Fleet"
         self.is_live = False
 
     async def search(
@@ -182,9 +182,9 @@ class LocalCabProvider(CabProvider):
                             setattr(self, k, v)
 
                 mock_data = [
-                    {"id": 1, "provider": "TravelOS Mini", "type": "Hatchback", "category": "Hatchback", "brand": "Maruti Suzuki", "model": "Swift", "display_name": "Maruti Suzuki Swift", "variant": "ZXi Plus", "image_key": "swift", "base_fare": 150.0, "price_per_km": 13.0, "per_hour_rate": 180.0, "seating_capacity": 4, "luggage_capacity": 2, "fuel_type": "Petrol", "transmission": "Manual", "ac_available": True, "rating": 4.8, "review_count": 1420, "image_url": "/assets/vehicles/swift.webp", "thumbnail_url": "/assets/vehicles/swift.webp", "eta_minutes": 3, "driver_name": "Ramesh Kumar", "plate_number": "DL-01-AB-1234"},
+                    {"id": 1, "provider": "Ghumne Chale Mini", "type": "Hatchback", "category": "Hatchback", "brand": "Maruti Suzuki", "model": "Swift", "display_name": "Maruti Suzuki Swift", "variant": "ZXi Plus", "image_key": "swift", "base_fare": 150.0, "price_per_km": 13.0, "per_hour_rate": 180.0, "seating_capacity": 4, "luggage_capacity": 2, "fuel_type": "Petrol", "transmission": "Manual", "ac_available": True, "rating": 4.8, "review_count": 1420, "image_url": "/assets/vehicles/swift.webp", "thumbnail_url": "/assets/vehicles/swift.webp", "eta_minutes": 3, "driver_name": "Ramesh Kumar", "plate_number": "DL-01-AB-1234"},
                     {"id": 2, "provider": "Ola Prime Sedan", "type": "Sedan", "category": "Sedan", "brand": "Maruti Suzuki", "model": "Dzire", "display_name": "Maruti Suzuki Dzire", "variant": "ZXi Auto", "image_key": "dzire", "base_fare": 200.0, "price_per_km": 16.0, "per_hour_rate": 220.0, "seating_capacity": 4, "luggage_capacity": 3, "fuel_type": "Petrol", "transmission": "Automatic", "ac_available": True, "rating": 4.9, "review_count": 2840, "image_url": "/assets/vehicles/dzire.webp", "thumbnail_url": "/assets/vehicles/dzire.webp", "eta_minutes": 5, "driver_name": "Suresh Singh", "plate_number": "DL-01-CD-5678"},
-                    {"id": 3, "provider": "TravelOS SUV", "type": "SUV", "category": "SUV", "brand": "Hyundai", "model": "Creta", "display_name": "Hyundai Creta", "variant": "SX(O) Diesel", "image_key": "creta", "base_fare": 300.0, "price_per_km": 21.0, "per_hour_rate": 320.0, "seating_capacity": 5, "luggage_capacity": 4, "fuel_type": "Diesel", "transmission": "Automatic", "ac_available": True, "rating": 4.9, "review_count": 1920, "image_url": "/assets/vehicles/creta.webp", "thumbnail_url": "/assets/vehicles/creta.webp", "eta_minutes": 7, "driver_name": "Gurpreet Singh", "plate_number": "DL-01-EF-9012"}
+                    {"id": 3, "provider": "Ghumne Chale SUV", "type": "SUV", "category": "SUV", "brand": "Hyundai", "model": "Creta", "display_name": "Hyundai Creta", "variant": "SX(O) Diesel", "image_key": "creta", "base_fare": 300.0, "price_per_km": 21.0, "per_hour_rate": 320.0, "seating_capacity": 5, "luggage_capacity": 4, "fuel_type": "Diesel", "transmission": "Automatic", "ac_available": True, "rating": 4.9, "review_count": 1920, "image_url": "/assets/vehicles/creta.webp", "thumbnail_url": "/assets/vehicles/creta.webp", "eta_minutes": 7, "driver_name": "Gurpreet Singh", "plate_number": "DL-01-EF-9012"}
                 ]
                 db_vehicles = [MockCab(m) for m in mock_data]
 
@@ -228,7 +228,7 @@ class LocalCabProvider(CabProvider):
 
                 offers.append(NormalizedCabOffer(
                     id=f"CAB-OFF-{vh.id}-{uuid.uuid4().hex[:4]}",
-                    provider=vh.provider or "TravelOS Chauffeur",
+                    provider=vh.provider or "Ghumne Chale Chauffeur",
                     provider_offer_id=f"LOCAL-{vh.id}",
                     brand=vh.brand,
                     model=vh.model,

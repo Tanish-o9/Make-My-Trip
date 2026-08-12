@@ -791,7 +791,7 @@ def run_cabs():
             "type": "Hatchback", "category": "Hatchback", "variant": "ZXi Plus", "image_key": "swift",
             "seats": 4, "luggage": 2, "fuel": "Petrol", "trans": "Manual", "ac": True,
             "base_fare": 150.0, "price_per_km": 13.0, "per_hour": 180.0,
-            "rating": 4.8, "reviews": 1420, "provider": "TravelOS Mini",
+            "rating": 4.8, "reviews": 1420, "provider": "Ghumne Chale Mini",
             "image": "/assets/vehicles/swift.webp"
         },
         {
@@ -816,7 +816,7 @@ def run_cabs():
             "type": "Sedan", "category": "Sedan", "variant": "VX CVT", "image_key": "amaze",
             "seats": 4, "luggage": 3, "fuel": "Petrol", "trans": "Automatic", "ac": True,
             "base_fare": 220.0, "price_per_km": 17.5, "per_hour": 240.0,
-            "rating": 4.8, "reviews": 1150, "provider": "TravelOS Premier",
+            "rating": 4.8, "reviews": 1150, "provider": "Ghumne Chale Premier",
             "image": "/assets/vehicles/amaze.webp"
         },
         {
@@ -833,7 +833,7 @@ def run_cabs():
             "type": "SUV", "category": "SUV", "variant": "SX(O) Diesel", "image_key": "creta",
             "seats": 5, "luggage": 4, "fuel": "Diesel", "trans": "Automatic", "ac": True,
             "base_fare": 300.0, "price_per_km": 21.0, "per_hour": 320.0,
-            "rating": 4.9, "reviews": 1920, "provider": "TravelOS SUV",
+            "rating": 4.9, "reviews": 1920, "provider": "Ghumne Chale SUV",
             "image": "/assets/vehicles/creta.webp"
         },
         {
@@ -858,7 +858,7 @@ def run_cabs():
             "type": "MPV", "category": "MPV", "variant": "ZXi CNG", "image_key": "ertiga",
             "seats": 6, "luggage": 4, "fuel": "CNG", "trans": "Manual", "ac": True,
             "base_fare": 320.0, "price_per_km": 20.0, "per_hour": 340.0,
-            "rating": 4.8, "reviews": 3100, "provider": "TravelOS XL",
+            "rating": 4.8, "reviews": 3100, "provider": "Ghumne Chale XL",
             "image": "/assets/vehicles/ertiga.webp"
         },
         {
@@ -883,7 +883,7 @@ def run_cabs():
             "type": "Luxury", "category": "Luxury", "variant": "Hybrid Luxury", "image_key": "camry",
             "seats": 4, "luggage": 3, "fuel": "EV", "trans": "Automatic", "ac": True,
             "base_fare": 650.0, "price_per_km": 42.0, "per_hour": 750.0,
-            "rating": 5.0, "reviews": 640, "provider": "TravelOS Black",
+            "rating": 5.0, "reviews": 640, "provider": "Ghumne Chale Black",
             "image": "/assets/vehicles/camry.webp"
         },
         {
@@ -1748,7 +1748,7 @@ def run_locations():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Travel OS idmepotent DB Seeding CLI framework.")
+    parser = argparse.ArgumentParser(description="Ghumne Chale idmepotent DB Seeding CLI framework.")
     parser.add_argument(
         "subcommand",
         choices=["reference", "flights", "hotels", "villas", "packages", "trains", "buses", "cabs", "rentals", "tours", "cruises", "insurance", "content", "users", "locations", "reset", "all"],

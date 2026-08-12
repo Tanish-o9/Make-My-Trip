@@ -171,7 +171,7 @@ def test_cab_booking_hold_and_capacity_rejection(auth_header):
         "amount": 1500.0,
         "details": {
             "vehicle_name": "Maruti Dzire",
-            "provider_name": "TravelOS Fleet",
+            "provider_name": "Ghumne Chale Fleet",
             "cab_type": "Sedan",
             "pickup_address": "Delhi Airport T3",
             "drop_address": "Noida Sector 62",
@@ -193,7 +193,7 @@ def test_cab_booking_hold_and_confirmation_lifecycle(auth_header):
         "amount": 750.0,
         "details": {
             "vehicle_name": "Maruti Dzire",
-            "provider_name": "TravelOS Fleet",
+            "provider_name": "Ghumne Chale Fleet",
             "cab_type": "Sedan",
             "pickup_address": "Indira Gandhi International Airport (DEL), Terminal 3",
             "drop_address": "Connaught Place, Central Delhi",

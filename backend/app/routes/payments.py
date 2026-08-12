@@ -330,7 +330,7 @@ def create_payment_order(
             try:
                 qrcode_data = razorpay_client.qrcode.create(data={
                     "type": "upi_qr",
-                    "name": f"Travel OS {booking.booking_reference}",
+                    "name": f"Ghumne Chale {booking.booking_reference}",
                     "usage": "single_use",
                     "fixed_amount": True,
                     "payment_amount": amount_in_paise,
@@ -342,7 +342,7 @@ def create_payment_order(
                 logger.warning(f"Failed to create real Razorpay QR Code (falling back to mock): {qr_err}")
                 qr_code_id = f"qr_{uuid.uuid4().hex[:10]}"
                 import urllib.parse
-                upi_uri = f"upi://pay?pa=travelos@razorpay&pn=Travel%20OS&am={actual_amount}&cu=INR&tr={booking.booking_reference}"
+                upi_uri = f"upi://pay?pa=travelos@razorpay&pn=Ghumne%20Chale&am={actual_amount}&cu=INR&tr={booking.booking_reference}"
                 qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={urllib.parse.quote(upi_uri)}"
         
     except Exception as e:

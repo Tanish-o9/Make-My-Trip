@@ -13,7 +13,7 @@ class AICopilotStaff:
         logger.info(f"AICopilot invoked for role '{role}' with query: '{query}'")
         
         prompt = (
-            f"You are the Travel OS AI Staff Copilot assisting a {role.upper()} professional.\n"
+            f"You are the Ghumne Chale AI Staff Copilot assisting a {role.upper()} professional.\n"
             f"Context Data:\n{context}\n\n"
             f"User Query / Action Requested: {query}\n\n"
             f"Provide a summary of the situation, suggest the best immediate actions, and generate template responses if applicable."

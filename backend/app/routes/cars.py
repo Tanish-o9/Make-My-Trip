@@ -186,7 +186,7 @@ async def get_car_rental_voucher(
     """Generate printable self-drive car rental voucher"""
     return {
         "success": True,
-        "voucher_title": "TRAVEL OS SELF-DRIVE RENTAL VOUCHER",
+        "voucher_title": "GHUMNE CHALE SELF-DRIVE RENTAL VOUCHER",
         "booking_reference": reference,
         "customer": current_user.email,
         "vehicle": "Hyundai Creta Automatic Self-Drive",

@@ -268,7 +268,7 @@ export function AdminConsole({
             </div>
             <div>
               <h1 className="text-3xl font-extrabold tracking-tight" style={{ fontFamily: 'Bangers, cursive' }}>ADMIN PANEL</h1>
-              <p className="text-sm font-semibold text-gray-600">Travel OS Operations Portal</p>
+              <p className="text-sm font-semibold text-gray-600">Ghumne Chale Operations Portal</p>
             </div>
           </div>
 
@@ -339,7 +339,7 @@ export function AdminConsole({
           </div>
           <div>
             <h1 className="text-2xl font-bold uppercase tracking-tight flex items-center gap-2" style={{ fontFamily: 'Bangers, cursive' }}>
-              TRAVEL OS <span className="bg-[#7c3aed] text-white px-2 py-0.5 border border-black text-sm tracking-wide">ADMIN CONSOLE</span>
+              GHUMNE CHALE <span className="bg-[#7c3aed] text-white px-2 py-0.5 border border-black text-sm tracking-wide">ADMIN CONSOLE</span>
             </h1>
           </div>
         </div>
@@ -1613,7 +1613,7 @@ function RAGAnalytics({ token }: { token: string }) {
   return (
     <div className="space-y-6">
       <div className="border-b-4 border-black pb-4">
-        <h2 className="text-3xl font-extrabold" style={{ fontFamily: 'Bangers, cursive' }}>AI Travel OS Metrics & LLM Costs</h2>
+        <h2 className="text-3xl font-extrabold" style={{ fontFamily: 'Bangers, cursive' }}>AI Ghumne Chale Metrics & LLM Costs</h2>
         <p className="text-sm font-semibold text-gray-500">Track agent decision latencies, token consumption costs, and RAG cache effectiveness</p>
       </div>
 

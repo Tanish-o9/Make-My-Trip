@@ -176,7 +176,7 @@ def normalize_train_offer(raw: Dict[str, Any], provider_name: str = "IRCTC Autho
     )
 
 
-def normalize_activity_offer(raw: Dict[str, Any], provider_name: str = "TravelOS Experience Engine") -> UniversalNormalizedOffer:
+def normalize_activity_offer(raw: Dict[str, Any], provider_name: str = "Ghumne Chale Experience Engine") -> UniversalNormalizedOffer:
     price = float(raw.get("price") or raw.get("fare") or 1800.0)
     offer_id = str(raw.get("id") or "ACT-OFF-001")
 

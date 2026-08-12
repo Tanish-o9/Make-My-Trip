@@ -143,7 +143,7 @@ export default function FeedbackWidget() {
                   Thank you!
                 </h3>
                 <p style={{ margin: "8px 0 0", color: "#8b8ea8", fontSize: "14px" }}>
-                  Your feedback helps us build a better Travel OS.
+                  Your feedback helps us build a better Ghumne Chale.
                 </p>
               </div>
             ) : (
@@ -154,7 +154,7 @@ export default function FeedbackWidget() {
                       Beta Feedback
                     </h3>
                     <p style={{ margin: "4px 0 0", fontSize: "12px", color: "#5e6080" }}>
-                      Help us improve Travel OS
+                      Help us improve Ghumne Chale
                     </p>
                   </div>
                   <button

@@ -1,5 +1,5 @@
 """
-HTML email templates for Travel OS.
+HTML email templates for Ghumne Chale.
 All templates return (subject, html_body) tuples.
 """
 from typing import Dict, Any, List
@@ -12,7 +12,7 @@ def _base_template(content: str) -> str:
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Travel OS</title>
+  <title>Ghumne Chale</title>
   <style>
     body {{ font-family: 'Segoe UI', Arial, sans-serif; background: #f4f6fb; margin: 0; padding: 0; }}
     .container {{ max-width: 600px; margin: 30px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }}
@@ -40,15 +40,15 @@ def _base_template(content: str) -> str:
 <body>
   <div class="container">
     <div class="header">
-      <h1>✈ Travel OS</h1>
+      <h1>✈ Ghumne Chale</h1>
       <p>Your AI-Powered Travel Companion</p>
     </div>
     <div class="body">
       {content}
     </div>
     <div class="footer">
-      <p>© 2026 Travel OS · All rights reserved</p>
-      <p>You received this email because you booked with Travel OS.</p>
+      <p>© 2026 Ghumne Chale · All rights reserved</p>
+      <p>You received this email because you booked with Ghumne Chale.</p>
     </div>
   </div>
 </body>
@@ -196,7 +196,7 @@ def get_cancellation_html(
 
 def get_otp_html(user_name: str, otp_code: str, action: str = "login") -> tuple:
     """OTP verification email."""
-    subject = f"🔐 Your Travel OS OTP: {otp_code}"
+    subject = f"🔐 Your Ghumne Chale OTP: {otp_code}"
     content = f"""
       <h2 style="color:#1a237e; margin-bottom:4px;">🔐 Verification Code</h2>
       <p style="color:#546e7a;">Hi {user_name}, use the following OTP to complete your {action}.</p>
@@ -263,17 +263,17 @@ def get_flight_reminder_html(
 
 def get_welcome_email_html(user_name: str, user_email: str) -> tuple:
     """Welcome email template."""
-    subject = "👋 Welcome to Travel OS!"
+    subject = "👋 Welcome to Ghumne Chale!"
     content = f"""
       <h2 style="color:#1a237e; margin-bottom:4px;">👋 Welcome to the Future of Travel!</h2>
-      <p style="color:#546e7a;">Hi {user_name}, thank you for registering with Travel OS.</p>
+      <p style="color:#546e7a;">Hi {user_name}, thank you for registering with Ghumne Chale.</p>
       
       <div class="card">
         <div class="label">Registered Email</div>
         <div class="value">{user_email}</div>
       </div>
       
-      <p style="color:#546e7a;">Travel OS is your AI-first travel companion. Use our natural language AI Concierge to search and book flights, hotels, and vacation packages, manage your travel wallet, and receive real-time updates.</p>
+      <p style="color:#546e7a;">Ghumne Chale is your AI-first travel companion. Use our natural language AI Concierge to search and book flights, hotels, and vacation packages, manage your travel wallet, and receive real-time updates.</p>
       
       <div class="cta">
         <a href="https://make-my-trip-delta.vercel.app/">Explore Dashboard →</a>
@@ -318,7 +318,7 @@ def get_invoice_html(user_name: str, booking_ref: str, amount: float, items: Lis
 
 def get_password_reset_html(user_name: str, reset_link: str) -> tuple:
     """Password reset instructions email."""
-    subject = "🔑 Reset Your Travel OS Password"
+    subject = "🔑 Reset Your Ghumne Chale Password"
     content = f"""
       <h2 style="color:#1a237e; margin-bottom:4px;">🔑 Password Reset Request</h2>
       <p style="color:#546e7a;">Hi {user_name}, we received a request to reset your password. Click the button below to choose a new password.</p>
@@ -366,7 +366,7 @@ def get_trip_completed_html(user_name: str, destination: str) -> tuple:
         <a href="https://make-my-trip-delta.vercel.app/feedback">Leave Feedback →</a>
       </div>
       
-      <p style="color:#546e7a; font-size:13px; text-align:center; margin-top:20px;">Thank you for choosing Travel OS as your travel companion!</p>
+      <p style="color:#546e7a; font-size:13px; text-align:center; margin-top:20px;">Thank you for choosing Ghumne Chale as your travel companion!</p>
     """
     return subject, _base_template(content)
 
@@ -382,7 +382,7 @@ def get_email_verification_html(
     NOTE: otp_code is the plain 6-digit code — only call this immediately
     before sending; never log or persist the plain code.
     """
-    subject = "Verify your Travel OS account"
+    subject = "Verify your Ghumne Chale account"
     first_name = user_name.split()[0] if user_name else "Traveler"
 
     # Format OTP as spaced digits for readability
@@ -390,7 +390,7 @@ def get_email_verification_html(
 
     content = f"""
       <h2 style="color:#1a237e; margin:0 0 8px;">Verify your email address</h2>
-      <p style="color:#546e7a; margin:0 0 28px;">Hello {first_name}, welcome to Travel OS!</p>
+      <p style="color:#546e7a; margin:0 0 28px;">Hello {first_name}, welcome to Ghumne Chale!</p>
 
       <p style="color:#37474f; margin:0 0 16px;">
         To complete your account setup, please use the verification code below:
@@ -412,8 +412,8 @@ def get_email_verification_html(
 
       <div style="background:#fff8e1;border-left:4px solid #f59e0b;border-radius:4px;padding:14px 18px;margin:20px 0;">
         <p style="margin:0;font-size:13px;color:#78350f;">
-          <strong>Security notice:</strong> Travel OS will never ask for your password, OTP, or card details over email or phone. 
-          If you did not create a Travel OS account, please ignore this email or contact 
+          <strong>Security notice:</strong> Ghumne Chale will never ask for your password, OTP, or card details over email or phone. 
+          If you did not create a Ghumne Chale account, please ignore this email or contact 
           <a href="mailto:support@travelos.com" style="color:#d97706;">support@travelos.com</a>.
         </p>
       </div>
@@ -434,7 +434,7 @@ def get_password_reset_otp_html(
     Professional password reset OTP email template.
     Returns (subject, html_body).
     """
-    subject = "Reset your Travel OS password"
+    subject = "Reset your Ghumne Chale password"
     first_name = user_name.split()[0] if user_name else "Traveler"
 
     content = f"""
@@ -442,7 +442,7 @@ def get_password_reset_otp_html(
       <p style="color:#546e7a; margin:0 0 28px;">Hello {first_name},</p>
 
       <p style="color:#37474f; margin:0 0 16px;">
-        We received a request to reset the password for your Travel OS account. Use the 6-digit verification code below to complete your reset:
+        We received a request to reset the password for your Ghumne Chale account. Use the 6-digit verification code below to complete your reset:
       </p>
 
       <div style="background:linear-gradient(135deg,#1a237e,#0d47a1);border-radius:16px;padding:32px;text-align:center;margin:24px 0;">

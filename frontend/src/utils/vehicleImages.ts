@@ -1,5 +1,5 @@
 /**
- * Travel OS — Centralized Deterministic Vehicle Image Resolver
+ * Ghumne Chale — Centralized Deterministic Vehicle Image Resolver
  * Provides reliable, deterministic vehicle model -> image mapping with zero random flickering.
  */
 

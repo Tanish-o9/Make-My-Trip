@@ -97,17 +97,17 @@ class ProviderRegistryManager:
                 s["status"] = "healthy"
 
     def get_health(self) -> Dict[str, Any]:
-        cab_name = "TravelOS Local Fleet"
+        cab_name = "Ghumne Chale Local Fleet"
         try:
             cab_p = self.get_cab_provider()
-            cab_name = cab_p.name if hasattr(cab_p, "name") else "TravelOS Local Fleet"
+            cab_name = cab_p.name if hasattr(cab_p, "name") else "Ghumne Chale Local Fleet"
         except Exception:
             cab_name = "Unavailable"
 
-        car_name = "TravelOS Drive"
+        car_name = "Ghumne Chale Drive"
         try:
             car_p = self.get_car_rental_provider()
-            car_name = car_p.name if hasattr(car_p, "name") else "TravelOS Drive"
+            car_name = car_p.name if hasattr(car_p, "name") else "Ghumne Chale Drive"
         except Exception:
             car_name = "Unavailable"
 

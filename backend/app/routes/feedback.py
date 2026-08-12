@@ -53,7 +53,7 @@ def submit_feedback(
     logger.info(f"Feedback submitted successfully by user: {current_user.email} (Type: {req.feedback_type})")
     return {
         "success": True,
-        "message": "Feedback submitted successfully. Thank you for helping improve Travel OS!",
+        "message": "Feedback submitted successfully. Thank you for helping improve Ghumne Chale!",
         "feedback_id": feedback.id
     }
 

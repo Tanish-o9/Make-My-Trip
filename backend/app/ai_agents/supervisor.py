@@ -219,7 +219,7 @@ def supervisor_router(state: AgentState) -> str:
 
 def general_chat_node(state: AgentState, config: Dict[str, Any] = None) -> dict:
     """Generates richly personalized responses — no generic filler."""
-    report_agent_status(config, "Travel OS: Crafting personalized response...")
+    report_agent_status(config, "Ghumne Chale: Crafting personalized response...")
     messages = state.get("messages", [])
     user_query = messages[-1]["content"] if messages else "Hello"
     trip_ctx = state.get("trip_context", {}) or {}
@@ -240,7 +240,7 @@ def general_chat_node(state: AgentState, config: Dict[str, Any] = None) -> dict:
 
     history_context = json.dumps(messages[:-1][-6:], default=str) if len(messages) > 1 else "[]"
 
-    prompt = f"""You are Travel OS — an elite AI travel consultant with deep knowledge of this specific user.
+    prompt = f"""You are Ghumne Chale — an elite AI travel consultant with deep knowledge of this specific user.
 
 USER'S STORED TRAVEL PREFERENCES:
 {pref_block}
@@ -299,7 +299,7 @@ def compiler_node(state: AgentState, config: Dict[str, Any] = None) -> dict:
         rag_text = ""
 
     # 2. Build AI Explainability block from collected data
-    explain_prompt = f"""You are the AI Explainability module for Travel OS.
+    explain_prompt = f"""You are the AI Explainability module for Ghumne Chale.
 
 Based on these specialist results and user preferences, write a brief, honest explanation of WHY each recommendation was selected.
 Be specific: reference actual preference names, price filters, and data points used.
@@ -328,7 +328,7 @@ Be honest if a category has no results. Keep it under 100 words total."""
         explainability_text = "• Recommendations selected based on destination, travel dates, and available inventory."
 
     # 3. Synthesize complete proposal using reasoning LLM
-    compilation_prompt = f"""You are a Senior Travel Consultant at Travel OS. Compile a premium, personalized travel proposal.
+    compilation_prompt = f"""You are a Senior Travel Consultant at Ghumne Chale. Compile a premium, personalized travel proposal.
 
 User's Known Preferences (MUST be reflected in your response):
 {pref_summary}

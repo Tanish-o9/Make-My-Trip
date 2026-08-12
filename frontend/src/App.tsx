@@ -798,8 +798,20 @@ export default function App() {
   if (!token) {
     // Allow /verify-email, /forgot-password, /reset-password to be rendered before authentication
     if (currentPath.startsWith('/verify-email')) {
-      const params = new URLSearchParams(window.location.search);
-      const emailParam = params.get('email') || '';
+      let emailParam = '';
+      try {
+        const queryIndex = currentPath.indexOf('?');
+        if (queryIndex !== -1) {
+          const searchParams = new URLSearchParams(currentPath.substring(queryIndex));
+          emailParam = searchParams.get('email') || '';
+        }
+      } catch (e) {
+        console.error("Failed to parse query params from currentPath", e);
+      }
+      if (!emailParam) {
+        const params = new URLSearchParams(window.location.search);
+        emailParam = params.get('email') || '';
+      }
       return <VerifyEmailPage email={emailParam} onNavigate={navigate} />;
     }
     if (currentPath === '/forgot-password' || currentPath === '/reset-password') {
@@ -964,7 +976,7 @@ export default function App() {
             <div className="flex items-center gap-2">
               <span className="font-serif italic font-bold text-2xl text-[var(--color-gold)]">T</span>
               <span className="font-serif italic font-black text-sm tracking-wider text-[var(--color-ivory)] flex items-center gap-1">
-                TRAVEL OS
+                GHUMNE CHALE
                 <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-gold)] animate-pulse-gold inline-block" />
               </span>
             </div>
@@ -1040,7 +1052,7 @@ export default function App() {
             </button>
             <span className="font-serif italic font-bold text-2xl text-[var(--color-gold)]">T</span>
             <span className="font-serif italic font-black text-sm tracking-wider text-[var(--color-ivory)] flex items-center gap-1">
-              TRAVEL OS
+              GHUMNE CHALE
               <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-gold)] animate-pulse-gold inline-block" />
             </span>
           </div>
@@ -1459,7 +1471,7 @@ function ExploreView({
       {/* 1. TOP UTILITY HEADER */}
       <div className="w-full bg-[#0b1021]/80 backdrop-blur-md border-b border-slate-900/60 py-3 px-8 flex justify-between items-center text-xs text-slate-300">
         <div className="flex items-center gap-4">
-          <span className="font-extrabold text-blue-400 tracking-wider">TRAVEL OS PREMIUM</span>
+          <span className="font-extrabold text-blue-400 tracking-wider">GHUMNE CHALE PREMIUM</span>
           <span className="text-slate-500">|</span>
           <button className="hover:text-white transition-all cursor-pointer">List Your Property</button>
           <button onClick={onShowMyBiz} className="hover:text-white transition-all bg-blue-900/20 text-blue-400 px-2 py-0.5 rounded font-black border border-blue-500/10 cursor-pointer font-bold">myBiz — Business portals</button>
@@ -1770,7 +1782,7 @@ function ExploreView({
       <div className="max-w-6xl mx-auto px-8 py-6 border-t border-slate-900/60 pt-10">
         <div className="bg-slate-900/40 border border-slate-805 rounded-2xl p-6 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="space-y-2 text-left max-w-sm">
-            <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider block">Travel OS Metrics</span>
+            <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider block">Ghumne Chale Metrics</span>
             <h4 className="text-lg font-black text-white">Live Platform Travel Analytics</h4>
             <p className="text-xs text-slate-400 leading-relaxed">
               We track real-time savings, active search indices, flight price drops, and carbon footprint reduction parameters to optimize your journeys.
@@ -1799,7 +1811,7 @@ function ExploreView({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
           <div className="bg-slate-900/60 border border-slate-800 p-6 rounded-2xl space-y-3 flex flex-col justify-between">
             <p className="text-xs italic text-slate-300 leading-relaxed">
-              "Travel OS completely planned my Goa getaway, reserved Vistara flights, and mapped out an incredible nightlife list! I literally didn't have to search a single hotel myself."
+              "Ghumne Chale completely planned my Goa getaway, reserved Vistara flights, and mapped out an incredible nightlife list! I literally didn't have to search a single hotel myself."
             </p>
             <div className="flex justify-between items-center pt-2">
               <span className="font-bold text-xs text-white">Rohan S.</span>
@@ -1822,7 +1834,7 @@ function ExploreView({
       <footer className="w-full bg-slate-950 border-t border-slate-900 py-12 px-8 mt-12">
         <div className="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8 text-left">
           <div className="space-y-3 col-span-2 md:col-span-1">
-            <h4 className="font-black text-sm text-white tracking-widest uppercase">TRAVEL OS</h4>
+            <h4 className="font-black text-sm text-white tracking-widest uppercase">GHUMNE CHALE</h4>
             <p className="text-[11px] text-slate-400 leading-relaxed">
               The world's best AI-powered autonomous Travel Operating System, resolving flights, hotel stays, visa guidance, and premium itineraries.
             </p>
@@ -1857,7 +1869,7 @@ function ExploreView({
 
         </div>
         <div className="max-w-6xl mx-auto mt-10 pt-6 border-t border-slate-900 flex flex-col sm:flex-row justify-between items-center text-[10px] text-slate-500">
-          <span>© 2026 Travel OS Inc. All rights reserved.</span>
+          <span>© 2026 Ghumne Chale Inc. All rights reserved.</span>
           <span className="flex gap-4 mt-2 sm:mt-0">
             <button onClick={() => onNavigate('/privacy')} style={{background:'none',border:'none',cursor:'pointer',padding:0,fontSize:'10px'}} className="hover:text-slate-300 text-slate-500">Privacy Policy</button>
             <button onClick={() => onNavigate('/terms')} style={{background:'none',border:'none',cursor:'pointer',padding:0,fontSize:'10px'}} className="hover:text-slate-300 text-slate-500">Terms of Service</button>
@@ -2451,6 +2463,28 @@ function FlightsSearchForm({
   const [error, setError] = useState<string | null>(null);
   const [showFlightSeatModal, setShowFlightSeatModal] = useState<any | null>(null);
   const [selectedFlightSeats, setSelectedFlightSeats] = useState<string[]>([]);
+  const [flightSeatMapDetails, setFlightSeatMapDetails] = useState<any | null>(null);
+  const [loadingFlightSeats, setLoadingFlightSeats] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (showFlightSeatModal) {
+      setLoadingFlightSeats(true);
+      setFlightSeatMapDetails(null);
+      const vertical = "flights";
+      const reference = showFlightSeatModal.flightNumber.split("-")[1] || showFlightSeatModal.flightNumber;
+      const provider = showFlightSeatModal.provider_name || "";
+      fetch(`${API_URL}/bookings/seats/availability?vertical=${vertical}&reference=${reference}&provider_name=${provider}`)
+        .then(res => res.json())
+        .then(data => {
+          setFlightSeatMapDetails(data);
+          setLoadingFlightSeats(false);
+        })
+        .catch(err => {
+          console.error("Error fetching flight seats:", err);
+          setLoadingFlightSeats(false);
+        });
+    }
+  }, [showFlightSeatModal]);
 
   const getIATACode = (cityInput: string): string => {
     if (!cityInput) return "";
@@ -3013,7 +3047,16 @@ function FlightsSearchForm({
           <div className="bg-[#0b1021] border border-slate-800 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl text-slate-200">
             <div className="flex justify-between items-center border-b border-slate-800 pb-2">
               <div>
-                <h4 className="font-black text-sm uppercase text-slate-100">Select Cabin Seats</h4>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-black text-sm uppercase text-slate-100">Select Cabin Seats</h4>
+                  {flightSeatMapDetails && (
+                    <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                      flightSeatMapDetails.seat_map_type === "LIVE" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                    }`}>
+                      {flightSeatMapDetails.seat_map_type} MAP
+                    </span>
+                  )}
+                </div>
                 <p className="text-[10px] text-slate-400 font-semibold">{showFlightSeatModal.airlineName} {showFlightSeatModal.flightNumber}</p>
               </div>
               <button onClick={() => setShowFlightSeatModal(null)} className="text-slate-400 hover:text-white font-extrabold text-sm">✕</button>
@@ -3025,90 +3068,115 @@ function FlightsSearchForm({
               <span>Window (D-F)</span>
             </div>
 
-            {/* Scrollable Cabin Seating */}
-            <div className="max-h-64 overflow-y-auto pr-1 py-2 space-y-2">
-              {Array.from({ length: 10 }, (_, rIdx) => {
-                const row = rIdx + 1;
-                const cols = ["A", "B", "C", "D", "E", "F"];
-                return (
-                  <div key={row} className="flex justify-between items-center gap-2">
-                    <span className="text-[10px] font-bold text-slate-500 w-4 text-center">{row}</span>
-                    <div className="flex-1 grid grid-cols-6 gap-1">
-                      {cols.map((col, cIdx) => {
-                        const seat = `${row}${col}`;
-                        const isAisleSpacer = cIdx === 3;
-                        const isTaken = (row % 3 === 0 && col === "C") || (col === "D" && row > 4) || seat === "1B" || seat === "4F";
-                        const isSelected = selectedFlightSeats.includes(seat);
-                        
-                        return (
-                          <div key={col} className={`flex items-center gap-1 ${isAisleSpacer ? 'ml-3' : ''}`}>
-                            <button
-                              disabled={isTaken}
-                              onClick={() => {
-                                if (isSelected) {
-                                  setSelectedFlightSeats(prev => prev.filter(s => s !== seat));
-                                } else {
-                                  if (selectedFlightSeats.length < passengers) {
-                                    setSelectedFlightSeats(prev => [...prev, seat]);
-                                  } else {
-                                    alert(`You can only select up to ${passengers} seat(s) for this booking.`);
-                                  }
-                                }
-                              }}
-                              className={`w-8 h-8 rounded border text-[10px] font-black transition-all flex items-center justify-center cursor-pointer ${
-                                isTaken 
-                                  ? 'bg-slate-800/40 border-slate-850 text-slate-600 cursor-not-allowed' 
-                                  : isSelected
-                                    ? 'bg-yellow-400 border-yellow-500 text-slate-900 shadow-md shadow-yellow-400/20'
-                                    : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
-                              }`}
-                            >
-                              {col}
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            {loadingFlightSeats ? (
+              <div className="py-12 flex flex-col items-center justify-center gap-2">
+                <div className="w-6 h-6 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
+                <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Syncing availability...</span>
+              </div>
+            ) : (
+              <>
+                {/* Scrollable Cabin Seating */}
+                <div className="max-h-64 overflow-y-auto pr-1 py-2 space-y-2">
+                  {Array.from({ length: 10 }, (_, rIdx) => {
+                    const row = rIdx + 1;
+                    const cols = ["A", "B", "C", "D", "E", "F"];
+                    return (
+                      <div key={row} className="flex justify-between items-center gap-2">
+                        <span className="text-[10px] font-bold text-slate-500 w-4 text-center">{row}</span>
+                        <div className="flex-1 grid grid-cols-6 gap-1">
+                          {cols.map((col, cIdx) => {
+                            const seat = `${row}${col}`;
+                            const isAisleSpacer = cIdx === 3;
+                            
+                            // Authoritative check
+                            const seatObj = flightSeatMapDetails?.seats?.find((s: any) => s.seat_number === seat);
+                            const isTaken = seatObj ? seatObj.is_occupied : false;
+                            const seatType = seatObj ? seatObj.seat_type : "standard";
+                            const seatPrice = seatObj ? seatObj.price : 150;
+                            
+                            const isSelected = selectedFlightSeats.includes(seat);
+                            
+                            return (
+                              <div key={col} className={`flex items-center gap-1 ${isAisleSpacer ? 'ml-3' : ''}`}>
+                                <button
+                                  disabled={isTaken}
+                                  aria-label={`Seat ${seat} - ${seatType} - ${isTaken ? 'Occupied' : `Available - ₹${seatPrice}`}`}
+                                  title={`${seat} (${seatType}): ${isTaken ? 'Occupied' : `₹${seatPrice}`}`}
+                                  onClick={() => {
+                                    if (isSelected) {
+                                      setSelectedFlightSeats(prev => prev.filter(s => s !== seat));
+                                    } else {
+                                      if (selectedFlightSeats.length < passengers) {
+                                        setSelectedFlightSeats(prev => [...prev, seat]);
+                                      } else {
+                                        alert(`You can only select up to ${passengers} seat(s) for this booking.`);
+                                      }
+                                    }
+                                  }}
+                                  className={`w-8 h-8 rounded border text-[10px] font-black transition-all flex items-center justify-center cursor-pointer ${
+                                    isTaken 
+                                      ? 'bg-slate-800/40 border-slate-850 text-slate-650 cursor-not-allowed' 
+                                      : isSelected
+                                        ? 'bg-yellow-400 border-yellow-500 text-slate-900 shadow-md shadow-yellow-400/20'
+                                        : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
+                                  }`}
+                                >
+                                  {col}
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
 
-            <div className="border-t border-slate-800 pt-3 flex justify-between items-center text-xs font-bold text-slate-300">
-              <span>Selected: {selectedFlightSeats.length} / {passengers}</span>
-              <span className="text-yellow-400">Seats: {selectedFlightSeats.join(", ") || "None"}</span>
-            </div>
+                <div className="border-t border-slate-800 pt-3 flex justify-between items-center text-xs font-bold text-slate-300">
+                  <span>Selected: {selectedFlightSeats.length} / {passengers}</span>
+                  <span className="text-yellow-400">Seats: {selectedFlightSeats.join(", ") || "None"}</span>
+                </div>
 
-            <button 
-              onClick={() => {
-                if (selectedFlightSeats.length < passengers) {
-                  alert(`Please select all ${passengers} seat(s) before booking.`);
-                  return;
-                }
-                onBook({
-                  vertical: "flights",
-                  amount: showFlightSeatModal.amount,
-                  details: {
-                    origin: showFlightSeatModal.origin.split(" ")[0],
-                    destination: showFlightSeatModal.destination.split(" ")[0],
-                    airline_code: showFlightSeatModal.res.airline,
-                    flight_number: showFlightSeatModal.flightNumber.split("-")[1] || showFlightSeatModal.flightNumber,
-                    cabin_class: showFlightSeatModal.cabinClass.toUpperCase(),
-                    specialFareType: showFlightSeatModal.specialFareType,
-                    passengers: Array.from({ length: passengers }, (_, i) => ({ name: `Traveler Guest ${i+1}`, age: 32 })),
-                    provider_name: showFlightSeatModal.provider_name,
-                    offer_id: showFlightSeatModal.offer_id,
-                    seat_numbers: selectedFlightSeats
-                  },
-                  title: `${showFlightSeatModal.airlineName} ${showFlightSeatModal.flightNumber}`,
-                  subtitle: `Seats: ${selectedFlightSeats.join(", ")} | ${showFlightSeatModal.origin.split(" ")[0]} ➔ ${showFlightSeatModal.destination.split(" ")[0]}`
-                });
-                setShowFlightSeatModal(null);
-              }}
-              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-extrabold py-2.5 rounded-xl text-xs uppercase transition-all cursor-pointer shadow-lg shadow-blue-600/10"
-            >
-              Confirm Seats & Book Flight
-            </button>
+                <button 
+                  onClick={() => {
+                    if (selectedFlightSeats.length < passengers) {
+                      alert(`Please select all ${passengers} seat(s) before booking.`);
+                      return;
+                    }
+                    
+                    // Authoritative pricing check
+                    const seatFaresTotal = selectedFlightSeats.reduce((acc, s) => {
+                      const sObj = flightSeatMapDetails?.seats?.find((st: any) => st.seat_number === s);
+                      return acc + (sObj ? sObj.price : 150);
+                    }, 0);
+                    const totalBookingAmount = showFlightSeatModal.amount + seatFaresTotal;
+
+                    onBook({
+                      vertical: "flights",
+                      amount: totalBookingAmount,
+                      details: {
+                        origin: showFlightSeatModal.origin.split(" ")[0],
+                        destination: showFlightSeatModal.destination.split(" ")[0],
+                        airline_code: showFlightSeatModal.res.airline,
+                        flight_number: showFlightSeatModal.flightNumber.split("-")[1] || showFlightSeatModal.flightNumber,
+                        cabin_class: showFlightSeatModal.cabinClass.toUpperCase(),
+                        specialFareType: showFlightSeatModal.specialFareType,
+                        passengers: Array.from({ length: passengers }, (_, i) => ({ name: `Traveler Guest ${i+1}`, age: 32 })),
+                        provider_name: showFlightSeatModal.provider_name,
+                        offer_id: showFlightSeatModal.offer_id,
+                        seat_numbers: selectedFlightSeats
+                      },
+                      title: `${showFlightSeatModal.airlineName} ${showFlightSeatModal.flightNumber}`,
+                      subtitle: `Seats: ${selectedFlightSeats.join(", ")} | ${showFlightSeatModal.origin.split(" ")[0]} ➔ ${showFlightSeatModal.destination.split(" ")[0]}`
+                    });
+                    setShowFlightSeatModal(null);
+                  }}
+                  className="w-full bg-blue-600 hover:bg-blue-500 text-white font-extrabold py-2.5 rounded-xl text-xs uppercase transition-all cursor-pointer shadow-lg shadow-blue-600/10"
+                >
+                  Confirm Seats & Book Flight
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -4386,6 +4454,28 @@ function TrainsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
   const [trainPassengers, setTrainPassengers] = useState(1);
   const [showTrainSeatModal, setShowTrainSeatModal] = useState<any | null>(null);
   const [selectedTrainSeats, setSelectedTrainSeats] = useState<string[]>([]);
+  const [trainSeatMapDetails, setTrainSeatMapDetails] = useState<any | null>(null);
+  const [loadingTrainSeats, setLoadingTrainSeats] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (showTrainSeatModal) {
+      setLoadingTrainSeats(true);
+      setTrainSeatMapDetails(null);
+      const vertical = "trains";
+      const reference = showTrainSeatModal.t.train_number;
+      const provider = "local";
+      fetch(`${API_URL}/bookings/seats/availability?vertical=${vertical}&reference=${reference}&provider_name=${provider}`)
+        .then(res => res.json())
+        .then(data => {
+          setTrainSeatMapDetails(data);
+          setLoadingTrainSeats(false);
+        })
+        .catch(err => {
+          console.error("Error fetching train seats:", err);
+          setLoadingTrainSeats(false);
+        });
+    }
+  }, [showTrainSeatModal]);
 
   const handleSearch = () => {
     if (!fromStn.trim()) {
@@ -4565,7 +4655,16 @@ function TrainsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
           <div className="bg-[#0b1021] border border-slate-800 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl text-slate-200">
             <div className="flex justify-between items-center border-b border-slate-800 pb-2">
               <div>
-                <h4 className="font-black text-sm uppercase text-slate-100">Select Train Berths</h4>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-black text-sm uppercase text-slate-100">Select Train Berths</h4>
+                  {trainSeatMapDetails && (
+                    <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                      trainSeatMapDetails.seat_map_type === "LIVE" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                    }`}>
+                      {trainSeatMapDetails.seat_map_type} MAP
+                    </span>
+                  )}
+                </div>
                 <p className="text-[10px] text-slate-400 font-semibold">{showTrainSeatModal.t.train_number} {showTrainSeatModal.t.train_name}</p>
               </div>
               <button onClick={() => setShowTrainSeatModal(null)} className="text-slate-400 hover:text-white font-extrabold text-sm">✕</button>
@@ -4576,95 +4675,119 @@ function TrainsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
               <span className="text-yellow-400">Side (SL/SU)</span>
             </div>
 
-            {/* Indian Railways 3AC Coach Layout representation */}
-            <div className="max-h-64 overflow-y-auto pr-1 py-2 space-y-3">
-              {Array.from({ length: 4 }, (_, bayIdx) => {
-                const startSeat = bayIdx * 6 + 1;
-                const types = ["LB", "MB", "UB", "LB", "MB", "UB", "SL", "SU"];
-                const seats = Array.from({ length: 8 }, (_, i) => {
-                  const num = startSeat + i;
-                  const type = types[i] || "LB";
-                  return `${num}-${type}`;
-                });
+            {loadingTrainSeats ? (
+              <div className="py-12 flex flex-col items-center justify-center gap-2">
+                <div className="w-6 h-6 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
+                <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Syncing availability...</span>
+              </div>
+            ) : (
+              <>
+                {/* Indian Railways 3AC Coach Layout representation */}
+                <div className="max-h-64 overflow-y-auto pr-1 py-2 space-y-3">
+                  {Array.from({ length: 4 }, (_, bayIdx) => {
+                    const startSeat = bayIdx * 6 + 1;
+                    const types = ["LB", "MB", "UB", "LB", "MB", "UB", "SL", "SU"];
+                    const seats = Array.from({ length: 8 }, (_, i) => {
+                      const num = startSeat + i;
+                      const type = types[i] || "LB";
+                      return `${num}-${type}`;
+                    });
 
-                return (
-                  <div key={bayIdx} className="bg-slate-900/40 p-2 rounded-xl border border-slate-800 space-y-2">
-                    <div className="text-[9px] text-slate-500 font-black uppercase">Bay {bayIdx + 1}</div>
-                    <div className="grid grid-cols-4 gap-1.5">
-                      {seats.map((seat, sIdx) => {
-                        const isSideBerth = sIdx >= 6;
-                        const isTaken = (startSeat + sIdx) % 5 === 0 || seat === "3-UB" || seat === "17-SL";
-                        const isSelected = selectedTrainSeats.includes(seat);
-                        
-                        return (
-                          <button
-                            key={seat}
-                            disabled={isTaken}
-                            onClick={() => {
-                              if (isSelected) {
-                                setSelectedTrainSeats(prev => prev.filter(s => s !== seat));
-                              } else {
-                                if (selectedTrainSeats.length < trainPassengers) {
-                                  setSelectedTrainSeats(prev => [...prev, seat]);
-                                } else {
-                                  alert(`You can only select up to ${trainPassengers} seat(s) for this booking.`);
-                                }
-                              }
-                            }}
-                            className={`h-10 rounded border text-[9px] font-black transition-all flex flex-col items-center justify-center cursor-pointer ${
-                              isTaken 
-                                ? 'bg-slate-800/40 border-slate-850 text-slate-600 cursor-not-allowed' 
-                                : isSelected
-                                  ? 'bg-yellow-400 border-yellow-500 text-slate-900 shadow-md shadow-yellow-400/20'
-                                  : isSideBerth
-                                    ? 'bg-blue-950/40 border-blue-900/50 text-blue-300 hover:border-blue-800'
-                                    : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
-                            }`}
-                          >
-                            <span className="font-mono text-[9px]">{startSeat + sIdx}</span>
-                            <span className="text-[7px] opacity-75">{types[sIdx]}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                    return (
+                      <div key={bayIdx} className="bg-slate-900/40 p-2 rounded-xl border border-slate-800 space-y-2">
+                        <div className="text-[9px] text-slate-500 font-black uppercase">Bay {bayIdx + 1}</div>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {seats.map((seat, sIdx) => {
+                            const isSideBerth = sIdx >= 6;
+                            
+                            // Authoritative check
+                            const seatObj = trainSeatMapDetails?.seats?.find((s: any) => s.seat_number === seat);
+                            const isTaken = seatObj ? seatObj.is_occupied : false;
+                            const seatType = seatObj ? seatObj.seat_type : "lower";
+                            const seatPrice = seatObj ? seatObj.price : 300;
 
-            <div className="border-t border-slate-800 pt-3 flex justify-between items-center text-xs font-bold text-slate-300">
-              <span>Selected: {selectedTrainSeats.length} / {trainPassengers}</span>
-              <span className="text-yellow-400">Seats: {selectedTrainSeats.join(", ") || "None"}</span>
-            </div>
+                            const isSelected = selectedTrainSeats.includes(seat);
+                            
+                            return (
+                              <button
+                                key={seat}
+                                disabled={isTaken}
+                                aria-label={`Berth ${startSeat + sIdx} - ${types[sIdx]} - ${isTaken ? 'Occupied' : `Available - ₹${seatPrice}`}`}
+                                title={`${startSeat + sIdx}-${types[sIdx]} (${seatType}): ${isTaken ? 'Occupied' : `₹${seatPrice}`}`}
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setSelectedTrainSeats(prev => prev.filter(s => s !== seat));
+                                  } else {
+                                    if (selectedTrainSeats.length < trainPassengers) {
+                                      setSelectedTrainSeats(prev => [...prev, seat]);
+                                    } else {
+                                      alert(`You can only select up to ${trainPassengers} seat(s) for this booking.`);
+                                    }
+                                  }
+                                }}
+                                className={`h-10 rounded border text-[9px] font-black transition-all flex flex-col items-center justify-center cursor-pointer ${
+                                  isTaken 
+                                    ? 'bg-slate-800/40 border-slate-850 text-slate-650 cursor-not-allowed' 
+                                    : isSelected
+                                      ? 'bg-yellow-400 border-yellow-500 text-slate-900 shadow-md shadow-yellow-400/20'
+                                      : isSideBerth
+                                        ? 'bg-blue-950/40 border-blue-900/50 text-blue-300 hover:border-blue-800'
+                                        : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
+                                }`}
+                              >
+                                <span className="font-mono text-[9px]">{startSeat + sIdx}</span>
+                                <span className="text-[7px] opacity-75">{types[sIdx]}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
 
-            <button 
-              onClick={() => {
-                if (selectedTrainSeats.length < trainPassengers) {
-                  alert(`Please select all ${trainPassengers} seat(s) before booking.`);
-                  return;
-                }
-                const totalBookingAmount = showTrainSeatModal.amount * trainPassengers;
-                onBook({
-                  vertical: "trains",
-                  amount: totalBookingAmount,
-                  details: {
-                    train_number: showTrainSeatModal.t.train_number,
-                    train_name: showTrainSeatModal.t.train_name,
-                    origin_station: showTrainSeatModal.fromStn.split(" ")[0],
-                    destination_station: showTrainSeatModal.toStn.split(" ")[0],
-                    coach_class: showTrainSeatModal.coach,
-                    passengers: Array.from({ length: trainPassengers }, (_, i) => ({ name: `Traveler Guest ${i+1}`, age: 30 })),
-                    seat_numbers: selectedTrainSeats
-                  },
-                  title: `${showTrainSeatModal.t.train_number} ${showTrainSeatModal.t.train_name}`,
-                  subtitle: `Berths: ${selectedTrainSeats.join(", ")} | Coach: ${showTrainSeatModal.coach} | ${showTrainSeatModal.fromStn} ➔ ${showTrainSeatModal.toStn}`
-                });
-                setShowTrainSeatModal(null);
-              }}
-              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-extrabold py-2.5 rounded-xl text-xs uppercase transition-all cursor-pointer shadow-lg shadow-blue-600/10"
-            >
-              Confirm Seats & Book Train
-            </button>
+                <div className="border-t border-slate-800 pt-3 flex justify-between items-center text-xs font-bold text-slate-300">
+                  <span>Selected: {selectedTrainSeats.length} / {trainPassengers}</span>
+                  <span className="text-yellow-400">Seats: {selectedTrainSeats.join(", ") || "None"}</span>
+                </div>
+
+                <button 
+                  onClick={() => {
+                    if (selectedTrainSeats.length < trainPassengers) {
+                      alert(`Please select all ${trainPassengers} seat(s) before booking.`);
+                      return;
+                    }
+                    
+                    // Authoritative pricing check
+                    const seatFaresTotal = selectedTrainSeats.reduce((acc, s) => {
+                      const sObj = trainSeatMapDetails?.seats?.find((st: any) => st.seat_number === s);
+                      return acc + (sObj ? sObj.price : 300);
+                    }, 0);
+                    const totalBookingAmount = (showTrainSeatModal.amount * trainPassengers) + seatFaresTotal;
+
+                    onBook({
+                      vertical: "trains",
+                      amount: totalBookingAmount,
+                      details: {
+                        train_number: showTrainSeatModal.t.train_number,
+                        train_name: showTrainSeatModal.t.train_name,
+                        origin_station: showTrainSeatModal.fromStn.split(" ")[0],
+                        destination_station: showTrainSeatModal.toStn.split(" ")[0],
+                        coach_class: showTrainSeatModal.coach,
+                        passengers: Array.from({ length: trainPassengers }, (_, i) => ({ name: `Traveler Guest ${i+1}`, age: 30 })),
+                        seat_numbers: selectedTrainSeats
+                      },
+                      title: `${showTrainSeatModal.t.train_number} ${showTrainSeatModal.t.train_name}`,
+                      subtitle: `Berths: ${selectedTrainSeats.join(", ")} | Coach: ${showTrainSeatModal.coach} | ${showTrainSeatModal.fromStn} ➔ ${showTrainSeatModal.toStn}`
+                    });
+                    setShowTrainSeatModal(null);
+                  }}
+                  className="w-full bg-blue-600 hover:bg-blue-500 text-white font-extrabold py-2.5 rounded-xl text-xs uppercase transition-all cursor-pointer shadow-lg shadow-blue-600/10"
+                >
+                  Confirm Seats & Book Train
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -5116,7 +5239,7 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
       amount: totalAmount,
       currency: "INR",
       details: {
-        provider_name: bookingVehicle.provider || "TravelOS Fleet",
+        provider_name: bookingVehicle.provider || "Ghumne Chale Fleet",
         cab_type: bookingVehicle.category || bookingVehicle.cab_type || bookingVehicle.type || "Sedan",
         vehicle_name: bookingVehicle.display_name || `${bookingVehicle.brand} ${bookingVehicle.model}`,
         brand: bookingVehicle.brand,
@@ -5663,7 +5786,7 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
                           {c.display_name || `${c.brand || ''} ${c.model || c.type}`}
                         </h4>
                         <span className="text-xs text-slate-500 font-bold">
-                          {c.provider || "TravelOS Chauffeur"} · {c.plate_number || "Commercial Fleet"}
+                          {c.provider || "Ghumne Chale Chauffeur"} · {c.plate_number || "Commercial Fleet"}
                         </span>
                       </div>
                       <div className="text-right">
@@ -5841,7 +5964,7 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
             </div>
 
             <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs space-y-1">
-              <h5 className="font-black text-amber-900">🛡️ Travel OS Chauffeur Guarantee</h5>
+              <h5 className="font-black text-amber-900">🛡️ Ghumne Chale Chauffeur Guarantee</h5>
               <p className="text-amber-800 text-[11px]">
                 Free cancellation up to 2 hours before departure. Chauffeur details and live dispatch tracking link are transmitted via SMS/WhatsApp 30 minutes prior to pickup.
               </p>
@@ -6158,7 +6281,7 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
                 <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-xs space-y-0.5">
                   <span className="font-black text-emerald-900 block">🛡️ Free Cancellation Guarantee</span>
                   <span className="text-emerald-800 text-[11px] block">
-                    Cancel anytime up to 2 hours before pickup for a 95% instant refund to your Travel OS wallet.
+                    Cancel anytime up to 2 hours before pickup for a 95% instant refund to your Ghumne Chale wallet.
                   </span>
                 </div>
 
@@ -7027,7 +7150,8 @@ function CheckoutModal({
 
   const getFlightFareBreakdown = () => {
     const count = passengersList.length || 1;
-    const baseFarePerPassenger = (data.amount || 0) / count;
+    const baseFareTotalAmount = data.details?.base_fare ?? data.amount;
+    const baseFarePerPassenger = baseFareTotalAmount / count;
     
     let baseFareTotal = 0;
     let totalDiscount = 0;
@@ -7061,7 +7185,8 @@ function CheckoutModal({
     setError("");
 
     const breakdown = getFlightFareBreakdown();
-    const finalPayVal = Math.max(100, breakdown.finalFare - discountAmount);
+    const seatFaresTotal = data.details?.seat_fare || 0;
+    const finalPayVal = Math.max(100, breakdown.finalFare + seatFaresTotal - discountAmount);
 
     // DCC Check for Razorpay (Module 1)
     if (gateway === "razorpay" && !showDccConfirm) {
@@ -7079,7 +7204,8 @@ function CheckoutModal({
 
     const passengersPayload = passengersList.map((p, idx) => {
       const ageNum = parseInt(p.age, 10) || 0;
-      const baseFarePerPassenger = (data.amount || 0) / passengersList.length;
+      const baseFareTotalAmount = data.details?.base_fare ?? data.amount;
+      const baseFarePerPassenger = baseFareTotalAmount / passengersList.length;
       const calc = calculatePassengerFare(
         baseFarePerPassenger,
         p.specialFareType,
@@ -7671,7 +7797,8 @@ function CheckoutModal({
 
                         {/* Passenger fare preview */}
                         {(() => {
-                          const baseFarePerPassenger = (data.amount || 0) / passengersList.length;
+                          const baseFareTotalAmount = data.details?.base_fare ?? data.amount;
+                          const baseFarePerPassenger = baseFareTotalAmount / passengersList.length;
                           const calc = calculatePassengerFare(
                             baseFarePerPassenger,
                             passenger.specialFareType,
@@ -7710,6 +7837,12 @@ function CheckoutModal({
                 <span>Base Fare Total:</span>
                 <span>₹{Math.round(breakdown.baseFareTotal).toLocaleString()}</span>
               </div>
+              {data.details?.seat_fare > 0 && (
+                <div className="flex justify-between text-slate-600">
+                  <span>Seat/Berth Selection:</span>
+                  <span>₹{Math.round(data.details.seat_fare).toLocaleString()}</span>
+                </div>
+              )}
               {breakdown.totalDiscount > 0 && (
                 <div className="flex justify-between text-green-600">
                   <span>Special Fare Discounts:</span>
@@ -7718,7 +7851,7 @@ function CheckoutModal({
               )}
               <div className="flex justify-between border-t border-black/10 pt-1.5 font-black text-sm">
                 <span>Total Amount Payable:</span>
-                <span className="text-red-600">₹{Math.round(breakdown.finalFare).toLocaleString()}</span>
+                <span className="text-red-600">₹{Math.round(breakdown.finalFare + (data.details?.seat_fare || 0)).toLocaleString()}</span>
               </div>
             </div>
 
@@ -9637,7 +9770,7 @@ function ChatView({
   setPrefilledMessage: (msg: string) => void 
 }) {
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: "Hello! I am your Travel OS Assistant. I can search flight reservations, suggest hotels, map out custom day-by-day itineraries, and check Schengen visa guidelines. Try asking: 'Recommend flights from Delhi to Goa on December 15th' or 'What are the visa rules for Schengen?'" }
+    { role: 'assistant', content: "Hello! I am your Ghumne Chale Assistant. I can search flight reservations, suggest hotels, map out custom day-by-day itineraries, and check Schengen visa guidelines. Try asking: 'Recommend flights from Delhi to Goa on December 15th' or 'What are the visa rules for Schengen?'" }
   ]);
   const [inputMsg, setInputMsg] = useState("");
   const [isVoice, setIsVoice] = useState(false);
@@ -9951,7 +10084,7 @@ function ChatView({
         setUserPreferences({});
         setLastTelemetry({});
         setMessages([
-          { role: 'assistant', content: "Hello! I am your Travel OS Assistant. I can search flight reservations, suggest hotels, map out custom day-by-day itineraries, and check Schengen visa guidelines. Try asking: 'Recommend flights from Delhi to Goa on December 15th' or 'What are the visa rules for Schengen?'" }
+          { role: 'assistant', content: "Hello! I am your Ghumne Chale Assistant. I can search flight reservations, suggest hotels, map out custom day-by-day itineraries, and check Schengen visa guidelines. Try asking: 'Recommend flights from Delhi to Goa on December 15th' or 'What are the visa rules for Schengen?'" }
         ]);
       })
       .catch(e => console.error("Error resetting session:", e));
@@ -10152,7 +10285,7 @@ function ChatView({
       localStorage.setItem('chat_session_id', newId);
       setSessionId(newId);
       setMessages([
-        { role: 'assistant', content: "Hello! I am your Travel OS Assistant. I can search flight reservations, suggest hotels, map out custom day-by-day itineraries, and check Schengen visa guidelines. Try asking: 'Recommend flights from Delhi to Goa on December 15th' or 'What are the visa rules for Schengen?'" }
+        { role: 'assistant', content: "Hello! I am your Ghumne Chale Assistant. I can search flight reservations, suggest hotels, map out custom day-by-day itineraries, and check Schengen visa guidelines. Try asking: 'Recommend flights from Delhi to Goa on December 15th' or 'What are the visa rules for Schengen?'" }
       ]);
       setInputMsg("");
       return;
@@ -10234,7 +10367,7 @@ function ChatView({
     let icsContent = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
-      "PRODID:-//Travel OS//Itinerary Client//EN",
+      "PRODID:-//Ghumne Chale//Itinerary Client//EN",
       "METHOD:PUBLISH"
     ];
     
@@ -10291,7 +10424,7 @@ function ChatView({
     const htmlContent = `
       <html>
         <head>
-          <title>Travel OS - Travel Itinerary</title>
+          <title>Ghumne Chale - Travel Itinerary</title>
           <style>
             body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #030712; color: #f3f4f6; padding: 40px; }
             h1 { font-family: serif; color: #fbbf24; border-bottom: 2px solid #fbbf24; padding-bottom: 10px; text-transform: uppercase; font-size: 28px; }
@@ -10305,7 +10438,7 @@ function ChatView({
           </style>
         </head>
         <body>
-          <h1>✈️ Travel OS Itinerary Proposal</h1>
+          <h1>✈️ Ghumne Chale Itinerary Proposal</h1>
           <div class="meta-info">
             Generated by Autonomous Travel Coordinator • Session: ${sessionId} • Date: ${new Date().toLocaleDateString()}
           </div>
@@ -10314,8 +10447,8 @@ function ChatView({
           </div>
           <div class="footer">
             <div>
-              <p>Thank you for choosing <strong>Travel OS</strong>.</p>
-              <p>Lock your fares and complete reservations directly inside the Travel OS dashboard.</p>
+              <p>Thank you for choosing <strong>Ghumne Chale</strong>.</p>
+              <p>Lock your fares and complete reservations directly inside the Ghumne Chale dashboard.</p>
             </div>
             <div class="qr-code">
               <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=https://travelos.com/session/${sessionId}" alt="Itinerary QR Verification" width="100" height="100" />
@@ -11037,7 +11170,7 @@ function ChatView({
           <div className="max-w-2xl mx-auto space-y-4 pt-6">
             <div className="text-center">
               <div className="text-2xl mb-1">🤖</div>
-              <h4 className="text-xs text-slate-300 font-extrabold uppercase tracking-widest">World's Best Autonomous Travel OS</h4>
+              <h4 className="text-xs text-slate-300 font-extrabold uppercase tracking-widest">World's Best Autonomous Ghumne Chale</h4>
               <p className="text-[10px] text-slate-500 mt-1">Powered by LangGraph multi-agent orchestration • WebSocket streaming • Enterprise memory</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -11213,9 +11346,9 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
         </div>
       </div>
 
-      {/* Travel OS Analytics Dashboard */}
+      {/* Ghumne Chale Analytics Dashboard */}
       <div className="glass-card p-6 rounded-2xl border border-slate-800 space-y-4">
-        <h4 className="font-bold text-slate-200 flex items-center gap-2">🚀 TRAVEL OS ENTERPRISE-GRADE ANALYTICS</h4>
+        <h4 className="font-bold text-slate-200 flex items-center gap-2">🚀 GHUMNE CHALE ENTERPRISE-GRADE ANALYTICS</h4>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <div className="bg-[#121c33] p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
             <span className="text-[10px] text-slate-400 font-bold uppercase">Total Trips</span>
@@ -11786,7 +11919,7 @@ function PromoBannerStrip({ onNavigate }: { onNavigate?: (path: string) => void 
           <h3 className="font-bold text-lg md:text-xl text-[var(--color-ivory)] leading-snug">
             Southeast Asia's Go-To App for Direct Wallet Bookings
           </h3>
-          <p className="text-[10px] font-mono text-[var(--color-gold)] uppercase tracking-wider mt-1">Scan QR or Click below to get Travel OS App</p>
+          <p className="text-[10px] font-mono text-[var(--color-gold)] uppercase tracking-wider mt-1">Scan QR or Click below to get Ghumne Chale App</p>
         </div>
       </div>
       <a 
@@ -11796,7 +11929,7 @@ function PromoBannerStrip({ onNavigate }: { onNavigate?: (path: string) => void 
           if (onNavigate) {
             onNavigate(banner.cta_url);
           } else {
-            alert("Travel OS Direct App Downloader: SMS 'TRAVEL' to 56161 to get direct Google Play link!");
+            alert("Ghumne Chale Direct App Downloader: SMS 'TRAVEL' to 56161 to get direct Google Play link!");
           }
         }}
         className="bg-[var(--color-gold)] hover:bg-[#d6b35d] text-[var(--color-obsidian)] font-bold px-6 py-2.5 rounded-[var(--radius-card)] transition-all uppercase text-xs whitespace-nowrap cursor-pointer text-center"
@@ -11937,7 +12070,7 @@ function SEOMegaFooter({ onNavigate }: { onNavigate?: (path: string) => void }) 
         {/* Play Store Download and copyright */}
         <div className="border-t border-slate-800/80 mt-10 pt-8 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="text-left space-y-1">
-            <h5 className="font-mono text-[9px] text-[var(--color-ivory-dim)] uppercase tracking-wider">DOWNLOAD TRAVEL OS APP</h5>
+            <h5 className="font-mono text-[9px] text-[var(--color-ivory-dim)] uppercase tracking-wider">DOWNLOAD GHUMNE CHALE APP</h5>
             <div className="bg-[var(--color-surface)] border border-slate-800 p-2.5 rounded-[var(--radius-card)] flex items-center gap-2.5 cursor-pointer text-[var(--color-ivory)] hover:border-[var(--color-gold)] transition-colors shadow-sm">
               <Compass size={18} className="text-[var(--color-gold)]" />
               <div>
@@ -11947,7 +12080,7 @@ function SEOMegaFooter({ onNavigate }: { onNavigate?: (path: string) => void }) 
             </div>
           </div>
           <div className="text-center md:text-right text-[10px] text-[var(--color-ivory-dim)] font-medium max-w-md leading-relaxed">
-            <div>© 2026 Travel OS Monolith Operating System. Built with React, FastAPI, LangGraph, and Tailwind v4. All rights reserved.</div>
+            <div>© 2026 Ghumne Chale Monolith Operating System. Built with React, FastAPI, LangGraph, and Tailwind v4. All rights reserved.</div>
             <div className="flex gap-3 justify-center md:justify-end mt-1.5 flex-wrap">
               {onNavigate && (
                 <>
@@ -12100,12 +12233,12 @@ function ProductDetailModal({ vertical, item, currency, onBook, onClose, wishlis
         tourPax,
         cruiseCabin
       },
-      title: item.name || item.title || item.airline || `Travel OS ${vertical.toUpperCase()} Order`,
+      title: item.name || item.title || item.airline || `Ghumne Chale ${vertical.toUpperCase()} Order`,
       subtitle: item.details || item.duration || `${vertical.toUpperCase()} Configured Details`
     });
   };
 
-  const itemName = item.name || item.title || item.airline || `Travel OS ${vertical.toUpperCase()} Item`;
+  const itemName = item.name || item.title || item.airline || `Ghumne Chale ${vertical.toUpperCase()} Item`;
   const isInWishlist = wishlistItems.some(i => i.vertical === vertical && i.name === itemName);
 
   const handleWishlistToggle = () => {
@@ -12525,7 +12658,7 @@ function OfferLandingModal({ offer, onClose }: { offer: any, onClose: () => void
         <p className="text-xs text-slate-600 font-bold">{offer.description}</p>
         <div className="border-t border-slate-200 pt-3 space-y-1 text-[10px] text-slate-500 font-semibold">
           <div>• Minimum booking transaction value ₹5,000</div>
-          <div>• Valid on Travel OS cards only</div>
+          <div>• Valid on Ghumne Chale cards only</div>
           <div>• Offer valid until December 31, 2026</div>
         </div>
         <button 
@@ -14460,7 +14593,7 @@ function LoginScreen({ onLogin, onNavigate }: {
       <div className="bg-white text-black border-4 border-black p-8 max-w-md w-full relative z-10 shadow-[8px_8px_0px_0px_#000000] rounded-[24px] my-8">
         <div className="text-center mb-6">
           <span className="font-serif italic font-black text-2xl text-[var(--color-gold)] bg-black px-4 py-1.5 inline-block text-white shadow-[4px_4px_0px_0px_rgba(212,175,55,1)]">
-            TRAVEL OS
+            GHUMNE CHALE
           </span>
           <h2 className="text-xl font-extrabold uppercase mt-6 tracking-wide">
             {isSignUp ? "Create Account" : "Welcome Back"}

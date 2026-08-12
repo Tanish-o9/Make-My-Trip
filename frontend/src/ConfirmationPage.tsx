@@ -63,7 +63,7 @@ export function ConfirmationPage({ bookingId, onNavigate }: ConfirmationPageProp
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `TravelOS_Ticket_${bookingId}.pdf`;
+      a.download = `GhumneChale_Ticket_${bookingId}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -78,7 +78,7 @@ export function ConfirmationPage({ bookingId, onNavigate }: ConfirmationPageProp
     const inv = details.invoice;
     const receiptText = `
 ==================================================
-                TRAVEL OS INVOICE                 
+                GHUMNE CHALE INVOICE                 
 ==================================================
 Invoice Date : ${new Date(inv.created_at || Date.now()).toLocaleString()}
 Reference    : ${bookingId}
@@ -93,14 +93,14 @@ Discounts                              -₹${floatToDecimal(inv.discount_amount)
 --------------------------------------------------
 TOTAL AMOUNT PAID                        ₹${floatToDecimal(inv.final_amount)}
 ==================================================
-Thank you for booking with Travel OS!
+Thank you for booking with Ghumne Chale!
 ==================================================
 `;
     const blob = new Blob([receiptText], { type: "text/plain" });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `TravelOS_Invoice_${bookingId}.txt`;
+    a.download = `GhumneChale_Invoice_${bookingId}.txt`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -186,7 +186,7 @@ Thank you for booking with Travel OS!
     const icsString = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
-      "PRODID:-//Travel OS//Booking Calendar//EN",
+      "PRODID:-//Ghumne Chale//Booking Calendar//EN",
       "BEGIN:VEVENT",
       `UID:booking_${bookingId}@travelos.com`,
       `DTSTART:${formatICSDate(startDate)}`,
@@ -754,7 +754,7 @@ ${headerLine}
           <div className="bg-[#0b0f1d] border-3 border-black rounded-3xl w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden shadow-2xl">
             <div className="p-4 border-b border-slate-800 flex justify-between items-center">
               <h3 className="font-black text-sm uppercase tracking-wide text-white flex items-center gap-2">
-                📄 Travel OS E-Ticket Viewer
+                📄 Ghumne Chale E-Ticket Viewer
               </h3>
               <button 
                 onClick={() => setShowPdfModal(false)}

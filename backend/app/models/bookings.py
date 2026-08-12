@@ -108,7 +108,7 @@ class BusBooking(Base, BookingMixin):
 class CabBooking(Base, BookingMixin):
     __tablename__ = "cab_bookings"
 
-    provider_name: Mapped[str] = mapped_column(String(100), nullable=False) # Uber, Ola, local, TravelOS Fleet
+    provider_name: Mapped[str] = mapped_column(String(100), nullable=False) # Uber, Ola, local, Ghumne Chale Fleet
     cab_type: Mapped[str] = mapped_column(String(50), nullable=False) # Hatchback, Sedan, SUV, MPV, Luxury, EV, Bike
     pickup_address: Mapped[str] = mapped_column(String(500), nullable=False)
     drop_address: Mapped[str] = mapped_column(String(500), nullable=False)
@@ -318,5 +318,21 @@ class ProviderReconciliation(Base):
     failure_reason: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     retry_count: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String(50), default="PENDING_MANUAL_REVIEW")
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
+
+
+class SeatHold(Base):
+    __tablename__ = "seat_holds"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True, nullable=False)
+    booking_reference: Mapped[Optional[str]] = mapped_column(String(50), index=True, nullable=True)
+    vertical: Mapped[str] = mapped_column(String(50), index=True, nullable=False) # flights, trains, buses
+    reference: Mapped[str] = mapped_column(String(100), index=True, nullable=False) # flight_number, train_number, bus operator
+    seat_number: Mapped[str] = mapped_column(String(20), nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default="HELD", index=True, nullable=False) # HELD, EXPIRED, CONFIRMED, RELEASED
+    expires_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
+    seat_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    price: Mapped[Optional[float]] = mapped_column(Float, default=0.0, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
 

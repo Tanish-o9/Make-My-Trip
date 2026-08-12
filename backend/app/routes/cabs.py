@@ -200,11 +200,11 @@ async def search_cabs(req: CabSearchRequest, db: Session = Depends(get_db)):
                     setattr(self, k, v)
 
         mock_data = [
-            {"id": 1, "provider": "TravelOS Mini", "type": "Hatchback", "category": "Hatchback", "brand": "Maruti Suzuki", "model": "Swift", "display_name": "Maruti Suzuki Swift", "variant": "ZXi Plus", "image_key": "swift", "base_fare": 150.0, "price_per_km": 13.0, "per_hour_rate": 180.0, "seating_capacity": 4, "luggage_capacity": 2, "fuel_type": "Petrol", "transmission": "Manual", "ac_available": True, "rating": 4.8, "review_count": 1420, "image_url": "/assets/vehicles/swift.webp", "thumbnail_url": "/assets/vehicles/swift.webp", "eta_minutes": 3, "driver_name": "Ramesh Kumar", "driver_rating": "4.8 ★", "plate_number": "DL-01-AB-1234"},
+            {"id": 1, "provider": "Ghumne Chale Mini", "type": "Hatchback", "category": "Hatchback", "brand": "Maruti Suzuki", "model": "Swift", "display_name": "Maruti Suzuki Swift", "variant": "ZXi Plus", "image_key": "swift", "base_fare": 150.0, "price_per_km": 13.0, "per_hour_rate": 180.0, "seating_capacity": 4, "luggage_capacity": 2, "fuel_type": "Petrol", "transmission": "Manual", "ac_available": True, "rating": 4.8, "review_count": 1420, "image_url": "/assets/vehicles/swift.webp", "thumbnail_url": "/assets/vehicles/swift.webp", "eta_minutes": 3, "driver_name": "Ramesh Kumar", "driver_rating": "4.8 ★", "plate_number": "DL-01-AB-1234"},
             {"id": 2, "provider": "Ola Prime Sedan", "type": "Sedan", "category": "Sedan", "brand": "Maruti Suzuki", "model": "Dzire", "display_name": "Maruti Suzuki Dzire", "variant": "ZXi Auto", "image_key": "dzire", "base_fare": 200.0, "price_per_km": 16.0, "per_hour_rate": 220.0, "seating_capacity": 4, "luggage_capacity": 3, "fuel_type": "Petrol", "transmission": "Automatic", "ac_available": True, "rating": 4.9, "review_count": 2840, "image_url": "/assets/vehicles/dzire.webp", "thumbnail_url": "/assets/vehicles/dzire.webp", "eta_minutes": 5, "driver_name": "Suresh Singh", "driver_rating": "4.9 ★", "plate_number": "DL-01-CD-5678"},
-            {"id": 3, "provider": "TravelOS SUV", "type": "SUV", "category": "SUV", "brand": "Hyundai", "model": "Creta", "display_name": "Hyundai Creta", "variant": "SX(O) Diesel", "image_key": "creta", "base_fare": 300.0, "price_per_km": 21.0, "per_hour_rate": 320.0, "seating_capacity": 5, "luggage_capacity": 4, "fuel_type": "Diesel", "transmission": "Automatic", "ac_available": True, "rating": 4.9, "review_count": 1920, "image_url": "/assets/vehicles/creta.webp", "thumbnail_url": "/assets/vehicles/creta.webp", "eta_minutes": 7, "driver_name": "Gurpreet Singh", "driver_rating": "4.9 ★", "plate_number": "DL-01-EF-9012"},
+            {"id": 3, "provider": "Ghumne Chale SUV", "type": "SUV", "category": "SUV", "brand": "Hyundai", "model": "Creta", "display_name": "Hyundai Creta", "variant": "SX(O) Diesel", "image_key": "creta", "base_fare": 300.0, "price_per_km": 21.0, "per_hour_rate": 320.0, "seating_capacity": 5, "luggage_capacity": 4, "fuel_type": "Diesel", "transmission": "Automatic", "ac_available": True, "rating": 4.9, "review_count": 1920, "image_url": "/assets/vehicles/creta.webp", "thumbnail_url": "/assets/vehicles/creta.webp", "eta_minutes": 7, "driver_name": "Gurpreet Singh", "driver_rating": "4.9 ★", "plate_number": "DL-01-EF-9012"},
             {"id": 4, "provider": "Savaari Premier", "type": "MPV", "category": "MPV", "brand": "Toyota", "model": "Innova Crysta", "display_name": "Toyota Innova Crysta", "variant": "ZX 7-Seater", "image_key": "innova-crysta", "base_fare": 450.0, "price_per_km": 28.0, "per_hour_rate": 480.0, "seating_capacity": 7, "luggage_capacity": 5, "fuel_type": "Diesel", "transmission": "Automatic", "ac_available": True, "rating": 5.0, "review_count": 4200, "image_url": "/assets/vehicles/innova-crysta.webp", "thumbnail_url": "/assets/vehicles/innova-crysta.webp", "eta_minutes": 8, "driver_name": "Deepak Sharma", "driver_rating": "5.0 ★", "plate_number": "DL-01-GH-3456"},
-            {"id": 5, "provider": "TravelOS Black", "type": "Luxury", "category": "Luxury", "brand": "Mercedes-Benz", "model": "E-Class", "display_name": "Mercedes-Benz E-Class Chauffeur", "variant": "Exclusive Edition", "image_key": "mercedes-e-class", "base_fare": 1200.0, "price_per_km": 75.0, "per_hour_rate": 1400.0, "seating_capacity": 4, "luggage_capacity": 3, "fuel_type": "Petrol", "transmission": "Automatic", "ac_available": True, "rating": 5.0, "review_count": 480, "image_url": "/assets/vehicles/mercedes-e-class.webp", "thumbnail_url": "/assets/vehicles/mercedes-e-class.webp", "eta_minutes": 10, "driver_name": "Vikram Malhotra", "driver_rating": "5.0 ★", "plate_number": "DL-01-JK-7890"}
+            {"id": 5, "provider": "Ghumne Chale Black", "type": "Luxury", "category": "Luxury", "brand": "Mercedes-Benz", "model": "E-Class", "display_name": "Mercedes-Benz E-Class Chauffeur", "variant": "Exclusive Edition", "image_key": "mercedes-e-class", "base_fare": 1200.0, "price_per_km": 75.0, "per_hour_rate": 1400.0, "seating_capacity": 4, "luggage_capacity": 3, "fuel_type": "Petrol", "transmission": "Automatic", "ac_available": True, "rating": 5.0, "review_count": 480, "image_url": "/assets/vehicles/mercedes-e-class.webp", "thumbnail_url": "/assets/vehicles/mercedes-e-class.webp", "eta_minutes": 10, "driver_name": "Vikram Malhotra", "driver_rating": "5.0 ★", "plate_number": "DL-01-JK-7890"}
         ]
         db_vehicles = [MockCab(m) for m in mock_data]
 
@@ -391,7 +391,7 @@ async def book_cab(
         total_amount=total_fare,
         currency="INR",
         pricing_snapshot=breakdown,
-        provider_name="TravelOS Fleet",
+        provider_name="Ghumne Chale Fleet",
         cab_type=req.cab_type,
         pickup_address=req.pickup_address,
         drop_address=req.drop_address,
@@ -544,7 +544,7 @@ async def get_cab_voucher(
 
     voucher_text = f"""
 ============================================================
-              TRAVEL OS — CAB BOOKING VOUCHER
+              GHUMNE CHALE — CAB BOOKING VOUCHER
 ============================================================
 Booking Ref    : {booking.booking_reference}
 Status         : {str(booking.status).upper()}
@@ -569,7 +569,7 @@ Total Amount   : INR {float(booking.total_amount):,.2f}
 Payment Status : PAID / AUTHORIZED
 Cancellation   : Free cancellation up to 2 hours before pickup
 ============================================================
-    Thank you for choosing Travel OS Chauffeur Services!
+    Thank you for choosing Ghumne Chale Chauffeur Services!
 ============================================================
 """
     return {

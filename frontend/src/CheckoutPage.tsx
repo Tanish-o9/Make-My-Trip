@@ -15,7 +15,7 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
   // Audit: Pre-populate default booking state to prevent TypeError before status check resolves
   const [booking, setBooking] = useState<any>({
     booking_reference: bookingId,
-    title: `Travel OS Booking ${bookingId}`,
+    title: `Ghumne Chale Booking ${bookingId}`,
     total_amount: 1500, // standard test amount
     currency: "INR",
     vertical: bookingId.split("-")[1]?.toLowerCase() || "flight",
@@ -156,7 +156,7 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
         const b = detailsData.booking || {};
         setBooking({
           booking_reference: b.booking_reference || detailsData.booking_reference,
-          title: `Travel OS ${detailsData.vertical?.toUpperCase() || "Itinerary"} Booking ${b.booking_reference || detailsData.booking_reference}`,
+          title: `Ghumne Chale ${detailsData.vertical?.toUpperCase() || "Itinerary"} Booking ${b.booking_reference || detailsData.booking_reference}`,
           total_amount: parseFloat(b.total_amount || detailsData.total_amount || "0"),
           currency: b.currency || detailsData.currency || "INR",
           vertical: detailsData.vertical || "flight",
@@ -320,7 +320,7 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
         key: orderData.razorpay_key_id,
         amount: orderData.amount * 100,
         currency: orderData.currency,
-        name: "Travel OS",
+        name: "Ghumne Chale",
         description: `Payment for booking ${bookingId}`,
         order_id: orderData.razorpay_order_id,
         handler: async function (response: any) {
@@ -549,7 +549,7 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                     🛡️ Checkpoint: Approve Payment Transaction
                   </label>
                   <p className="text-[11px] text-slate-600 font-semibold mt-1">
-                    I explicitly authorize Travel OS to process payment charges for this booking itinerary. (Required to proceed with booking capture).
+                    I explicitly authorize Ghumne Chale to process payment charges for this booking itinerary. (Required to proceed with booking capture).
                   </p>
                 </div>
               </div>

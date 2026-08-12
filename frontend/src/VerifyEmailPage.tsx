@@ -115,11 +115,15 @@ export default function VerifyEmailPage({ email, onNavigate }: VerifyEmailPagePr
         body: JSON.stringify({ email }),
       });
       const data = await resp.json();
-      if (resp.status === 429) {
-        setResendMsg(data.detail || 'Please wait before requesting another code.');
-        startCooldown(60);
+      if (!resp.ok) {
+        if (resp.status === 429) {
+          setResendMsg(data.detail || 'Please wait before requesting another code.');
+          startCooldown(60);
+        } else {
+          setError(data.detail || 'Unable to send the verification code right now. Please try again.');
+        }
       } else {
-        setResendMsg('A new verification code has been sent to your email.');
+        setResendMsg('Code sent successfully. Check your email.');
         startCooldown(60);
         setDigits(['', '', '', '', '', '']);
         setTimeout(() => inputRefs.current[0]?.focus(), 50);
@@ -154,7 +158,7 @@ export default function VerifyEmailPage({ email, onNavigate }: VerifyEmailPagePr
         {/* Header */}
         <div className="text-center mb-8">
           <span className="font-serif italic font-black text-xl text-white bg-black px-3 py-1 inline-block shadow-[3px_3px_0px_0px_rgba(212,175,55,1)]">
-            TRAVEL OS
+            GHUMNE CHALE
           </span>
           <div className="mt-5 w-14 h-14 rounded-full bg-blue-50 border-2 border-blue-200 flex items-center justify-center mx-auto">
             <span className="text-2xl">✉️</span>
@@ -221,7 +225,7 @@ export default function VerifyEmailPage({ email, onNavigate }: VerifyEmailPagePr
           <p className="text-slate-500 text-xs">Didn't receive the code?</p>
           <button
             type="button"
-            disabled={cooldown > 0 || resendLoading}
+            disabled={cooldown > 0 || resendLoading || !email}
             onClick={handleResend}
             className="text-blue-600 hover:text-blue-800 font-black text-xs uppercase disabled:text-slate-400 disabled:cursor-not-allowed transition-colors"
           >

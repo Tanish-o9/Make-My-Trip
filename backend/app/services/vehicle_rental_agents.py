@@ -122,7 +122,7 @@ def support_rag_bot(query: str) -> str:
             
     # Fallback to LLM completion grounded in standard vehicle rental guidelines
     prompt = f"""
-    You are the Travel OS Vehicle Rental Support RAG Assistant. 
+    You are the Ghumne Chale Vehicle Rental Support RAG Assistant. 
     Answer this user query: "{query}"
     
     Grounded FAQs:

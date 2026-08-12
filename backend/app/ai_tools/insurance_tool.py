@@ -13,7 +13,7 @@ def travel_insurance_recommendation_tool(destination: str, duration_days: int) -
         duration_days: Length of the trip in days.
     """
     try:
-        # Standard mock coverage packages for Travel OS
+        # Standard mock coverage packages for Ghumne Chale
         options = [
             {
                 "package_name": "Travel Guard Lite",

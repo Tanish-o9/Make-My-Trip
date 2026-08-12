@@ -1,6 +1,6 @@
 """
 Phase 7 (AI Upgrade) — AI Conversation turn test runner
-Simulates 100 conversational turns against the Travel OS SupervisorAgent.
+Simulates 100 conversational turns against the Ghumne Chale SupervisorAgent.
 Verifies memory extraction, provider failovers, and context updates.
 """
 import os
@@ -41,7 +41,7 @@ PROMPTS = [
 
 def run_tester():
     print("=" * 60)
-    print("      Travel OS — 100 Conversation Turn Tester (Phase 7)")
+    print("      Ghumne Chale — 100 Conversation Turn Tester (Phase 7)")
     print("=" * 60)
     
     db = SessionLocal()

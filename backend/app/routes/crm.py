@@ -315,7 +315,7 @@ async def get_ai_suggested_reply(
     try:
         from app.ai_router.router import llm_router
         prompt = (
-            f"You are a professional travel support agent for Travel OS.\n"
+            f"You are a professional travel support agent for Ghumne Chale.\n"
             f"Ticket Subject: {ticket.subject}\n"
             f"Category: {ticket.category}\n\n"
             f"Conversation so far:\n{conversation}\n\n"
@@ -332,7 +332,7 @@ async def get_ai_suggested_reply(
             "payment": "We understand payment issues are stressful. Our finance team is reviewing your transaction and will provide an update within 4 hours.",
             "visa": "We're currently reviewing your visa application status. Please allow 1–2 business days for our team to follow up.",
         }
-        reply = templates.get(ticket.category, "Thank you for reaching out to Travel OS Support. We've received your request and our team will respond within 24 hours.")
+        reply = templates.get(ticket.category, "Thank you for reaching out to Ghumne Chale Support. We've received your request and our team will respond within 24 hours.")
         return {"suggested_reply": reply, "source": "template"}
 
 

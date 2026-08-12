@@ -41,7 +41,7 @@ class StripeClient:
                 "amount": amount_paise,
                 "currency": "inr",
                 "source": token,
-                "description": "Travel OS Booking Charge"
+                "description": "Ghumne Chale Booking Charge"
             }
             resp = httpx.post(url, headers=headers, data=data, timeout=8.0)
             resp.raise_for_status()

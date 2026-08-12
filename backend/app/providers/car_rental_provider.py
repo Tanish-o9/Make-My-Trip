@@ -21,7 +21,7 @@ logger = logging.getLogger("travel_os.providers.cars")
 
 class NormalizedCarRentalOffer(BaseModel):
     id: str = Field(..., description="Unique offer identifier")
-    provider: str = Field("TravelOS Drive", description="Provider name")
+    provider: str = Field("Ghumne Chale Drive", description="Provider name")
     provider_offer_id: str = Field(..., description="Provider raw offer ID")
     brand: str
     model: str
@@ -140,7 +140,7 @@ class LocalCarRentalProvider(CarRentalProvider):
     """Local first-party self-drive fleet provider"""
 
     def __init__(self):
-        self.name = "TravelOS Drive"
+        self.name = "Ghumne Chale Drive"
         self.is_live = False
 
     async def search(

@@ -29,7 +29,7 @@ class CalendarService:
         ics_lines = [
             "BEGIN:VCALENDAR",
             "VERSION:2.0",
-            "PRODID:-//Travel OS//Itinerary Generator//EN",
+            "PRODID:-//Ghumne Chale//Itinerary Generator//EN",
             "CALSCALE:GREGORIAN",
             "METHOD:PUBLISH",
             "BEGIN:VEVENT",

@@ -70,7 +70,7 @@ class RegisterTokenRequest(BaseModel):
 
 class TestPushRequest(BaseModel):
     title: str = "Test Notification"
-    body: str = "This is a test push notification from Travel OS."
+    body: str = "This is a test push notification from Ghumne Chale."
 
 
 # ─── User Notification Endpoints ───────────────────────────────────────────────

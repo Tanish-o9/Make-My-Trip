@@ -46,7 +46,7 @@ async def run_batch(concurrent_users: int, url: str):
 
 async def main():
     print("=" * 60)
-    print("      Travel OS — Concurrent API Load Tester (Phase 6)")
+    print("      Ghumne Chale — Concurrent API Load Tester (Phase 6)")
     print("=" * 60)
     
     # Check if server is running

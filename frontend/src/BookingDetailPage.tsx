@@ -102,7 +102,7 @@ export function BookingDetailPage({ bookingId, onNavigate, token }: BookingDetai
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `TravelOS_Ticket_${bookingId}.pdf`;
+      a.download = `GhumneChale_Ticket_${bookingId}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -223,7 +223,7 @@ export function BookingDetailPage({ bookingId, onNavigate, token }: BookingDetai
     const icsString = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
-      "PRODID:-//Travel OS//Booking Calendar//EN",
+      "PRODID:-//Ghumne Chale//Booking Calendar//EN",
       "BEGIN:VEVENT",
       `UID:booking_${bookingId}@travelos.com`,
       `DTSTART:${formatICSDate(startDate)}`,
@@ -328,7 +328,7 @@ export function BookingDetailPage({ bookingId, onNavigate, token }: BookingDetai
               <div className="flex justify-between items-start border-b border-slate-800 pb-3">
                 <div>
                   <h2 className="text-xl font-black text-white uppercase tracking-wide">
-                    {vertical === "flights" ? `Flight ${booking.airline_code}-${booking.flight_number}` : vertical === "hotels" ? booking.hotel_name : "Travel OS Reservation"}
+                    {vertical === "flights" ? `Flight ${booking.airline_code}-${booking.flight_number}` : vertical === "hotels" ? booking.hotel_name : "Ghumne Chale Reservation"}
                   </h2>
                   <p className="text-xs text-slate-400 mt-1">Reference Code: <span className="font-mono font-bold text-white">{bookingId}</span></p>
                 </div>
@@ -520,14 +520,37 @@ export function BookingDetailPage({ bookingId, onNavigate, token }: BookingDetai
                     </form>
                   ) : (
                     <div className="text-xs space-y-2">
-                      {ticket.passenger_details?.map((p: any, idx: number) => (
-                        <div key={idx} className="flex justify-between font-medium">
-                          <span className="text-slate-300">{p.name || "Traveler"} ({p.age || 30} yrs)</span>
-                          {ticket.extra_info?.seat && (
-                            <span className="text-blue-400 font-mono">Seat {ticket.extra_info.seat}</span>
-                          )}
+                      {ticket.passenger_details?.map((p: any, idx: number) => {
+                        const activeSeat = details.seats?.find((s: any) => s.seat_number === p.seat_number);
+                        const hasActiveSeat = activeSeat && (activeSeat.status === "HELD" || activeSeat.status === "CONFIRMED");
+                        return (
+                          <div key={idx} className="flex justify-between font-medium">
+                            <span className="text-slate-300">{p.name || p.fullName || "Traveler"} ({p.age || 30} yrs)</span>
+                            {hasActiveSeat ? (
+                              <span className="text-blue-400 font-mono">
+                                {vertical === "flights" 
+                                  ? `Seat ${p.seat_number} (${p.seat_type})` 
+                                  : `Berth ${p.seat_number} (${p.seat_type})`
+                                }
+                              </span>
+                            ) : (
+                              <span className="text-slate-500 font-mono italic">Seat/Berth released</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {vertical === "flights" && (
+                        <div className="flex justify-between text-[10px] text-slate-500 pt-2 border-t border-slate-900 mt-2">
+                          <span>Cabin Class:</span>
+                          <span className="text-slate-400 font-bold uppercase">{booking.cabin_class || "ECONOMY"}</span>
                         </div>
-                      ))}
+                      )}
+                      {vertical === "trains" && (
+                        <div className="flex justify-between text-[10px] text-slate-500 pt-2 border-t border-slate-900 mt-2">
+                          <span>Coach Class:</span>
+                          <span className="text-slate-400 font-bold uppercase">Coach {booking.coach_class || "3A"}</span>
+                        </div>
+                      )}
                       {ticket.extra_info?.meal && (
                         <div className="flex justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-900">
                           <span>Meal choice:</span>

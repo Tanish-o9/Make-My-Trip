@@ -4,8 +4,8 @@ from pydantic import BaseModel, Field
 
 
 class LiveVehicleOffer(BaseModel):
-    id: str = Field(..., description="Unique Travel OS normalized offer identifier")
-    provider: str = Field(..., description="Provider attribution name (e.g. Amadeus, Duffel, TravelOS Fleet)")
+    id: str = Field(..., description="Unique Ghumne Chale normalized offer identifier")
+    provider: str = Field(..., description="Provider attribution name (e.g. Amadeus, Duffel, Ghumne Chale Fleet)")
     provider_offer_id: str = Field(..., description="Raw provider quote / offer reference")
     offer_type: str = Field("cab", description="cab, transfer, or self_drive")
     brand: str
@@ -82,8 +82,8 @@ class ProviderHealthStatus(BaseModel):
 
 
 class UniversalNormalizedOffer(BaseModel):
-    id: str = Field(..., description="Unique Travel OS normalized offer ID")
-    provider: str = Field(..., description="Upstream provider source (e.g. Amadeus, Hotelbeds, TravelOS Fleet)")
+    id: str = Field(..., description="Unique Ghumne Chale normalized offer ID")
+    provider: str = Field(..., description="Upstream provider source (e.g. Amadeus, Hotelbeds, Ghumne Chale Fleet)")
     provider_offer_id: str = Field(..., description="Raw provider quote / offer reference")
     vertical: str = Field(..., description="flights, hotels, trains, cabs, cars, activities")
     title: str

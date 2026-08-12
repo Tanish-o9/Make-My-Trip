@@ -202,7 +202,7 @@ VEHICLES = [
     },
     {
         "key": "default-car",
-        "name": "Travel OS Verified Cab",
+        "name": "Ghumne Chale Verified Cab",
         "category": "CAR",
         "badge": "Safe & Sanitized Verified Fleet",
         "color1": "#60A5FA", "color2": "#2563EB", "bg1": "#1E3A8A", "bg2": "#0F172A",
@@ -255,7 +255,7 @@ def generate_svg(v):
     <rect x="0" y="0" width="130" height="30" rx="15" fill="url(#accentGrad)" opacity="0.95"/>
     <text x="65" y="19" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="800" text-anchor="middle" letter-spacing="1.5">{v['category']}</text>
     
-    <text x="720" y="20" fill="#94A3B8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="700" text-anchor="end" letter-spacing="1">TRAVEL OS FLEET</text>
+    <text x="720" y="20" fill="#94A3B8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="700" text-anchor="end" letter-spacing="1">GHUMNE CHALE FLEET</text>
   </g>
 
   <!-- Central Graphic Showcase -->

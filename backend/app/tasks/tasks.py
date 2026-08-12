@@ -27,11 +27,25 @@ def run_sla_cleanup():
             db = SessionLocal()
             try:
                 check_pending_approvals_sla(db)
+                release_expired_seat_holds(db)
             finally:
                 db.close()
         except Exception as e:
             logger.error(f"Error in background SLA daemon loop: {e}")
         time.sleep(15) # Check every 15 seconds
+
+def release_expired_seat_holds(db: Session):
+    now = datetime.datetime.utcnow()
+    from app.models.bookings import SeatHold
+    expired_holds = db.query(SeatHold).filter(
+        SeatHold.status == "HELD",
+        SeatHold.expires_at < now
+    ).all()
+    for hold in expired_holds:
+        logger.info(f"Auto-released expired seat hold {hold.seat_number} for reference {hold.reference} (Booking: {hold.booking_reference})")
+        hold.status = "EXPIRED"
+    if expired_holds:
+        db.commit()
 
 def check_pending_approvals_sla(db: Session):
     now = datetime.datetime.utcnow()
@@ -284,4 +298,3 @@ def run_document_expiry_monitor():
         except Exception as e:
             logger.error(f"Error in Expiry Monitor: {e}")
         time.sleep(86400)  # Run once daily
-

@@ -95,7 +95,7 @@ def record(feature, test_name, result, evidence, issue="None"):
     print(f"[{result}] {feature} - {test_name}: {str(evidence)[:80]}")
 
 print("==================================================")
-print("TRAVEL OS — REAL-WORLD PRODUCTION SMOKE TEST")
+print("GHUMNE CHALE — REAL-WORLD PRODUCTION SMOKE TEST")
 print("==================================================")
 
 # ----------------------------------------------------------------------

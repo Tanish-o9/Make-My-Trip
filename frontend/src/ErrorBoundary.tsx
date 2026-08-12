@@ -31,7 +31,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <h1 className="text-2xl font-black text-rose-500 uppercase tracking-wider">CRITICAL SYSTEM ERROR</h1>
             
             <p className="text-xs text-slate-400 font-semibold leading-relaxed">
-              An unexpected client-side crash was intercepted by the Travel OS container gateway.
+              An unexpected client-side crash was intercepted by the Ghumne Chale container gateway.
             </p>
             
             {/* Diagnostics Box */}

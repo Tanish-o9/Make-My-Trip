@@ -1,6 +1,6 @@
 # Razorpay Integration Foundation
 
-This module provides the foundation for Razorpay payment gateway integration inside the Travel OS FastAPI backend. It loads environment variables via Pydantic `BaseSettings` and manages a singleton client instance with built-in connection verification.
+This module provides the foundation for Razorpay payment gateway integration inside the Ghumne Chale FastAPI backend. It loads environment variables via Pydantic `BaseSettings` and manages a singleton client instance with built-in connection verification.
 
 ## Module Structure
 

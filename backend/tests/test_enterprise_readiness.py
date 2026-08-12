@@ -1,5 +1,5 @@
 """
-Enterprise Readiness Tests — Travel OS
+Enterprise Readiness Tests — Ghumne Chale
 Tests:
   1.  Security headers present on API responses
   2.  Rate limiting configuration

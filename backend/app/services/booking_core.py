@@ -113,7 +113,20 @@ class BookingStateMachine:
         
         if not allowed:
             raise ValueError(f"State transition from {current} to {target_status} is not permitted.")
-            
+
+        # Release seats when cancelled, expired, or rejected
+        if target_status in [BookingStatus.CANCELLED, BookingStatus.EXPIRED, BookingStatus.REJECTED]:
+            session = object_session(booking)
+            if session:
+                from app.models.bookings import SeatHold
+                holds = session.query(SeatHold).filter(
+                    SeatHold.booking_reference == booking.booking_reference,
+                    SeatHold.status.in_(["HELD", "CONFIRMED"])
+                ).all()
+                for h in holds:
+                    h.status = "RELEASED" if target_status == BookingStatus.CANCELLED else "EXPIRED"
+                session.flush()
+
         if target_status == BookingStatus.CONFIRMED:
             session = object_session(booking)
             if session:
@@ -126,8 +139,17 @@ class BookingStateMachine:
                 if current in [BookingStatus.PAYMENT_PENDING, BookingStatus.PAYMENT_CONFIRMED, BookingStatus.PAYMENT_FAILED] and not payment:
                     raise ValueError("Cannot transition booking to CONFIRMED without a payment record.")
 
+                # Confirm seat holds
+                from app.models.bookings import SeatHold, BookingTicket, BookingInvoice, BookingEvent
+                holds = session.query(SeatHold).filter(
+                    SeatHold.booking_reference == booking.booking_reference,
+                    SeatHold.status == "HELD"
+                ).all()
+                for h in holds:
+                    h.status = "CONFIRMED"
+                session.flush()
+
                 # Automatically create Ticket and Invoice!
-                from app.models.bookings import BookingTicket, BookingInvoice, BookingEvent
                 import uuid
                 import random
                 
@@ -144,6 +166,16 @@ class BookingStateMachine:
                     from app.utils.booking_helpers import generate_qr_code
                     qr_url = generate_qr_code(booking.booking_reference)
                     
+                    # Extract seats from holds
+                    seat_list = [h.seat_number for h in holds]
+                    if not seat_list:
+                        # Fallback query if holds were already CONFIRMED
+                        seat_list = [h.seat_number for h in session.query(SeatHold).filter(
+                            SeatHold.booking_reference == booking.booking_reference,
+                            SeatHold.status == "CONFIRMED"
+                        ).all()]
+                    seat_str = ", ".join(seat_list) if seat_list else random.choice(["12A", "14C", "7F", "2B"])
+
                     ticket = BookingTicket(
                         booking_reference=booking.booking_reference,
                         ticket_number=tkt_num,
@@ -152,7 +184,7 @@ class BookingStateMachine:
                         passenger_details=getattr(booking, 'passenger_details', getattr(booking, 'guest_details', [{"name": "Guest", "age": 30}])),
                         extra_info={
                             "gate": random.choice(["A1", "B4", "C12", "D3"]),
-                            "seat": random.choice(["12A", "14C", "7F", "2B"]),
+                            "seat": seat_str,
                             "baggage": "15 Kgs Cabin, 25 Kgs Check-in" if getattr(booking, 'cabin_class', 'ECONOMY').upper() != 'ECONOMY' else "15 Kgs Cabin",
                             "meal": "Vegetarian Hot Meal"
                         }
@@ -337,7 +369,7 @@ class InvoiceGenerator:
     def generate_invoice(booking: BookingMixin, item_details: List[Dict[str, Any]]) -> str:
         lines = [
             "==================================================",
-            "                TRAVEL OS INVOICE                 ",
+            "                GHUMNE CHALE INVOICE                 ",
             "==================================================",
             f"Invoice Date : {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}",
             f"Reference    : {booking.booking_reference}",
@@ -351,12 +383,15 @@ class InvoiceGenerator:
         for item in item_details:
             name = item.get("name", "Travel Booking Item")[:35]
             price = float(item.get("price", 0.0))
-            lines.append(f"{name:<40} ₹{price:>8.2f}")
+            if price < 0:
+                lines.append(f"{name:<40} -₹{abs(price):>7.2f}")
+            else:
+                lines.append(f"{name:<40}  ₹{price:>8.2f}")
             
         lines.append("--------------------------------------------------")
         lines.append(f"TOTAL AMOUNT                             ₹{float(booking.total_amount):>8.2f}")
         lines.append("==================================================")
-        lines.append("Thank you for booking with Travel OS!")
+        lines.append("Thank you for booking with Ghumne Chale!")
         lines.append("==================================================")
         
         return "\n".join(lines)

@@ -59,7 +59,7 @@ def generate_booking_pdf(booking, ticket, invoice, user, vertical: str) -> str:
         fontName='Helvetica-Bold'
     )
 
-    # 1. Header Row (Logo / Travel OS Branding + QR)
+    # 1. Header Row (Logo / Ghumne Chale Branding + QR)
     qr_img_path = f"static/qrcodes/{booking.booking_reference}.png"
     if not os.path.exists(qr_img_path):
         generate_qr_code(booking.booking_reference)
@@ -68,7 +68,7 @@ def generate_booking_pdf(booking, ticket, invoice, user, vertical: str) -> str:
     
     header_data = [
         [
-            Paragraph("TRAVEL OS", ParagraphStyle('LogoText', fontName='Helvetica-Bold', fontSize=22, textColor=colors.HexColor('#2563eb'))),
+            Paragraph("GHUMNE CHALE", ParagraphStyle('LogoText', fontName='Helvetica-Bold', fontSize=22, textColor=colors.HexColor('#2563eb'))),
             qr_img
         ],
         [
@@ -149,7 +149,7 @@ def generate_booking_pdf(booking, ticket, invoice, user, vertical: str) -> str:
         ]
     elif vertical == "cabs":
         itinerary_data = [
-            [Paragraph("Cab Provider", body_bold), Paragraph(getattr(booking, 'provider_name', 'TravelOS Cab'), body_style),
+            [Paragraph("Cab Provider", body_bold), Paragraph(getattr(booking, 'provider_name', 'Ghumne Chale Cab'), body_style),
              Paragraph("Cab Type", body_bold), Paragraph(getattr(booking, 'cab_type', 'Sedan'), body_style)],
             [Paragraph("Pickup Address", body_bold), Paragraph(getattr(booking, 'pickup_address', '—'), body_style),
              Paragraph("Drop Address", body_bold), Paragraph(getattr(booking, 'drop_address', '—'), body_style)],
@@ -233,46 +233,61 @@ def generate_booking_pdf(booking, ticket, invoice, user, vertical: str) -> str:
     story.append(itinerary_table)
     story.append(Spacer(1, 10))
 
-    # 3.5 Flight Passenger Details Table
-    if vertical == "flights" and ticket and getattr(ticket, "passenger_details", None):
-        story.append(Paragraph("PASSENGER DETAILS & SPECIAL FARES", section_style))
+    # 3.5 Flight & Train Passenger Details Table
+    if vertical in ["flights", "trains"] and ticket and getattr(ticket, "passenger_details", None):
+        story.append(Paragraph("PASSENGER & SEAT/BERTH ALLOCATIONS", section_style))
         pass_headers = [
             Paragraph("<b>Name</b>", body_bold),
             Paragraph("<b>Age</b>", body_bold),
-            Paragraph("<b>Fare Type</b>", body_bold),
-            Paragraph("<b>Verification ID</b>", body_bold),
-            Paragraph("<b>Fare Price</b>", body_bold)
+            Paragraph("<b>Seat/Berth</b>", body_bold),
+            Paragraph("<b>Type / Details</b>", body_bold),
+            Paragraph("<b>Price</b>", body_bold)
         ]
         pass_rows = [pass_headers]
         for p in ticket.passenger_details:
             name = p.get("fullName") or p.get("name") or "Guest"
             age = str(p.get("age", "—"))
-            fare_type = str(p.get("specialFareType", "regular")).upper()
             
-            verif_id = "—"
-            if p.get("studentId"):
-                raw_id = p.get("studentId")
-                masked_id = (raw_id[:3] + "*****") if len(raw_id) > 4 else (raw_id[:1] + "***")
-                inst_part = f" ({p.get('institutionName')})" if p.get("institutionName") else ""
-                verif_id = f"Student ID: {masked_id}{inst_part}"
-            elif p.get("serviceId"):
-                verif_id = f"Service ID: {p.get('serviceId')}"
+            # Seat/Berth allocation
+            seat_num = p.get("seat_number", "—")
+            seat_type = str(p.get("seat_type", "")).upper()
+            
+            if vertical == "flights":
+                fare_type = str(p.get("specialFareType", "regular")).upper()
+                verif_id = ""
+                if p.get("studentId"):
+                    raw_id = p.get("studentId")
+                    masked_id = (raw_id[:3] + "*****") if len(raw_id) > 4 else (raw_id[:1] + "***")
+                    verif_id = f" [Student: {masked_id}]"
+                elif p.get("serviceId"):
+                    verif_id = f" [Armed Forces: {p.get('serviceId')}]"
+                details_str = f"{seat_type} | {fare_type}{verif_id}"
                 
-            final_fare = p.get("finalFare")
-            if final_fare is not None:
-                fare_str = f"INR {float(final_fare):.2f}"
-            else:
-                fare_str = f"INR {float(booking.total_amount) / len(ticket.passenger_details):.2f}"
+                final_fare = p.get("finalFare")
+                if final_fare is not None:
+                    fare_str = f"INR {float(final_fare):.2f}"
+                else:
+                    fare_str = f"INR {float(booking.total_amount) / len(ticket.passenger_details):.2f}"
+            else: # trains
+                coach = getattr(booking, "coach_class", "3A")
+                details_str = f"{seat_type} | Coach {coach}"
                 
+                pricing_snap = getattr(booking, "pricing_snapshot", {}) or {}
+                seat_fare = float(pricing_snap.get("seat_fare", 0.0) or 0.0)
+                base_fare = float(pricing_snap.get("base_fare", float(booking.total_amount) - seat_fare))
+                pax_base = base_fare / len(ticket.passenger_details)
+                pax_seat = float(p.get("seat_price", 0.0) or 0.0)
+                fare_str = f"INR {pax_base + pax_seat:.2f}"
+
             pass_rows.append([
                 Paragraph(name, body_style),
                 Paragraph(age, body_style),
-                Paragraph(fare_type, body_style),
-                Paragraph(verif_id, body_style),
+                Paragraph(seat_num, body_style),
+                Paragraph(details_str, body_style),
                 Paragraph(fare_str, body_style)
             ])
             
-        pass_table = Table(pass_rows, colWidths=[2.2*inch, 0.8*inch, 1.2*inch, 1.6*inch, 1.2*inch])
+        pass_table = Table(pass_rows, colWidths=[2.0*inch, 0.8*inch, 1.2*inch, 1.8*inch, 1.2*inch])
         pass_table.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#f1f5f9')),
             ('BACKGROUND', (0,1), (-1,-1), colors.HexColor('#f8fafc')),
@@ -307,7 +322,7 @@ def generate_booking_pdf(booking, ticket, invoice, user, vertical: str) -> str:
     # 5. Terms / Footer
     story.append(Paragraph("<b>Terms & Conditions:</b> This E-Ticket is valid for travel with respective carriers. Refunds are computed as per the cancellation policy. Please carry a valid government photo ID for boarding/check-in.", ParagraphStyle('TermsStyle', fontName='Helvetica', fontSize=7, textColor=colors.HexColor('#94a3b8'), leading=9)))
     story.append(Spacer(1, 6))
-    story.append(Paragraph("<b>Support Helplines:</b> For assistance, reach out to Travel OS support at <b>+1-800-TRV-HELP</b> or email <b>support@travelos.com</b>.", ParagraphStyle('SupportStyle', fontName='Helvetica', fontSize=7, textColor=colors.HexColor('#94a3b8'), leading=9)))
+    story.append(Paragraph("<b>Support Helplines:</b> For assistance, reach out to Ghumne Chale support at <b>+1-800-TRV-HELP</b> or email <b>support@travelos.com</b>.", ParagraphStyle('SupportStyle', fontName='Helvetica', fontSize=7, textColor=colors.HexColor('#94a3b8'), leading=9)))
 
     doc.build(story)
     return f"/static/tickets/{booking.booking_reference}.pdf"

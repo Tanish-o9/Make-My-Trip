@@ -145,7 +145,7 @@ def trip_planner_node(state: AgentState, config: Dict[str, Any] = None) -> dict:
 
     if missing:
         missing_list_str = "\n".join([f"- **{m}**" for m in missing])
-        response_text = f"""### Welcome to Travel OS AI Consultant! 🌍
+        response_text = f"""### Welcome to Ghumne Chale AI Consultant! 🌍
 
 I see you want to plan a trip, but I need a few more details to customize the perfect package for you. Could you please provide:
 

@@ -58,7 +58,7 @@ def main():
             "notes": {
                 "env": "development",
                 "integration": "foundation_test",
-                "project": "Travel OS"
+                "project": "Ghumne Chale"
             }
         }
         

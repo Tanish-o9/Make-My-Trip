@@ -45,7 +45,7 @@ export function DesignTokensPage({ onNavigate }: DesignTokensPageProps) {
         {/* Header */}
         <div className="flex justify-between items-center border-b border-slate-800 pb-5">
           <div className="space-y-1">
-            <h1 className="text-4xl font-serif italic text-[#C9A24B]">Travel OS Design System</h1>
+            <h1 className="text-4xl font-serif italic text-[#C9A24B]">Ghumne Chale Design System</h1>
             <p className="text-sm text-[#A8A296]">Tokens, Colors, Spacing & Typography Reference Guide</p>
           </div>
           <button 

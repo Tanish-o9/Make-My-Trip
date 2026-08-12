@@ -77,7 +77,7 @@ async def test_cab_provider_adapters():
 
     quote = await local_p.get_quote(offers[0].id, offers[0].fare)
     assert quote.total_fare == offers[0].fare
-    assert quote.provider == "TravelOS Local Fleet"
+    assert quote.provider == "Ghumne Chale Local Fleet"
 
     amadeus_p = AmadeusTransfersProvider()
     amd_offers = await amadeus_p.search(
@@ -108,7 +108,7 @@ async def test_car_rental_provider_adapters():
 
     quote = await local_car.get_quote(car_offers[0].id, 2)
     assert quote.total_payable > 0
-    assert quote.provider == "TravelOS Drive"
+    assert quote.provider == "Ghumne Chale Drive"
 
     booking = await local_car.create_booking(quote.quote_id, {"driver_name": "Test Driver"}, "IDEM-CAR-TEST-1", quote.total_payable)
     assert booking.success is True

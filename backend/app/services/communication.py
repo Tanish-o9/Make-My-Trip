@@ -14,9 +14,24 @@ import os
 import random
 import string
 import logging
+import datetime
 from typing import Dict, Any, List, Optional
 
 import httpx
+
+def mask_email(email: str) -> str:
+    try:
+        parts = email.split("@")
+        if len(parts) != 2:
+            return "***"
+        local, domain = parts
+        masked_local = local[0] + "***" + local[-1] if len(local) > 2 else local[0] + "***"
+        dom_parts = domain.split(".")
+        masked_domain = dom_parts[0][0] + "***" if len(dom_parts[0]) > 1 else dom_parts[0]
+        tld = ".".join(dom_parts[1:])
+        return f"{masked_local}@{masked_domain}.{tld}"
+    except Exception:
+        return "***"
 
 from app.services.resilience import CircuitBreaker, retry_with_backoff
 from app.services.email_templates import (
@@ -95,9 +110,9 @@ class TwilioClient:
     def send_otp(self, to_phone: str, otp_code: str, action: str = "login") -> Dict[str, Any]:
         """Send a formatted OTP SMS."""
         body = (
-            f"Your Travel OS {action} OTP is: {otp_code}\n"
+            f"Your Ghumne Chale {action} OTP is: {otp_code}\n"
             f"Valid for 10 minutes. Do NOT share with anyone.\n"
-            f"– Travel OS Security"
+            f"– Ghumne Chale Security"
         )
         return self._send_raw(to_phone, body)
 
@@ -110,7 +125,7 @@ class TwilioClient:
             f"Ref: {booking_ref}\n"
             f"{details}\n"
             f"Manage: https://make-my-trip-delta.vercel.app/bookings/{booking_ref}\n"
-            f"– Travel OS"
+            f"– Ghumne Chale"
         )
         return self._send_raw(to_phone, body)
 
@@ -130,7 +145,7 @@ class TwilioClient:
             f"Departure: {departure_time}\n"
             f"Ref: {booking_ref}\n"
             f"Check-in now: https://make-my-trip-delta.vercel.app/bookings/{booking_ref}\n"
-            f"– Travel OS"
+            f"– Ghumne Chale"
         )
         return self._send_raw(to_phone, body)
 
@@ -142,7 +157,7 @@ class TwilioClient:
         body = (
             f"❌ {vertical.title()} booking {booking_ref} cancelled.\n"
             f"Refund: {refund_str} → Travel Wallet (24 hrs).\n"
-            f"– Travel OS"
+            f"– Ghumne Chale"
         )
         return self._send_raw(to_phone, body)
 
@@ -152,6 +167,11 @@ class TwilioClient:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class SendGridClient:
+    # Diagnostic stats (class variables acting as a global stats store)
+    last_delivery_attempt = None
+    last_successful_delivery = None
+    failure_count = 0
+
     def __init__(self):
         self.sendgrid_api_key = os.getenv("SENDGRID_API_KEY")
         self.resend_api_key = os.getenv("RESEND_API_KEY")
@@ -181,8 +201,22 @@ class SendGridClient:
 
         attachments: list of {"filename": "ticket.pdf", "content": <base64_string>, "type": "application/pdf"}
         """
+        SendGridClient.last_delivery_attempt = datetime.datetime.utcnow().isoformat()
+
         if not self._is_resend_configured() and not self._is_sendgrid_configured():
-            logger.info(f"[Email Sandbox] → {to_email} | Subject: {subject}")
+            masked = mask_email(to_email)
+            timestamp = datetime.datetime.utcnow().isoformat()
+            logger.info(
+                f"[EMAIL DELIVERY LOG] "
+                f"Timestamp: {timestamp} | "
+                f"Provider: Sandbox/Simulated | "
+                f"Recipient: {masked} | "
+                f"Success: True | "
+                f"Request Status: Simulated | "
+                f"Message/Request ID: email_simulated | "
+                f"Error Code: N/A"
+            )
+            SendGridClient.last_successful_delivery = timestamp
             return {"success": True, "email_id": "email_simulated", "gateway": "simulated"}
 
         if self._is_resend_configured():
@@ -200,12 +234,30 @@ class SendGridClient:
     ) -> Dict[str, Any]:
         """Send via Resend.com API."""
         # Use sandbox sender unless a real verified domain sender is set
+        _PLACEHOLDER_DOMAINS = {
+            "travelos.com", "example.com", "yourdomain.com",
+            "yourdomain", "placeholder.com", "test.com"
+        }
         sender = self.from_email
-        if not sender or "travelos.com" in sender or "example.com" in sender or "yourdomain.com" in sender:
+        using_sandbox_sender = False
+        if not sender or any(d in sender for d in _PLACEHOLDER_DOMAINS):
             sender = "onboarding@resend.dev"
+            using_sandbox_sender = True
+        elif sender == "onboarding@resend.dev":
+            using_sandbox_sender = True
+
+        if using_sandbox_sender:
+            logger.warning(
+                "[EMAIL CONFIG WARNING] RESEND_FROM_EMAIL is not set to a verified custom domain. "
+                f"Using sandbox sender: {sender}. "
+                "Emails sent via onboarding@resend.dev will only deliver to Resend test addresses "
+                "(e.g. delivered@resend.dev), NOT to real Gmail/Yahoo/Outlook inboxes. "
+                "To fix: set RESEND_FROM_EMAIL=noreply@youractualdomain.com in Railway environment variables "
+                "after verifying your domain at https://resend.com/domains"
+            )
 
         payload: Dict[str, Any] = {
-            "from": f"Travel OS <{sender}>",
+            "from": f"Ghumne Chale <{sender}>",
             "to": [to_email],
             "subject": subject,
             "text": text_body,
@@ -236,11 +288,36 @@ class SendGridClient:
             resp.raise_for_status()
             return resp.json()
 
+        timestamp = datetime.datetime.utcnow().isoformat()
+        masked = mask_email(to_email)
         try:
             res = resend_breaker.call(execute)
-            return {"success": True, "email_id": res.get("id"), "gateway": "resend"}
+            msg_id = res.get("id")
+            logger.info(
+                f"[EMAIL DELIVERY LOG] "
+                f"Timestamp: {timestamp} | "
+                f"Provider: Resend | "
+                f"Recipient: {masked} | "
+                f"Success: True | "
+                f"Request Status: Sent | "
+                f"Message/Request ID: {msg_id} | "
+                f"Error Code: N/A"
+            )
+            SendGridClient.last_successful_delivery = timestamp
+            return {"success": True, "email_id": msg_id, "gateway": "resend"}
         except Exception as e:
             logger.error(f"Resend email failed to {to_email}: {e}")
+            SendGridClient.failure_count += 1
+            logger.info(
+                f"[EMAIL DELIVERY LOG] "
+                f"Timestamp: {timestamp} | "
+                f"Provider: Resend | "
+                f"Recipient: {masked} | "
+                f"Success: False | "
+                f"Request Status: Failed | "
+                f"Message/Request ID: N/A | "
+                f"Error Code: {str(e)}"
+            )
             if self._is_sendgrid_configured():
                 return self._send_via_sendgrid(to_email, subject, text_body, html_body)
             return {"success": False, "error": str(e), "gateway": "resend"}
@@ -276,11 +353,35 @@ class SendGridClient:
             resp.raise_for_status()
             return resp
 
+        timestamp = datetime.datetime.utcnow().isoformat()
+        masked = mask_email(to_email)
         try:
             resend_breaker.call(execute)
+            logger.info(
+                f"[EMAIL DELIVERY LOG] "
+                f"Timestamp: {timestamp} | "
+                f"Provider: SendGrid | "
+                f"Recipient: {masked} | "
+                f"Success: True | "
+                f"Request Status: Sent | "
+                f"Message/Request ID: N/A | "
+                f"Error Code: N/A"
+            )
+            SendGridClient.last_successful_delivery = timestamp
             return {"success": True, "gateway": "sendgrid"}
         except Exception as e:
             logger.error(f"SendGrid email failed to {to_email}: {e}")
+            SendGridClient.failure_count += 1
+            logger.info(
+                f"[EMAIL DELIVERY LOG] "
+                f"Timestamp: {timestamp} | "
+                f"Provider: SendGrid | "
+                f"Recipient: {masked} | "
+                f"Success: False | "
+                f"Request Status: Failed | "
+                f"Message/Request ID: N/A | "
+                f"Error Code: {str(e)}"
+            )
             return {"success": False, "error": str(e), "gateway": "sendgrid"}
 
     # ─────────────────────────────────────────────────────────
@@ -348,7 +449,7 @@ class SendGridClient:
     def send_otp_email(self, to_email: str, user_name: str, otp_code: str, action: str = "login") -> Dict[str, Any]:
         """Send an OTP verification email."""
         subject, html_body = get_otp_html(user_name, otp_code, action)
-        text_body = f"Your Travel OS {action} OTP is: {otp_code}. Valid 10 minutes."
+        text_body = f"Your Ghumne Chale {action} OTP is: {otp_code}. Valid 10 minutes."
         return self.send_email(to_email, subject, text_body, html_body)
 
     def send_flight_reminder_email(

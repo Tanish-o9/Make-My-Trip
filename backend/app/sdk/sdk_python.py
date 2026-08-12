@@ -2,7 +2,7 @@ import httpx
 from typing import Dict, Any, Optional
 
 class TravelOSClient:
-    """Official Python SDK Client for Travel OS Global Gateway."""
+    """Official Python SDK Client for Ghumne Chale Global Gateway."""
     def __init__(self, api_key: str, base_url: str = "https://api.travelos.com/api/v1"):
         self.api_key = api_key
         self.base_url = base_url

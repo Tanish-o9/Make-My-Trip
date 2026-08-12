@@ -227,7 +227,7 @@ export default function ForgotPasswordPage({ onNavigate }: ForgotPasswordPagePro
       <div className="bg-white text-black border-4 border-black p-8 max-w-md w-full relative z-10 shadow-[8px_8px_0px_0px_#000000] rounded-[24px] my-8">
         <div className="text-center mb-6">
           <span className="font-serif italic font-black text-2xl text-[var(--color-gold)] bg-black px-4 py-1.5 inline-block text-white shadow-[4px_4px_0px_0px_rgba(212,175,55,1)]">
-            TRAVEL OS
+            GHUMNE CHALE
           </span>
           <h2 className="text-xl font-extrabold uppercase mt-6 tracking-wide">
             {step === 'request' ? 'Reset Password' : 'Enter Reset Code'}

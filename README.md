@@ -1,7 +1,7 @@
 
-# Travel OS — AI-First Travel Operating System
+# Ghumne Chale — AI-First Travel Operating System
 
-Travel OS is a unified booking, pricing, and conversational itinerary planning system powered by a multi-agent orchestration graph (built with LangGraph) and a custom LLM Router with circuit-breaker capabilities and automatic failover.
+Ghumne Chale is a unified booking, pricing, and conversational itinerary planning system powered by a multi-agent orchestration graph (built with LangGraph) and a custom LLM Router with circuit-breaker capabilities and automatic failover.
 
 ---
 
@@ -77,13 +77,13 @@ Here is how a conversational request (e.g., *"Book a flight to Goa under ₹10,0
 =======
 # Make-My-Trip
 Full-stack AI-first travel booking platform (MakeMyTrip-inspired) — 12 booking verticals, LangGraph multi-agent assistant, multi-provider LLM router with failover, and an admin-approved booking pipeline with a standalone approval console.
-# Travel OS
+# Ghumne Chale
 
 **A full-stack, AI-first travel booking platform inspired by MakeMyTrip —
 built to explore production-grade patterns in multi-agent AI systems,
 marketplace operations, and trust/risk workflows.**
 
-Travel OS isn't just another booking-form clone. It's a complete travel
+Ghumne Chale isn't just another booking-form clone. It's a complete travel
 super-app covering 12 booking verticals, a conversational AI layer built on
 a real multi-agent architecture, and an operations layer (admin approvals,
 fraud review, refund processing, payouts) modeled after how production
@@ -112,7 +112,7 @@ travel platforms actually manage risk at scale.
 
 ## Overview
 
-Travel OS is a monorepo containing:
+Ghumne Chale is a monorepo containing:
 
 - **`frontend-react`** — the customer-facing booking app (search, browse,
   book, manage trips, chat with the AI assistant)
@@ -259,7 +259,7 @@ Key architectural decisions:
 
 ## AI Agent System
 
-Travel OS uses a **Supervisor pattern**: a top-level Supervisor Agent
+Ghumne Chale uses a **Supervisor pattern**: a top-level Supervisor Agent
 classifies intent and either answers directly, delegates to one specialist
 agent, or chains several together for multi-step requests.
 

@@ -1,6 +1,6 @@
 {
-  "name": "Travel OS",
-  "short_name": "TravelOS",
+  "name": "Ghumne Chale",
+  "short_name": "Ghumne Chale",
   "description": "Enterprise AI Travel Operating System — Book Flights, Hotels, Activities and more.",
   "start_url": "/",
   "display": "standalone",

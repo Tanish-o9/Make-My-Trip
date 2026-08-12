@@ -90,7 +90,7 @@ def test_booking_holds_and_state_transitions(test_user_and_wallet):
     # 3. Generate invoice text summary
     invoice_resp = client.get(f"/api/v1/bookings/{ref}/invoice?vertical=cabs")
     assert invoice_resp.status_code == 200
-    assert "TRAVEL OS INVOICE" in invoice_resp.json()["invoice_text"]
+    assert "GHUMNE CHALE INVOICE" in invoice_resp.json()["invoice_text"]
 
     # 4. Cancel booking and check refund credits (timelines represent 100% refund minus 5% fee)
     response_cancel = client.post(f"/api/v1/bookings/cancel?booking_reference={ref}&vertical=cabs")

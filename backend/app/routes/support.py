@@ -58,7 +58,7 @@ FAQ_DATABASE = [
         "id": 3,
         "category": "payment",
         "question": "How long does a refund take?",
-        "answer": "UPI, debit/credit cards, and netbanking refunds are processed within 3-5 business days. Travel OS Wallet refunds are instant.",
+        "answer": "UPI, debit/credit cards, and netbanking refunds are processed within 3-5 business days. Ghumne Chale Wallet refunds are instant.",
     },
     {
         "id": 4,

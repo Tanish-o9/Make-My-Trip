@@ -112,6 +112,16 @@ class RefundManager:
     ) -> dict:
         booking.status = BookingStatus.REFUNDED if amount > 0 else BookingStatus.CANCELLED
         
+        # Release seat holds on refund/cancel
+        from app.models.bookings import SeatHold
+        holds = db.query(SeatHold).filter(
+            SeatHold.booking_reference == booking.booking_reference,
+            SeatHold.status.in_(["HELD", "CONFIRMED"])
+        ).all()
+        for h in holds:
+            h.status = "RELEASED"
+        db.flush()
+        
         # Write immutable Ledger entries
         # 1. Reverse the charge or add refund row
         if amount > 0:

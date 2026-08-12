@@ -261,3 +261,53 @@ async def get_duffel_diagnostics(current_user: User = Depends(get_current_user))
         "status": status
     }
 
+
+@router.get("/email/diagnostics")
+async def get_email_diagnostics(current_user: User = Depends(get_current_user)):
+    """Safe admin diagnostic endpoint for SendGrid/Resend connectivity verification without leaking secrets"""
+    if current_user.role not in ("admin", "superadmin", "super_admin"):
+        raise HTTPException(status_code=403, detail="Admin privileges required.")
+
+    import socket
+    from app.services.communication import SendGridClient, resend_breaker
+    client = SendGridClient()
+
+    is_resend = client._is_resend_configured()
+    is_sendgrid = client._is_sendgrid_configured()
+
+    if is_resend:
+        provider_name = "Resend"
+        config_status = "CONFIGURED"
+    elif is_sendgrid:
+        provider_name = "SendGrid"
+        config_status = "CONFIGURED"
+    else:
+        provider_name = "Simulated/Sandbox"
+        config_status = "MISSING"
+
+    cb_status = resend_breaker.state
+
+    connectivity = "Healthy"
+    host = None
+    if is_resend:
+        host = "api.resend.com"
+    elif is_sendgrid:
+        host = "api.sendgrid.com"
+
+    if host:
+        try:
+            socket.gethostbyname(host)
+        except Exception:
+            connectivity = "Unhealthy"
+
+    return {
+        "email_provider": provider_name,
+        "configuration_status": config_status,
+        "connectivity": connectivity,
+        "last_delivery_attempt": SendGridClient.last_delivery_attempt,
+        "last_successful_delivery": SendGridClient.last_successful_delivery,
+        "failure_count": SendGridClient.failure_count,
+        "circuit_breaker_status": cb_status
+    }
+
+

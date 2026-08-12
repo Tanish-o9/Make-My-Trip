@@ -40,7 +40,7 @@ setup_structured_logging()
 logger = logging.getLogger("travel_os")
 
 app = FastAPI(
-    title="Travel OS API",
+    title="Ghumne Chale API",
     description="Backend AI-First Travel Operating System Monolith",
     version="1.0.0",
     docs_url="/api/docs",
