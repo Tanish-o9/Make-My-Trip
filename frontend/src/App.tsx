@@ -5542,7 +5542,7 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
             <div className="space-y-1">
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">🚗 Service Tier</span>
               <div className="w-full bg-[#0e1628] border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-emerald-400 font-bold flex items-center justify-between">
-                <span>Verified Chauffeur</span>
+                <span className="text-emerald-400">Verified Chauffeur</span>
                 <span className="text-[10px] bg-emerald-950 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-800 font-mono">100% On-Time</span>
               </div>
             </div>
@@ -5560,7 +5560,7 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
               >
                 -
               </button>
-              <span className="font-extrabold text-xs">{passengers} {passengers === 1 ? 'Guest' : 'Guests'}</span>
+              <span className="font-extrabold text-xs text-white">{passengers} {passengers === 1 ? 'Guest' : 'Guests'}</span>
               <button 
                 type="button"
                 onClick={() => updatePassengerCount(passengers + 1)}
@@ -5584,7 +5584,7 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
               >
                 -
               </button>
-              <span className="font-extrabold text-xs">{luggage} {luggage === 1 ? 'Bag' : 'Bags'}</span>
+              <span className="font-extrabold text-xs text-white">{luggage} {luggage === 1 ? 'Bag' : 'Bags'}</span>
               <button 
                 type="button"
                 onClick={() => setLuggage(Math.min(8, luggage + 1))}
