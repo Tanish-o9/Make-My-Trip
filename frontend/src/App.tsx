@@ -5540,59 +5540,69 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
             </div>
           ) : (
             <div className="space-y-1">
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">🚗 Service Tier</span>
-              <div className="w-full bg-[#0e1628] border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-emerald-400 font-bold flex items-center justify-between">
-                <span className="text-emerald-400">Verified Chauffeur</span>
-                <span className="text-[10px] bg-emerald-950 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-800 font-mono">100% On-Time</span>
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">🚗 Service Tier</span>
+              <div className="w-full bg-[#0e1628] border border-slate-800 rounded-xl px-3 h-[42px] flex items-center justify-between">
+                <span className="text-slate-200 text-xs font-bold">Verified Chauffeur</span>
+                <span className="text-[9px] bg-emerald-950/80 text-emerald-400 px-2 py-0.5 rounded-lg border border-emerald-800/30 font-bold uppercase tracking-wider">
+                  100% On-Time
+                </span>
               </div>
             </div>
           )}
 
           {/* Passengers Stepper */}
           <div className="space-y-1">
-            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">👥 Passengers</span>
-            <div className="flex items-center justify-between bg-[#0e1628] border border-slate-800 rounded-lg px-3 py-1 text-white">
-              <button 
-                type="button"
-                onClick={() => updatePassengerCount(passengers - 1)}
-                disabled={passengers <= 1}
-                className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-white font-bold flex items-center justify-center cursor-pointer"
-              >
-                -
-              </button>
-              <span className="font-extrabold text-xs text-white">{passengers} {passengers === 1 ? 'Guest' : 'Guests'}</span>
-              <button 
-                type="button"
-                onClick={() => updatePassengerCount(passengers + 1)}
-                disabled={passengers >= 10}
-                className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-white font-bold flex items-center justify-center cursor-pointer"
-              >
-                +
-              </button>
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">👥 Passengers</span>
+            <div className="flex items-center justify-between bg-[#0e1628] border border-slate-800 rounded-xl px-3 h-[42px]">
+              <span className="font-bold text-xs text-slate-200">{passengers} {passengers === 1 ? 'Guest' : 'Guests'}</span>
+              <div className="flex items-center gap-1.5">
+                <button 
+                  type="button"
+                  onClick={() => updatePassengerCount(passengers - 1)}
+                  disabled={passengers <= 1}
+                  aria-label="Decrease passenger count"
+                  className="w-5.5 h-5.5 rounded-full bg-yellow-400 hover:bg-yellow-300 disabled:opacity-30 disabled:hover:bg-yellow-400 text-black font-bold flex items-center justify-center text-xs cursor-pointer active:translate-y-px"
+                >
+                  -
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => updatePassengerCount(passengers + 1)}
+                  disabled={passengers >= 10}
+                  aria-label="Increase passenger count"
+                  className="w-5.5 h-5.5 rounded-full bg-yellow-400 hover:bg-yellow-300 disabled:opacity-30 disabled:hover:bg-yellow-400 text-black font-bold flex items-center justify-center text-xs cursor-pointer active:translate-y-px"
+                >
+                  +
+                </button>
+              </div>
             </div>
           </div>
 
           {/* Luggage Stepper */}
           <div className="space-y-1">
-            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">🧳 Luggage Bags</span>
-            <div className="flex items-center justify-between bg-[#0e1628] border border-slate-800 rounded-lg px-3 py-1 text-white">
-              <button 
-                type="button"
-                onClick={() => setLuggage(Math.max(0, luggage - 1))}
-                disabled={luggage <= 0}
-                className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-white font-bold flex items-center justify-center cursor-pointer"
-              >
-                -
-              </button>
-              <span className="font-extrabold text-xs text-white">{luggage} {luggage === 1 ? 'Bag' : 'Bags'}</span>
-              <button 
-                type="button"
-                onClick={() => setLuggage(Math.min(8, luggage + 1))}
-                disabled={luggage >= 8}
-                className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-white font-bold flex items-center justify-center cursor-pointer"
-              >
-                +
-              </button>
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">🧳 Luggage Bags</span>
+            <div className="flex items-center justify-between bg-[#0e1628] border border-slate-800 rounded-xl px-3 h-[42px]">
+              <span className="font-bold text-xs text-slate-200">{luggage} {luggage === 1 ? 'Bag' : 'Bags'}</span>
+              <div className="flex items-center gap-1.5">
+                <button 
+                  type="button"
+                  onClick={() => setLuggage(Math.max(0, luggage - 1))}
+                  disabled={luggage <= 0}
+                  aria-label="Decrease luggage count"
+                  className="w-5.5 h-5.5 rounded-full bg-yellow-400 hover:bg-yellow-300 disabled:opacity-30 disabled:hover:bg-yellow-400 text-black font-bold flex items-center justify-center text-xs cursor-pointer active:translate-y-px"
+                >
+                  -
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setLuggage(Math.min(8, luggage + 1))}
+                  disabled={luggage >= 8}
+                  aria-label="Increase luggage count"
+                  className="w-5.5 h-5.5 rounded-full bg-yellow-400 hover:bg-yellow-300 disabled:opacity-30 disabled:hover:bg-yellow-400 text-black font-bold flex items-center justify-center text-xs cursor-pointer active:translate-y-px"
+                >
+                  +
+                </button>
+              </div>
             </div>
           </div>
 
