@@ -900,23 +900,60 @@ class ResetPasswordRequest(BaseModel):
     confirm_password: str
 
 
-def _send_password_reset_email(email: str, full_name: str, otp: str) -> None:
+def _send_password_reset_email(email: str, full_name: str, otp: str) -> dict:
     """Send the password reset OTP email."""
+    from app.services.communication import mask_email
+    masked = mask_email(email)
     try:
         from app.services.communication import SendGridClient
         from app.services.email_templates import get_password_reset_otp_html
         subject, html_body = get_password_reset_otp_html(full_name, otp, OTP_EXPIRY_MINUTES)
         text_body = (
             f"Hello {full_name.split()[0] if full_name else 'Traveler'},\n\n"
-            f"Your Ghumne Chale password reset code is: {otp}\n"
+            f"Your Ghumne Chale password reset code is: [REDACTED]\n"
             f"It is valid for {OTP_EXPIRY_MINUTES} minutes.\n\n"
             f"If you did not request this, please ignore this email.\n"
-            f"– Ghumne Chale Security"
+            "\u2013 Ghumne Chale Security"
         )
         comm = SendGridClient()
-        comm.send_email(to_email=email, subject=subject, body=text_body, html_body=html_body)
+        logger.info(
+            f"[PASSWORD RESET EMAIL] email_type=password_reset "
+            f"recipient={masked} send_attempt=true"
+        )
+        result = comm.send_email(to_email=email, subject=subject, body=text_body, html_body=html_body)
+        if result.get("success"):
+            logger.info(
+                f"[PASSWORD RESET EMAIL] email_type=password_reset "
+                f"recipient={masked} provider_status=accepted "
+                f"provider_request_id={result.get('email_id', 'n/a')} "
+                f"gateway={result.get('gateway', 'n/a')}"
+            )
+        else:
+            logger.error(
+                f"[PASSWORD RESET EMAIL] email_type=password_reset "
+                f"recipient={masked} provider_status=failed "
+                f"error_code={result.get('error', 'unknown')}"
+            )
+        return result
     except Exception as exc:
-        logger.warning(f"Password reset email delivery failed for {email}: {exc}")
+        logger.warning(
+            f"[PASSWORD RESET EMAIL] email_type=password_reset "
+            f"recipient={masked} provider_status=exception "
+            f"error_code={type(exc).__name__}"
+        )
+        return {"success": False, "error": str(exc)}
+
+
+def _fire_password_reset_email_async(email: str, full_name: str, otp: str) -> None:
+    """Dispatch password reset email in a background daemon thread.
+    This prevents Railway HTTP timeouts from blocking or killing the email send.
+    """
+    def _run():
+        _send_password_reset_email(email, full_name, otp)
+
+    t = threading.Thread(target=_run, daemon=True, name=f"pwd-reset-{email[:6]}")
+    t.start()
+
 
 
 @router.post("/forgot-password", dependencies=[Depends(_reset_limiter)])
@@ -933,9 +970,10 @@ def forgot_password(req: ForgotPasswordRequest, db: Session = Depends(get_db)):
         full_name = profile.full_name if profile and profile.full_name else clean_email.split("@")[0]
 
         plain_otp = _create_verification_record(db, user.id, clean_email, PURPOSE_PASSWORD_RESET)
-        _send_password_reset_email(clean_email, full_name, plain_otp)
+        _fire_password_reset_email_async(clean_email, full_name, plain_otp)
 
     return {"message": "If an account exists with this email, a password reset code has been sent."}
+
 
 
 @router.post("/resend-password-reset", dependencies=[Depends(_reset_limiter)])
@@ -992,9 +1030,10 @@ def resend_password_reset(req: ResendPasswordResetRequest, db: Session = Depends
     full_name = profile.full_name if profile and profile.full_name else clean_email.split("@")[0]
 
     plain_otp = _create_verification_record(db, user.id, clean_email, PURPOSE_PASSWORD_RESET)
-    _send_password_reset_email(clean_email, full_name, plain_otp)
+    _fire_password_reset_email_async(clean_email, full_name, plain_otp)
 
     return {"message": "If an account exists with this email, a new password reset code has been sent."}
+
 
 
 @router.post("/reset-password", dependencies=[Depends(_reset_limiter)])
