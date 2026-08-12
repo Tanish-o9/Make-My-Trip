@@ -5541,9 +5541,9 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
           ) : (
             <div className="space-y-1">
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">🚗 Service Tier</span>
-              <div className="w-full bg-[#0e1628] border border-slate-800 rounded-xl px-3 h-[42px] flex items-center justify-between">
-                <span className="text-slate-200 text-xs font-bold">Verified Chauffeur</span>
-                <span className="text-[9px] bg-emerald-950/80 text-emerald-400 px-2 py-0.5 rounded-lg border border-emerald-800/30 font-bold uppercase tracking-wider">
+              <div className="w-full bg-white border-3 border-black rounded-xl px-3 h-[46px] flex items-center justify-between shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                <span className="text-slate-900 text-xs font-black">Verified Chauffeur</span>
+                <span className="text-[9px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-lg border border-emerald-300 font-black uppercase tracking-wider">
                   100% On-Time
                 </span>
               </div>
@@ -5553,15 +5553,15 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
           {/* Passengers Stepper */}
           <div className="space-y-1">
             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">👥 Passengers</span>
-            <div className="flex items-center justify-between bg-[#0e1628] border border-slate-800 rounded-xl px-3 h-[42px]">
-              <span className="font-bold text-xs text-slate-200">{passengers} {passengers === 1 ? 'Guest' : 'Guests'}</span>
+            <div className="flex items-center justify-between bg-white border-3 border-black rounded-xl px-3 h-[46px] shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+              <span className="font-black text-xs text-slate-900">{passengers} {passengers === 1 ? 'Guest' : 'Guests'}</span>
               <div className="flex items-center gap-1.5">
                 <button 
                   type="button"
                   onClick={() => updatePassengerCount(passengers - 1)}
                   disabled={passengers <= 1}
                   aria-label="Decrease passenger count"
-                  className="w-5.5 h-5.5 rounded-full bg-yellow-400 hover:bg-yellow-300 disabled:opacity-30 disabled:hover:bg-yellow-400 text-black font-bold flex items-center justify-center text-xs cursor-pointer active:translate-y-px"
+                  className="w-6 h-6 rounded-full bg-yellow-400 hover:bg-yellow-300 disabled:opacity-30 disabled:hover:bg-yellow-400 text-black border-2 border-black flex items-center justify-center font-black text-sm cursor-pointer active:translate-y-px"
                 >
                   -
                 </button>
@@ -5570,7 +5570,7 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
                   onClick={() => updatePassengerCount(passengers + 1)}
                   disabled={passengers >= 10}
                   aria-label="Increase passenger count"
-                  className="w-5.5 h-5.5 rounded-full bg-yellow-400 hover:bg-yellow-300 disabled:opacity-30 disabled:hover:bg-yellow-400 text-black font-bold flex items-center justify-center text-xs cursor-pointer active:translate-y-px"
+                  className="w-6 h-6 rounded-full bg-yellow-400 hover:bg-yellow-300 disabled:opacity-30 disabled:hover:bg-yellow-400 text-black border-2 border-black flex items-center justify-center font-black text-sm cursor-pointer active:translate-y-px"
                 >
                   +
                 </button>
@@ -5581,15 +5581,15 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
           {/* Luggage Stepper */}
           <div className="space-y-1">
             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">🧳 Luggage Bags</span>
-            <div className="flex items-center justify-between bg-[#0e1628] border border-slate-800 rounded-xl px-3 h-[42px]">
-              <span className="font-bold text-xs text-slate-200">{luggage} {luggage === 1 ? 'Bag' : 'Bags'}</span>
+            <div className="flex items-center justify-between bg-white border-3 border-black rounded-xl px-3 h-[46px] shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+              <span className="font-black text-xs text-slate-900">{luggage} {luggage === 1 ? 'Bag' : 'Bags'}</span>
               <div className="flex items-center gap-1.5">
                 <button 
                   type="button"
                   onClick={() => setLuggage(Math.max(0, luggage - 1))}
                   disabled={luggage <= 0}
                   aria-label="Decrease luggage count"
-                  className="w-5.5 h-5.5 rounded-full bg-yellow-400 hover:bg-yellow-300 disabled:opacity-30 disabled:hover:bg-yellow-400 text-black font-bold flex items-center justify-center text-xs cursor-pointer active:translate-y-px"
+                  className="w-6 h-6 rounded-full bg-yellow-400 hover:bg-yellow-300 disabled:opacity-30 disabled:hover:bg-yellow-400 text-black border-2 border-black flex items-center justify-center font-black text-sm cursor-pointer active:translate-y-px"
                 >
                   -
                 </button>
@@ -5598,7 +5598,7 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
                   onClick={() => setLuggage(Math.min(8, luggage + 1))}
                   disabled={luggage >= 8}
                   aria-label="Increase luggage count"
-                  className="w-5.5 h-5.5 rounded-full bg-yellow-400 hover:bg-yellow-300 disabled:opacity-30 disabled:hover:bg-yellow-400 text-black font-bold flex items-center justify-center text-xs cursor-pointer active:translate-y-px"
+                  className="w-6 h-6 rounded-full bg-yellow-400 hover:bg-yellow-300 disabled:opacity-30 disabled:hover:bg-yellow-400 text-black border-2 border-black flex items-center justify-center font-black text-sm cursor-pointer active:translate-y-px"
                 >
                   +
                 </button>
