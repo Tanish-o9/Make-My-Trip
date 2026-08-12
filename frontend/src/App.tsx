@@ -5282,7 +5282,7 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
   return (
     <div className="space-y-6 text-black font-sans">
       {/* ── TRIP TYPE TABS ────────────────────────────────────────────── */}
-      <div className="flex flex-wrap gap-2 p-1.5 bg-slate-900/80 rounded-2xl border border-slate-800 w-fit max-w-full">
+      <div className="flex flex-wrap gap-2 p-1.5 bg-white rounded-2xl border-3 border-black w-fit max-w-full shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
         {[
           { id: 'one_way', label: 'One Way Cab', icon: '🚕' },
           { id: 'round_trip', label: 'Round Trip / Outstation', icon: '🔄' },
@@ -5293,10 +5293,10 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
             key={tab.id}
             type="button"
             onClick={() => setTripType(tab.id as any)}
-            className={`px-4 py-2 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer border ${
+            className={`px-4 py-2 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer border-2 border-black ${
               tripType === tab.id
-                ? 'bg-[var(--color-gold)] text-[var(--color-obsidian)] border-[var(--color-gold)] shadow-md font-extrabold'
-                : 'text-slate-300 hover:text-white bg-slate-800/40 border-transparent hover:border-slate-700'
+                ? 'bg-yellow-400 text-black font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
+                : 'text-slate-700 hover:text-black bg-slate-50 hover:bg-slate-100'
             }`}
           >
             <span>{tab.icon}</span>
@@ -5307,8 +5307,8 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
 
       {/* ── AIRPORT TRANSFER SUB-TOGGLE ─────────────────────────────────── */}
       {tripType === 'airport_transfer' && (
-        <div className="flex items-center gap-3 bg-slate-900/60 p-3 rounded-xl border border-slate-800 text-xs">
-          <span className="text-slate-400 font-bold uppercase text-[10px]">Airport Mode:</span>
+        <div className="flex items-center gap-3 bg-white p-3 rounded-xl border-3 border-black text-xs shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+          <span className="text-slate-700 font-bold uppercase text-[10px]">Airport Mode:</span>
           <button
             type="button"
             onClick={() => {
@@ -5316,8 +5316,8 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
               setPickup("Indira Gandhi International Airport (DEL), Terminal 3");
               setDrop("Connaught Place, Central Delhi");
             }}
-            className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
-              airportMode === 'from_airport' ? 'bg-amber-400 text-black shadow' : 'bg-slate-800 text-slate-300'
+            className={`px-3 py-1.5 rounded-lg font-bold border-2 border-black transition-all ${
+              airportMode === 'from_airport' ? 'bg-yellow-400 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]' : 'bg-slate-50 text-slate-700 hover:bg-slate-100'
             }`}
           >
             🛬 Pickup from Airport
@@ -5329,8 +5329,8 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
               setPickup("Connaught Place, Central Delhi");
               setDrop("Indira Gandhi International Airport (DEL), Terminal 3");
             }}
-            className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
-              airportMode === 'to_airport' ? 'bg-amber-400 text-black shadow' : 'bg-slate-800 text-slate-300'
+            className={`px-3 py-1.5 rounded-lg font-bold border-2 border-black transition-all ${
+              airportMode === 'to_airport' ? 'bg-yellow-400 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]' : 'bg-slate-50 text-slate-700 hover:bg-slate-100'
             }`}
           >
             🛫 Drop to Airport
@@ -5339,7 +5339,7 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
       )}
 
       {/* ── SEARCH FORM BAR ────────────────────────────────────────────── */}
-      <div className="bg-slate-900/70 p-5 rounded-2xl border border-slate-800 space-y-4">
+      <div className="bg-white p-5 rounded-2xl border-3 border-black space-y-4 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
           
           {/* Pickup Address */}
@@ -5357,7 +5357,7 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
               }} 
               onFocus={() => setShowPickupSuggestions(true)}
               onBlur={() => setTimeout(() => setShowPickupSuggestions(false), 250)}
-              className="w-full bg-[#0e1628] border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white font-bold outline-none focus:border-amber-400" 
+              className="w-full bg-white border-2 border-black rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold outline-none focus:bg-yellow-50/50" 
             />
             {showPickupSuggestions && (
               <div className="absolute left-0 right-0 top-[68px] bg-white border-2 border-black rounded-xl shadow-2xl z-50 overflow-y-auto max-h-56 text-black font-sans">
@@ -5389,7 +5389,7 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
                 type="button"
                 onClick={handleSwapLocations}
                 title="Swap Pickup and Drop Locations"
-                className="w-9 h-9 rounded-full bg-slate-800 hover:bg-amber-400 hover:text-black text-slate-300 transition-all flex items-center justify-center font-bold border border-slate-700 cursor-pointer"
+                className="w-9 h-9 rounded-full bg-yellow-400 hover:bg-yellow-300 text-black border-2 border-black flex items-center justify-center font-bold shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] cursor-pointer active:translate-y-px"
               >
                 ⇄
               </button>
@@ -5412,10 +5412,10 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
                     key={pkg.hours}
                     type="button"
                     onClick={() => setHourlyPackage(pkg.hours)}
-                    className={`py-2 px-2 rounded-xl text-xs font-bold transition-all border ${
+                    className={`py-2 px-2 rounded-xl text-xs font-bold transition-all border-2 border-black ${
                       hourlyPackage === pkg.hours
-                        ? 'bg-amber-400 text-black border-amber-400 font-black'
-                        : 'bg-[#0e1628] text-slate-300 border-slate-800 hover:border-slate-700'
+                        ? 'bg-yellow-400 text-black font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
+                        : 'bg-white text-slate-700 hover:bg-slate-50'
                     }`}
                   >
                     {pkg.label}
@@ -5438,7 +5438,7 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
                 }} 
                 onFocus={() => setShowDropSuggestions(true)}
                 onBlur={() => setTimeout(() => setShowDropSuggestions(false), 250)}
-                className="w-full bg-[#0e1628] border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white font-bold outline-none focus:border-amber-400" 
+                className="w-full bg-white border-2 border-black rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold outline-none focus:bg-yellow-50/50" 
               />
               {showDropSuggestions && (
                 <div className="absolute left-0 right-0 top-[68px] bg-white border-2 border-black rounded-xl shadow-2xl z-50 overflow-y-auto max-h-56 text-black font-sans">
@@ -5486,13 +5486,13 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
                 type="date" 
                 value={pickupDate}
                 onChange={(e) => setPickupDate(e.target.value)}
-                className="w-full bg-[#0e1628] border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white font-bold outline-none" 
+                className="w-full bg-white border-2 border-black rounded-xl px-2 py-1.5 text-xs text-slate-900 font-bold outline-none focus:bg-yellow-50/50 h-[46px]" 
               />
               <input 
                 type="time" 
                 value={pickupTime}
                 onChange={(e) => setPickupTime(e.target.value)}
-                className="w-full bg-[#0e1628] border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white font-bold outline-none" 
+                className="w-full bg-white border-2 border-black rounded-xl px-2 py-1.5 text-xs text-slate-900 font-bold outline-none focus:bg-yellow-50/50 h-[46px]" 
               />
             </div>
           </div>
@@ -5506,13 +5506,13 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
                   type="date" 
                   value={returnDate}
                   onChange={(e) => setReturnDate(e.target.value)}
-                  className="w-full bg-[#0e1628] border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white font-bold outline-none" 
+                  className="w-full bg-white border-2 border-black rounded-xl px-2 py-1.5 text-xs text-slate-900 font-bold outline-none focus:bg-yellow-50/50 h-[46px]" 
                 />
                 <input 
                   type="time" 
                   value={returnTime}
                   onChange={(e) => setReturnTime(e.target.value)}
-                  className="w-full bg-[#0e1628] border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white font-bold outline-none" 
+                  className="w-full bg-white border-2 border-black rounded-xl px-2 py-1.5 text-xs text-slate-900 font-bold outline-none focus:bg-yellow-50/50 h-[46px]" 
                 />
               </div>
             </div>
