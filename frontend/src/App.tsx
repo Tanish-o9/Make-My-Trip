@@ -72,6 +72,9 @@ const decodeJwt = (t: string) => {
   }
 };
 
+let globalIsRefreshing = false;
+let globalRefreshQueue: Array<{ resolve: (token: string | null) => void }> = [];
+
 export default function App() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
@@ -306,8 +309,7 @@ export default function App() {
   // Global fetch interceptor to handle token refresh and automatic Authorization header insertion
   useEffect(() => {
     const originalFetch = window.fetch;
-    let isRefreshing = false;
-    let refreshQueue: Array<{ resolve: (token: string | null) => void }> = [];
+    // Using global variables to prevent reset on token state changes
     
     let deviceId = localStorage.getItem('device_id');
     if (!deviceId) {
@@ -358,8 +360,8 @@ export default function App() {
     };
 
     const processQueue = (newToken: string | null) => {
-      refreshQueue.forEach(prom => prom.resolve(newToken));
-      refreshQueue = [];
+      globalRefreshQueue.forEach(prom => prom.resolve(newToken));
+      globalRefreshQueue = [];
     };
 
     window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -414,9 +416,9 @@ export default function App() {
         const nowSeconds = Math.floor(Date.now() / 1000);
         
         if (decoded && decoded.exp && decoded.exp - nowSeconds <= 10) {
-          if (isRefreshing) {
+          if (globalIsRefreshing) {
             const newToken = await new Promise<string | null>((resolve) => {
-              refreshQueue.push({ resolve });
+              globalRefreshQueue.push({ resolve });
             });
             if (newToken) {
               currentToken = newToken;
@@ -435,9 +437,9 @@ export default function App() {
               return new Response(JSON.stringify({ detail: "Session Expired" }), { status: 401 });
             }
           } else {
-            isRefreshing = true;
+            globalIsRefreshing = true;
             const newToken = await executeRefresh();
-            isRefreshing = false;
+            globalIsRefreshing = false;
             processQueue(newToken);
             
             if (newToken) {
@@ -463,9 +465,9 @@ export default function App() {
       let response = await originalFetch(input, init);
       
       if (response.status === 401 && isBackendReq && !isAuthRoute && localStorage.getItem('refresh_token')) {
-        if (isRefreshing) {
+        if (globalIsRefreshing) {
           const newToken = await new Promise<string | null>((resolve) => {
-            refreshQueue.push({ resolve });
+            globalRefreshQueue.push({ resolve });
           });
           if (newToken) {
             if (init && init.headers) {
@@ -483,9 +485,9 @@ export default function App() {
             return originalFetch(input, init);
           }
         } else {
-          isRefreshing = true;
+          globalIsRefreshing = true;
           const newToken = await executeRefresh();
-          isRefreshing = false;
+          globalIsRefreshing = false;
           processQueue(newToken);
           
           if (newToken) {
@@ -5638,7 +5640,11 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
               { id: 'MPV', label: 'MPV / XL' },
               { id: 'Luxury', label: 'Luxury' },
               { id: 'EV', label: 'EV Electric' }
-            ].map(cat => (
+            ].filter(cat => {
+              if (cat.id === 'all') return true;
+              const availableCategories = new Set(results.map(r => r.category || r.cab_type || r.type));
+              return availableCategories.has(cat.id);
+            }).map(cat => (
               <button
                 key={cat.id}
                 type="button"
@@ -5756,7 +5762,7 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
                   
                   {/* Category & Status Badges */}
                   <div className="absolute top-2.5 left-2.5 flex flex-wrap gap-1.5">
-                    <span className="text-[10px] bg-black text-white font-black px-2 py-0.5 rounded shadow border border-slate-700 uppercase tracking-wider">
+                    <span className="text-[10px] bg-white text-black font-black px-2 py-0.5 rounded-lg border-2 border-black uppercase tracking-wider shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                       {c.category || c.cab_type || c.type}
                     </span>
                     {c.is_live ? (
@@ -5764,7 +5770,7 @@ function CabsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void
                         ● LIVE INVENTORY
                       </span>
                     ) : (
-                      <span className="text-[10px] bg-slate-900/90 text-slate-300 font-bold px-2 py-0.5 rounded shadow border border-slate-700 uppercase tracking-wider">
+                      <span className="text-[10px] bg-white text-slate-700 font-bold px-2 py-0.5 rounded-lg border-2 border-black uppercase tracking-wider shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                         ● DEMO INVENTORY
                       </span>
                     )}

@@ -20,58 +20,58 @@ export interface VehicleLike {
 
 export const VEHICLE_IMAGES: Record<string, string> = {
   // Hatchbacks
-  "swift": "/assets/vehicles/swift.webp",
-  "grand-i10": "/assets/vehicles/grand-i10.webp",
-  "i10": "/assets/vehicles/grand-i10.webp",
-  "grand-i10-nios": "/assets/vehicles/grand-i10.webp",
+  "swift": "/assets/vehicles/swift.svg",
+  "grand-i10": "/assets/vehicles/grand-i10.svg",
+  "i10": "/assets/vehicles/grand-i10.svg",
+  "grand-i10-nios": "/assets/vehicles/grand-i10.svg",
   
   // Sedans
-  "dzire": "/assets/vehicles/dzire.webp",
-  "amaze": "/assets/vehicles/amaze.webp",
-  "verna": "/assets/vehicles/verna.webp",
+  "dzire": "/assets/vehicles/dzire.svg",
+  "amaze": "/assets/vehicles/amaze.svg",
+  "verna": "/assets/vehicles/verna.svg",
   
   // SUVs
-  "creta": "/assets/vehicles/creta.webp",
-  "seltos": "/assets/vehicles/seltos.webp",
-  "xuv700": "/assets/vehicles/xuv700.webp",
+  "creta": "/assets/vehicles/creta.svg",
+  "seltos": "/assets/vehicles/seltos.svg",
+  "xuv700": "/assets/vehicles/xuv700.svg",
   
   // MPVs
-  "ertiga": "/assets/vehicles/ertiga.webp",
-  "innova-crysta": "/assets/vehicles/innova-crysta.webp",
-  "innova": "/assets/vehicles/innova-crysta.webp",
-  "carens": "/assets/vehicles/carens.webp",
+  "ertiga": "/assets/vehicles/ertiga.svg",
+  "innova-crysta": "/assets/vehicles/innova-crysta.svg",
+  "innova": "/assets/vehicles/innova-crysta.svg",
+  "carens": "/assets/vehicles/carens.svg",
   
   // Luxury
-  "camry": "/assets/vehicles/camry.webp",
-  "mercedes": "/assets/vehicles/mercedes-e-class.webp",
-  "mercedes-e-class": "/assets/vehicles/mercedes-e-class.webp",
-  "e-class": "/assets/vehicles/mercedes-e-class.webp",
+  "camry": "/assets/vehicles/camry.svg",
+  "mercedes": "/assets/vehicles/mercedes-e-class.svg",
+  "mercedes-e-class": "/assets/vehicles/mercedes-e-class.svg",
+  "e-class": "/assets/vehicles/mercedes-e-class.svg",
   
   // EV & Bikes
-  "nexon-ev": "/assets/vehicles/nexon-ev.webp",
-  "nexon": "/assets/vehicles/nexon-ev.webp",
-  "activa": "/assets/vehicles/activa.webp",
-  "activa-6g": "/assets/vehicles/activa.webp"
+  "nexon-ev": "/assets/vehicles/nexon-ev.svg",
+  "nexon": "/assets/vehicles/nexon-ev.svg",
+  "activa": "/assets/vehicles/activa.svg",
+  "activa-6g": "/assets/vehicles/activa.svg"
 };
 
 export const CATEGORY_FALLBACK_IMAGES: Record<string, string> = {
-  "hatchback": "/assets/vehicles/default-hatchback.webp",
-  "sedan": "/assets/vehicles/default-sedan.webp",
-  "suv": "/assets/vehicles/default-suv.webp",
-  "mpv": "/assets/vehicles/default-mpv.webp",
-  "xl": "/assets/vehicles/default-mpv.webp",
-  "van": "/assets/vehicles/default-mpv.webp",
-  "luxury": "/assets/vehicles/default-luxury.webp",
-  "premium": "/assets/vehicles/default-luxury.webp",
-  "ev": "/assets/vehicles/default-ev.webp",
-  "electric": "/assets/vehicles/default-ev.webp",
-  "bike": "/assets/vehicles/default-bike.webp",
-  "scooter": "/assets/vehicles/default-bike.webp",
-  "two_wheeler": "/assets/vehicles/default-bike.webp",
-  "car": "/assets/vehicles/default-car.webp"
+  "hatchback": "/assets/vehicles/default-hatchback.svg",
+  "sedan": "/assets/vehicles/default-sedan.svg",
+  "suv": "/assets/vehicles/default-suv.svg",
+  "mpv": "/assets/vehicles/default-mpv.svg",
+  "xl": "/assets/vehicles/default-mpv.svg",
+  "van": "/assets/vehicles/default-mpv.svg",
+  "luxury": "/assets/vehicles/default-luxury.svg",
+  "premium": "/assets/vehicles/default-luxury.svg",
+  "ev": "/assets/vehicles/default-ev.svg",
+  "electric": "/assets/vehicles/default-ev.svg",
+  "bike": "/assets/vehicles/default-bike.svg",
+  "scooter": "/assets/vehicles/default-bike.svg",
+  "two_wheeler": "/assets/vehicles/default-bike.svg",
+  "car": "/assets/vehicles/default-car.svg"
 };
 
-export const GENERIC_VEHICLE_FALLBACK = "/assets/vehicles/default-car.webp";
+export const GENERIC_VEHICLE_FALLBACK = "/assets/vehicles/default-car.svg";
 
 /**
  * Normalizes a raw string into a lookup key
@@ -96,8 +96,11 @@ export function getVehicleImage(vehicle?: VehicleLike | null): string {
   }
 
   // 2. Direct vehicle.image or vehicle.image_url if present and local asset
-  const directImg = vehicle.image || vehicle.image_url || vehicle.thumbnail_url;
+  let directImg = vehicle.image || vehicle.image_url || vehicle.thumbnail_url;
   if (directImg && typeof directImg === "string" && directImg.startsWith("/assets/vehicles/")) {
+    if (directImg.endsWith(".webp")) {
+      directImg = directImg.slice(0, -5) + ".svg";
+    }
     return directImg;
   }
 
