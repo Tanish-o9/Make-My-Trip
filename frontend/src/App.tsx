@@ -317,9 +317,9 @@ export default function App() {
       localStorage.setItem('device_id', deviceId);
     }
     
-    const executeRefresh = async (): Promise<string | null> => {
+    const executeRefresh = async (): Promise<{ token: string | null; shouldLogout: boolean }> => {
       const refreshToken = localStorage.getItem('refresh_token');
-      if (!refreshToken) return null;
+      if (!refreshToken) return { token: null, shouldLogout: true };
       
       try {
         const resp = await originalFetch(`${API_URL}/auth/refresh`, {
@@ -334,7 +334,6 @@ export default function App() {
           })
         });
 
-        
         if (resp.ok) {
           const data = await resp.json();
           localStorage.setItem('token', data.access_token);
@@ -350,12 +349,13 @@ export default function App() {
               id: decoded.id
             }));
           }
-          return data.access_token;
+          return { token: data.access_token, shouldLogout: false };
         } else {
-          return null;
+          const isAuthError = resp.status === 400 || resp.status === 401 || resp.status === 403;
+          return { token: null, shouldLogout: isAuthError };
         }
       } catch (err) {
-        return null;
+        return { token: null, shouldLogout: false };
       }
     };
 
@@ -438,12 +438,12 @@ export default function App() {
             }
           } else {
             globalIsRefreshing = true;
-            const newToken = await executeRefresh();
+            const refreshResult = await executeRefresh();
             globalIsRefreshing = false;
-            processQueue(newToken);
+            processQueue(refreshResult.token);
             
-            if (newToken) {
-              currentToken = newToken;
+            if (refreshResult.token) {
+              currentToken = refreshResult.token;
               if (init.headers instanceof Headers) {
                 init.headers.set('Authorization', `Bearer ${currentToken}`);
               } else if (Array.isArray(init.headers)) {
@@ -454,9 +454,11 @@ export default function App() {
                 const authKey = Object.keys(headersRecord).find(k => k.toLowerCase() === 'authorization') || 'Authorization';
                 headersRecord[authKey] = `Bearer ${currentToken}`;
               }
-            } else {
+            } else if (refreshResult.shouldLogout) {
               handleLogout();
               return new Response(JSON.stringify({ detail: "Session Expired" }), { status: 401 });
+            } else {
+              return new Response(JSON.stringify({ detail: "Temporary connection error. Retrying soon." }), { status: 503 });
             }
           }
         }
@@ -486,25 +488,25 @@ export default function App() {
           }
         } else {
           globalIsRefreshing = true;
-          const newToken = await executeRefresh();
+          const refreshResult = await executeRefresh();
           globalIsRefreshing = false;
-          processQueue(newToken);
+          processQueue(refreshResult.token);
           
-          if (newToken) {
+          if (refreshResult.token) {
             if (init && init.headers) {
               if (init.headers instanceof Headers) {
-                init.headers.set('Authorization', `Bearer ${newToken}`);
+                init.headers.set('Authorization', `Bearer ${refreshResult.token}`);
               } else if (Array.isArray(init.headers)) {
                 const idx = init.headers.findIndex(([k]) => k.toLowerCase() === 'authorization');
-                if (idx !== -1) init.headers[idx] = ['Authorization', `Bearer ${newToken}`];
+                if (idx !== -1) init.headers[idx] = ['Authorization', `Bearer ${refreshResult.token}`];
               } else {
                 const headersRecord = init.headers as Record<string, string>;
                 const authKey = Object.keys(headersRecord).find(k => k.toLowerCase() === 'authorization') || 'Authorization';
-                headersRecord[authKey] = `Bearer ${newToken}`;
+                headersRecord[authKey] = `Bearer ${refreshResult.token}`;
               }
             }
             return originalFetch(input, init);
-          } else {
+          } else if (refreshResult.shouldLogout) {
             handleLogout();
           }
         }
