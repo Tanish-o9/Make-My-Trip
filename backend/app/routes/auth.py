@@ -607,10 +607,7 @@ def refresh_token(request: Request, payload: TokenRefreshRequest, db: Session = 
             )
             db.query(RefreshToken).filter(RefreshToken.user_id == db_token.user_id).update({"revoked": True})
             db.commit()
-            raise HTTPException(
-                status_code=401,
-                detail=f"Token compromised. All sessions revoked. Debug: utcnow={datetime.datetime.utcnow()}, last_used={db_token.last_used_at}, diff={diff.total_seconds()}s"
-            )
+            raise HTTPException(status_code=401, detail="Token compromised. All sessions revoked.")
 
     if not db_token:
         raise HTTPException(status_code=401, detail="Invalid or untracked refresh token")
