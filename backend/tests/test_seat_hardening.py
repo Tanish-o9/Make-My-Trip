@@ -207,7 +207,7 @@ def test_hold_success_and_concurrency(test_user):
         }
     }
     response2 = client.post("/api/v1/bookings/hold", json=payload2, headers=headers)
-    assert response2.status_code == 400
+    assert response2.status_code == 409
     assert "already held or booked" in response2.json()["detail"]
     db.close()
 

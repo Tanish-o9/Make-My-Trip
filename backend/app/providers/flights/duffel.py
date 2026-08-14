@@ -120,125 +120,125 @@ class DuffelFlightProvider(BaseFlightProvider):
                 logger.error(f"DuffelFlightProvider: API permanently failed with status {response.status_code if response else 'No Response'}")
                 return []
 
-                resp_data = response.json()
-                raw_offers = resp_data.get("data", {}).get("offers", [])
-                logger.info(f"DuffelFlightProvider: Normalizing {len(raw_offers)} raw offers.")
+            resp_data = response.json()
+            raw_offers = resp_data.get("data", {}).get("offers", [])
+            logger.info(f"DuffelFlightProvider: Normalizing {len(raw_offers)} raw offers.")
 
-                for raw_offer in raw_offers:
-                    try:
-                        offer_id = raw_offer.get("id")
-                        total_amount = float(raw_offer.get("total_amount", 0))
-                        raw_currency = raw_offer.get("total_currency", "INR")
+            for raw_offer in raw_offers:
+                try:
+                    offer_id = raw_offer.get("id")
+                    total_amount = float(raw_offer.get("total_amount", 0))
+                    raw_currency = raw_offer.get("total_currency", "INR")
+                    
+                    # Live-locked conversion rates
+                    rate = 1.0
+                    if raw_currency == "USD":
+                        rate = 84.5
+                    elif raw_currency == "EUR":
+                        rate = 91.8
+                    elif raw_currency == "GBP":
+                        rate = 107.2
+                    elif raw_currency != "INR":
+                        rate = 84.5
                         
-                        # Live-locked conversion rates
-                        rate = 1.0
-                        if raw_currency == "USD":
-                            rate = 84.5
-                        elif raw_currency == "EUR":
-                            rate = 91.8
-                        elif raw_currency == "GBP":
-                            rate = 107.2
-                        elif raw_currency != "INR":
-                            rate = 84.5
-                            
-                        converted_price = round(total_amount * rate, 2)
-                        
-                        # Tax parsing
-                        tax_amount = float(raw_offer.get("tax_amount") or (total_amount * 0.15))
-                        converted_tax = round(tax_amount * rate, 2)
-                        
-                        slices = raw_offer.get("slices", [])
-                        if not slices:
-                            continue
-                        
-                        first_slice = slices[0]
-                        segments = first_slice.get("segments", [])
-                        if not segments:
-                            continue
-                        
-                        first_segment = segments[0]
-                        marketing_carrier = first_segment.get("marketing_carrier", {})
-                        airline_name = marketing_carrier.get("name", "Unknown Airline")
-                        airline_code = marketing_carrier.get("iata_code", "XX")
-                        flight_num = f"{airline_code}-{first_segment.get('marketing_carrier_flight_number', '101')}"
-                        
-                        dep_time = first_segment.get("departing_at")
-                        arr_time = segments[-1].get("arriving_at")
-                        
-                        duration_str = first_slice.get("duration", "2h 0m")
-                        duration_mins = 120
-                        if "PT" in duration_str:
-                            try:
-                                import re
-                                hours = re.findall(r'(\d+)H', duration_str)
-                                mins = re.findall(r'(\d+)M', duration_str)
-                                duration_mins = int(hours[0] if hours else 0) * 60 + int(mins[0] if mins else 0)
-                                duration_str = f"{hours[0] if hours else 0}h {mins[0] if mins else 0}m"
-                            except Exception:
-                                pass
-                        
-                        stops = len(segments) - 1
-                        
-                        # Refundable condition mapping
-                        conds = raw_offer.get("passenger_conditions", {})
-                        refund_status = conds.get("refundability_status", "non_refundable")
-                        refund_policy = "Refundable" if refund_status == "refundable" else "Non-Refundable"
-                        
-                        logo_url = f"https://r-xx.bstatic.com/data/airlines_logo/{airline_code}.png"
-                        
-                        # Baggage mapping
-                        baggage_info = "15 KG Checked, 7 KG Cabin"
-                        passengers_list = raw_offer.get("passengers", [])
-                        if passengers_list:
-                            baggages = passengers_list[0].get("baggage", [])
-                            if baggages:
-                                baggage_info = "Baggage Included"
-                        
-                        details = {
-                            "flight_number": flight_num,
-                            "airline": airline_name,
-                            "airline_code": airline_code,
-                            "origin": origin.upper(),
-                            "destination": destination.upper(),
-                            "departure_time": dep_time,
-                            "arrival_time": arr_time,
-                            "duration": duration_str,
-                            "duration_minutes": duration_mins,
-                            "layovers": [seg.get("origin", {}).get("iata_code") for seg in segments[1:]] if stops > 0 else [],
-                            "cabin_class": "ECONOMY",
-                            "cabin": "ECONOMY",
-                            "price": converted_price,
-                            "price_per_passenger": converted_price,
-                            "total_price": converted_price,
-                            "currency": "INR",
-                            "seats_remaining": 9,
-                            "taxes": converted_tax,
-                            "stop_count": stops,
-                            "terminal": "T1",
-                            "baggage": baggage_info,
-                            "logo": logo_url,
-                            "provider": "Duffel",
-                            "availability": "available",
-                            "raw_currency": raw_currency,
-                            "raw_amount": total_amount,
-                            "exchange_rate": rate
-                        }
-                        
-                        offers.append(NormalizedOffer(
-                            id=f"OF-DF-{uuid.uuid4().hex[:6].upper()}",
-                            provider_name="Duffel",
-                            price=converted_price,
-                            currency="INR",
-                            availability_status="available",
-                            cancellation_policy=refund_policy,
-                            raw_provider_ref=offer_id,
-                            expires_at=datetime.datetime.utcnow() + datetime.timedelta(minutes=15),
-                            details=details,
-                            is_simulated=False
-                        ))
-                    except Exception as parse_err:
-                        logger.warning(f"DuffelFlightProvider: Parse error: {parse_err}")
+                    converted_price = round(total_amount * rate, 2)
+                    
+                    # Tax parsing
+                    tax_amount = float(raw_offer.get("tax_amount") or (total_amount * 0.15))
+                    converted_tax = round(tax_amount * rate, 2)
+                    
+                    slices = raw_offer.get("slices", [])
+                    if not slices:
                         continue
+                    
+                    first_slice = slices[0]
+                    segments = first_slice.get("segments", [])
+                    if not segments:
+                        continue
+                    
+                    first_segment = segments[0]
+                    marketing_carrier = first_segment.get("marketing_carrier", {})
+                    airline_name = marketing_carrier.get("name", "Unknown Airline")
+                    airline_code = marketing_carrier.get("iata_code", "XX")
+                    flight_num = f"{airline_code}-{first_segment.get('marketing_carrier_flight_number', '101')}"
+                    
+                    dep_time = first_segment.get("departing_at")
+                    arr_time = segments[-1].get("arriving_at")
+                    
+                    duration_str = first_slice.get("duration", "2h 0m")
+                    duration_mins = 120
+                    if "PT" in duration_str:
+                        try:
+                            import re
+                            hours = re.findall(r'(\d+)H', duration_str)
+                            mins = re.findall(r'(\d+)M', duration_str)
+                            duration_mins = int(hours[0] if hours else 0) * 60 + int(mins[0] if mins else 0)
+                            duration_str = f"{hours[0] if hours else 0}h {mins[0] if mins else 0}m"
+                        except Exception:
+                            pass
+                    
+                    stops = len(segments) - 1
+                    
+                    # Refundable condition mapping
+                    conds = raw_offer.get("passenger_conditions", {})
+                    refund_status = conds.get("refundability_status", "non_refundable")
+                    refund_policy = "Refundable" if refund_status == "refundable" else "Non-Refundable"
+                    
+                    logo_url = f"https://r-xx.bstatic.com/data/airlines_logo/{airline_code}.png"
+                    
+                    # Baggage mapping
+                    baggage_info = "15 KG Checked, 7 KG Cabin"
+                    passengers_list = raw_offer.get("passengers", [])
+                    if passengers_list:
+                        baggages = passengers_list[0].get("baggage", [])
+                        if baggages:
+                            baggage_info = "Baggage Included"
+                    
+                    details = {
+                        "flight_number": flight_num,
+                        "airline": airline_name,
+                        "airline_code": airline_code,
+                        "origin": origin.upper(),
+                        "destination": destination.upper(),
+                        "departure_time": dep_time,
+                        "arrival_time": arr_time,
+                        "duration": duration_str,
+                        "duration_minutes": duration_mins,
+                        "layovers": [seg.get("origin", {}).get("iata_code") for seg in segments[1:]] if stops > 0 else [],
+                        "cabin_class": "ECONOMY",
+                        "cabin": "ECONOMY",
+                        "price": converted_price,
+                        "price_per_passenger": converted_price,
+                        "total_price": converted_price,
+                        "currency": "INR",
+                        "seats_remaining": 9,
+                        "taxes": converted_tax,
+                        "stop_count": stops,
+                        "terminal": "T1",
+                        "baggage": baggage_info,
+                        "logo": logo_url,
+                        "provider": "Duffel",
+                        "availability": "available",
+                        "raw_currency": raw_currency,
+                        "raw_amount": total_amount,
+                        "exchange_rate": rate
+                    }
+                    
+                    offers.append(NormalizedOffer(
+                        id=f"OF-DF-{uuid.uuid4().hex[:6].upper()}",
+                        provider_name="Duffel",
+                        price=converted_price,
+                        currency="INR",
+                        availability_status="available",
+                        cancellation_policy=refund_policy,
+                        raw_provider_ref=offer_id,
+                        expires_at=datetime.datetime.utcnow() + datetime.timedelta(minutes=15),
+                        details=details,
+                        is_simulated=False
+                    ))
+                except Exception as parse_err:
+                    logger.warning(f"DuffelFlightProvider: Parse error: {parse_err}")
+                    continue
                         
         except Exception as e:
             logger.error(f"DuffelFlightProvider: Search request failed: {e}")

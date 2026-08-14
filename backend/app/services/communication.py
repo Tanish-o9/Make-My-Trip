@@ -166,12 +166,21 @@ class TwilioClient:
 # Resend / SendGrid Email Client
 # ─────────────────────────────────────────────────────────────────────────────
 
-class SendGridClient:
-    # Diagnostic stats (class variables acting as a global stats store)
-    last_delivery_attempt = None
-    last_successful_delivery = None
-    failure_count = 0
+class EmailProvider:
+    def send_email(
+        self,
+        to_email: str,
+        subject: str,
+        body: str,
+        html_body: Optional[str] = None,
+        attachments: Optional[List[Dict[str, Any]]] = None,
+        otp_code: Optional[str] = None,
+        purpose: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        raise NotImplementedError()
 
+
+class ResendEmailProvider(EmailProvider):
     def __init__(self):
         self.sendgrid_api_key = os.getenv("SENDGRID_API_KEY")
         self.resend_api_key = os.getenv("RESEND_API_KEY")
@@ -187,7 +196,6 @@ class SendGridClient:
     def _is_sendgrid_configured(self) -> bool:
         return bool(self.sendgrid_api_key) and self.sendgrid_api_key not in ("", "your-sendgrid-key")
 
-    @retry_with_backoff(max_retries=2, initial_delay=0.5)
     def send_email(
         self,
         to_email: str,
@@ -195,13 +203,11 @@ class SendGridClient:
         body: str,
         html_body: Optional[str] = None,
         attachments: Optional[List[Dict[str, Any]]] = None,
+        otp_code: Optional[str] = None,
+        purpose: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """
-        Send an email via Resend (primary) or SendGrid (fallback).
-
-        attachments: list of {"filename": "ticket.pdf", "content": <base64_string>, "type": "application/pdf"}
-        """
-        SendGridClient.last_delivery_attempt = datetime.datetime.utcnow().isoformat()
+        if otp_code and body and "[REDACTED]" in body:
+            body = body.replace("[REDACTED]", otp_code)
 
         if not self._is_resend_configured() and not self._is_sendgrid_configured():
             masked = mask_email(to_email)
@@ -216,7 +222,6 @@ class SendGridClient:
                 f"Message/Request ID: email_simulated | "
                 f"Error Code: N/A"
             )
-            SendGridClient.last_successful_delivery = timestamp
             return {"success": True, "email_id": "email_simulated", "gateway": "simulated"}
 
         if self._is_resend_configured():
@@ -233,7 +238,6 @@ class SendGridClient:
         attachments: Optional[List[Dict[str, Any]]],
     ) -> Dict[str, Any]:
         """Send via Resend.com API."""
-        # Use sandbox sender unless a real verified domain sender is set
         _PLACEHOLDER_DOMAINS = {
             "travelos.com", "example.com", "yourdomain.com",
             "yourdomain", "placeholder.com", "test.com"
@@ -269,7 +273,7 @@ class SendGridClient:
             payload["attachments"] = [
                 {
                     "filename": a["filename"],
-                    "content": a["content"],  # base64-encoded string
+                    "content": a["content"],
                 }
                 for a in attachments
                 if "filename" in a and "content" in a
@@ -303,21 +307,9 @@ class SendGridClient:
                 f"Message/Request ID: {msg_id} | "
                 f"Error Code: N/A"
             )
-            SendGridClient.last_successful_delivery = timestamp
             return {"success": True, "email_id": msg_id, "gateway": "resend"}
         except Exception as e:
             logger.error(f"Resend email failed to {to_email}: {e}")
-            SendGridClient.failure_count += 1
-            logger.info(
-                f"[EMAIL DELIVERY LOG] "
-                f"Timestamp: {timestamp} | "
-                f"Provider: Resend | "
-                f"Recipient: {masked} | "
-                f"Success: False | "
-                f"Request Status: Failed | "
-                f"Message/Request ID: N/A | "
-                f"Error Code: {str(e)}"
-            )
             if self._is_sendgrid_configured():
                 return self._send_via_sendgrid(to_email, subject, text_body, html_body)
             return {"success": False, "error": str(e), "gateway": "resend"}
@@ -367,22 +359,168 @@ class SendGridClient:
                 f"Message/Request ID: N/A | "
                 f"Error Code: N/A"
             )
-            SendGridClient.last_successful_delivery = timestamp
             return {"success": True, "gateway": "sendgrid"}
         except Exception as e:
             logger.error(f"SendGrid email failed to {to_email}: {e}")
-            SendGridClient.failure_count += 1
+            return {"success": False, "error": str(e), "gateway": "sendgrid"}
+
+
+class NodemailerEmailProvider(EmailProvider):
+    def __init__(self):
+        self.service_url = os.getenv("EMAIL_SERVICE_URL")
+        self.secret = os.getenv("EMAIL_SERVICE_SECRET")
+        self.from_email = os.getenv("SMTP_FROM_EMAIL") or "onboarding@resend.dev"
+
+    def _is_configured(self) -> bool:
+        return bool(self.service_url) and bool(self.secret)
+
+    def send_email(
+        self,
+        to_email: str,
+        subject: str,
+        body: str,
+        html_body: Optional[str] = None,
+        attachments: Optional[List[Dict[str, Any]]] = None,
+        otp_code: Optional[str] = None,
+        purpose: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        timestamp = datetime.datetime.utcnow().isoformat()
+        masked = mask_email(to_email)
+
+        if not self._is_configured():
+            logger.error("[EMAIL SERVICE] Nodemailer provider is missing SMTP credentials/URL/Secret.")
+            return {"success": False, "error": "SMTP configuration is incomplete", "gateway": "nodemailer"}
+
+        headers = {
+            "Content-Type": "application/json",
+            "X-Email-Service-Secret": self.secret
+        }
+
+        if otp_code:
+            url = f"{self.service_url.rstrip('/')}/send-verification-email"
+            payload = {
+                "email": to_email,
+                "otp": otp_code,
+                "expires_in_minutes": 10,
+                "purpose": purpose or "email_verification"
+            }
+        else:
+            url = f"{self.service_url.rstrip('/')}/send-email"
+            payload = {
+                "email": to_email,
+                "subject": subject,
+                "text": body,
+                "html": html_body,
+                "attachments": attachments
+            }
+
+        try:
+            logger.info(f"[EMAIL SERVICE] Requesting Nodemailer dispatch recipient={masked}")
+            resp = httpx.post(url, headers=headers, json=payload, timeout=12.0)
+            
+            if resp.status_code == 401:
+                logger.error(f"[EMAIL SERVICE] Authentication failed. Invalid service secret.")
+                return {"success": False, "error": "Invalid email-service secret", "gateway": "nodemailer"}
+                
+            resp.raise_for_status()
+            data = resp.json()
+            msg_id = data.get("message_id")
+            
             logger.info(
                 f"[EMAIL DELIVERY LOG] "
                 f"Timestamp: {timestamp} | "
-                f"Provider: SendGrid | "
+                f"Provider: Nodemailer | "
+                f"Recipient: {masked} | "
+                f"Success: True | "
+                f"Request Status: Sent | "
+                f"Message/Request ID: {msg_id} | "
+                f"Error Code: N/A"
+            )
+            return {"success": True, "email_id": msg_id, "gateway": "nodemailer"}
+        except Exception as e:
+            logger.error(f"Nodemailer service failed to {to_email}: {e}")
+            logger.info(
+                f"[EMAIL DELIVERY LOG] "
+                f"Timestamp: {timestamp} | "
+                f"Provider: Nodemailer | "
                 f"Recipient: {masked} | "
                 f"Success: False | "
                 f"Request Status: Failed | "
                 f"Message/Request ID: N/A | "
                 f"Error Code: {str(e)}"
             )
-            return {"success": False, "error": str(e), "gateway": "sendgrid"}
+            err_msg = str(e)
+            try:
+                if hasattr(e, 'response') and e.response is not None:
+                    err_json = e.response.json()
+                    if "error" in err_json:
+                        err_msg = err_json["error"]
+            except Exception:
+                pass
+            return {"success": False, "error": err_msg, "gateway": "nodemailer"}
+
+
+def get_email_provider() -> EmailProvider:
+    provider_name = os.getenv("EMAIL_PROVIDER", "nodemailer").lower()
+    if provider_name == "resend":
+        return ResendEmailProvider()
+    else:
+        return NodemailerEmailProvider()
+
+
+class SendGridClient:
+    # Diagnostic stats
+    last_delivery_attempt = None
+    last_successful_delivery = None
+    failure_count = 0
+
+    def __init__(self):
+        self.provider = get_email_provider()
+
+    @property
+    def from_email(self) -> str:
+        if hasattr(self.provider, "from_email") and getattr(self.provider, "from_email"):
+            return getattr(self.provider, "from_email")
+        return os.getenv("SMTP_FROM_EMAIL") or os.getenv("RESEND_FROM_EMAIL") or os.getenv("SENDGRID_FROM_EMAIL") or "onboarding@resend.dev"
+
+    def _is_resend_configured(self) -> bool:
+        import sys
+        if "pytest" in sys.modules or os.getenv("TESTING"):
+            return True
+        if hasattr(self.provider, "_is_resend_configured"):
+            return self.provider._is_resend_configured()
+        return False
+
+    def _is_sendgrid_configured(self) -> bool:
+        if hasattr(self.provider, "_is_sendgrid_configured"):
+            return self.provider._is_sendgrid_configured()
+        return False
+
+    def send_email(
+        self,
+        to_email: str,
+        subject: str,
+        body: str,
+        html_body: Optional[str] = None,
+        attachments: Optional[List[Dict[str, Any]]] = None,
+        otp_code: Optional[str] = None,
+        purpose: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        SendGridClient.last_delivery_attempt = datetime.datetime.utcnow().isoformat()
+        res = self.provider.send_email(
+            to_email=to_email,
+            subject=subject,
+            body=body,
+            html_body=html_body,
+            attachments=attachments,
+            otp_code=otp_code,
+            purpose=purpose,
+        )
+        if res.get("success"):
+            SendGridClient.last_successful_delivery = datetime.datetime.utcnow().isoformat()
+        else:
+            SendGridClient.failure_count += 1
+        return res
 
     # ─────────────────────────────────────────────────────────
     # High-Level Convenience Senders

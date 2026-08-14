@@ -744,13 +744,28 @@ def run_buses():
     buses = [
         ("IntrCity SmartBus", "AC Sleeper (2+1)", 1490.0, "21:00", "Delhi", "Jaipur"),
         ("Zingbus", "AC Premium Seater", 950.0, "22:30", "Delhi", "Amritsar"),
-        ("Paulo Travels", "Multi-Axle Scania AC", 1600.0, "23:45", "Mumbai", "Goa")
+        ("Paulo Travels", "Multi-Axle Scania AC Sleeper", 1600.0, "23:45", "Mumbai", "Goa"),
+        ("Laxmi Holidays", "Volvo AC Sleeper", 1250.0, "20:30", "Delhi", "Manali"),
+        ("KPN Travels", "Non-AC Sleeper", 850.0, "19:00", "Bengaluru", "Chennai"),
+        ("SRS Travels", "AC Seater/Sleeper", 1100.0, "21:30", "Bengaluru", "Goa"),
+        ("Greenline Travels", "Electric AC Seater", 750.0, "08:00", "Delhi", "Jaipur"),
+        ("VRL Travels", "Multi-Axle AC Seater", 1350.0, "10:30", "Mumbai", "Pune")
     ]
 
     for idx, (op, b_type, price, dep_time, origin, dest) in enumerate(buses):
-        exists = db.query(BusRoute).filter(BusRoute.operator_name == op, BusRoute.origin == origin).first()
+        exists = db.query(BusRoute).filter(BusRoute.operator_name == op, BusRoute.origin == origin, BusRoute.destination == dest).first()
         if not exists:
-            seats_map = ["1A", "1B", "2A", "2B", "3A", "3B", "4A", "4B", "5A", "5B", "6A", "6B", "7A", "7B"]
+            # Determine seat layout
+            if "Sleeper" in b_type:
+                # 30 berth double-decker layout (Lower and Upper decks)
+                seats_map = [f"L{i}" for i in range(1, 16)] + [f"U{i}" for i in range(1, 16)]
+            else:
+                # 32 seat standard layout (rows 1-8, columns A-D)
+                seats_map = []
+                for row in range(1, 9):
+                    for col in ["A", "B", "C", "D"]:
+                        seats_map.append(f"{row}{col}")
+
             db.add(BusRoute(
                 operator_name=op,
                 bus_type=b_type,
@@ -758,7 +773,7 @@ def run_buses():
                 departure_time=dep_time,
                 origin=origin,
                 destination=dest,
-                seats_left=len(seats_map) - 4,
+                seats_left=len(seats_map) - 5,
                 seats_map=seats_map,
                 seed_batch_id=SEED_BATCH_ID
             ))
@@ -1261,6 +1276,31 @@ def run_content():
                 description=desc,
                 promo_code=code,
                 valid_to=datetime.datetime.utcnow() + datetime.timedelta(days=90),
+                seed_batch_id=SEED_BATCH_ID
+            ))
+    db.commit()
+
+    # 1b. Coupons
+    from decimal import Decimal
+    coupons_data = [
+        ("SAVE10", "percentage", 10.0, 100.0),
+        ("BUSBUDDY", "flat", 200.0, 500.0),
+        ("GHUMNE100", "flat", 100.0, 500.0),
+        ("GHUMNE1000", "flat", 1000.0, 1000.0),
+        ("TRAVEL500", "flat", 500.0, 1500.0)
+    ]
+    for code, d_type, val, min_val in coupons_data:
+        exists = db.query(Coupon).filter(Coupon.code == code).first()
+        if not exists:
+            db.add(Coupon(
+                code=code,
+                discount_type=d_type,
+                value=Decimal(str(val)),
+                min_order_value=Decimal(str(min_val)),
+                valid_from=datetime.datetime.utcnow() - datetime.timedelta(days=5),
+                valid_to=datetime.datetime.utcnow() + datetime.timedelta(days=90),
+                usage_limit=1000,
+                times_used=0,
                 seed_batch_id=SEED_BATCH_ID
             ))
     db.commit()

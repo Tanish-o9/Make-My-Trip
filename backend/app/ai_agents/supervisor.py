@@ -9,7 +9,7 @@ from app.ai_router.router import llm_router
 from app.memory.memory_manager import MemoryManager
 
 # Import nodes
-from app.ai_agents.booking_agents import flight_search_node, hotel_search_node
+from app.ai_agents.booking_agents import flight_search_node, hotel_search_node, bus_search_node
 from app.ai_agents.planning_agents import budget_planning_node, trip_planner_node, itinerary_generator_node
 from app.ai_agents.support_agents import visa_assistant_node, weather_agent_node, local_guide_node
 from app.ai_agents.specialists import (
@@ -109,12 +109,13 @@ USER QUERY: "{user_message[:300]}"
 SELECT agents from this list:
 flight_search, hotel_search, budget_planning, trip_planner, visa_assistant,
 weather_info, local_guide, general_chat, restaurant_recommendation, travel_safety,
-currency_conversion, payment_assistant, insurance_assistant, emergency_assistant
+currency_conversion, payment_assistant, insurance_assistant, emergency_assistant, bus_search
 
 Rules (IMPORTANT - minimize agents to save API calls):
 - Full trip/vacation/package → ["trip_planner", "budget_planning"]
 - Flight only → ["flight_search"]
 - Hotel only → ["hotel_search"]
+- Bus only → ["bus_search"]
 - Budget/cost question → ["budget_planning"]
 - Weather question → ["weather_info"]
 - Greeting/simple → ["general_chat"]
@@ -141,7 +142,7 @@ Return ONLY this JSON:
                      "visa_assistant", "weather_info", "local_guide", "currency_conversion",
                      "restaurant_recommendation", "travel_safety", "customer_support",
                      "payment_assistant", "trip_planner", "insurance_assistant",
-                     "emergency_assistant", "general_chat"}
+                     "emergency_assistant", "general_chat", "bus_search"}
             pending = [a for a in pending if a in valid]
             logger.info(f"[SUPERVISOR] Combined call → query: {reconstructed_query[:100]} | agents: {pending}")
         except Exception as e:
@@ -154,6 +155,8 @@ Return ONLY this JSON:
                 pending = ["trip_planner", "budget_planning"]
             elif any(w in msg_l for w in ["flight", "fly", "airline", "airfare", "ticket"]):
                 pending = ["flight_search"]
+            elif any(w in msg_l for w in ["bus", "buses", "sleeper bus", "seater bus", "volvo"]):
+                pending = ["bus_search"]
             elif any(w in msg_l for w in ["hotel", "stay", "accommodation", "hostel", "resort", "room"]):
                 pending = ["hotel_search"]
             elif any(w in msg_l for w in ["budget", "cost", "how much", "price", "afford", "expensive", "cheap"]):
@@ -312,12 +315,14 @@ Trip Context: {json.dumps({k: v for k, v in trip_context.items() if k not in ('c
 Selected Results:
 - Flights: {json.dumps(collected.get('flights', [])[:2], default=str)}
 - Hotels: {json.dumps(collected.get('hotels', [])[:2], default=str)}
+- Buses: {json.dumps(collected.get('buses', [])[:2], default=str)}
 - Budget: {json.dumps(collected.get('budget', {}), default=str)}
 
 For each category with results, write 1-2 sentences explaining the selection rationale. Use bullet points.
 Format:
 • ✈️ Flights: [why these specific flights were chosen]
 • 🏨 Hotels: [why these specific hotels were chosen]
+• 🚌 Buses: [why these specific buses were chosen]
 • 💰 Budget: [why this budget allocation was made]
 
 Be honest if a category has no results. Keep it under 100 words total."""
@@ -371,6 +376,8 @@ Write the proposal now:"""
     # 5. Append JSON data blocks
     if "flights" in collected:
         response += f"\n\n```flights-data\n{json.dumps(collected['flights'], indent=2, default=str)}\n```"
+    if "buses" in collected:
+        response += f"\n\n```buses-data\n{json.dumps(collected['buses'], indent=2, default=str)}\n```"
     if "hotels" in collected:
         response += f"\n\n```hotels-data\n{json.dumps(collected['hotels'], indent=2, default=str)}\n```"
     if "itinerary" in collected:
@@ -402,6 +409,7 @@ builder = StateGraph(AgentState)
 # Add Nodes
 builder.add_node("supervisor_node", supervisor_node)
 builder.add_node("flight_search", flight_search_node)
+builder.add_node("bus_search", bus_search_node)
 builder.add_node("hotel_search", hotel_search_node)
 builder.add_node("budget_planning", budget_planning_node)
 builder.add_node("itinerary_generator", itinerary_generator_node)
@@ -432,6 +440,7 @@ builder.add_conditional_edges(
     supervisor_router,
     {
         "flight_search": "flight_search",
+        "bus_search": "bus_search",
         "hotel_search": "hotel_search",
         "budget_planning": "budget_planning",
         "itinerary_generator": "itinerary_generator",
@@ -457,6 +466,7 @@ builder.add_conditional_edges(
 
 # Connect specialists back to supervisor
 builder.add_edge("flight_search", "supervisor_node")
+builder.add_edge("bus_search", "supervisor_node")
 builder.add_edge("hotel_search", "supervisor_node")
 builder.add_edge("budget_planning", "supervisor_node")
 builder.add_edge("itinerary_generator", "supervisor_node")

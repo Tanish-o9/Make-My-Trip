@@ -24,7 +24,7 @@ if sentry_dsn and sentry_dsn != "your-sentry-dsn":
 
 from app.database import engine, Base, get_db
 from app.models import search_entities, payments
-from app.routes import auth, wallet, agents, voice, showcase, bookings, search, tracker, mybiz, wishlist, admin_panel, media, rent_a_ride, localities, payments as payments_routes, webhooks, profile, flights, hotels, weather, maps, system, currency, notifications, cabs, activities, visa, insurance, forex, esim, documents, loyalty, crm, insights, saas_routes, gateway, partner, feedback, cars, providers, users, support, analytics_ops, monitoring, recovery
+from app.routes import auth, wallet, agents, voice, showcase, bookings, search, tracker, mybiz, wishlist, admin_panel, media, rent_a_ride, localities, payments as payments_routes, webhooks, profile, flights, hotels, weather, maps, system, currency, notifications, cabs, activities, visa, insurance, forex, esim, documents, loyalty, crm, insights, saas_routes, gateway, partner, feedback, cars, providers, users, support, analytics_ops, monitoring, recovery, buses
 from fastapi.staticfiles import StaticFiles
 import os
 from app.ml import fraud_model
@@ -285,6 +285,8 @@ app.include_router(partner.router, prefix="/api/v1")
 app.include_router(feedback.router, prefix="/api/v1")
 app.include_router(cars.router, prefix="/api/v1")
 app.include_router(providers.router, prefix="/api/v1")
+app.include_router(buses.router, prefix="/api/buses")
+app.include_router(buses.router, prefix="/api/v1/buses")
 
 @app.websocket("/ws/admin_notifications")
 async def admin_notifications_ws(websocket: WebSocket, token: Optional[str] = Query(None)):
@@ -653,9 +655,13 @@ def startup_db_seed():
         except Exception as bg_err:
             logger.error(f"Background startup failed: {bg_err}", exc_info=True)
 
-    import threading
-    threading.Thread(target=_background_startup, daemon=True).start()
-    logger.info("Server ready. Background startup tasks launched.")
+    import sys
+    if "pytest" not in sys.modules and not any("pytest" in arg for arg in sys.argv):
+        import threading
+        threading.Thread(target=_background_startup, daemon=True).start()
+        logger.info("Server ready. Background startup tasks launched.")
+    else:
+        logger.info("Running under test environment. Bypassed background startup/seeding tasks.")
 
     # WebSocket gateway (quick, keep synchronous)
     try:

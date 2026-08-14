@@ -330,6 +330,31 @@ ${headerLine}
           </div>
         </div>
 
+        {(() => {
+          const pendingReturnRef = localStorage.getItem("pending_return_booking_ref");
+          if (!pendingReturnRef) return null;
+          return (
+            <div className="bg-yellow-950/40 border-2 border-yellow-500 text-yellow-250 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-left animate-pulse">
+              <div className="flex items-center gap-2.5">
+                <AlertTriangle className="text-yellow-450 shrink-0" size={18} />
+                <div>
+                  <strong className="block text-white uppercase tracking-wider text-[11px]">⚠️ Action Required: Pending Return Ticket</strong>
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">Your onward bus ticket is secured! Finish the booking process by paying for the return journey ({pendingReturnRef}).</span>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  localStorage.removeItem("pending_return_booking_ref");
+                  onNavigate(`/checkout/${pendingReturnRef}`);
+                }}
+                className="bg-yellow-300 hover:bg-yellow-400 text-black border-2 border-black font-black px-4.5 py-2 rounded-xl text-[10px] uppercase shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-none transition-all cursor-pointer shrink-0"
+              >
+                Complete Return Payment →
+              </button>
+            </div>
+          );
+        })()}
+
         {/* Quick status bar */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs bg-slate-900 border border-slate-800 p-4 rounded-2xl">
           <div className="flex items-center gap-2 justify-center sm:justify-start">
@@ -530,8 +555,122 @@ ${headerLine}
           </div>
         )}
 
+        {vertical === "buses" && (
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl text-left flex flex-col md:flex-row">
+            {/* Left Ticket Main Section */}
+            <div className="flex-1 p-6 space-y-4">
+              <div className="flex justify-between items-center text-xs font-black uppercase tracking-wider text-yellow-400">
+                <span>🚌 INTERCITY BUS TICKET VOUCHER</span>
+                <span className="bg-yellow-950/80 text-yellow-300 border border-yellow-900/30 px-2 py-0.5 rounded text-[8px]">
+                  {booking.bus_type || "AC Sleeper"}
+                </span>
+              </div>
+              
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-xl font-black text-white">{booking.operator_name || "Ghumne Chale Express"}</h3>
+                  <p className="text-xs text-slate-400 mt-1">Route: {booking.origin} ➔ {booking.destination}</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-slate-500 block">JOURNEY DATE</span>
+                  <strong className="text-slate-200 text-xs">{booking.departure_time ? new Date(booking.departure_time).toDateString() : "—"}</strong>
+                </div>
+              </div>
+
+              {/* Boarding and Dropping details with Landmarks */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs bg-slate-950/40 p-4 rounded-2xl border border-slate-850">
+                <div>
+                  <span className="text-blue-400 block text-[9px] font-black uppercase tracking-wider mb-1">🏁 BOARDING POINT</span>
+                  <strong className="text-slate-200 font-extrabold block text-sm">
+                    {booking.pricing_snapshot?.boarding_point?.time || "—"} - {booking.pricing_snapshot?.boarding_point?.name || "—"}
+                  </strong>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">
+                    {booking.pricing_snapshot?.boarding_point?.address || "—"}
+                  </span>
+                  {booking.pricing_snapshot?.boarding_point?.landmark && (
+                    <span className="text-[10px] text-yellow-500/90 font-bold block mt-1">
+                      📍 Landmark: {booking.pricing_snapshot.boarding_point.landmark}
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <span className="text-rose-400 block text-[9px] font-black uppercase tracking-wider mb-1">📍 DROPPING POINT</span>
+                  <strong className="text-slate-200 font-extrabold block text-sm">
+                    {booking.pricing_snapshot?.dropping_point?.time || "—"} - {booking.pricing_snapshot?.dropping_point?.name || "—"}
+                  </strong>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">
+                    {booking.pricing_snapshot?.dropping_point?.address || "—"}
+                  </span>
+                  {booking.pricing_snapshot?.dropping_point?.landmark && (
+                    <span className="text-[10px] text-yellow-500/90 font-bold block mt-1">
+                      📍 Landmark: {booking.pricing_snapshot.dropping_point.landmark}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Passengers details table */}
+              <div className="space-y-2">
+                <span className="text-slate-500 block text-[9px] font-black uppercase tracking-widest">Traveler details</span>
+                <div className="bg-slate-950/40 border border-slate-850 rounded-2xl p-3 divide-y divide-slate-850 space-y-2">
+                  {(booking.pricing_snapshot?.passenger_details || ticket?.passenger_details || []).map((p: any, idx: number) => (
+                    <div key={idx} className="flex justify-between items-center text-xs pt-2 first:pt-0">
+                      <div>
+                        <strong className="text-slate-200 block">{p.name}</strong>
+                        <span className="text-[10px] text-slate-500 font-bold uppercase">AGE: {p.age} | GENDER: {p.gender || "Male"}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="bg-yellow-950/80 text-yellow-400 border border-yellow-900/40 px-2 py-0.5 rounded font-mono font-black text-[10px]">
+                          SEAT {p.seat_number || booking.seat_numbers?.[idx] || "—"}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Perforated Divider */}
+            <div className="hidden md:flex flex-col items-center justify-between py-4 relative">
+              <div className="w-4 h-4 rounded-full bg-[#060814] -mt-6 z-10" />
+              <div className="border-l border-dashed border-slate-700 h-full mx-2" />
+              <div className="w-4 h-4 rounded-full bg-[#060814] -mb-6 z-10" />
+            </div>
+
+            {/* Right Bus Ticket Stub */}
+            <div className="w-full md:w-64 bg-slate-950/20 p-6 flex flex-col justify-between border-t md:border-t-0 md:border-l border-slate-800 text-center">
+              <div className="space-y-4">
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block text-left">Bus Ticket Stub</span>
+                <div className="text-xs text-left space-y-2 bg-slate-950/40 p-3 rounded-xl border border-slate-850">
+                  <div>
+                    <span className="text-[9px] text-slate-500 block">PNR NUMBER</span>
+                    <strong className="text-slate-200 font-mono text-sm tracking-wide">{ticket?.pnr || "BK-PNR-PENDING"}</strong>
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-slate-500 block">TICKET STATUS</span>
+                    <span className="text-emerald-400 font-bold block uppercase">{booking.status || "CONFIRMED"}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-slate-500 block">BOARDING PIN</span>
+                    <strong className="text-slate-300 font-mono">{bookingId.split('-')[1] || bookingId.slice(-6)}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 flex flex-col items-center gap-2">
+                <img 
+                  src={ticket?.qr_code_data || `/static/qrcodes/${bookingId}.png`} 
+                  alt="Bus QR" 
+                  className="w-24 h-24 bg-white p-1 rounded-lg border border-slate-800"
+                />
+                <span className="text-[8px] text-slate-500 uppercase font-black tracking-wider">Show QR code at boarding</span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Fallback generic vertical card */}
-        {vertical !== "flights" && vertical !== "hotels" && (
+        {vertical !== "flights" && vertical !== "hotels" && vertical !== "buses" && (
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 text-left space-y-4 shadow-2xl">
             <div className="border-b border-slate-800 pb-3 flex justify-between items-center">
               <div>

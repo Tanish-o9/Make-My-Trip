@@ -62,6 +62,21 @@ class SeatInventoryService:
 
         return {"type": "lower", "price": 300.0}
 
+    @staticmethod
+    def get_bus_seat_meta(seat_number: str, base_price: float = 800.0) -> Dict[str, Any]:
+        """
+        Determines authoritative price and type for a bus seat/berth.
+        """
+        seat = seat_number.upper()
+        if seat.startswith("U"):
+            return {"type": "Upper Sleeper", "price": base_price + 200.0}
+        elif seat.startswith("L"):
+            return {"type": "Lower Sleeper", "price": base_price + 150.0}
+        elif seat.endswith("A") or seat.endswith("D"):
+            return {"type": "Seater Window", "price": base_price + 50.0}
+        
+        return {"type": "Seater Aisle", "price": base_price}
+
     @classmethod
     def get_seat_map(
         cls, 
@@ -136,6 +151,30 @@ class SeatInventoryService:
                         "seat_type": meta["type"],
                         "price": meta["price"]
                     })
+        elif vertical == "buses":
+            from app.models.search_entities import BusRoute
+            route = db.query(BusRoute).filter(BusRoute.operator_name == reference).first()
+            base_price = float(route.price) if route else 950.0
+            seats_map = route.seats_map if route and route.seats_map else [f"1{col}" for col in ["A", "B", "C", "D"]]
+            
+            for seat in seats_map:
+                meta = cls.get_bus_seat_meta(seat, base_price)
+                is_occupied = False
+                if seat in held_seats:
+                    is_occupied = True
+                elif not is_live:
+                    try:
+                        seat_val = sum(ord(c) for c in seat)
+                        is_occupied = (seat_val % 4 == 0) or (seat == "L1") or (seat == "U4")
+                    except Exception:
+                        is_occupied = False
+                
+                seats_list.append({
+                    "seat_number": seat,
+                    "is_occupied": is_occupied,
+                    "seat_type": meta["type"],
+                    "price": meta["price"]
+                })
 
         return {
             "seat_map_type": "LIVE" if is_live else "DEMO",
@@ -151,7 +190,8 @@ class SeatInventoryService:
         reference: str, 
         seat_numbers: List[str], 
         user_id: int, 
-        expires_at: datetime.datetime
+        expires_at: datetime.datetime,
+        is_live: bool = False
     ) -> List[SeatHold]:
         """
         Creates server-side temporary seat holds in a concurrency-safe manner.
@@ -163,6 +203,37 @@ class SeatInventoryService:
 
         # Process each seat
         for seat in seat_numbers:
+            # If not live mode, validate simulated occupancy pattern first to prevent booking pre-occupied seats in demo mode
+            if not is_live:
+                is_occupied = False
+                if vertical == "flights":
+                    try:
+                        row = int(seat[:-1])
+                        col = seat[-1].upper()
+                    except Exception:
+                        row = 1
+                        col = "A"
+                    is_occupied = (row % 3 == 0 and col == "C") or (col == "D" and row > 4) or seat == "1B" or seat == "4F"
+                elif vertical == "trains":
+                    parts = seat.split("-")
+                    try:
+                        seat_val = int(parts[0])
+                    except Exception:
+                        seat_val = 1
+                    is_occupied = (seat_val) % 5 == 0 or seat == "3-UB" or seat == "17-SL"
+                elif vertical == "buses":
+                    try:
+                        seat_val = sum(ord(c) for c in seat)
+                        is_occupied = (seat_val % 4 == 0) or (seat == "L1") or (seat == "U4")
+                    except Exception:
+                        is_occupied = False
+                
+                if is_occupied:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f"Seat/Berth {seat} is already held or booked. Please select another seat."
+                    )
+
             # Query for existing active holds using FOR UPDATE if PostgreSQL is used
             is_postgres = "postgresql" in str(db.bind.url)
             query = db.query(SeatHold).filter(
@@ -179,12 +250,20 @@ class SeatInventoryService:
 
             if existing:
                 raise HTTPException(
-                    status_code=400,
+                    status_code=409,
                     detail=f"Seat/Berth {seat} is already held or booked. Please select another seat."
                 )
 
             # Get metadata
-            meta = cls.get_flight_seat_meta(seat) if vertical == "flights" else cls.get_train_seat_meta(seat)
+            if vertical == "flights":
+                meta = cls.get_flight_seat_meta(seat)
+            elif vertical == "trains":
+                meta = cls.get_train_seat_meta(seat)
+            else: # buses
+                from app.models.search_entities import BusRoute
+                route = db.query(BusRoute).filter(BusRoute.operator_name == reference).first()
+                base_price = float(route.price) if route else 950.0
+                meta = cls.get_bus_seat_meta(seat, base_price)
 
             # Create hold
             hold = SeatHold(
@@ -197,7 +276,7 @@ class SeatInventoryService:
                 expires_at=expires_at,
                 seat_type=meta["type"],
                 price=meta["price"]
-            )
+              )
             db.add(hold)
             created_holds.append(hold)
 

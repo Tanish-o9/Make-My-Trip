@@ -22,6 +22,7 @@ from app.providers.hotels.manager import HotelProviderManager
 from app.providers.weather.manager import WeatherManager
 from app.providers.maps.manager import MapsManager
 from app.providers.currency.manager import CurrencyManager
+from app.providers.bus_provider import LocalBusProvider
 
 class ProviderRegistry:
     def __init__(self):
@@ -46,6 +47,9 @@ class ProviderRegistry:
         self.cars = {
             "local": LocalCarRentalProvider(),
             "duffel": DuffelCarsProvider()
+        }
+        self.buses = {
+            "local": LocalBusProvider()
         }
         self.flight_manager = FlightProviderManager()
         self.hotel_manager = HotelProviderManager()
@@ -109,6 +113,8 @@ class ProviderRegistry:
             return self.cabs.get(n) or self.get_cab_provider()
         elif v in ["cars", "car_rental"]:
             return self.cars.get(n) or self.get_car_provider()
+        elif v == "buses":
+            return self.buses.get(n) or self.buses.get("local")
         return None
 
     async def check_health(self) -> Dict[str, Any]:

@@ -209,11 +209,17 @@ async def get_provider_health():
         "configured": False,
         "healthy": False,
         "base_url": dbase,
-        "version": dver
+        "version": dver,
+        "status": "MISSING_CREDENTIALS",
+        "authentication": "FAIL"
     }
 
-    if dkey and dkey.strip() not in ["", "your-duffel-key"]:
+    if not dkey or dkey.strip() in ["", "your-duffel-key"]:
+        duffel_diag["status"] = "MISSING_CREDENTIALS"
+        duffel_diag["reason"] = "Missing API Key"
+    else:
         duffel_diag["configured"] = True
+        duffel_diag["status"] = "CONFIGURED"
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
@@ -227,16 +233,48 @@ async def get_provider_health():
                 )
                 if resp.status_code == 200:
                     duffel_diag["healthy"] = True
-                else:
-                    duffel_diag["healthy"] = False
+                    duffel_diag["status"] = "AUTHENTICATED"
+                    duffel_diag["authentication"] = "PASS"
+                elif resp.status_code in (401, 403):
+                    duffel_diag["status"] = "UNAUTHORIZED"
                     duffel_diag["reason"] = f"API returned HTTP {resp.status_code}"
-        except Exception as e:
-            duffel_diag["healthy"] = False
+                else:
+                    duffel_diag["status"] = "NETWORK_ERROR"
+                    duffel_diag["reason"] = f"API returned HTTP {resp.status_code}"
+        except httpx.RequestError as e:
+            duffel_diag["status"] = "NETWORK_ERROR"
             duffel_diag["reason"] = str(e)[:60]
-    else:
-        duffel_diag["reason"] = "Missing API Key"
+        except Exception as e:
+            duffel_diag["status"] = "NETWORK_ERROR"
+            duffel_diag["reason"] = str(e)[:60]
 
     health["duffel"] = duffel_diag
+
+    # ── 14. Razorpay ──────────────────────────────────────────
+    from app.payments.client import check_razorpay_health
+    rzp_health = check_razorpay_health()
+    health["razorpay"] = {
+        "provider": "Razorpay",
+        "configured": rzp_health.get("success", False),
+        "healthy": rzp_health.get("success", False),
+        "environment": "LIVE" if rzp_health.get("mode") == "live" else "SANDBOX",
+        "authentication": "PASS" if rzp_health.get("success") else "FAIL",
+        "payment": "ENABLED" if rzp_health.get("success") else "DISABLED",
+        "webhook": "PASS" if os.getenv("RAZORPAY_WEBHOOK_SECRET") else "FAIL"
+    }
+
+    # ── 15. Nodemailer (OTP Email) ─────────────────────────────
+    from app.services.communication import get_email_provider, NodemailerEmailProvider
+    email_prov = get_email_provider()
+    is_nodemailer = isinstance(email_prov, NodemailerEmailProvider)
+    health["nodemailer"] = {
+        "provider": "Nodemailer",
+        "configured": email_prov._is_configured() if is_nodemailer else True,
+        "healthy": email_prov._is_configured() if is_nodemailer else True,
+        "environment": "SANDBOX" if is_nodemailer and not email_prov._is_configured() else "PRODUCTION",
+        "authentication": "PASS" if not is_nodemailer or email_prov._is_configured() else "FAIL",
+        "email_delivery": "ENABLED" if not is_nodemailer or email_prov._is_configured() else "DISABLED"
+    }
 
     # Summary
     configured_count = sum(1 for v in health.values() if v == "healthy" or "configured)" in v or (isinstance(v, dict) and v.get("configured") is True))

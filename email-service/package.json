@@ -1,0 +1,14 @@
+{
+  "name": "ghumne-chale-email-service",
+  "version": "1.0.0",
+  "description": "Transactional email gateway for Ghumne Chale",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "nodemailer": "^6.9.13",
+    "dotenv": "^16.4.5"
+  }
+}

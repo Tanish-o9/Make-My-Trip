@@ -76,6 +76,23 @@ def validate_and_hold_seats(db: Session, vertical: str, details: dict, booking_r
             "price": meta["price"]
         })
 
+    # Determine if live inventory environment is active
+    import os
+    provider_name = details.get("provider_name")
+    is_live = False
+    if provider_name:
+        p_lower = provider_name.lower()
+        if p_lower not in ["local", "local database", "local simulator", "demo", "sandbox", "simulator"]:
+            is_live = True
+
+    live_env = os.getenv("ENABLE_LIVE_INVENTORY", "false").lower() in ("true", "1", "yes")
+    provider_mode = os.getenv("PROVIDER_MODE", "demo").lower()
+    if live_env or provider_mode == "live":
+        if provider_name:
+            p_lower = provider_name.lower()
+            if p_lower not in ["local", "local database", "local simulator", "demo", "sandbox", "simulator"]:
+                is_live = True
+
     # Hold seats in database (concurrency safe)
     SeatInventoryService.hold_seats(
         db=db,
@@ -84,7 +101,8 @@ def validate_and_hold_seats(db: Session, vertical: str, details: dict, booking_r
         reference=reference,
         seat_numbers=seat_numbers,
         user_id=user_id,
-        expires_at=expires_at
+        expires_at=expires_at,
+        is_live=is_live
     )
 
     return total_seat_fare, seat_breakdown
@@ -700,6 +718,12 @@ def confirm_booking(
     model_cls = models_mapping.get(vertical.lower())
     if not model_cls:
         raise HTTPException(status_code=400, detail="Invalid vertical.")
+
+    if payment_method not in ["wallet", "corporate_billing"]:
+        raise HTTPException(
+            status_code=400,
+            detail="External payment methods (Razorpay/Card/UPI) must be initialized and verified via the payment verification endpoint."
+        )
 
     booking = db.query(model_cls).filter(model_cls.booking_reference == booking_reference).first()
     if not booking:

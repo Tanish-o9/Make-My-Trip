@@ -28,6 +28,7 @@ class BookingStateMachine:
                 BookingStatus.PAYMENT_PENDING,
                 BookingStatus.AWAITING_HUMAN_PAYMENT_APPROVAL,
                 BookingStatus.PAYMENT_PROCESSING,
+                BookingStatus.PAYMENT_FAILED,
                 BookingStatus.EXPIRED
             ]:
                 allowed = True
@@ -176,17 +177,28 @@ class BookingStateMachine:
                         ).all()]
                     seat_str = ", ".join(seat_list) if seat_list else random.choice(["12A", "14C", "7F", "2B"])
 
+                    pax_details = getattr(booking, 'passenger_details', None)
+                    if not pax_details and hasattr(booking, 'pricing_snapshot') and isinstance(booking.pricing_snapshot, dict):
+                        pax_details = booking.pricing_snapshot.get('passenger_details')
+                    if not pax_details:
+                        pax_details = getattr(booking, 'guest_details', [{"name": "Guest", "age": 30}])
+
+                    b_point = booking.pricing_snapshot.get('boarding_point') if hasattr(booking, 'pricing_snapshot') and isinstance(booking.pricing_snapshot, dict) else None
+                    d_point = booking.pricing_snapshot.get('dropping_point') if hasattr(booking, 'pricing_snapshot') and isinstance(booking.pricing_snapshot, dict) else None
+
                     ticket = BookingTicket(
                         booking_reference=booking.booking_reference,
                         ticket_number=tkt_num,
                         pnr=pnr,
                         qr_code_data=qr_url,
-                        passenger_details=getattr(booking, 'passenger_details', getattr(booking, 'guest_details', [{"name": "Guest", "age": 30}])),
+                        passenger_details=pax_details,
                         extra_info={
                             "gate": random.choice(["A1", "B4", "C12", "D3"]),
                             "seat": seat_str,
                             "baggage": "15 Kgs Cabin, 25 Kgs Check-in" if getattr(booking, 'cabin_class', 'ECONOMY').upper() != 'ECONOMY' else "15 Kgs Cabin",
-                            "meal": "Vegetarian Hot Meal"
+                            "meal": "Vegetarian Hot Meal",
+                            "boarding_point": b_point,
+                            "dropping_point": d_point
                         }
                     )
                     session.add(ticket)

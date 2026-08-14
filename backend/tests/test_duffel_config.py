@@ -2,6 +2,7 @@ import os
 import logging
 from unittest.mock import AsyncMock, patch
 import pytest
+import httpx
 from app.payments.config import RazorpaySettings
 from app.routes.system import get_provider_health
 
@@ -70,3 +71,92 @@ def test_duffel_no_secret_leaks_in_logs():
     assert len(masked) == len(dkey)
     assert masked.startswith("duffel_test_xxxxxxxx")
     assert all(c == "*" for c in masked[20:])
+
+@pytest.mark.asyncio
+async def test_duffel_health_missing_token():
+    with patch("app.payments.config.settings.DUFFEL_API_KEY", ""):
+        health = await get_provider_health()
+        duffel = health["duffel"]
+        assert duffel["configured"] is False
+        assert duffel["status"] == "MISSING_CREDENTIALS"
+
+@pytest.mark.asyncio
+async def test_duffel_health_placeholder_token():
+    with patch("app.payments.config.settings.DUFFEL_API_KEY", "your-duffel-key"):
+        health = await get_provider_health()
+        duffel = health["duffel"]
+        assert duffel["configured"] is False
+        assert duffel["status"] == "MISSING_CREDENTIALS"
+
+@pytest.mark.asyncio
+async def test_duffel_health_unauthorized_token():
+    with patch("app.payments.config.settings.DUFFEL_API_KEY", "invalid_token"):
+        mock_response = AsyncMock()
+        mock_response.status_code = 401
+        mock_response.json.return_value = {}
+        with patch("httpx.AsyncClient.get", return_value=mock_response):
+            health = await get_provider_health()
+            duffel = health["duffel"]
+            assert duffel["configured"] is True
+            assert duffel["healthy"] is False
+            assert duffel["status"] == "UNAUTHORIZED"
+
+@pytest.mark.asyncio
+async def test_duffel_health_network_failure():
+    with patch("app.payments.config.settings.DUFFEL_API_KEY", "some_token"):
+        with patch("httpx.AsyncClient.get", side_effect=httpx.RequestError("Connection timeout")):
+            health = await get_provider_health()
+            duffel = health["duffel"]
+            assert duffel["configured"] is True
+            assert duffel["healthy"] is False
+            assert duffel["status"] == "NETWORK_ERROR"
+
+@pytest.mark.asyncio
+async def test_duffel_successful_sandbox_search():
+    from app.providers.flights.duffel import DuffelFlightProvider
+    provider = DuffelFlightProvider()
+    
+    from unittest.mock import MagicMock
+    mock_response = MagicMock()
+    mock_response.status_code = 201
+    mock_response.json.return_value = {
+        "data": {
+            "offers": [
+                {
+                    "id": "off_1",
+                    "total_amount": "8200.00",
+                    "total_currency": "INR",
+                    "owner": {"name": "IndiGo", "iata_code": "6E"},
+                    "slices": [
+                        {
+                            "segments": [
+                                {
+                                    "marketing_carrier_flight_number": "6E-102",
+                                    "departing_at": "2026-10-15T10:00:00",
+                                    "arriving_at": "2026-10-15T12:00:00",
+                                    "duration": "PT2H0M"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+    
+    with patch("sys.modules", {}), \
+         patch("httpx.AsyncClient.post", return_value=mock_response):
+        provider.api_key = "duffel_test_key"
+        offers = await provider.search("DEL", "BOM", "2026-10-15")
+        assert len(offers) == 1
+        assert offers[0].price == 8200.0
+        assert offers[0].provider_name == "Duffel"
+
+@pytest.mark.asyncio
+async def test_duffel_fallback_behavior():
+    from app.providers.flights.duffel import DuffelFlightProvider
+    provider = DuffelFlightProvider()
+    provider.api_key = ""
+    with patch("sys.modules", {}):
+        offers = await provider.search("DEL", "BOM", "2026-10-15")
+        assert len(offers) == 0

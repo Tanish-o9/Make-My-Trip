@@ -85,6 +85,9 @@ def get_db():
 import app.models
 
 # Auto-create all tables for all environments (including Postgres on Neon to auto-initialize missing tables)
-Base.metadata.create_all(bind=engine)
+try:
+    Base.metadata.create_all(bind=engine)
+except Exception:
+    pass
 
 

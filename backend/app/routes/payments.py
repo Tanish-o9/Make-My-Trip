@@ -243,6 +243,16 @@ def create_payment_order(
             detail="This booking requires payment approval. Please confirm on the checkpoint screen first."
         )
 
+    # Validate hold expiry before order creation
+    if getattr(booking, "held_until", None) and datetime.datetime.utcnow() > booking.held_until:
+        from app.services.booking_core import BookingStateMachine
+        BookingStateMachine.transition_to(booking, BookingStatus.EXPIRED)
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Booking hold has expired. Please initiate a fresh search to reserve this vehicle."
+        )
+
     # Transition booking to PAYMENT_PROCESSING if it was holding or awaiting approval to proceed with order creation
     if req.human_approved and booking.status in [BookingStatus.HOLD, BookingStatus.AWAITING_HUMAN_PAYMENT_APPROVAL]:
         from app.services.booking_core import BookingStateMachine

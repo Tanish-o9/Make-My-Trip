@@ -664,22 +664,77 @@ async def unified_vertical_search(
         }
 
     elif v == "buses":
+        def get_enriched_bus(b_id, operator_name, bus_type, price, departure_time, origin, destination, seats_left, seats_map):
+            is_ac = "AC" in bus_type or "Volvo" in bus_type
+            is_sleeper = "Sleeper" in bus_type
+            is_long = (origin.lower() == "delhi" and destination.lower() == "manali") or \
+                      (origin.lower() == "mumbai" and destination.lower() == "goa") or \
+                      (origin.lower() == "bengaluru" and destination.lower() == "goa")
+            duration = "11h 45m" if is_long else "5h 30m"
+            try:
+                dh, dm = map(int, departure_time.split(":"))
+                travel_h = 11 if is_long else 5
+                travel_m = 45 if is_long else 30
+                ah = (dh + travel_h + (dm + travel_m) // 60) % 24
+                am = (dm + travel_m) % 60
+                arrival_time = f"{ah:02d}:{am:02d}"
+            except Exception:
+                arrival_time = "06:00"
+            bp_list = [
+                {"name": f"{origin} ISBT", "time": departure_time, "landmark": "Gate No. 2", "address": f"Kashmere Gate ISBT, {origin}"},
+                {"name": f"{origin} Bypass Toll", "time": f"{(dh + 1) % 24:02d}:{dm:02d}", "landmark": "Near NH Bypass", "address": f"Bypass Road Plaza, {origin}"}
+            ]
+            dp_list = [
+                {"name": f"{destination} Bypass Toll", "time": f"{(dh + (11 if is_long else 5)) % 24:02d}:{dm:02d}", "landmark": "Bypass Entry Gate", "address": f"NH Road, {destination}"},
+                {"name": f"{destination} Bus Depot", "time": arrival_time, "landmark": "Near Main Stand", "address": f"City Depot, {destination}"}
+            ]
+            stable_val = sum(ord(c) for c in operator_name)
+            rating = round(4.0 + (stable_val % 10) / 10.0, 1)
+            if rating > 5.0:
+                rating = 4.8
+            review_count = 50 + (stable_val % 450)
+            amenities = ["Blanket", "Charging Point", "Reading Light", "Water Bottle"]
+            if is_ac:
+                amenities.append("AC")
+            if stable_val % 2 == 0:
+                amenities.append("WiFi")
+                amenities.append("CCTV")
+            return {
+                "id": b_id,
+                "operator_name": operator_name,
+                "bus_type": bus_type,
+                "price": price,
+                "departure_time": departure_time,
+                "arrival_time": arrival_time,
+                "duration": duration,
+                "origin": origin,
+                "destination": destination,
+                "seats_left": seats_left,
+                "seats_map": seats_map,
+                "rating": rating,
+                "review_count": review_count,
+                "amenities": amenities,
+                "boarding_points": bp_list,
+                "dropping_points": dp_list,
+                "cancellation_policy": "Full refund if cancelled before 24 hours. 50% refund between 12-24 hours. No refund within 12 hours."
+            }
+
         db = SessionLocal()
         try:
             buses = db.query(BusRoute).all()
+            # Filter by origin and destination if provided
+            origin_q = origin
+            dest_q = destination
+            if origin_q and dest_q:
+                buses = [b for b in buses if origin_q.lower() in b.origin.lower() and dest_q.lower() in b.destination.lower()]
+
             if buses:
                 results = []
                 for b in buses:
-                    results.append({
-                        "operator_name": b.operator_name,
-                        "bus_type": b.bus_type,
-                        "price": float(b.price),
-                        "departure_time": b.departure_time,
-                        "seats_left": b.seats_left,
-                        "seats_map": b.seats_map,
-                        "origin": b.origin,
-                        "destination": b.destination
-                    })
+                    results.append(get_enriched_bus(
+                        b.id, b.operator_name, b.bus_type, float(b.price),
+                        b.departure_time, b.origin, b.destination, b.seats_left, b.seats_map
+                    ))
                 return {
                     "vertical": "buses",
                     "results": attach_media_to_results(results, "bus")
@@ -687,12 +742,14 @@ async def unified_vertical_search(
         finally:
             db.close()
 
+        # Fallback values
+        fallback_list = [
+            get_enriched_bus(101, "IntrCity SmartBus", "AC Sleeper (2+1)", 1490.0, "21:00", "Delhi", "Jaipur", 8, ["12A", "12B", "14A", "14B"]),
+            get_enriched_bus(102, "Zingbus", "AC Premium Seater", 950.0, "22:30", "Delhi", "Amritsar", 15, ["5A", "5B", "7F"])
+        ]
         return {
             "vertical": "buses",
-            "results": attach_media_to_results([
-                {"operator_name": "IntrCity SmartBus", "bus_type": "AC Sleeper (2+1)", "price": 1490, "departure_time": "21:00", "seats_left": 8, "seats_map": ["12A", "12B", "14A", "14B"]},
-                {"operator_name": "Zingbus", "bus_type": "AC Premium Seater", "price": 950, "departure_time": "22:30", "seats_left": 15, "seats_map": ["5A", "5B", "7F"]}
-            ], "bus")
+            "results": attach_media_to_results(fallback_list, "bus")
         }
         
     elif v == "cabs":

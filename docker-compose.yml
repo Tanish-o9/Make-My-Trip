@@ -60,6 +60,9 @@ services:
       - CHROMADB_HOST=chromadb
       - CHROMADB_PORT=8000
       - STORAGE_BACKEND=local
+      - EMAIL_PROVIDER=nodemailer
+      - EMAIL_SERVICE_URL=http://email-service:3005
+      - EMAIL_SERVICE_SECRET=dev_secret_token_123
     env_file:
       - backend/.env
     ports:
@@ -145,6 +148,24 @@ services:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
     depends_on:
       - prometheus
+    restart: always
+
+  email-service:
+    build:
+      context: .
+      dockerfile: email-service/Dockerfile
+    container_name: travel_os_email_service
+    ports:
+      - "3005:3005"
+    environment:
+      - PORT=3005
+      - EMAIL_SERVICE_SECRET=dev_secret_token_123
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_SECURE=${SMTP_SECURE}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL}
     restart: always
 
 volumes:

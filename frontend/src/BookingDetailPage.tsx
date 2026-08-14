@@ -328,7 +328,7 @@ export function BookingDetailPage({ bookingId, onNavigate, token }: BookingDetai
               <div className="flex justify-between items-start border-b border-slate-800 pb-3">
                 <div>
                   <h2 className="text-xl font-black text-white uppercase tracking-wide">
-                    {vertical === "flights" ? `Flight ${booking.airline_code}-${booking.flight_number}` : vertical === "hotels" ? booking.hotel_name : "Ghumne Chale Reservation"}
+                    {vertical === "flights" ? `Flight ${booking.airline_code}-${booking.flight_number}` : vertical === "hotels" ? booking.hotel_name : vertical === "bus" ? `Bus: ${booking.operator_name} (${booking.bus_type})` : "Ghumne Chale Reservation"}
                   </h2>
                   <p className="text-xs text-slate-400 mt-1">Reference Code: <span className="font-mono font-bold text-white">{bookingId}</span></p>
                 </div>
@@ -354,6 +354,33 @@ export function BookingDetailPage({ bookingId, onNavigate, token }: BookingDetai
                     <span className="text-slate-500 block text-[9px] font-bold">DEPARTURE</span>
                     <strong className="text-slate-200">{booking.departure_time ? new Date(booking.departure_time).toLocaleString() : "—"}</strong>
                   </div>
+                </div>
+              )}
+
+              {vertical === "bus" && (
+                <div className="grid grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <span className="text-slate-500 block text-[9px] font-bold">ROUTE</span>
+                    <strong className="text-slate-200">{booking.origin} ➔ {booking.destination}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[9px] font-bold">DEPARTURE</span>
+                    <strong className="text-slate-200">{booking.departure_time ? new Date(booking.departure_time).toLocaleString() : "—"}</strong>
+                  </div>
+                  {ticket?.extra_info?.boarding_point && (
+                    <div className="col-span-2 border-t border-slate-800 pt-2 mt-1">
+                      <span className="text-slate-500 block text-[9px] font-bold">BOARDING POINT</span>
+                      <strong className="text-slate-200">{ticket.extra_info.boarding_point.name} - {ticket.extra_info.boarding_point.time}</strong>
+                      <p className="text-[10px] text-slate-400 mt-0.5">{ticket.extra_info.boarding_point.address} (Landmark: {ticket.extra_info.boarding_point.landmark})</p>
+                    </div>
+                  )}
+                  {ticket?.extra_info?.dropping_point && (
+                    <div className="col-span-2 border-t border-slate-800 pt-2">
+                      <span className="text-slate-500 block text-[9px] font-bold">DROPPING POINT</span>
+                      <strong className="text-slate-200">{ticket.extra_info.dropping_point.name} - {ticket.extra_info.dropping_point.time}</strong>
+                      <p className="text-[10px] text-slate-400 mt-0.5">{ticket.extra_info.dropping_point.address} (Landmark: {ticket.extra_info.dropping_point.landmark})</p>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -530,6 +557,8 @@ export function BookingDetailPage({ bookingId, onNavigate, token }: BookingDetai
                               <span className="text-blue-400 font-mono">
                                 {vertical === "flights" 
                                   ? `Seat ${p.seat_number} (${p.seat_type})` 
+                                  : vertical === "bus"
+                                  ? `Seat ${p.seat_number} (${p.seat_type})`
                                   : `Berth ${p.seat_number} (${p.seat_type})`
                                 }
                               </span>
@@ -543,6 +572,12 @@ export function BookingDetailPage({ bookingId, onNavigate, token }: BookingDetai
                         <div className="flex justify-between text-[10px] text-slate-500 pt-2 border-t border-slate-900 mt-2">
                           <span>Cabin Class:</span>
                           <span className="text-slate-400 font-bold uppercase">{booking.cabin_class || "ECONOMY"}</span>
+                        </div>
+                      )}
+                      {vertical === "bus" && (
+                        <div className="flex justify-between text-[10px] text-slate-500 pt-2 border-t border-slate-900 mt-2">
+                          <span>Bus Type:</span>
+                          <span className="text-slate-400 font-bold uppercase">{booking.bus_type || "AC Sleeper"}</span>
                         </div>
                       )}
                       {vertical === "trains" && (
