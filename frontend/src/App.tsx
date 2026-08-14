@@ -1274,6 +1274,7 @@ export default function App() {
                 profileData={profileData}
                 passengers={passengers}
                 setPassengers={setPassengers}
+                token={token}
               />
             )}
             {activeTab === 'chat' && (
@@ -1283,6 +1284,7 @@ export default function App() {
                 setUserProfile={setUserProfile} 
                 prefilledMessage={prefilledMessage} 
                 setPrefilledMessage={setPrefilledMessage} 
+                setActiveTab={setActiveTab}
               />
             )}
             {activeTab === 'trips' && <MyTripsView key="trips" userProfile={userProfile} setActiveTab={setActiveTab} onNavigate={navigate} />}
@@ -1437,7 +1439,8 @@ function ExploreView({
   profileName,
   profileData,
   passengers,
-  setPassengers
+  setPassengers,
+  token
 }: { 
   currency: string, onBook: (data: any) => void, setActiveTab: any,
   onDetailClick: (vert: string, item: any) => void,
@@ -1453,7 +1456,8 @@ function ExploreView({
   profileName: string,
   profileData: any,
   passengers: number,
-  setPassengers: React.Dispatch<React.SetStateAction<number>>
+  setPassengers: React.Dispatch<React.SetStateAction<number>>,
+  token: string | null
 }) {
   const [activeVertical, setActiveVertical] = useState<string>(() => sessionStorage.getItem("active_vertical") || 'flights');
   const [loadingVerticals, setLoadingVerticals] = useState<Record<string, boolean>>({});
@@ -1555,7 +1559,7 @@ function ExploreView({
             {activeVertical === 'villas' && <VillasSearchForm onBook={onBook} onDetailClick={onDetailClick} />}
             {activeVertical === 'holidays' && <HolidayPackagesSearchForm onBook={onBook} onDetailClick={onDetailClick} />}
             {activeVertical === 'trains' && <TrainsSearchForm onBook={onBook} onDetailClick={onDetailClick} />}
-            {activeVertical === 'buses' && <BusesSearchForm onBook={onBook} onDetailClick={onDetailClick} />}
+            {activeVertical === 'buses' && <BusesSearchForm onBook={onBook} onDetailClick={onDetailClick} token={token} onNavigate={onNavigate} />}
             {activeVertical === 'cabs' && <CabsSearchForm onBook={onBook} onDetailClick={onDetailClick} />}
             {activeVertical === 'rent-a-ride' && <RentARideSearchForm onBook={onBook} onDetailClick={onDetailClick} onNavigate={onNavigate} />}
             {activeVertical === 'tours' && <ToursSearchForm onBook={onBook} onDetailClick={onDetailClick} />}
@@ -3066,7 +3070,7 @@ function FlightsSearchForm({
               <button onClick={() => setShowFlightSeatModal(null)} className="text-slate-400 hover:text-white font-extrabold text-sm">✕</button>
             </div>
             
-            <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 text-[10px] font-bold text-slate-400 flex justify-between">
+            <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 text-[10px] font-bold text-slate-200 flex justify-between">
               <span>Window (A-C)</span>
               <span className="text-yellow-400">✈️ Front of Aircraft</span>
               <span>Window (D-F)</span>
@@ -3086,7 +3090,7 @@ function FlightsSearchForm({
                     const cols = ["A", "B", "C", "D", "E", "F"];
                     return (
                       <div key={row} className="flex justify-between items-center gap-2">
-                        <span className="text-[10px] font-bold text-slate-500 w-4 text-center">{row}</span>
+                        <span className="text-[10px] font-bold text-slate-300 w-4 text-center">{row}</span>
                         <div className="flex-1 grid grid-cols-6 gap-1">
                           {cols.map((col, cIdx) => {
                             const seat = `${row}${col}`;
@@ -3119,10 +3123,10 @@ function FlightsSearchForm({
                                   }}
                                   className={`w-8 h-8 rounded border text-[10px] font-black transition-all flex items-center justify-center cursor-pointer ${
                                     isTaken 
-                                      ? 'bg-slate-800/40 border-slate-850 text-slate-650 cursor-not-allowed' 
+                                      ? 'bg-slate-800/40 border-slate-700 text-slate-400 cursor-not-allowed' 
                                       : isSelected
                                         ? 'bg-yellow-400 border-yellow-500 text-slate-900 shadow-md shadow-yellow-400/20'
-                                        : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
+                                        : 'bg-slate-900/60 border-slate-600 text-white hover:border-slate-400'
                                   }`}
                                 >
                                   {col}
@@ -3136,7 +3140,7 @@ function FlightsSearchForm({
                   })}
                 </div>
 
-                <div className="border-t border-slate-800 pt-3 flex justify-between items-center text-xs font-bold text-slate-300">
+                <div className="border-t border-slate-800 pt-3 flex justify-between items-center text-xs font-bold text-slate-200">
                   <span>Selected: {selectedFlightSeats.length} / {passengers}</span>
                   <span className="text-yellow-400">Seats: {selectedFlightSeats.join(", ") || "None"}</span>
                 </div>
@@ -4799,228 +4803,1780 @@ function TrainsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
   );
 }
 
-function BusesSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void, onDetailClick: (vert: string, item: any) => void }) {
-  const [fromCity, setFromCity] = useState("");
-  const [toCity, setToCity] = useState("");
+function BusesSearchForm({ 
+  onBook, 
+  onDetailClick, 
+  token, 
+  onNavigate 
+}: { 
+  onBook: (data: any) => void, 
+  onDetailClick: (vert: string, item: any) => void,
+  token: string | null,
+  onNavigate: (path: string) => void 
+}) {
+  const [viewMode, setViewMode] = useState<'search' | 'results' | 'seats' | 'passengers'>('search');
+  
+  const [tripType, setTripType] = useState<'one_way' | 'round_trip'>('one_way');
+  const [fromCity, setFromCity] = useState(() => {
+    const val = sessionStorage.getItem("prefilled_bus_origin");
+    if (val) sessionStorage.removeItem("prefilled_bus_origin");
+    return val || "Delhi";
+  });
+  const [toCity, setToCity] = useState(() => {
+    const val = sessionStorage.getItem("prefilled_bus_destination");
+    if (val) sessionStorage.removeItem("prefilled_bus_destination");
+    return val || "Jaipur";
+  });
   const [showFromSuggestions, setShowFromSuggestions] = useState(false);
   const [showToSuggestions, setShowToSuggestions] = useState(false);
+  const [journeyDate, setJourneyDate] = useState(() => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+  });
+  const [returnDate, setReturnDate] = useState(() => {
+    const dayAfter = new Date();
+    dayAfter.setDate(dayAfter.getDate() + 2);
+    return dayAfter.toISOString().split('T')[0];
+  });
+  const [passengerCount, setPassengerCount] = useState(1);
+  const [busType, setBusType] = useState("Any");
+  const [errors, setErrors] = useState<string>("");
+
   const [results, setResults] = useState<any[]>([]);
+  const [filteredResults, setFilteredResults] = useState<any[]>([]);
   const [loading, setLoading] = useTabLoading('buses');
-  const [showSeatModal, setShowSeatModal] = useState<any | null>(null);
+  const [resultsStage, setResultsStage] = useState<'onward' | 'return'>('onward');
+
+  const [priceRange, setPriceRange] = useState<number>(3000);
+  const [selectedOperators, setSelectedOperators] = useState<string[]>([]);
+  const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
+  const [selectedBoardingPoints, setSelectedBoardingPoints] = useState<string[]>([]);
+  const [selectedDroppingPoints, setSelectedDroppingPoints] = useState<string[]>([]);
+  const [timeFilter, setTimeFilter] = useState<'all' | 'morning' | 'afternoon' | 'evening'>('all');
+  const [acFilter, setAcFilter] = useState<'all' | 'ac' | 'non_ac'>('all');
+  const [seatTypeFilter, setSeatTypeFilter] = useState<'all' | 'sleeper' | 'seater'>('all');
+  const [minRating, setMinRating] = useState<number>(0);
+  
+  const [sortBy, setSortBy] = useState<'cheapest' | 'fastest' | 'recommended' | 'rating' | 'departure'>('recommended');
+
+  const [expandedBusDetailsId, setExpandedBusDetailsId] = useState<number | null>(null);
+  const [activeDetailsTab, setActiveDetailsTab] = useState<'overview' | 'amenities' | 'boarding' | 'dropping' | 'cancellation'>('overview');
+
+  const [selectedBus, setSelectedBus] = useState<any | null>(null);
+  const [seatMap, setSeatMap] = useState<any[]>([]);
   const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
+  const [boardingPoint, setBoardingPoint] = useState<any | null>(null);
+  const [droppingPoint, setDroppingPoint] = useState<any | null>(null);
+
+  const [selectedReturnBus, setSelectedReturnBus] = useState<any | null>(null);
+  const [returnSeatMap, setReturnSeatMap] = useState<any[]>([]);
+  const [selectedReturnSeats, setSelectedReturnSeats] = useState<string[]>([]);
+  const [returnBoardingPoint, setReturnBoardingPoint] = useState<any | null>(null);
+  const [returnDroppingPoint, setReturnDroppingPoint] = useState<any | null>(null);
+
+  const [passengersList, setPassengersList] = useState<Array<{ name: string; age: string; gender: string }>>([]);
+  const [savedTravelers, setSavedTravelers] = useState<any[]>([]);
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [promoCode, setPromoCode] = useState("");
+  const [promoDiscount, setPromoDiscount] = useState(0);
+  const [promoApplied, setPromoApplied] = useState(false);
+  const [walletApplied, setWalletApplied] = useState(false);
+  const [walletBalance, setWalletBalance] = useState(2500); 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const POPULAR_DESTINATIONS = [
+    "Delhi", "Mumbai", "Bengaluru", "Jaipur", "Goa", "Pune", "Manali", "Shimla", 
+    "Ahmedabad", "Hyderabad", "Kolkata", "Chennai", "Kochi", "Amritsar", "Dehradun", 
+    "Leh", "Udaipur", "Rishikesh", "Varanasi", "Mysore", "Darjeeling", "Srinagar"
+  ];
+
+  useEffect(() => {
+    if (token) {
+      fetch(`${API_URL}/profile`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.email) setContactEmail(data.email);
+          if (data.mobile_number) setContactPhone(data.mobile_number);
+          if (data.wallet_balance !== undefined) setWalletBalance(parseFloat(data.wallet_balance));
+        })
+        .catch(() => {});
+
+      fetch(`${API_URL}/profile/travellers`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) setSavedTravelers(data);
+        })
+        .catch(() => {});
+    }
+  }, [token]);
+
+  useEffect(() => {
+    setPassengersList(
+      Array.from({ length: passengerCount }, (_, i) => ({
+        name: passengersList[i]?.name || "",
+        age: passengersList[i]?.age || "",
+        gender: passengersList[i]?.gender || "Male"
+      }))
+    );
+  }, [passengerCount]);
+
+  const handleSwap = () => {
+    const temp = fromCity;
+    setFromCity(toCity);
+    setToCity(temp);
+  };
+
+  const setQuickDate = (type: 'today' | 'tomorrow' | 'weekend') => {
+    const d = new Date();
+    if (type === 'tomorrow') {
+      d.setDate(d.getDate() + 1);
+    } else if (type === 'weekend') {
+      const day = d.getDay();
+      const diff = day === 6 ? 7 : (6 - day);
+      d.setDate(d.getDate() + diff);
+    }
+    setJourneyDate(d.toISOString().split('T')[0]);
+  };
 
   const handleSearch = () => {
+    setErrors("");
     if (!fromCity.trim()) {
-      alert("Please enter an origin city.");
+      setErrors("Please specify starting city.");
       return;
     }
     if (!toCity.trim()) {
-      alert("Please enter a destination city.");
+      setErrors("Please specify destination city.");
       return;
     }
+    if (fromCity.trim().toLowerCase() === toCity.trim().toLowerCase()) {
+      setErrors("Origin and destination cities cannot be equal.");
+      return;
+    }
+    if (!journeyDate) {
+      setErrors("Please select journey date.");
+      return;
+    }
+    if (tripType === 'round_trip' && !returnDate) {
+      setErrors("Please select a return date for round trip bookings.");
+      return;
+    }
+    if (tripType === 'round_trip' && returnDate < journeyDate) {
+      setErrors("Return date cannot be earlier than journey date.");
+      return;
+    }
+    
+    const recent = JSON.parse(localStorage.getItem("recent_bus_searches") || "[]");
+    const newSearch = { from: fromCity, to: toCity };
+    const filteredRecent = recent.filter((r: any) => !(r.from === fromCity && r.to === toCity));
+    filteredRecent.unshift(newSearch);
+    localStorage.setItem("recent_bus_searches", JSON.stringify(filteredRecent.slice(0, 5)));
+
     setLoading(true);
+    setResultsStage('onward');
+    setViewMode('results');
     setResults([]);
+    setSelectedBus(null);
+    setSelectedReturnBus(null);
+    setSelectedSeats([]);
+    setSelectedReturnSeats([]);
+    
     fetch(`${API_URL}/search?vertical=buses&origin=${encodeURIComponent(fromCity)}&destination=${encodeURIComponent(toCity)}`)
       .then(res => res.json())
       .then(data => {
         setLoading(false);
         if (data && Array.isArray(data.results)) {
           setResults(data.results);
+          setFilteredResults(data.results);
         }
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        setLoading(false);
+        setErrors("Failed to load search results. Please try again.");
+      });
   };
+
+  useEffect(() => {
+    const trigger = sessionStorage.getItem("trigger_bus_search");
+    if (trigger) {
+      sessionStorage.removeItem("trigger_bus_search");
+      setTimeout(() => {
+        handleSearch();
+      }, 100);
+    }
+  }, []);
+
+  useEffect(() => {
+    let list = [...results];
+
+    if (busType !== "Any") {
+      const bt = busType.toLowerCase();
+      if (bt === "volvo") {
+        list = list.filter(b => b.bus_type.toLowerCase().includes("volvo") || b.bus_type.toLowerCase().includes("premium"));
+      } else if (bt === "electric") {
+        list = list.filter(b => b.bus_type.toLowerCase().includes("electric") || b.bus_type.toLowerCase().includes("ev"));
+      } else if (bt === "luxury") {
+        list = list.filter(b => b.bus_type.toLowerCase().includes("luxury") || b.bus_type.toLowerCase().includes("premium") || b.bus_type.toLowerCase().includes("volvo"));
+      } else if (bt === "ac seater/sleeper") {
+        list = list.filter(b => b.bus_type.toLowerCase().includes("ac") && b.bus_type.toLowerCase().includes("seater") && b.bus_type.toLowerCase().includes("sleeper"));
+      } else if (bt === "ac sleeper") {
+        list = list.filter(b => b.bus_type.toLowerCase().includes("ac") && b.bus_type.toLowerCase().includes("sleeper") && !b.bus_type.toLowerCase().includes("non-ac"));
+      } else if (bt === "non-ac sleeper") {
+        list = list.filter(b => b.bus_type.toLowerCase().includes("non-ac") && b.bus_type.toLowerCase().includes("sleeper"));
+      } else if (bt === "ac seater") {
+        list = list.filter(b => b.bus_type.toLowerCase().includes("ac") && b.bus_type.toLowerCase().includes("seater") && !b.bus_type.toLowerCase().includes("non-ac"));
+      } else if (bt === "non-ac seater") {
+        list = list.filter(b => b.bus_type.toLowerCase().includes("non-ac") && b.bus_type.toLowerCase().includes("seater"));
+      } else {
+        list = list.filter(b => b.bus_type.toLowerCase().includes(bt.split(' ')[0]));
+      }
+    }
+
+    list = list.filter(b => b.price <= priceRange);
+
+    if (selectedOperators.length > 0) {
+      list = list.filter(b => selectedOperators.includes(b.operator_name));
+    }
+
+    if (acFilter === 'ac') {
+      list = list.filter(b => b.bus_type.toLowerCase().includes('ac') || b.bus_type.toLowerCase().includes('volvo'));
+    } else if (acFilter === 'non_ac') {
+      list = list.filter(b => !b.bus_type.toLowerCase().includes('ac') && !b.bus_type.toLowerCase().includes('volvo'));
+    }
+
+    if (seatTypeFilter === 'sleeper') {
+      list = list.filter(b => b.bus_type.toLowerCase().includes('sleeper'));
+    } else if (seatTypeFilter === 'seater') {
+      list = list.filter(b => b.bus_type.toLowerCase().includes('seater'));
+    }
+
+    if (timeFilter !== 'all') {
+      list = list.filter(b => {
+        try {
+          const hour = parseInt(b.departure_time.split(':')[0]);
+          if (timeFilter === 'morning') return hour >= 6 && hour < 12;
+          if (timeFilter === 'afternoon') return hour >= 12 && hour < 18;
+          if (timeFilter === 'evening') return hour >= 18 || hour < 6;
+        } catch (e) {
+          return true;
+        }
+        return true;
+      });
+    }
+
+    if (selectedAmenities.length > 0) {
+      list = list.filter(b => 
+        selectedAmenities.every(amenity => b.amenities && b.amenities.includes(amenity))
+      );
+    }
+
+    if (selectedBoardingPoints.length > 0) {
+      list = list.filter(b => (b.boarding_points || []).some((bp: any) => selectedBoardingPoints.includes(bp.name)));
+    }
+
+    if (selectedDroppingPoints.length > 0) {
+      list = list.filter(b => (b.dropping_points || []).some((dp: any) => selectedDroppingPoints.includes(dp.name)));
+    }
+
+    if (minRating > 0) {
+      list = list.filter(b => b.rating >= minRating);
+    }
+
+    if (sortBy === 'cheapest') {
+      list.sort((a, b) => a.price - b.price);
+    } else if (sortBy === 'fastest') {
+      const getMins = (d: string) => {
+        const h = parseInt(d.split('h')[0]) || 0;
+        const m = parseInt(d.split(' ')[1]?.replace('m', '')) || 0;
+        return h * 60 + m;
+      };
+      list.sort((a, b) => getMins(a.duration) - getMins(b.duration));
+    } else if (sortBy === 'rating') {
+      list.sort((a, b) => b.rating - a.rating);
+    } else if (sortBy === 'departure') {
+      list.sort((a, b) => a.departure_time.localeCompare(b.departure_time));
+    }
+
+    setFilteredResults(list);
+  }, [results, priceRange, selectedOperators, selectedAmenities, selectedBoardingPoints, selectedDroppingPoints, timeFilter, acFilter, seatTypeFilter, minRating, sortBy, busType]);
 
   const handleOpenSeatMap = (bus: any) => {
-    setShowSeatModal(bus);
-    setSelectedSeats([]);
+    if (resultsStage === 'onward') {
+      setSelectedBus(bus);
+      setSelectedSeats([]);
+      setBoardingPoint(null);
+      setDroppingPoint(null);
+      setViewMode('seats');
+      
+      fetch(`${API_URL}/buses/${bus.id}/seats`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && Array.isArray(data.seats)) {
+            setSeatMap(data.seats);
+          }
+        })
+        .catch(() => {
+          const fallbackMap = bus.seats_map.map((seat: string) => {
+            const stable_val = sumChars(seat + bus.operator_name);
+            return {
+              seat_number: seat,
+              is_occupied: stable_val % 5 === 0,
+              seat_type: seat.startsWith('U') ? 'Upper Sleeper' : seat.startsWith('L') ? 'Lower Sleeper' : 'Seater Aisle',
+              price: bus.price + (seat.startsWith('U') ? 200 : seat.startsWith('L') ? 150 : 0)
+            };
+          });
+          setSeatMap(fallbackMap);
+        });
+    } else {
+      setSelectedReturnBus(bus);
+      setSelectedReturnSeats([]);
+      setReturnBoardingPoint(null);
+      setReturnDroppingPoint(null);
+      setViewMode('seats');
+      
+      fetch(`${API_URL}/buses/${bus.id}/seats`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && Array.isArray(data.seats)) {
+            setReturnSeatMap(data.seats);
+          }
+        })
+        .catch(() => {
+          const fallbackMap = bus.seats_map.map((seat: string) => {
+            const stable_val = sumChars(seat + bus.operator_name);
+            return {
+              seat_number: seat,
+              is_occupied: stable_val % 5 === 0,
+              seat_type: seat.startsWith('U') ? 'Upper Sleeper' : seat.startsWith('L') ? 'Lower Sleeper' : 'Seater Aisle',
+              price: bus.price + (seat.startsWith('U') ? 200 : seat.startsWith('L') ? 150 : 0)
+            };
+          });
+          setReturnSeatMap(fallbackMap);
+        });
+    }
   };
 
-  const toggleSeat = (seat: string) => {
-    if (selectedSeats.includes(seat)) {
-      setSelectedSeats(prev => prev.filter(s => s !== seat));
+  const sumChars = (s: string) => {
+    let sum = 0;
+    for (let i = 0; i < s.length; i++) sum += s.charCodeAt(i);
+    return sum;
+  };
+
+  const toggleSeat = (seat: any) => {
+    if (seat.is_occupied) return;
+    if (resultsStage === 'onward') {
+      if (selectedSeats.includes(seat.seat_number)) {
+        setSelectedSeats(prev => prev.filter(s => s !== seat.seat_number));
+      } else {
+        if (selectedSeats.length >= passengerCount) {
+          alert(`You can select at most ${passengerCount} seats as specified in search.`);
+          return;
+        }
+        setSelectedSeats(prev => [...prev, seat.seat_number]);
+      }
     } else {
-      setSelectedSeats(prev => [...prev, seat]);
+      if (selectedReturnSeats.includes(seat.seat_number)) {
+        setSelectedReturnSeats(prev => prev.filter(s => s !== seat.seat_number));
+      } else {
+        if (selectedReturnSeats.length >= passengerCount) {
+          alert(`You can select at most ${passengerCount} seats as specified in search.`);
+          return;
+        }
+        setSelectedReturnSeats(prev => [...prev, seat.seat_number]);
+      }
     }
+  };
+
+  const getSelectedSeatsSurcharge = (stage: 'onward' | 'return') => {
+    let surcharge = 0;
+    const seats = stage === 'onward' ? selectedSeats : selectedReturnSeats;
+    const map = stage === 'onward' ? seatMap : returnSeatMap;
+    const basePrice = stage === 'onward' ? selectedBus?.price : selectedReturnBus?.price;
+    seats.forEach(num => {
+      const match = map.find(s => s.seat_number === num);
+      if (match && basePrice) {
+        surcharge += Math.max(0, match.price - basePrice);
+      }
+    });
+    return surcharge;
   };
 
   const handleConfirmSeats = () => {
-    if (selectedSeats.length === 0) {
-      alert("Please select at least one seat.");
-      return;
+    if (resultsStage === 'onward') {
+      if (!boardingPoint) {
+        alert("Please select a Boarding Point.");
+        return;
+      }
+      if (!droppingPoint) {
+        alert("Please select a Dropping Point.");
+        return;
+      }
+      if (selectedSeats.length !== passengerCount) {
+        alert(`Please select exactly ${passengerCount} seats to match your traveler count.`);
+        return;
+      }
+      
+      if (tripType === 'round_trip' && !selectedReturnBus) {
+        setLoading(true);
+        setResultsStage('return');
+        setViewMode('results');
+        fetch(`${API_URL}/search?vertical=buses&origin=${encodeURIComponent(toCity)}&destination=${encodeURIComponent(fromCity)}`)
+          .then(res => res.json())
+          .then(data => {
+            setLoading(false);
+            if (data && Array.isArray(data.results)) {
+              setResults(data.results);
+              setFilteredResults(data.results);
+            }
+          })
+          .catch(() => {
+            setLoading(false);
+            setErrors("Failed to load return buses. Please try again.");
+          });
+      } else {
+        setViewMode('passengers');
+      }
+    } else {
+      if (!returnBoardingPoint) {
+        alert("Please select a Return Boarding Point.");
+        return;
+      }
+      if (!returnDroppingPoint) {
+        alert("Please select a Return Dropping Point.");
+        return;
+      }
+      if (selectedReturnSeats.length !== passengerCount) {
+        alert(`Please select exactly ${passengerCount} seats for the return journey.`);
+        return;
+      }
+      setViewMode('passengers');
     }
-    const finalAmount = showSeatModal.price * selectedSeats.length;
-    onBook({
-      vertical: "buses",
-      amount: finalAmount,
-      details: {
-        operator_name: showSeatModal.operator_name,
-        bus_type: showSeatModal.bus_type,
-        origin: fromCity,
-        destination: toCity,
-        seat_numbers: selectedSeats
-      },
-      title: `${showSeatModal.operator_name} (${showSeatModal.bus_type})`,
-      subtitle: `Seats: ${selectedSeats.join(", ")} | ${fromCity} ➔ ${toCity}`
-    });
-    setShowSeatModal(null);
   };
 
-  return (
-    <div className="space-y-6 text-black font-sans">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-900/60 p-4 rounded-2xl border border-slate-800/80">
-        <div className="space-y-1.5 relative">
-          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">From</span>
-          <input 
-            type="text" 
-            value={fromCity} 
-            placeholder="e.g. Delhi"
-            onChange={(e) => {
-              setFromCity(e.target.value);
-              setShowFromSuggestions(true);
-            }} 
-            onFocus={() => setShowFromSuggestions(true)}
-            onBlur={() => setTimeout(() => setShowFromSuggestions(false), 200)}
-            className="w-full bg-[#0e1628] border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white font-bold outline-none" 
-          />
-          {showFromSuggestions && (
-            <div className="absolute left-0 right-0 top-[65px] bg-white border-3 border-black rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] z-50 overflow-y-auto max-h-48 text-black font-sans">
-              {POPULAR_DESTINATIONS.filter(dest => dest.toLowerCase().includes(fromCity.toLowerCase()))
-                .map((dest, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onMouseDown={() => {
-                      setFromCity(dest);
-                      setShowFromSuggestions(false);
-                    }}
-                    className="w-full text-left px-3 py-2 hover:bg-yellow-300 transition-colors font-bold text-xs border-b border-slate-100 last:border-0 cursor-pointer"
-                  >
-                    {dest}
-                  </button>
-                ))}
-            </div>
-          )}
-        </div>
-        <div className="space-y-1.5 relative">
-          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">To</span>
-          <input 
-            type="text" 
-            value={toCity} 
-            placeholder="e.g. Manali"
-            onChange={(e) => {
-              setToCity(e.target.value);
-              setShowToSuggestions(true);
-            }} 
-            onFocus={() => setShowToSuggestions(true)}
-            onBlur={() => setTimeout(() => setShowToSuggestions(false), 200)}
-            className="w-full bg-[#0e1628] border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white font-bold outline-none" 
-          />
-          {showToSuggestions && (
-            <div className="absolute left-0 right-0 top-[65px] bg-white border-3 border-black rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] z-50 overflow-y-auto max-h-48 text-black font-sans">
-              {POPULAR_DESTINATIONS.filter(dest => dest.toLowerCase().includes(toCity.toLowerCase()))
-                .map((dest, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onMouseDown={() => {
-                      setToCity(dest);
-                      setShowToSuggestions(false);
-                    }}
-                    className="w-full text-left px-3 py-2 hover:bg-yellow-300 transition-colors font-bold text-xs border-b border-slate-100 last:border-0 cursor-pointer"
-                  >
-                    {dest}
-                  </button>
-                ))}
-            </div>
-          )}
-        </div>
-        <div className="space-y-1.5">
-          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Bus Type</span>
-          <select className="w-full bg-[#0e1628] border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white font-bold outline-none">
-            <option>AC Sleeper</option>
-            <option>AC Seater</option>
-          </select>
-        </div>
-        <div className="flex items-end">
-          <button 
-            onClick={handleSearch} 
-            className="w-full bg-[var(--color-gold)] hover:bg-[#d6b35d] text-[var(--color-obsidian)] font-bold text-sm py-3 rounded-[var(--radius-card)] transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider border-none"
-          >
-            <Search size={14} /> Search Buses
-          </button>
-        </div>
-      </div>
+  const handleApplyPromo = () => {
+    const code = promoCode.trim().toUpperCase();
+    if (!code) return;
+    
+    const headers: any = { "Content-Type": "application/json" };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    
+    fetch(`${API_URL}/coupon/validate`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        code: code,
+        order_value: subtotal
+      })
+    })
+      .then(res => {
+        if (!res.ok) {
+          return res.json().then(data => { throw new Error(data.detail || "Invalid coupon code.") });
+        }
+        return res.json();
+      })
+      .then(data => {
+        setPromoDiscount(parseFloat(data.discount_amount));
+        setPromoApplied(true);
+        setErrors("");
+      })
+      .catch((err: any) => {
+        setErrors(err.message || "Failed to validate coupon.");
+        setPromoDiscount(0);
+        setPromoApplied(false);
+      });
+  };
 
-      {loading ? (
-        <div className="text-center py-6 text-slate-400 text-xs">Querying bus aggregator networks...</div>
-      ) : results.length > 0 && (
-        <div className="space-y-3">
-          {results.map((b, i) => (
-            <div key={i} className="bg-white border-3 border-black p-4 rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] flex flex-col gap-3 text-black">
-              <div onClick={() => onDetailClick("buses", b)} className="cursor-pointer text-left">
-                <CardThumbnail ownerType="bus" ownerId={b.operator_name} blurHash={b.blur_hash_base64} defaultUrl={b.primary_photo_url} />
-                <h4 className="font-extrabold text-base mt-2 text-black">{b.operator_name}</h4>
-                <p className="text-xs text-slate-600 mt-0.5 font-bold">{b.bus_type} | Dep: {b.departure_time} | {b.seats_left} seats left</p>
-                <span className="text-[10px] text-blue-600 font-bold block mt-1 hover:underline">View details & board guidelines ➔</span>
-              </div>
-              <div className="text-right">
-                <span className="font-black text-red-500 text-base block">₹{b.price}</span>
-                <button 
-                  onClick={() => handleOpenSeatMap(b)}
-                  className="mt-1 bg-yellow-300 text-[10px] font-black px-3.5 py-1.5 border-2 border-black rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:bg-yellow-400 transition-all uppercase"
+  const onwardBaseTotal = selectedBus ? selectedBus.price * passengerCount : 0;
+  const onwardSurcharge = getSelectedSeatsSurcharge('onward');
+  const onwardSubtotal = onwardBaseTotal + onwardSurcharge;
+
+  const returnBaseTotal = selectedReturnBus ? selectedReturnBus.price * passengerCount : 0;
+  const returnSurcharge = getSelectedSeatsSurcharge('return');
+  const returnSubtotal = returnBaseTotal + returnSurcharge;
+
+  const baseTotal = onwardBaseTotal + returnBaseTotal;
+  const seatSurcharge = onwardSurcharge + returnSurcharge;
+  const subtotal = onwardSubtotal + returnSubtotal;
+  const gstTax = Math.round(subtotal * 0.05);
+  const convenienceFee = tripType === 'round_trip' ? 100 : 50;
+  const totalAmount = subtotal + gstTax + convenienceFee - promoDiscount;
+  const walletAmount = walletApplied ? Math.min(walletBalance, totalAmount) : 0;
+  const payableAmount = totalAmount - walletAmount;
+
+  const handleFinalSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrors("");
+
+    for (let i = 0; i < passengersList.length; i++) {
+      if (!passengersList[i].name.trim()) {
+        setErrors(`Please enter full name for Passenger ${i + 1}.`);
+        return;
+      }
+      if (!passengersList[i].age) {
+        setErrors(`Please enter age for Passenger ${i + 1}.`);
+        return;
+      }
+    }
+    if (!contactEmail.trim() || !contactPhone.trim()) {
+      setErrors("Contact Email and Mobile Number are required.");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    const headers = {
+      "Content-Type": "application/json",
+      ...(token ? { "Authorization": `Bearer ${token}` } : {})
+    };
+
+    const onwardPayload = {
+      vertical: "buses",
+      amount: onwardSubtotal + Math.round(onwardSubtotal * 0.05) + 50 - (tripType === 'round_trip' ? 0 : promoDiscount),
+      details: {
+        bus_id: selectedBus.id,
+        operator_name: selectedBus.operator_name,
+        bus_type: selectedBus.bus_type,
+        origin: fromCity,
+        destination: toCity,
+        journey_date: journeyDate,
+        departure_time: selectedBus.departure_time,
+        seat_numbers: selectedSeats,
+        boarding_point: boardingPoint,
+        dropping_point: droppingPoint,
+        passengers: passengersList.map((p, idx) => ({
+          name: p.name,
+          age: parseInt(p.age),
+          gender: p.gender,
+          seat_number: selectedSeats[idx]
+        })),
+        contact: { email: contactEmail, phone: contactPhone },
+        promoDiscount: tripType === 'round_trip' ? 0 : promoDiscount,
+        walletUsed: walletApplied ? Math.min(walletBalance, onwardSubtotal + Math.round(onwardSubtotal * 0.05) + 50) : 0,
+        base_fare: selectedBus.price
+      }
+    };
+
+    try {
+      const resOnward = await fetch(`${API_URL}/bookings/hold`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(onwardPayload)
+      });
+      const dataOnward = await resOnward.json();
+      if (!resOnward.ok) {
+        throw new Error(dataOnward.detail || dataOnward.message || "Failed to hold onward ticket.");
+      }
+
+      if (tripType === 'round_trip' && selectedReturnBus) {
+        const returnPayload = {
+          vertical: "buses",
+          amount: returnSubtotal + Math.round(returnSubtotal * 0.05) + 50 - promoDiscount,
+          details: {
+            bus_id: selectedReturnBus.id,
+            operator_name: selectedReturnBus.operator_name,
+            bus_type: selectedReturnBus.bus_type,
+            origin: toCity,
+            destination: fromCity,
+            journey_date: returnDate,
+            departure_time: selectedReturnBus.departure_time,
+            seat_numbers: selectedReturnSeats,
+            boarding_point: returnBoardingPoint,
+            dropping_point: returnDroppingPoint,
+            passengers: passengersList.map((p, idx) => ({
+              name: p.name,
+              age: parseInt(p.age),
+              gender: p.gender,
+              seat_number: selectedReturnSeats[idx]
+            })),
+            contact: { email: contactEmail, phone: contactPhone },
+            promoDiscount: promoDiscount,
+            walletUsed: 0, 
+            base_fare: selectedReturnBus.price
+          }
+        };
+
+        const resReturn = await fetch(`${API_URL}/bookings/hold`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(returnPayload)
+        });
+        const dataReturn = await resReturn.json();
+        if (!resReturn.ok) {
+          throw new Error(dataReturn.detail || dataReturn.message || "Failed to hold return ticket.");
+        }
+
+        localStorage.setItem("pending_return_booking_ref", dataReturn.booking_reference);
+      }
+
+      onNavigate(`/checkout/${dataOnward.booking_reference}`);
+    } catch (err: any) {
+      setErrors(err.message || "Error processing booking.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const uniqueOperators = Array.from(new Set(results.map(b => b.operator_name)));
+  const uniqueBoardingPoints = Array.from(new Set(results.flatMap(b => (b.boarding_points || []).map((bp: any) => bp.name))));
+  const uniqueDroppingPoints = Array.from(new Set(results.flatMap(b => (b.dropping_points || []).map((dp: any) => dp.name))));
+
+  if (viewMode === 'search') {
+    return (
+      <div className="space-y-6 text-black font-sans">
+        <div className="bg-white border-4 border-black p-6 rounded-3xl shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] max-w-4xl mx-auto space-y-5 text-left">
+          <div className="flex justify-between items-center border-b-3 border-black pb-3">
+            <h3 className="text-lg font-black uppercase tracking-wider text-black flex items-center gap-1.5">
+              🚌 Intercity Bus Booking
+            </h3>
+            <div className="flex gap-2 bg-slate-100 p-1 border-2 border-black rounded-lg text-[10px] font-black uppercase">
+              <button 
+                type="button" 
+                onClick={() => setTripType('one_way')} 
+                className={`px-3 py-1 rounded transition-colors cursor-pointer ${tripType === 'one_way' ? 'bg-yellow-300 border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]' : 'text-slate-600 border border-transparent'}`}
+              >
+                One Way
+              </button>
+              <button 
+                type="button" 
+                onClick={() => setTripType('round_trip')} 
+                className={`px-3 py-1 rounded transition-colors cursor-pointer ${tripType === 'round_trip' ? 'bg-yellow-300 border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]' : 'text-slate-600 border border-transparent'}`}
+              >
+                Round Trip
+              </button>
+            </div>
+          </div>
+
+          {errors && (
+            <div className="bg-red-50 border-2 border-red-500 text-red-700 text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1.5">
+              <Info size={14} className="text-red-500" />
+              {errors}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative">
+            <div className="space-y-1.5 relative">
+              <label className="text-[10px] text-slate-500 font-extrabold uppercase flex items-center gap-1">
+                <MapPin size={12} /> From City
+              </label>
+              <input 
+                type="text" 
+                value={fromCity} 
+                onChange={(e) => {
+                  setFromCity(e.target.value);
+                  setShowFromSuggestions(true);
+                }} 
+                onFocus={() => setShowFromSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowFromSuggestions(false), 200)}
+                className="w-full bg-white border-3 border-black rounded-2xl px-4 py-3 text-sm text-black font-extrabold outline-none shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]" 
+              />
+              {showFromSuggestions && (
+                <div className="absolute left-0 right-0 top-[75px] bg-white border-3 border-black rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] z-50 overflow-y-auto max-h-56 p-2 space-y-2 text-left">
+                  {(() => {
+                    const recent = JSON.parse(localStorage.getItem("recent_bus_searches") || "[]");
+                    if (recent.length > 0) {
+                      return (
+                        <div className="border-b border-slate-100 pb-2">
+                          <span className="text-[8px] text-slate-400 font-black uppercase tracking-wider block mb-1">Recent Searches</span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {recent.map((r: any, idx: number) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onMouseDown={() => {
+                                  setFromCity(r.from);
+                                  setToCity(r.to);
+                                  setShowFromSuggestions(false);
+                                }}
+                                className="bg-slate-100 hover:bg-yellow-100 border border-slate-300 px-2 py-1 rounded text-[10px] font-bold text-slate-700 cursor-pointer"
+                              >
+                                {r.from} ➔ {r.to}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                  
+                  <div>
+                    <span className="text-[8px] text-slate-400 font-black uppercase tracking-wider block mb-1">Popular Cities</span>
+                    <div className="grid grid-cols-3 gap-1">
+                      {["Delhi", "Mumbai", "Bengaluru", "Jaipur", "Goa", "Pune"].map((city) => (
+                        <button
+                          key={city}
+                          type="button"
+                          onMouseDown={() => {
+                            setFromCity(city);
+                            setShowFromSuggestions(false);
+                          }}
+                          className="bg-slate-50 hover:bg-yellow-100 border border-slate-200 py-1 rounded text-[10px] font-bold text-slate-700 cursor-pointer"
+                        >
+                          {city}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="border-t border-slate-100 pt-2">
+                    <span className="text-[8px] text-slate-400 font-black uppercase tracking-wider block mb-1">All Destinations</span>
+                    {POPULAR_DESTINATIONS.filter(dest => dest.toLowerCase().includes(fromCity.toLowerCase()))
+                      .map((dest, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onMouseDown={() => {
+                            setFromCity(dest);
+                            setShowFromSuggestions(false);
+                          }}
+                          className="w-full text-left px-2 py-1.5 hover:bg-yellow-100 transition-colors font-bold text-[11px] border-b border-slate-100 last:border-0 cursor-pointer"
+                        >
+                          📍 {dest}
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="absolute left-1/2 top-[34px] -translate-x-1/2 z-10 hidden md:block">
+              <button 
+                type="button"
+                onClick={handleSwap}
+                className="bg-yellow-300 hover:bg-yellow-400 text-black border-2 border-black p-1.5 rounded-full shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-none transition-all cursor-pointer"
+                title="Swap cities"
+              >
+                🔄
+              </button>
+            </div>
+
+            <div className="space-y-1.5 relative">
+              <label className="text-[10px] text-slate-500 font-extrabold uppercase flex items-center gap-1">
+                <MapPin size={12} /> To City
+              </label>
+              <input 
+                type="text" 
+                value={toCity} 
+                onChange={(e) => {
+                  setToCity(e.target.value);
+                  setShowToSuggestions(true);
+                }} 
+                onFocus={() => setShowToSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowToSuggestions(false), 200)}
+                className="w-full bg-white border-3 border-black rounded-2xl px-4 py-3 text-sm text-black font-extrabold outline-none shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]" 
+              />
+              {showToSuggestions && (
+                <div className="absolute left-0 right-0 top-[75px] bg-white border-3 border-black rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] z-50 overflow-y-auto max-h-56 p-2 space-y-2 text-left">
+                  <div>
+                    <span className="text-[8px] text-slate-400 font-black uppercase tracking-wider block mb-1">Popular Cities</span>
+                    <div className="grid grid-cols-3 gap-1">
+                      {["Delhi", "Mumbai", "Bengaluru", "Jaipur", "Goa", "Pune"].map((city) => (
+                        <button
+                          key={city}
+                          type="button"
+                          onMouseDown={() => {
+                            setToCity(city);
+                            setShowToSuggestions(false);
+                          }}
+                          className="bg-slate-50 hover:bg-yellow-100 border border-slate-200 py-1 rounded text-[10px] font-bold text-slate-700 cursor-pointer"
+                        >
+                          {city}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="border-t border-slate-100 pt-2">
+                    <span className="text-[8px] text-slate-400 font-black uppercase tracking-wider block mb-1">All Destinations</span>
+                    {POPULAR_DESTINATIONS.filter(dest => dest.toLowerCase().includes(toCity.toLowerCase()))
+                      .map((dest, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onMouseDown={() => {
+                            setToCity(dest);
+                            setShowToSuggestions(false);
+                          }}
+                          className="w-full text-left px-2 py-1.5 hover:bg-yellow-100 transition-colors font-bold text-[11px] border-b border-slate-100 last:border-0 cursor-pointer"
+                        >
+                          📍 {dest}
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-[10px] text-slate-500 font-extrabold uppercase flex items-center gap-1">
+                <Calendar size={12} /> Journey Date
+              </label>
+              <input 
+                type="date" 
+                value={journeyDate} 
+                min={new Date().toISOString().split('T')[0]}
+                onChange={(e) => setJourneyDate(e.target.value)}
+                className="w-full bg-white border-3 border-black rounded-2xl px-4 py-2.5 text-sm text-black font-extrabold outline-none shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]" 
+              />
+              <div className="flex gap-1.5 mt-1.5">
+                <button
+                  type="button"
+                  onClick={() => setQuickDate('today')}
+                  className="bg-slate-100 border border-slate-300 text-[9px] font-extrabold px-2 py-0.5 rounded hover:bg-slate-200 cursor-pointer"
                 >
-                  Select Seats
+                  Today
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQuickDate('tomorrow')}
+                  className="bg-slate-100 border border-slate-300 text-[9px] font-extrabold px-2 py-0.5 rounded hover:bg-slate-200 cursor-pointer"
+                >
+                  Tomorrow
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQuickDate('weekend')}
+                  className="bg-slate-100 border border-slate-300 text-[9px] font-extrabold px-2 py-0.5 rounded hover:bg-slate-200 cursor-pointer"
+                >
+                  Weekend
                 </button>
               </div>
             </div>
-          ))}
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] text-slate-500 font-extrabold uppercase flex items-center gap-1">
+                <Calendar size={12} /> Return Date {tripType === 'one_way' && '(Optional)'}
+              </label>
+              <input 
+                type="date" 
+                value={returnDate} 
+                min={journeyDate}
+                disabled={tripType === 'one_way'}
+                onChange={(e) => setReturnDate(e.target.value)}
+                className="w-full bg-white border-3 border-black rounded-2xl px-4 py-2.5 text-sm text-black font-extrabold outline-none shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] disabled:bg-slate-50 disabled:text-slate-400" 
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] text-slate-500 font-extrabold uppercase flex items-center gap-1">
+                <Users size={12} /> Travelers
+              </label>
+              <div className="flex items-center justify-between bg-white border-3 border-black rounded-2xl px-4 py-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                <button 
+                  type="button" 
+                  onClick={() => setPassengerCount(prev => Math.max(1, prev - 1))}
+                  className="w-8 h-8 rounded-lg border border-black hover:bg-slate-100 flex items-center justify-center font-black cursor-pointer"
+                >
+                  -
+                </button>
+                <span className="font-extrabold text-sm text-black">{passengerCount} Pax</span>
+                <button 
+                  type="button" 
+                  onClick={() => setPassengerCount(prev => Math.min(6, prev + 1))}
+                  className="w-8 h-8 rounded-lg border border-black hover:bg-slate-100 flex items-center justify-center font-black cursor-pointer"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+            <div className="space-y-1.5">
+              <label className="text-[10px] text-slate-500 font-extrabold uppercase">Prefer Class</label>
+              <select 
+                value={busType} 
+                onChange={(e) => setBusType(e.target.value)}
+                className="w-full bg-white border-3 border-black rounded-2xl px-4 py-3 text-sm text-black font-extrabold outline-none shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+              >
+                <option value="Any">Any Bus Type</option>
+                <option value="AC Sleeper">AC Sleeper</option>
+                <option value="Non-AC Sleeper">Non-AC Sleeper</option>
+                <option value="AC Seater">AC Seater</option>
+                <option value="Non-AC Seater">Non-AC Seater</option>
+                <option value="AC Seater/Sleeper">AC Seater/Sleeper</option>
+                <option value="Volvo">Volvo / Premium</option>
+                <option value="Electric">Electric</option>
+                <option value="Luxury">Luxury</option>
+              </select>
+            </div>
+            <div className="flex items-end">
+              <button 
+                type="button"
+                onClick={handleSearch} 
+                className="w-full bg-yellow-300 hover:bg-yellow-400 text-black border-3 border-black font-black text-xs py-3.5 rounded-2xl transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-none flex items-center justify-center gap-2 uppercase tracking-wide cursor-pointer"
+              >
+                <Search size={14} strokeWidth={3} /> Search Intercity Buses
+              </button>
+            </div>
+          </div>
         </div>
-      )}
+      </div>
+    );
+  }
 
-      {showSeatModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border-4 border-black p-6 max-w-sm w-full space-y-4 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] text-black">
-            <div className="flex justify-between items-center border-b-3 border-black pb-2">
-              <h4 className="font-black text-sm uppercase">Select Sleeper Berths</h4>
-              <button onClick={() => setShowSeatModal(null)} className="font-bold text-slate-500">✕</button>
-            </div>
-            
-            <div className="bg-slate-100 p-3 rounded-lg border-2 border-black text-[10px] font-bold text-slate-500 flex justify-between">
-              <span>Driver Side</span>
-              <span>🚪 Door</span>
-            </div>
+  if (viewMode === 'results') {
+    return (
+      <div className="space-y-6 text-black font-sans text-left">
+        <div className="bg-slate-900 border-4 border-black p-4 rounded-3xl text-white flex flex-col md:flex-row justify-between items-center gap-4 shadow-[5px_5px_0px_0px_rgba(0,0,0,1)]">
+          <div>
+            <h4 className="font-black text-sm uppercase tracking-wide flex items-center gap-1.5">
+              <Bus size={16} className="text-yellow-300" />
+              {resultsStage === 'onward' 
+                ? `Onward Journey: ${fromCity} ➔ ${toCity}`
+                : `Return Journey: ${toCity} ➔ ${fromCity}`
+              }
+            </h4>
+            <p className="text-[10px] text-slate-400 mt-0.5 font-bold">
+              {resultsStage === 'onward' ? new Date(journeyDate).toDateString() : new Date(returnDate).toDateString()} | {passengerCount} Traveler{passengerCount > 1 ? 's' : ''} | Class: {busType}
+            </p>
+          </div>
+          <button 
+            onClick={() => setViewMode('search')}
+            className="bg-yellow-300 hover:bg-yellow-400 text-black border-2 border-black font-black px-4 py-2 rounded-xl text-[10px] uppercase shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer"
+          >
+            Modify Search
+          </button>
+        </div>
 
-            <div className="grid grid-cols-4 gap-3 py-4 max-w-[240px] mx-auto">
-              {showSeatModal.seats_map.map((seat: string) => (
-                <div 
-                  key={seat}
-                  onClick={() => toggleSeat(seat)}
-                  className={`border-3 border-black h-12 flex items-center justify-center rounded font-black text-xs cursor-pointer shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-none transition-all ${
-                    selectedSeats.includes(seat) ? 'bg-yellow-300' : 'bg-white hover:bg-slate-100'
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="md:col-span-1 space-y-4">
+            <div className="bg-white border-3 border-black p-4 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                <span className="text-xs font-black uppercase">Filters</span>
+                <button 
+                  onClick={() => {
+                    setPriceRange(3000);
+                    setSelectedOperators([]);
+                    setSelectedAmenities([]);
+                    setSelectedBoardingPoints([]);
+                    setSelectedDroppingPoints([]);
+                    setTimeFilter('all');
+                    setAcFilter('all');
+                    setSeatTypeFilter('all');
+                    setMinRating(0);
+                  }}
+                  className="text-[9px] font-bold text-blue-600 hover:underline cursor-pointer"
+                >
+                  Clear All
+                </button>
+              </div>
+
+              <div className="space-y-1.5">
+                <span className="text-[10px] text-slate-500 font-extrabold uppercase block">Max Fare: ₹{priceRange}</span>
+                <input 
+                  type="range" 
+                  min="500" 
+                  max="3000" 
+                  step="100"
+                  value={priceRange} 
+                  onChange={(e) => setPriceRange(parseInt(e.target.value))}
+                  className="w-full accent-yellow-400"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <span className="text-[10px] text-slate-500 font-extrabold uppercase block">AC Option</span>
+                <div className="grid grid-cols-3 gap-1 bg-slate-100 p-0.5 rounded-lg text-[9px] font-bold uppercase text-center">
+                  <button 
+                    onClick={() => setAcFilter('all')} 
+                    className={`py-1 rounded cursor-pointer ${acFilter === 'all' ? 'bg-yellow-300 border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]' : ''}`}
+                  >
+                    All
+                  </button>
+                  <button 
+                    onClick={() => setAcFilter('ac')} 
+                    className={`py-1 rounded cursor-pointer ${acFilter === 'ac' ? 'bg-yellow-300 border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]' : ''}`}
+                  >
+                    AC
+                  </button>
+                  <button 
+                    onClick={() => setAcFilter('non_ac')} 
+                    className={`py-1 rounded cursor-pointer ${acFilter === 'non_ac' ? 'bg-yellow-300 border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]' : ''}`}
+                  >
+                    Non-AC
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <span className="text-[10px] text-slate-500 font-extrabold uppercase block">Seat Type</span>
+                <div className="grid grid-cols-3 gap-1 bg-slate-100 p-0.5 rounded-lg text-[9px] font-bold uppercase text-center">
+                  <button 
+                    onClick={() => setSeatTypeFilter('all')} 
+                    className={`py-1 rounded cursor-pointer ${seatTypeFilter === 'all' ? 'bg-yellow-300 border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]' : ''}`}
+                  >
+                    All
+                  </button>
+                  <button 
+                    onClick={() => setSeatTypeFilter('sleeper')} 
+                    className={`py-1 rounded cursor-pointer ${seatTypeFilter === 'sleeper' ? 'bg-yellow-300 border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]' : ''}`}
+                  >
+                    Sleeper
+                  </button>
+                  <button 
+                    onClick={() => setSeatTypeFilter('seater')} 
+                    className={`py-1 rounded cursor-pointer ${seatTypeFilter === 'seater' ? 'bg-yellow-300 border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]' : ''}`}
+                  >
+                    Seater
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <span className="text-[10px] text-slate-500 font-extrabold uppercase block">Departure Time</span>
+                <select 
+                  value={timeFilter} 
+                  onChange={(e: any) => setTimeFilter(e.target.value)}
+                  className="w-full bg-slate-100 border-2 border-black rounded-lg p-1.5 text-[10px] font-extrabold outline-none"
+                >
+                  <option value="all">Any Departure Time</option>
+                  <option value="morning">Morning (6 AM - 12 PM)</option>
+                  <option value="afternoon">Afternoon (12 PM - 6 PM)</option>
+                  <option value="evening">Evening/Night (After 6 PM)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <span className="text-[10px] text-slate-500 font-extrabold uppercase block">Minimum Rating</span>
+                <div className="grid grid-cols-3 gap-1 bg-slate-100 p-0.5 rounded-lg text-[9px] font-bold uppercase text-center">
+                  <button 
+                    onClick={() => setMinRating(0)} 
+                    className={`py-1 rounded cursor-pointer ${minRating === 0 ? 'bg-yellow-300 border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]' : ''}`}
+                  >
+                    Any
+                  </button>
+                  <button 
+                    onClick={() => setMinRating(3)} 
+                    className={`py-1 rounded cursor-pointer ${minRating === 3 ? 'bg-yellow-300 border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]' : ''}`}
+                  >
+                    3★ +
+                  </button>
+                  <button 
+                    onClick={() => setMinRating(4)} 
+                    className={`py-1 rounded cursor-pointer ${minRating === 4 ? 'bg-yellow-300 border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]' : ''}`}
+                  >
+                    4★ +
+                  </button>
+                </div>
+              </div>
+
+              {uniqueOperators.length > 0 && (
+                <div className="space-y-1.5">
+                  <span className="text-[10px] text-slate-500 font-extrabold uppercase block">Operators</span>
+                  <div className="max-h-24 overflow-y-auto space-y-1 text-xs">
+                    {uniqueOperators.map((op: any) => (
+                      <label key={op} className="flex items-center gap-1.5 font-bold text-slate-700 cursor-pointer">
+                        <input 
+                          type="checkbox"
+                          checked={selectedOperators.includes(op)}
+                          onChange={() => {
+                            if (selectedOperators.includes(op)) {
+                              setSelectedOperators(prev => prev.filter(x => x !== op));
+                            } else {
+                              setSelectedOperators(prev => [...prev, op]);
+                            }
+                          }}
+                          className="accent-yellow-400"
+                        />
+                        <span>{op}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {uniqueBoardingPoints.length > 0 && (
+                <div className="space-y-1.5">
+                  <span className="text-[10px] text-slate-500 font-extrabold uppercase block">Boarding Points</span>
+                  <div className="max-h-24 overflow-y-auto space-y-1 text-xs">
+                    {uniqueBoardingPoints.map((bp: any) => (
+                      <label key={bp} className="flex items-center gap-1.5 font-bold text-slate-700 cursor-pointer">
+                        <input 
+                          type="checkbox"
+                          checked={selectedBoardingPoints.includes(bp)}
+                          onChange={() => {
+                            if (selectedBoardingPoints.includes(bp)) {
+                              setSelectedBoardingPoints(prev => prev.filter(x => x !== bp));
+                            } else {
+                              setSelectedBoardingPoints(prev => [...prev, bp]);
+                            }
+                          }}
+                          className="accent-yellow-400"
+                        />
+                        <span>{bp}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {uniqueDroppingPoints.length > 0 && (
+                <div className="space-y-1.5">
+                  <span className="text-[10px] text-slate-500 font-extrabold uppercase block">Dropping Points</span>
+                  <div className="max-h-24 overflow-y-auto space-y-1 text-xs">
+                    {uniqueDroppingPoints.map((dp: any) => (
+                      <label key={dp} className="flex items-center gap-1.5 font-bold text-slate-700 cursor-pointer">
+                        <input 
+                          type="checkbox"
+                          checked={selectedDroppingPoints.includes(dp)}
+                          onChange={() => {
+                            if (selectedDroppingPoints.includes(dp)) {
+                              setSelectedDroppingPoints(prev => prev.filter(x => x !== dp));
+                            } else {
+                              setSelectedDroppingPoints(prev => [...prev, dp]);
+                            }
+                          }}
+                          className="accent-yellow-400"
+                        />
+                        <span>{dp}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <span className="text-[10px] text-slate-500 font-extrabold uppercase block">Amenities</span>
+                <div className="space-y-1 text-xs">
+                  {["WiFi", "Blanket", "Charging Point", "Water Bottle", "CCTV", "Reading Light", "Washroom"].map((amenity) => (
+                    <label key={amenity} className="flex items-center gap-1.5 font-bold text-slate-700 cursor-pointer">
+                      <input 
+                        type="checkbox"
+                        checked={selectedAmenities.includes(amenity)}
+                        onChange={() => {
+                          if (selectedAmenities.includes(amenity)) {
+                            setSelectedAmenities(prev => prev.filter(x => x !== amenity));
+                          } else {
+                            setSelectedAmenities(prev => [...prev, amenity]);
+                          }
+                        }}
+                        className="accent-yellow-400"
+                      />
+                      <span>{amenity}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="md:col-span-3 space-y-4">
+            <div className="bg-white border-3 border-black p-2.5 rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] flex flex-wrap gap-2 items-center text-xs font-black">
+              <span className="text-slate-500 uppercase text-[9px] mr-2">Sort By:</span>
+              {[
+                { key: 'recommended', label: 'Recommended' },
+                { key: 'cheapest', label: 'Cheapest' },
+                { key: 'fastest', label: 'Fastest' },
+                { key: 'rating', label: 'Highest Rated' },
+                { key: 'departure', label: 'Departure Time' }
+              ].map((pill) => (
+                <button
+                  key={pill.key}
+                  onClick={() => setSortBy(pill.key as any)}
+                  className={`px-3 py-1 rounded-lg border-2 border-black transition-all cursor-pointer ${
+                    sortBy === pill.key ? 'bg-yellow-300 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] translate-y-[-1px]' : 'bg-slate-50 hover:bg-slate-100'
                   }`}
                 >
-                  {seat}
+                  {pill.label}
+                </button>
+              ))}
+            </div>
+
+            {loading ? (
+              <div className="text-center py-12 space-y-3">
+                <div className="w-10 h-10 border-4 border-yellow-400 border-t-transparent rounded-full animate-spin mx-auto" />
+                <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">Searching available bus inventories...</p>
+              </div>
+            ) : filteredResults.length === 0 ? (
+              <div className="bg-white border-3 border-black rounded-3xl p-12 text-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] space-y-3">
+                <Info size={40} className="mx-auto text-slate-400" />
+                <h4 className="font-black text-sm uppercase">No Buses Found</h4>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">We couldn't find any buses matching your active filters. Try widening your price range or selection criteria.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredResults.map((bus) => (
+                  <div key={bus.id} className="bg-white border-4 border-black p-5 rounded-3xl shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] flex flex-col justify-between items-stretch gap-4 transition-transform hover:translate-y-[-2px]">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                      <div className="space-y-2 flex-grow text-left">
+                        <div className="flex items-center gap-3">
+                          <strong className="text-base font-black text-black">{bus.operator_name}</strong>
+                          <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-2 py-0.5 rounded border border-emerald-300 uppercase">
+                            ★ {bus.rating} ({bus.review_count} reviews)
+                          </span>
+                        </div>
+                        
+                        <div className="text-xs text-slate-600 font-bold">
+                          {bus.bus_type}
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-2 text-xs py-1 border-t border-b border-slate-100 max-w-md">
+                          <div>
+                            <strong className="text-black text-sm">{bus.departure_time}</strong>
+                            <span className="text-[10px] text-slate-500 block font-bold">{bus.origin}</span>
+                          </div>
+                          <div className="text-center self-center">
+                            <span className="text-[10px] text-slate-400 font-bold block border-b border-slate-200 pb-0.5">{bus.duration}</span>
+                            <span className="text-[9px] text-slate-400">Direct</span>
+                          </div>
+                          <div>
+                            <strong className="text-black text-sm">{bus.arrival_time}</strong>
+                            <span className="text-[10px] text-slate-500 block font-bold">{bus.destination}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-1.5 items-center">
+                          <span className="text-[9px] text-slate-400 font-bold uppercase mr-1">Amenities:</span>
+                          {bus.amenities?.slice(0, 4).map((amenity: string) => (
+                            <span key={amenity} className="bg-slate-100 text-slate-700 text-[8px] font-bold px-1.5 py-0.5 rounded">
+                              {amenity}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="text-right space-y-2 w-full md:w-auto self-stretch md:self-auto border-t md:border-0 pt-3 md:pt-0 flex md:flex-col justify-between items-center md:items-end">
+                        <div className="text-left md:text-right">
+                          <span className="text-[9px] text-slate-400 font-bold block uppercase">Starting at</span>
+                          <strong className="text-xl font-black text-red-500">₹{bus.price}</strong>
+                          <span className="text-[9px] text-slate-500 block font-bold">{bus.seats_left} seats left</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              if (expandedBusDetailsId === bus.id) {
+                                setExpandedBusDetailsId(null);
+                              } else {
+                                setExpandedBusDetailsId(bus.id);
+                                setActiveDetailsTab('overview');
+                              }
+                            }}
+                            className="bg-slate-100 hover:bg-slate-200 text-black border-2 border-black font-extrabold text-[9px] px-3.5 py-2.5 rounded-xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-none transition-all uppercase cursor-pointer"
+                          >
+                            {expandedBusDetailsId === bus.id ? "Hide Details" : "View Details"}
+                          </button>
+                          <button 
+                            onClick={() => handleOpenSeatMap(bus)}
+                            className="bg-yellow-300 hover:bg-yellow-400 text-black border-3 border-black font-black text-[10px] px-5 py-2.5 rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-none transition-all uppercase tracking-wider cursor-pointer"
+                          >
+                            Select Seats
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {expandedBusDetailsId === bus.id && (
+                      <div className="w-full mt-4 border-t border-slate-200 pt-4 text-xs text-left">
+                        <div className="flex border-b border-slate-200 gap-4 mb-3 font-extrabold overflow-x-auto pb-1 text-[10px] uppercase">
+                          {(['overview', 'amenities', 'boarding', 'dropping', 'cancellation'] as const).map(tab => (
+                            <button
+                              key={tab}
+                              onClick={() => setActiveDetailsTab(tab)}
+                              className={`pb-1 border-b-2 transition-all cursor-pointer ${
+                                activeDetailsTab === tab ? 'border-yellow-400 text-yellow-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+                              }`}
+                            >
+                              {tab}
+                            </button>
+                          ))}
+                        </div>
+
+                        {activeDetailsTab === 'overview' && (
+                          <div className="space-y-2 p-3 bg-slate-50 rounded-xl border border-slate-150">
+                            <p className="font-bold text-slate-700">🚌 Operator: <span className="text-black">{bus.operator_name}</span></p>
+                            <p className="font-bold text-slate-700">🛣️ Route: <span className="text-black">{bus.origin} ➔ {bus.destination} ({bus.duration})</span></p>
+                            <p className="font-bold text-slate-700">🏷️ Bus Class: <span className="text-black">{bus.bus_type}</span></p>
+                            <p className="font-bold text-slate-700">👥 Total Inventory: <span className="text-black">30 seat layout</span></p>
+                          </div>
+                        )}
+
+                        {activeDetailsTab === 'amenities' && (
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 bg-slate-50 rounded-xl border border-slate-150">
+                            {bus.amenities?.map((am: string) => (
+                              <span key={am} className="bg-white border border-slate-200 p-1.5 rounded-lg font-bold text-slate-700 text-center flex items-center justify-center gap-1">
+                                🔌 {am}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {activeDetailsTab === 'boarding' && (
+                          <div className="space-y-2 p-3 bg-slate-50 rounded-xl border border-slate-150">
+                            {bus.boarding_points?.map((bp: any, idx: number) => (
+                              <div key={idx} className="flex justify-between items-start border-b border-dashed last:border-0 border-slate-200 pb-1.5 mb-1.5 last:mb-0 last:pb-0">
+                                <div>
+                                  <strong className="text-slate-900 font-extrabold">{bp.name}</strong>
+                                  <p className="text-[10px] text-slate-500 mt-0.5">{bp.address} (Landmark: {bp.landmark || "N/A"})</p>
+                                </div>
+                                <span className="font-black text-blue-600">{bp.time}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {activeDetailsTab === 'dropping' && (
+                          <div className="space-y-2 p-3 bg-slate-50 rounded-xl border border-slate-150">
+                            {bus.dropping_points?.map((dp: any, idx: number) => (
+                              <div key={idx} className="flex justify-between items-start border-b border-dashed last:border-0 border-slate-200 pb-1.5 mb-1.5 last:mb-0 last:pb-0">
+                                <div>
+                                  <strong className="text-slate-900 font-extrabold">{dp.name}</strong>
+                                  <p className="text-[10px] text-slate-500 mt-0.5">{dp.address} (Landmark: {dp.landmark || "N/A"})</p>
+                                </div>
+                                <span className="font-black text-blue-600">{dp.time}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {activeDetailsTab === 'cancellation' && (
+                          <div className="p-3 bg-slate-50 rounded-xl border border-slate-150 space-y-2">
+                            <table className="w-full text-left font-bold text-slate-700">
+                              <thead>
+                                <tr className="border-b border-slate-200 text-[10px] uppercase text-slate-500">
+                                  <th className="pb-1">Time before Departure</th>
+                                  <th className="pb-1 text-right">Refund Percentage</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                <tr className="border-b border-slate-150 py-1.5">
+                                  <td className="py-1">More than 24 hrs</td>
+                                  <td className="py-1 text-right text-emerald-600">100% Refund</td>
+                                </tr>
+                                <tr className="border-b border-slate-150 py-1.5">
+                                  <td className="py-1">12 to 24 hrs</td>
+                                  <td className="py-1 text-right text-yellow-600">50% Refund</td>
+                                </tr>
+                                <tr className="py-1.5">
+                                  <td className="py-1">Less than 12 hrs</td>
+                                  <td className="py-1 text-right text-rose-600">No Refund</td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (viewMode === 'seats') {
+    const isSleeper = selectedBus?.bus_type.toLowerCase().includes('sleeper');
+    const lowerDeck = seatMap.filter(s => s.seat_number.startsWith('L') || (!s.seat_number.startsWith('U') && !isSleeper));
+    const upperDeck = seatMap.filter(s => s.seat_number.startsWith('U'));
+
+    // Boarding & dropping points mock arrays (could be fetched dynamically, matched stably)
+    const boardingOptions = selectedBus?.boarding_points || [];
+    const droppingOptions = selectedBus?.dropping_points || [];
+
+    return (
+      <div className="space-y-6 text-black font-sans text-left max-w-4xl mx-auto">
+        <div className="bg-slate-900 border-4 border-black p-4 rounded-3xl text-white flex justify-between items-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+          <div>
+            <h4 className="font-black text-sm uppercase">{selectedBus?.operator_name} - Seat Layout</h4>
+            <p className="text-[10px] text-slate-400 mt-0.5">{selectedBus?.bus_type} | base fare: ₹{selectedBus?.price}</p>
+          </div>
+          <button 
+            onClick={() => setViewMode('results')}
+            className="bg-white hover:bg-slate-100 text-black border-2 border-black font-black px-3.5 py-1.5 rounded-xl text-[10px] uppercase shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer"
+          >
+            Back to Results
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Points selection sidebar */}
+          <div className="md:col-span-1 space-y-4">
+            {/* Boarding point selection */}
+            <div className="bg-white border-3 border-black p-4 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] space-y-3">
+              <span className="text-xs font-black uppercase text-blue-600 block border-b border-slate-100 pb-1">1. Boarding Point</span>
+              <div className="space-y-2">
+                {boardingOptions.map((opt: any) => (
+                  <div 
+                    key={opt.name}
+                    onClick={() => setBoardingPoint(opt)}
+                    className={`p-2 border-2 rounded-xl text-xs cursor-pointer transition-colors ${
+                      boardingPoint?.name === opt.name 
+                        ? 'bg-blue-50 border-blue-500 font-extrabold shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]' 
+                        : 'border-black bg-white hover:bg-slate-50 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]'
+                    }`}
+                  >
+                    <div className="flex justify-between font-black text-slate-900">
+                      <span>{opt.time}</span>
+                      <span>{opt.name.split(' ')[1] || opt.name}</span>
+                    </div>
+                    <div className="text-[10px] text-slate-500 mt-1 font-bold">{opt.address}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Dropping point selection */}
+            <div className="bg-white border-3 border-black p-4 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] space-y-3">
+              <span className="text-xs font-black uppercase text-blue-600 block border-b border-slate-100 pb-1">2. Dropping Point</span>
+              <div className="space-y-2">
+                {droppingOptions.map((opt: any) => (
+                  <div 
+                    key={opt.name}
+                    onClick={() => setDroppingPoint(opt)}
+                    className={`p-2 border-2 rounded-xl text-xs cursor-pointer transition-colors ${
+                      droppingPoint?.name === opt.name 
+                        ? 'bg-blue-50 border-blue-500 font-extrabold shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]' 
+                        : 'border-black bg-white hover:bg-slate-50 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]'
+                    }`}
+                  >
+                    <div className="flex justify-between font-black text-slate-900">
+                      <span>{opt.time}</span>
+                      <span>{opt.name.split(' ')[1] || opt.name}</span>
+                    </div>
+                    <div className="text-[10px] text-slate-500 mt-1 font-bold">{opt.address}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Seat Layout grid */}
+          <div className="md:col-span-2 space-y-4">
+            <div className="bg-white border-4 border-black p-6 rounded-3xl shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] text-center space-y-6">
+              <div className="flex justify-between items-center text-xs font-bold bg-slate-100 px-3 py-2 border-2 border-black rounded-lg text-slate-500">
+                <span>Front (Driver Side)</span>
+                <span className="flex items-center gap-1">🚪 Door</span>
+              </div>
+
+              {/* stacked layout (Sleeper Decks or Seater Grid) */}
+              <div className="flex flex-col sm:flex-row gap-8 justify-center items-start">
+                
+                {/* Lower Deck / Seater Layout */}
+                <div className="space-y-2 shrink-0 mx-auto">
+                  <span className="text-[10px] font-black bg-slate-200 border-2 border-black px-2 py-0.5 rounded uppercase">
+                    {isSleeper ? "Lower Deck" : "Seat Layout"}
+                  </span>
+                  
+                  <div className="grid grid-cols-4 gap-2.5 p-4 border-3 border-black rounded-2xl bg-slate-50 max-w-[200px]">
+                    {lowerDeck.map((seat: any) => {
+                      const selected = selectedSeats.includes(seat.seat_number);
+                      return (
+                        <div 
+                          key={seat.seat_number}
+                          onClick={() => toggleSeat(seat)}
+                          className={`border-2 border-black ${isSleeper ? 'h-14 w-8 rounded-lg' : 'h-8 w-8 rounded'} flex items-center justify-center font-black text-[10px] cursor-pointer transition-all shadow-[1.5px_1.5px_0px_0px_rgba(0,0,0,1)] ${
+                            seat.is_occupied 
+                              ? 'bg-slate-300 text-slate-500 border-slate-400 cursor-not-allowed shadow-none' 
+                              : selected 
+                              ? 'bg-yellow-300 translate-y-[1px]' 
+                              : 'bg-white hover:bg-slate-100'
+                          }`}
+                          title={`Seat: ${seat.seat_number} | Price: ₹${seat.price}`}
+                        >
+                          {seat.seat_number}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Upper Deck Layout (if sleeper) */}
+                {isSleeper && upperDeck.length > 0 && (
+                  <div className="space-y-2 shrink-0 mx-auto">
+                    <span className="text-[10px] font-black bg-slate-200 border-2 border-black px-2 py-0.5 rounded uppercase">
+                      Upper Deck
+                    </span>
+                    
+                    <div className="grid grid-cols-4 gap-2.5 p-4 border-3 border-black rounded-2xl bg-slate-50 max-w-[200px]">
+                      {upperDeck.map((seat: any) => {
+                        const selected = selectedSeats.includes(seat.seat_number);
+                        return (
+                          <div 
+                            key={seat.seat_number}
+                            onClick={() => toggleSeat(seat)}
+                            className={`border-2 border-black h-14 w-8 rounded-lg flex items-center justify-center font-black text-[10px] cursor-pointer transition-all shadow-[1.5px_1.5px_0px_0px_rgba(0,0,0,1)] ${
+                              seat.is_occupied 
+                                ? 'bg-slate-300 text-slate-500 border-slate-400 cursor-not-allowed shadow-none' 
+                                : selected 
+                                ? 'bg-yellow-300 translate-y-[1px]' 
+                                : 'bg-white hover:bg-slate-100'
+                            }`}
+                            title={`Seat: ${seat.seat_number} | Price: ₹${seat.price}`}
+                          >
+                            {seat.seat_number}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Legend */}
+              <div className="flex justify-center gap-4 text-[10px] font-bold text-slate-600 border-t border-slate-100 pt-3">
+                <div className="flex items-center gap-1">
+                  <div className="w-3.5 h-3.5 bg-white border border-black rounded shadow-[0.5px_0.5px_0px_0px_rgba(0,0,0,1)]" />
+                  <span>Available</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-3.5 h-3.5 bg-yellow-300 border border-black rounded shadow-[0.5px_0.5px_0px_0px_rgba(0,0,0,1)]" />
+                  <span>Selected</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-3.5 h-3.5 bg-slate-300 border border-slate-450 rounded" />
+                  <span>Booked</span>
+                </div>
+              </div>
+
+              {/* Action summary bar */}
+              <div className="border-t-3 border-black pt-4 flex flex-col sm:flex-row justify-between items-center gap-3">
+                <div className="text-left">
+                  <span className="text-[10px] text-slate-500 font-extrabold uppercase block">Selected seats ({selectedSeats.length})</span>
+                  <strong className="text-black font-extrabold text-sm">{selectedSeats.join(', ') || 'No seats selected'}</strong>
+                </div>
+                <div className="text-right">
+                  <span className="text-[9px] text-slate-500 font-extrabold uppercase block">Total fare</span>
+                  <strong className="text-red-500 text-xl font-black">₹{subtotal.toLocaleString()}</strong>
+                </div>
+              </div>
+
+              <button 
+                onClick={handleConfirmSeats}
+                className="w-full bg-yellow-300 hover:bg-yellow-400 text-black border-3 border-black font-black py-3 rounded-2xl text-xs uppercase shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-none transition-all cursor-pointer"
+              >
+                Proceed to Passenger Details
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (viewMode === 'passengers') {
+    return (
+      <div className="space-y-6 text-black font-sans text-left max-w-4xl mx-auto">
+        <div className="bg-slate-900 border-4 border-black p-4 rounded-3xl text-white flex justify-between items-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+          <div>
+            <h4 className="font-black text-sm uppercase">Passenger details</h4>
+            <p className="text-[10px] text-slate-400 mt-0.5">{selectedBus?.operator_name} | {fromCity} ➔ {toCity}</p>
+          </div>
+          <button 
+            onClick={() => setViewMode('seats')}
+            className="bg-white hover:bg-slate-100 text-black border-2 border-black font-black px-3.5 py-1.5 rounded-xl text-[10px] uppercase shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer"
+          >
+            Back to Seats
+          </button>
+        </div>
+
+        {errors && (
+          <div className="bg-red-50 border-2 border-red-500 text-red-700 text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1.5">
+            <Info size={14} className="text-red-500" />
+            {errors}
+          </div>
+        )}
+
+        <form onSubmit={handleFinalSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Passenger Input forms */}
+          <div className="md:col-span-2 space-y-4">
+            <div className="bg-white border-3 border-black p-5 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] space-y-5">
+              <h4 className="text-xs font-black uppercase tracking-wider text-blue-600 border-b border-slate-150 pb-2">Passenger Information</h4>
+              
+              {passengersList.map((passenger, idx) => (
+                <div key={idx} className="space-y-3 p-3 border-2 border-slate-200 rounded-2xl bg-slate-50/50">
+                  <span className="text-[10px] font-black text-slate-500 uppercase block">Traveler {idx + 1} (Seat {selectedSeats[idx]})</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[9px] text-slate-400 font-extrabold uppercase">Full Name</label>
+                      <input 
+                        type="text" 
+                        value={passenger.name}
+                        placeholder="Name as in Govt ID"
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setPassengersList(prev => prev.map((item, i) => i === idx ? { ...item, name: val } : item));
+                        }}
+                        className="w-full bg-white border-2 border-black rounded-xl p-2 text-xs font-extrabold outline-none"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] text-slate-400 font-extrabold uppercase">Age</label>
+                      <input 
+                        type="number" 
+                        value={passenger.age}
+                        placeholder="Age"
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setPassengersList(prev => prev.map((item, i) => i === idx ? { ...item, age: val } : item));
+                        }}
+                        className="w-full bg-white border-2 border-black rounded-xl p-2 text-xs font-extrabold outline-none"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] text-slate-400 font-extrabold uppercase">Gender</label>
+                      <select 
+                        value={passenger.gender}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setPassengersList(prev => prev.map((item, i) => i === idx ? { ...item, gender: val } : item));
+                        }}
+                        className="w-full bg-white border-2 border-black rounded-xl p-2 text-xs font-extrabold outline-none"
+                      >
+                        <option>Male</option>
+                        <option>Female</option>
+                        <option>Other</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
 
-            <div className="border-t-3 border-black pt-3 flex justify-between items-center text-xs font-black">
-              <span>Selected: {selectedSeats.length} Seats</span>
-              <span className="text-red-500">Total: ₹{(showSeatModal.price * selectedSeats.length).toLocaleString()}</span>
+            {/* Contact Information */}
+            <div className="bg-white border-3 border-black p-5 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] space-y-4">
+              <h4 className="text-xs font-black uppercase tracking-wider text-blue-600 border-b border-slate-150 pb-2">Contact Details</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1 text-xs">
+                  <label className="text-[9px] text-slate-400 font-extrabold uppercase">Email Address</label>
+                  <input 
+                    type="email" 
+                    value={contactEmail} 
+                    onChange={(e) => setContactEmail(e.target.value)}
+                    className="w-full bg-white border-2 border-black rounded-xl p-2 text-xs font-extrabold outline-none" 
+                    required 
+                  />
+                </div>
+                <div className="space-y-1 text-xs">
+                  <label className="text-[9px] text-slate-400 font-extrabold uppercase">Mobile Number</label>
+                  <input 
+                    type="tel" 
+                    value={contactPhone} 
+                    onChange={(e) => setContactPhone(e.target.value)}
+                    className="w-full bg-white border-2 border-black rounded-xl p-2 text-xs font-extrabold outline-none" 
+                    required 
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Checkout Breakdown right column */}
+          <div className="md:col-span-1 space-y-4 text-xs">
+            {/* Promo code card */}
+            <div className="bg-white border-3 border-black p-4 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] space-y-3">
+              <span className="text-[10px] text-slate-500 font-black uppercase tracking-wider block">Apply Promo Coupon</span>
+              <div className="flex gap-2">
+                <input 
+                  type="text" 
+                  value={promoCode} 
+                  placeholder="e.g. GHUMNE1000"
+                  onChange={(e) => setPromoCode(e.target.value)}
+                  className="bg-white border-2 border-black rounded-xl px-2 py-1.5 text-xs font-extrabold uppercase outline-none w-full"
+                />
+                <button 
+                  type="button" 
+                  onClick={handleApplyPromo}
+                  className="bg-yellow-300 hover:bg-yellow-400 border-2 border-black font-black px-3 rounded-xl uppercase text-[10px]"
+                >
+                  Apply
+                </button>
+              </div>
+              {promoApplied && (
+                <div className="text-[10px] text-emerald-600 font-black uppercase">✔ Coupon applied: ₹{promoDiscount} saved!</div>
+              )}
             </div>
 
-            <button 
-              onClick={handleConfirmSeats}
-              className="w-full bg-yellow-300 hover:bg-yellow-400 border-3 border-black font-black py-2 rounded-lg text-xs uppercase shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-none transition-all"
-            >
-              Lock Seats & Book
-            </button>
+            {/* Wallet Toggle card */}
+            <div className="bg-white border-3 border-black p-4 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] space-y-2">
+              <label className="flex items-center justify-between cursor-pointer font-black">
+                <span className="text-[10px] text-slate-500 uppercase">Use Ghumne Chale Wallet</span>
+                <input 
+                  type="checkbox"
+                  checked={walletApplied}
+                  onChange={(e) => setWalletApplied(e.target.checked)}
+                  className="accent-yellow-400 w-4 h-4"
+                />
+              </label>
+              <div className="text-[10px] text-slate-400 font-bold">Available balance: ₹{walletBalance.toLocaleString()}</div>
+            </div>
+
+            {/* Fare Breakdown Details */}
+            <div className="bg-white border-4 border-black p-4 rounded-3xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] space-y-3">
+              <h4 className="text-[10px] font-black uppercase text-slate-500 border-b border-slate-100 pb-1.5 flex items-center gap-1"><Tag size={12} /> Fare Summary</h4>
+              
+              <div className="space-y-1.5 font-bold text-slate-700">
+                <div className="flex justify-between">
+                  <span>Base fare ({passengerCount} Pax)</span>
+                  <span>₹{baseTotal.toLocaleString()}</span>
+                </div>
+                {seatSurcharge > 0 && (
+                  <div className="flex justify-between text-blue-600">
+                    <span>Seat Surcharges</span>
+                    <span>+₹{seatSurcharge.toLocaleString()}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span>Tax (5% GST)</span>
+                  <span>₹{gstTax.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Convenience Fee</span>
+                  <span>₹{convenienceFee.toLocaleString()}</span>
+                </div>
+                {promoApplied && (
+                  <div className="flex justify-between text-emerald-600">
+                    <span>Coupon Discount</span>
+                    <span>-₹{promoDiscount.toLocaleString()}</span>
+                  </div>
+                )}
+                {walletApplied && walletAmount > 0 && (
+                  <div className="flex justify-between text-indigo-600">
+                    <span>Wallet balance used</span>
+                    <span>-₹{walletAmount.toLocaleString()}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="border-t-2 border-black pt-2 flex justify-between font-black text-slate-900 text-sm">
+                <span>Total Payable</span>
+                <span className="text-red-500">₹{payableAmount.toLocaleString()}</span>
+              </div>
+
+              <button 
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full bg-yellow-300 hover:bg-yellow-400 text-black border-3 border-black font-black py-3 rounded-2xl text-[10px] uppercase shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                {isSubmitting ? (
+                  <>Processing hold...</>
+                ) : (
+                  <>
+                    <ShieldCheck size={14} strokeWidth={3} /> Lock Ticket & Pay
+                  </>
+                )}
+              </button>
+            </div>
           </div>
-        </div>
-      )}
-    </div>
-  );
+        </form>
+      </div>
+    );
+  }
+
+  return null;
 }
 
 const CAB_POPULAR_HUBS = [
@@ -8812,6 +10368,7 @@ interface Message {
   budget?: any;
   map_data?: any;
   telemetry?: any;
+  buses?: any[];
 }
 
 function InteractiveRouteMap({ locations }: { locations: any }) {
@@ -9780,12 +11337,14 @@ function ChatView({
   userProfile, 
   setUserProfile, 
   prefilledMessage, 
-  setPrefilledMessage 
+  setPrefilledMessage,
+  setActiveTab
 }: { 
   userProfile: any, 
   setUserProfile: any, 
   prefilledMessage: string, 
-  setPrefilledMessage: (msg: string) => void 
+  setPrefilledMessage: (msg: string) => void,
+  setActiveTab?: (tab: any) => void
 }) {
   const [messages, setMessages] = useState<Message[]>([
     { role: 'assistant', content: "Hello! I am your Ghumne Chale Assistant. I can search flight reservations, suggest hotels, map out custom day-by-day itineraries, and check Schengen visa guidelines. Try asking: 'Recommend flights from Delhi to Goa on December 15th' or 'What are the visa rules for Schengen?'" }
@@ -9901,6 +11460,18 @@ function ChatView({
       }
     }
 
+    let buses: any[] | undefined = undefined;
+    const busesMatch = fullText.match(/```buses-data([\s\S]*?)```/);
+    if (busesMatch) {
+      try {
+        let parsed = JSON.parse(busesMatch[1].trim());
+        buses = Array.isArray(parsed) ? parsed : [parsed];
+        textWithoutBlocks = textWithoutBlocks.replace(busesMatch[0], "");
+      } catch (e) {
+        console.error("Failed to parse buses JSON", e);
+      }
+    }
+
     const hotelsMatch = fullText.match(/```hotels-data([\s\S]*?)```/);
     if (hotelsMatch) {
       try {
@@ -10003,6 +11574,7 @@ function ChatView({
     return {
       content: textWithoutBlocks.trim(),
       flights,
+      buses,
       hotels,
       itinerary,
       visa,
@@ -10803,6 +12375,68 @@ function ChatView({
                   </>
                 );
               })()}
+
+              {msg.buses && Array.isArray(msg.buses) && (
+                <div className="mt-4 space-y-3 border-t border-slate-800 pt-4">
+                  <h4 className="text-xs text-slate-400 font-semibold mb-2">FOUND BUS SELECTIONS:</h4>
+                  {msg.buses.map((bus: any, i: number) => {
+                    if (!bus) return null;
+                    return (
+                      <div key={i} className="bg-[#0f192e] p-4 rounded-xl flex flex-col md:flex-row gap-4 justify-between items-start md:items-center border border-slate-800 hover:border-slate-700 hover:shadow-lg transition-all relative text-left">
+                        <div className="flex-1 w-full space-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Bus size={12} className="text-yellow-400" />
+                            <span className="font-extrabold text-xs text-slate-100">{bus.operator_name}</span>
+                            <span className="text-[9px] font-mono bg-yellow-950/80 text-yellow-300 px-1.5 py-0.5 rounded border border-yellow-900/40">{bus.bus_type}</span>
+                            <span className="text-[9px] bg-emerald-100/10 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-900/40">★ {bus.rating || "4.2"}</span>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-200">
+                            <div className="flex items-baseline gap-1">
+                              <span className="font-black text-sm text-white">{bus.departure_time}</span>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase">{bus.origin}</span>
+                            </div>
+                            <div className="flex flex-col items-center min-w-[50px] relative px-1">
+                              <span className="text-[8px] text-slate-400 font-semibold">{bus.duration || "5h 30m"}</span>
+                              <div className="w-full border-t border-slate-800 mt-0.5 relative">
+                                <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-[#0f192e] px-1 text-[8px] text-slate-500">➔</span>
+                              </div>
+                            </div>
+                            <div className="flex items-baseline gap-1">
+                              <span className="font-black text-sm text-white">{bus.arrival_time}</span>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase">{bus.destination}</span>
+                            </div>
+                          </div>
+
+                          <div className="text-[9px] text-slate-400 flex flex-wrap gap-x-3 text-left">
+                            <span>Available seats: <strong>{bus.seats_left} seats</strong></span>
+                            <span>Amenities: <strong>{(bus.amenities || []).slice(0, 3).join(', ')}</strong></span>
+                          </div>
+                        </div>
+
+                        <div className="text-right w-full md:w-auto flex md:flex-col justify-between items-center md:items-end border-t md:border-0 border-slate-800/60 pt-2.5 md:pt-0">
+                          <div>
+                            <span className="text-[9px] text-slate-400 block">Starting at</span>
+                            <strong className="text-sm font-black text-red-400">₹{(bus.price || 0).toLocaleString()}</strong>
+                          </div>
+                          <button
+                            onClick={() => {
+                              sessionStorage.setItem("prefilled_bus_origin", bus.origin);
+                              sessionStorage.setItem("prefilled_bus_destination", bus.destination);
+                              sessionStorage.setItem("trigger_bus_search", "true");
+                              sessionStorage.setItem("active_vertical", "buses");
+                              if (setActiveTab) setActiveTab("explore");
+                            }}
+                            className="bg-yellow-300 hover:bg-yellow-400 text-black border-2 border-black font-black text-[9px] px-3.5 py-1.5 rounded-lg shadow-[2.5px_2.5px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-none transition-all uppercase tracking-wider cursor-pointer"
+                          >
+                            Book Bus
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
               {msg.flights && Array.isArray(msg.flights) && (
                 <div className="mt-4 space-y-3 border-t border-slate-800 pt-4">
