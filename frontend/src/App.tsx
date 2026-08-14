@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { 
   Compass, MessageSquare, Wallet, ShieldAlert, Sparkles, Send, Mic, 
   MicOff, Search, Plane, Hotel, Calendar, Users, CheckCircle, RefreshCw,
@@ -8765,13 +8765,10 @@ function CheckoutModal({
     const seatFaresTotal = data.details?.seat_fare || 0;
     const finalPayVal = Math.max(100, breakdown.finalFare + seatFaresTotal - discountAmount);
 
-    // DCC Check for Razorpay (Module 1)
-    if (gateway === "razorpay" && !showDccConfirm) {
-      setDccData({
-        amount: finalPayVal,
-        converted: finalPayVal,
-        rate: 1.0,
-      });
+    // DCC Check only applies for Razorpay card/split — skip entirely for wallet payments
+    const needsDcc = (payMethod === 'card' || payMethod === 'split') && gateway === "razorpay" && !showDccConfirm;
+    if (needsDcc) {
+      setDccData({ amount: finalPayVal, converted: finalPayVal, rate: 1.0 });
       setShowDccConfirm(true);
       setLoading(false);
       return;
@@ -8822,17 +8819,18 @@ function CheckoutModal({
       return paxObj;
     });
 
-    // 1. Create Hold Reservation
+    const authHeaders: Record<string, string> = {
+      "Content-Type": "application/json",
+      ...(localToken ? { "Authorization": `Bearer ${localToken}` } : {})
+    };
+
+    // Step 1: Create Hold Reservation
     fetch(`${API_URL}/bookings/hold`, {
       method: "POST",
-      headers: { 
-        "Content-Type": "application/json",
-        ...(localToken ? { "Authorization": `Bearer ${localToken}` } : {})
-      },
+      headers: authHeaders,
       body: JSON.stringify({
         vertical: data.vertical,
         amount: finalPayVal,
-        user_id: 1,
         details: {
           ...data.details,
           baseFareTotal: breakdown.baseFareTotal,
@@ -8849,7 +8847,7 @@ function CheckoutModal({
       .then(res => res.json())
       .then(holdRes => {
         if (!holdRes.booking_reference) {
-          setError(holdRes.detail || "Failed to hold inventory.");
+          setError(holdRes.detail || holdRes.message || "Failed to hold inventory. Please try again.");
           setLoading(false);
           return;
         }
@@ -8860,12 +8858,58 @@ function CheckoutModal({
           return;
         }
 
-        window.history.pushState(null, '', `/checkout/${holdRes.booking_reference}`);
-        window.dispatchEvent(new Event('popstate'));
-        onClose();
+        const holdBookingRef = holdRes.booking_reference;
+
+        // Step 2a: Wallet & Corporate Billing — complete inline, no redirect
+        if (payMethod === 'wallet' || payMethod === 'corporate_billing') {
+          const confirmMethod = payMethod === 'corporate_billing' ? 'corporate_billing' : 'wallet';
+          const confirmHeaders: Record<string, string> = localToken
+            ? { "Authorization": `Bearer ${localToken}` }
+            : {};
+
+          fetch(
+            `${API_URL}/bookings/confirm?booking_reference=${holdBookingRef}&vertical=${data.vertical}&payment_method=${confirmMethod}`,
+            { method: "POST", headers: confirmHeaders }
+          )
+            .then(res => res.json())
+            .then(confirmRes => {
+              setLoading(false);
+              if (confirmRes.booking_reference) {
+                setBookingRef(confirmRes.booking_reference);
+                // Fetch invoice text for step 3
+                fetch(`${API_URL}/bookings/${confirmRes.booking_reference}/invoice?vertical=${data.vertical}`)
+                  .then(r => r.json())
+                  .then(inv => setInvoiceText(inv.invoice_text || ""))
+                  .catch(() => {});
+                setStep(3);
+                onConfirm(payMethod);
+              } else {
+                const errMsg = (confirmRes.detail || confirmRes.message || "").toLowerCase();
+                if (errMsg.includes("insufficient")) {
+                  setError("Insufficient wallet balance. Please top up your Travel Wallet or choose a different payment method.");
+                } else if (errMsg.includes("expired")) {
+                  setError("Booking hold has expired. Please go back and search again.");
+                } else if (errMsg.includes("not on hold")) {
+                  setError("This booking is no longer on hold. Please start a new booking.");
+                } else {
+                  setError(confirmRes.detail || confirmRes.message || "Payment failed. Please try again or contact support.");
+                }
+              }
+            })
+            .catch(() => {
+              setLoading(false);
+              setError("Network error during payment. Please check your connection and try again.");
+            });
+
+        } else {
+          // Step 2b: Card / UPI / Split — navigate to dedicated CheckoutPage
+          window.history.pushState(null, '', `/checkout/${holdBookingRef}`);
+          window.dispatchEvent(new Event('popstate'));
+          onClose();
+        }
       })
       .catch(() => {
-        setError("Hold connection error.");
+        setError("Connection error. Please check your internet and try again.");
         setLoading(false);
       });
   };
