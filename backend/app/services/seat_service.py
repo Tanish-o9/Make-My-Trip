@@ -235,7 +235,15 @@ class SeatInventoryService:
                     )
 
             # Query for existing active holds using FOR UPDATE if PostgreSQL is used
-            is_postgres = "postgresql" in str(db.bind.url)
+            try:
+                # SQLAlchemy 2.x: db.bind may be None when using engine-level connections
+                bind = db.get_bind()
+                is_postgres = "postgresql" in str(bind.dialect.name)
+            except Exception:
+                try:
+                    is_postgres = "postgresql" in str(db.bind.url)
+                except Exception:
+                    is_postgres = False
             query = db.query(SeatHold).filter(
                 SeatHold.vertical == vertical,
                 SeatHold.reference == reference,
