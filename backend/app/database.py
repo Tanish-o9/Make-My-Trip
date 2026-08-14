@@ -84,8 +84,7 @@ def get_db():
 # Import all models to ensure they are registered on Base.metadata
 import app.models
 
-# Auto-create all tables for SQLite test/fallback environments
-if fallback_needed or "sqlite" in DATABASE_URL:
-    Base.metadata.create_all(bind=engine)
+# Auto-create all tables for all environments (including Postgres on Neon to auto-initialize missing tables)
+Base.metadata.create_all(bind=engine)
 
 

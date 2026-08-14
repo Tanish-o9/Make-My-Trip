@@ -25,7 +25,7 @@ from app.services.seat_service import SeatInventoryService
 
 def validate_and_hold_seats(db: Session, vertical: str, details: dict, booking_ref: str, user_id: int, expires_at: datetime.datetime):
     vertical = vertical.lower()
-    if vertical not in ["flights", "trains"]:
+    if vertical not in ["flights", "trains", "buses"]:
         return 0.0, []
 
     seat_numbers = details.get("seat_numbers", [])
@@ -48,14 +48,14 @@ def validate_and_hold_seats(db: Session, vertical: str, details: dict, booking_r
     total_seat_fare = 0.0
     seat_breakdown = []
     
-    reference = details.get("flight_number") or details.get("train_number") or "Unknown"
+    reference = details.get("flight_number") or details.get("train_number") or details.get("operator_name") or "Unknown"
 
     for seat in seat_numbers:
         if vertical == "flights":
             if not re.match(r"^(10|[1-9])[A-F]$", seat):
                 raise HTTPException(status_code=400, detail=f"Invalid seat ID: {seat}. Flights support rows 1-10 and seats A-F.")
             meta = SeatInventoryService.get_flight_seat_meta(seat)
-        else: # trains
+        elif vertical == "trains":
             match = re.match(r"^(\d+)-(LB|MB|UB|SL|SU)$", seat)
             if not match:
                 raise HTTPException(status_code=400, detail=f"Invalid berth ID format: {seat}. Correct format is e.g. 1-LB.")
@@ -63,6 +63,11 @@ def validate_and_hold_seats(db: Session, vertical: str, details: dict, booking_r
             if berth_num < 1 or berth_num > 32:
                 raise HTTPException(status_code=400, detail=f"Invalid berth number: {berth_num}. Train 3AC supports berths 1-32.")
             meta = SeatInventoryService.get_train_seat_meta(seat)
+        else: # buses
+            if not (re.match(r"^[LU]\d+$", seat) or re.match(r"^\d+[A-D]$", seat) or re.match(r"^\d[A-D]$", seat)):
+                raise HTTPException(status_code=400, detail=f"Invalid bus seat number: {seat}. Supported formats: L1, U15, or 1A-8D.")
+            # Calculate surcharge by passing base_price = 0
+            meta = SeatInventoryService.get_bus_seat_meta(seat, 0.0)
 
         total_seat_fare += meta["price"]
         seat_breakdown.append({
@@ -421,13 +426,90 @@ async def create_booking_hold(
             coach_class=coach_class, passenger_details=validated_passengers
         )
     elif vertical == "buses":
+        from app.models.search_entities import BusRoute
+        route = None
+        bus_id = details.get("bus_id") or details.get("id")
+        if bus_id:
+            try:
+                route = db.query(BusRoute).filter(BusRoute.id == int(bus_id)).first()
+            except Exception:
+                pass
+        if not route:
+            op_name = details.get("operator_name")
+            route = db.query(BusRoute).filter(BusRoute.operator_name == op_name).first()
+
+        base_price = 950.0
+        b_type = ""
+        if route:
+            base_price = float(route.price)
+            b_type = route.bus_type or ""
+        elif str(bus_id) == "101":
+            base_price = 1490.0
+            b_type = "AC Sleeper (2+1)"
+        elif str(bus_id) == "102":
+            base_price = 950.0
+            b_type = "AC Premium Seater"
+
+        passengers = details.get("passengers", [])
+        pax_count = max(1, len(passengers))
+        total_base = base_price * pax_count
+
+        total_seat_fare, seat_breakdown = validate_and_hold_seats(db, vertical, details, booking_ref, user_id, held_until)
+
+        # 5% GST on base + seat surcharge
+        tax = round((total_base + total_seat_fare) * 0.05, 2)
+        convenience_fee = 50.0
+        promo_discount = float(details.get("promoDiscount") or details.get("discount") or 0.0)
+
+        final_payable = round(total_base + total_seat_fare + tax + convenience_fee - promo_discount, 2)
+        amount = max(100.0, final_payable)
+
+        # Tolerance check
+        if abs(amount - req.amount) > 50.0:  # Allow small convenience differences
+            raise HTTPException(
+                status_code=400,
+                detail=f"Authoritative recalculated amount (INR {amount}) does not match requested amount (INR {req.amount})."
+            )
+
+        pricing_snapshot = {
+            "base_fare": total_base,
+            "seat_fare": total_seat_fare,
+            "seat_details": seat_breakdown,
+            "tax": tax,
+            "convenience_fee": convenience_fee,
+            "discount": promo_discount,
+            "final_payable": amount,
+            "passenger_details": passengers,
+            "boarding_point": details.get("boarding_point"),
+            "dropping_point": details.get("dropping_point")
+        }
+
+        # Parse journey date & departure time
+        dep_dt = datetime.datetime.utcnow() + datetime.timedelta(days=2)
+        j_date_str = details.get("journey_date")
+        if j_date_str:
+            try:
+                clean_dt_str = str(j_date_str).replace("Z", "")
+                if "T" in clean_dt_str:
+                    dep_dt = datetime.datetime.fromisoformat(clean_dt_str)
+                else:
+                    dep_dt = datetime.datetime.strptime(clean_dt_str, "%Y-%m-%d")
+                    dep_time = details.get("departure_time")
+                    if dep_time and ":" in dep_time:
+                        h, m = map(int, dep_time.split(":"))
+                        dep_dt = dep_dt.replace(hour=h, minute=m)
+            except Exception:
+                pass
+
         booking = BusBooking(
             booking_reference=booking_ref, user_id=user_id, status=BookingStatus.HOLD,
             total_amount=amount, currency="INR", pricing_snapshot=pricing_snapshot, held_until=held_until,
-            operator_name=details.get("operator_name", "IntrCity SmartBus"), bus_type=details.get("bus_type", "AC Sleeper"),
-            origin=details.get("origin", "Delhi"), destination=details.get("destination", "Jaipur"),
-            departure_time=datetime.datetime.utcnow() + datetime.timedelta(days=2),
-            seat_numbers=details.get("seat_numbers", ["12A"])
+            operator_name=route.operator_name if route else details.get("operator_name", "IntrCity SmartBus"),
+            bus_type=route.bus_type if route else details.get("bus_type", "AC Sleeper"),
+            origin=route.origin if route else details.get("origin", "Delhi"),
+            destination=route.destination if route else details.get("destination", "Jaipur"),
+            departure_time=dep_dt,
+            seat_numbers=details.get("seat_numbers", [])
         )
     elif vertical == "cabs":
         pax_count = int(details.get("passengers_count") or len(details.get("passengers", [])) or 1)
@@ -761,6 +843,33 @@ def confirm_booking(
                 amount=amount_dec, 
                 booking_ref=booking.booking_reference
             )
+            
+            # Create the correct ledger transaction for wallet payment
+            from app.models.payments import LedgerRow, Payment, PaymentStatus, PaymentMethod
+            ledger_wallet = LedgerRow(
+                booking_reference=booking.booking_reference,
+                amount=float(booking.total_amount),
+                transaction_type="wallet_debit",
+                entry_type="debit",
+                description=f"Wallet payment for {vertical} booking confirmation"
+            )
+            db.add(ledger_wallet)
+
+            # Create or update Payment record to mark payment as successful/captured
+            payment = db.query(Payment).filter(Payment.booking_id == booking.booking_reference).first()
+            if not payment:
+                payment = Payment(
+                    booking_id=booking.booking_reference,
+                    user_id=booking.user_id,
+                    amount=float(booking.total_amount),
+                    currency="INR",
+                    status=PaymentStatus.CAPTURED,
+                    payment_method=PaymentMethod.WALLET
+                )
+                db.add(payment)
+            else:
+                payment.status = PaymentStatus.CAPTURED
+                payment.payment_method = PaymentMethod.WALLET
         
         pay_log = PaymentAttempt(
             user_id=booking.user_id,
@@ -793,6 +902,7 @@ def confirm_booking(
         })
 
     except Exception as e:
+        db.rollback()
         pay_log = PaymentAttempt(
             user_id=booking.user_id,
             booking_reference=booking.booking_reference,
@@ -1241,6 +1351,28 @@ def get_booking_details(
             "end_date": booking.drop_time.date().isoformat() if booking.drop_time else None
         })
         
+    from app.models.bookings import BookingTicket, BookingInvoice
+    ticket = db.query(BookingTicket).filter(BookingTicket.booking_reference == booking_reference).first()
+    invoice = db.query(BookingInvoice).filter(BookingInvoice.booking_reference == booking_reference).first()
+    
+    details["ticket"] = {
+        "id": ticket.id,
+        "ticket_number": ticket.ticket_number,
+        "pnr": ticket.pnr,
+        "qr_code_data": ticket.qr_code_data,
+        "passenger_details": ticket.passenger_details,
+        "extra_info": ticket.extra_info
+    } if ticket else None
+    
+    details["invoice"] = {
+        "id": invoice.id,
+        "invoice_number": invoice.invoice_number,
+        "base_amount": float(invoice.base_amount),
+        "tax_amount": float(invoice.tax_amount),
+        "discount_amount": float(invoice.discount_amount),
+        "final_amount": float(invoice.final_amount)
+    } if invoice else None
+
     return details
 
 
