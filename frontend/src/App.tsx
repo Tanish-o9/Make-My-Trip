@@ -3065,12 +3065,12 @@ function FlightsSearchForm({
                     </span>
                   )}
                 </div>
-                <p className="text-[10px] text-slate-400 font-semibold">{showFlightSeatModal.airlineName} {showFlightSeatModal.flightNumber}</p>
+                <p className="text-[10px] text-white font-semibold">{showFlightSeatModal.airlineName} {showFlightSeatModal.flightNumber}</p>
               </div>
               <button onClick={() => setShowFlightSeatModal(null)} className="text-slate-400 hover:text-white font-extrabold text-sm">✕</button>
             </div>
             
-            <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 text-[10px] font-bold text-slate-200 flex justify-between">
+            <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-700 text-[10px] font-bold text-white flex justify-between">
               <span>Window (A-C)</span>
               <span className="text-yellow-400">✈️ Front of Aircraft</span>
               <span>Window (D-F)</span>
@@ -3090,7 +3090,7 @@ function FlightsSearchForm({
                     const cols = ["A", "B", "C", "D", "E", "F"];
                     return (
                       <div key={row} className="flex justify-between items-center gap-2">
-                        <span className="text-[10px] font-bold text-slate-300 w-4 text-center">{row}</span>
+                        <span className="text-[10px] font-bold text-white w-4 text-center">{row}</span>
                         <div className="flex-1 grid grid-cols-6 gap-1">
                           {cols.map((col, cIdx) => {
                             const seat = `${row}${col}`;
@@ -3140,7 +3140,7 @@ function FlightsSearchForm({
                   })}
                 </div>
 
-                <div className="border-t border-slate-800 pt-3 flex justify-between items-center text-xs font-bold text-slate-200">
+                <div className="border-t border-slate-700 pt-3 flex justify-between items-center text-xs font-bold text-white">
                   <span>Selected: {selectedFlightSeats.length} / {passengers}</span>
                   <span className="text-yellow-400">Seats: {selectedFlightSeats.join(", ") || "None"}</span>
                 </div>
