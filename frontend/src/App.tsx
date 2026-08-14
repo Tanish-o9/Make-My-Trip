@@ -755,7 +755,7 @@ export default function App() {
       body: JSON.stringify({
         vertical: checkoutData.vertical,
         amount: checkoutData.amount,
-        user_id: 1,
+        user_id: userProfile?.id || 1,
         details: checkoutData.details
       })
     })
@@ -769,7 +769,10 @@ export default function App() {
 
         // Step 2: Confirm & Pay
         fetch(`${API_URL}/bookings/confirm?booking_reference=${holdRes.booking_reference}&vertical=${checkoutData.vertical}&payment_method=${payMethod}`, {
-          method: "POST"
+          method: "POST",
+          headers: {
+            ...(token ? { "Authorization": `Bearer ${token}` } : {})
+          }
         })
           .then(res => res.json())
           .then(confirmRes => {
