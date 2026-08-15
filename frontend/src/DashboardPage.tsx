@@ -17,6 +17,7 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
   const [rewardsData, setRewardsData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   const getHeaders = () => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -28,34 +29,36 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
   const fetchDashboard = async (attempt = 1) => {
     setLoading(true);
     setError(null);
+    setRetryCount(attempt - 1);
     try {
       const res = await fetch(`${API_URL}/dashboard`, { headers: getHeaders() });
-      if (!res.ok) throw new Error(`Server error ${res.status}: Failed to load dashboard.`);
+      if (!res.ok) throw new Error(`Server returned ${res.status} — please retry.`);
       const resData = await res.json();
       setData(resData);
       setError(null);
+      setRetryCount(0);
     } catch (err: any) {
-      if (attempt < 3) {
-        // Auto-retry up to 3 times with 1.5s delay
-        setTimeout(() => fetchDashboard(attempt + 1), 1500);
+      if (attempt < 4) {
+        setRetryCount(attempt);
+        setTimeout(() => fetchDashboard(attempt + 1), 1800);
         return;
       }
-      console.error('Dashboard load failed after retries:', err);
-      setError(err.message || 'Could not connect to server. Please retry.');
+      const msg = err.message?.includes('Failed to fetch')
+        ? 'Cannot reach backend server. Make sure the backend is running on port 8000.'
+        : err.message || 'Dashboard load failed. Please retry.';
+      setError(msg);
     } finally {
       setLoading(false);
     }
 
-    // Fetch rewards (non-blocking, best-effort)
+    // Rewards — non-blocking
     fetch(`${API_URL}/rewards`, { headers: getHeaders() })
       .then(res => { if (res.ok) return res.json(); })
-      .then(resRewards => { if (resRewards) setRewardsData(resRewards); })
+      .then(d => { if (d) setRewardsData(d); })
       .catch(() => {});
   };
 
-  useEffect(() => {
-    fetchDashboard();
-  }, [token]);
+  useEffect(() => { fetchDashboard(); }, [token]);
 
   const getGreeting = () => {
     const hr = new Date().getHours();
@@ -84,20 +87,28 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
     );
   }
 
-  if (error || !data) {
+  if (error || (!data && !loading)) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-6 bg-[#0a0f1d] text-white text-center font-sans">
-        <div className="max-w-md w-full p-8 bg-[#111827] border-4 border-black shadow-[8px_8px_0px_0px_#ef4444] space-y-6">
-          <AlertTriangle className="mx-auto text-rose-500" size={48} />
-          <h2 className="text-xl font-black uppercase text-slate-100">Telemetry Sync Failed</h2>
-          <p className="text-xs text-slate-400 font-semibold leading-relaxed">
-            {error || 'Could not load your travel dashboard. Please check your network connection.'}
-          </p>
+      <div className="min-h-full flex flex-col items-center justify-center p-6 bg-[#0a0f1d] text-white text-center font-sans">
+        <div className="max-w-md w-full p-8 rounded-3xl space-y-5" style={{ background: '#111827', border: '2px solid #ef4444', boxShadow: '0 0 30px rgba(239,68,68,0.15)' }}>
+          <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto" style={{ background: 'rgba(239,68,68,0.1)' }}>
+            <AlertTriangle className="text-rose-400" size={32} />
+          </div>
+          <div>
+            <h2 className="text-lg font-black uppercase tracking-wider" style={{ color: '#f1f5f9' }}>Backend Offline</h2>
+            <p className="text-xs font-semibold mt-2 leading-relaxed" style={{ color: '#94a3b8' }}>
+              {error || 'Dashboard data could not be loaded.'}
+            </p>
+          </div>
+          <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#475569' }}>
+            Tried {retryCount + 1} time{retryCount > 0 ? 's' : ''} — backend may be offline
+          </div>
           <button
-            onClick={fetchDashboard}
-            className="w-full py-2.5 bg-rose-500 hover:bg-rose-600 text-white font-black border-2 border-black shadow-[4px_4px_0px_0px_#000000] active:translate-y-0.5 active:shadow-[2px_2px_0px_0px_#000000] transition-all cursor-pointer text-xs uppercase"
+            onClick={() => fetchDashboard(1)}
+            className="w-full py-3 font-black uppercase text-xs cursor-pointer transition-all"
+            style={{ background: '#3b82f6', color: '#fff', borderRadius: '12px', border: '2px solid #1d4ed8' }}
           >
-            Retry Telemetry Sync ➔
+            🔄 Retry Connection
           </button>
         </div>
       </div>
