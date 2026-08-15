@@ -215,9 +215,9 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
             )}
 
             {/* Recent Bookings List */}
-            <div className="bg-[#111827]/60 border border-slate-800/80 p-6 rounded-3xl shadow-xl space-y-4">
-              <div className="flex justify-between items-center border-b border-slate-800/80 pb-3">
-                <h3 className="text-sm font-black uppercase tracking-wider text-slate-300">Recent Bookings</h3>
+            <div className="bg-[#111827] border border-slate-700 p-6 rounded-3xl shadow-xl space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-700 pb-3">
+                <h3 className="text-sm font-black uppercase tracking-wider text-white">Recent Bookings</h3>
                 <button 
                   onClick={() => setActiveTab('trips')}
                   className="text-xs font-bold text-yellow-400 hover:underline flex items-center gap-0.5"
@@ -246,14 +246,14 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
                             {booking.status}
                           </span>
                         </div>
-                        <div className="text-[10px] text-slate-400 font-semibold">
-                          <span className="uppercase font-bold text-slate-500 mr-1.5">{booking.vertical}</span>
+                        <div className="text-[10px] text-slate-300 font-semibold">
+                          <span className="uppercase font-bold text-slate-400 mr-1.5">{booking.vertical}</span>
                           Departing: {booking.start_date ? new Date(booking.start_date).toLocaleDateString() : 'TBD'}
                         </div>
                       </div>
                       
                       <div className="flex items-center gap-4">
-                        <span className="font-mono text-sm font-black text-slate-200">
+                        <span className="font-mono text-sm font-black text-white">
                           ₹{booking.total_amount?.toLocaleString() || '0'}
                         </span>
                         <a 
@@ -314,9 +314,9 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
           <div className="space-y-6">
             
             {/* Wallet & Rewards Card */}
-            <div className="bg-gradient-to-br from-[#1e1b4b] to-[#111827] border border-slate-800 p-6 rounded-3xl shadow-xl space-y-4 text-left">
+            <div className="bg-gradient-to-br from-[#1e1b4b] to-[#111827] border border-slate-600 p-6 rounded-3xl shadow-xl space-y-4 text-left">
               <div className="flex justify-between items-center">
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Wallet Summary</span>
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">Wallet Summary</span>
                 <span className="flex items-center gap-1 text-[10px] bg-indigo-500/10 text-indigo-400 font-black px-2 py-0.5 rounded border border-indigo-500/20">
                   <Award size={12} /> {rewardsData?.level || user_summary?.tier || 'Silver'} Member
                 </span>
@@ -386,9 +386,9 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
             </div>
 
             {/* Notifications Telemetry Teaser */}
-            <div className="bg-[#111827]/60 border border-slate-800/80 p-6 rounded-3xl shadow-xl space-y-4 text-left">
-              <div className="flex justify-between items-center border-b border-slate-800/80 pb-3">
-                <span className="text-xs font-black uppercase tracking-wider text-slate-300">Live Telemetry Alerts</span>
+            <div className="bg-[#111827] border border-slate-700 p-6 rounded-3xl shadow-xl space-y-4 text-left">
+              <div className="flex justify-between items-center border-b border-slate-700 pb-3">
+                <span className="text-xs font-black uppercase tracking-wider text-white">Live Telemetry Alerts</span>
                 {unread_notification_count > 0 && (
                   <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse border border-black" />
                 )}
@@ -408,9 +408,9 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
             </div>
 
             {/* Wishlist & Price Alerts */}
-            <div className="bg-[#111827]/60 border border-slate-800/80 p-6 rounded-3xl shadow-xl space-y-4 text-left">
-              <div className="flex justify-between items-center border-b border-slate-800/80 pb-3">
-                <span className="text-xs font-black uppercase tracking-wider text-slate-300">Active Price Alerts</span>
+            <div className="bg-[#111827] border border-slate-700 p-6 rounded-3xl shadow-xl space-y-4 text-left">
+              <div className="flex justify-between items-center border-b border-slate-700 pb-3">
+                <span className="text-xs font-black uppercase tracking-wider text-white">Active Price Alerts</span>
                 <span className="font-mono text-xs font-black text-yellow-400">{active_price_alerts_count || 0}</span>
               </div>
               
