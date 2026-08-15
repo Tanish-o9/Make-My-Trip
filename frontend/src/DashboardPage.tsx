@@ -70,7 +70,7 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
 
   if (loading) {
     return (
-      <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-[#0a0f1d] text-white font-sans text-left space-y-6">
+      <div className="min-h-full p-4 md:p-8 bg-[#0a0f1d] text-white font-sans text-left space-y-6">
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="h-12 bg-slate-800/40 rounded-xl w-1/3 animate-pulse" />
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -111,7 +111,7 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
   const { user_summary, upcoming_trip, recent_bookings, wallet_summary, reward_points, active_price_alerts_count, unread_notification_count } = data;
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-[#0a0f1d] text-white font-sans text-left">
+    <div className="min-h-full p-4 md:p-8 bg-[#0a0f1d] text-white font-sans text-left">
       <div className="max-w-7xl mx-auto space-y-6">
         
         {/* Welcome Header */}
