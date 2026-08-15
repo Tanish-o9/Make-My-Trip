@@ -339,8 +339,21 @@ class BookingStateMachine:
                             event_type=ev_type,
                             description=desc
                         ))
+                
+                # Award loyalty reward points!
+                try:
+                    from app.services.wallet_loyalty import LoyaltyService
+                    LoyaltyService.award_booking_points(
+                        session,
+                        booking.user_id,
+                        vertical,
+                        booking.booking_reference
+                    )
+                except Exception as rewards_err:
+                    logger.error(f"Failed to award loyalty points for booking {booking.booking_reference}: {rewards_err}")
             
         booking.status = target_status
+
 
 
     @staticmethod

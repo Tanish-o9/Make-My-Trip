@@ -38,6 +38,66 @@ async def search_hotels(
         logger.error(f"Error in search_hotels endpoint: {e}")
         return HotelService._get_fallback_mock_hotels(city_clean, check_in, check_out, currency)
 
+@router.get("/compare", response_model=List[Dict[str, Any]])
+async def compare_hotels(
+    hotelIds: List[str] = Query(..., description="Hotel IDs to compare (up to 3)")
+):
+    if len(hotelIds) > 3:
+        raise HTTPException(status_code=400, detail="Cannot compare more than 3 hotels.")
+    
+    comparison = []
+    # Fetch mock fallback hotels to extract details or merge
+    fallback_hotels = HotelService._get_fallback_mock_hotels("Goa", "2026-12-15", "2026-12-20")
+    
+    for hid in hotelIds:
+        match = next((h for h in fallback_hotels if h["hotelId"] == hid), None)
+        if match:
+            comparison.append({
+                "hotelId": hid,
+                "hotelName": match.get("hotelName"),
+                "price": match.get("price"),
+                "rating": match.get("rating"),
+                "location": match.get("address"),
+                "roomType": match.get("roomType"),
+                "breakfast": "Included" if match.get("breakfastIncluded") else "Not Included",
+                "amenities": match.get("amenities"),
+                "cancellation": match.get("cancellation"),
+                "paymentPolicy": match.get("paymentPolicy"),
+                "distance": f"{match.get('distance')} km"
+            })
+        else:
+            try:
+                details = await HotelService.get_hotel_details(hid)
+                comparison.append({
+                    "hotelId": hid,
+                    "hotelName": details.get("hotelName", "Not available"),
+                    "price": "Not available",
+                    "rating": details.get("rating", "Not available"),
+                    "location": details.get("address", "Not available"),
+                    "roomType": "Not available",
+                    "breakfast": "Not available",
+                    "amenities": details.get("facilities", "Not available"),
+                    "cancellation": "Not available",
+                    "paymentPolicy": "Not available",
+                    "distance": "Not available"
+                })
+            except Exception:
+                comparison.append({
+                    "hotelId": hid,
+                    "hotelName": "Not available",
+                    "price": "Not available",
+                    "rating": "Not available",
+                    "location": "Not available",
+                    "roomType": "Not available",
+                    "breakfast": "Not available",
+                    "amenities": "Not available",
+                    "cancellation": "Not available",
+                    "paymentPolicy": "Not available",
+                    "distance": "Not available"
+                })
+    return comparison
+
+
 @router.get("/{hotelId}", response_model=Dict[str, Any])
 async def get_hotel_details(hotelId: str):
     """
@@ -361,4 +421,6 @@ async def get_hotel_voucher(
         "guest_details": booking.guest_details,
         "address": booking.address
     }
+
+
 

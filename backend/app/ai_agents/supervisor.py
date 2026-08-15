@@ -553,6 +553,60 @@ class SupervisorAgent:
             
         trip_context["active_bookings_summary"] = bookings_summary
 
+        # Load user wishlist
+        try:
+            db_wish = SessionLocal()
+            from app.models.wishlist import WishlistItem
+            wishlist_items = db_wish.query(WishlistItem).filter(WishlistItem.user_id == user_id).all()
+            wishlist_summary = []
+            for item in wishlist_items:
+                snapshot = item.snapshot_json or {}
+                if isinstance(snapshot, str):
+                    try:
+                        import json
+                        snapshot = json.loads(snapshot)
+                    except Exception:
+                        snapshot = {}
+                name = snapshot.get("name") or snapshot.get("hotel_name") or snapshot.get("airline") or item.item_ref_id
+                price = snapshot.get("price") or snapshot.get("price_per_passenger") or snapshot.get("total_price")
+                wishlist_summary.append(f"Wishlist Item: {item.item_type} - {name} (Ref: {item.item_ref_id}, Price: {price})")
+            trip_context["wishlist_summary"] = wishlist_summary
+        except Exception as e:
+            logger.error(f"Error loading wishlist summary in supervisor: {e}")
+        finally:
+            if 'db_wish' in locals():
+                db_wish.close()
+
+        # Load user expenses
+        try:
+            db_exp = SessionLocal()
+            from app.models.core import TripExpense, Trip, TripMember
+            # Find all user trips and retrieve expenses
+            trips = db_exp.query(Trip).filter(Trip.user_id == user_id).all()
+            group_memberships = db_exp.query(TripMember).filter(TripMember.user_id == user_id).all()
+            all_trip_ids = [t.id for t in trips] + [m.trip_id for m in group_memberships]
+            
+            expenses_summary = []
+            if all_trip_ids:
+                expenses = db_exp.query(TripExpense).filter(TripExpense.trip_id.in_(all_trip_ids)).all()
+                for e in expenses:
+                    trip_obj = db_exp.query(Trip).filter(Trip.id == e.trip_id).first()
+                    trip_name = trip_obj.name if trip_obj else f"Trip #{e.trip_id}"
+                    expenses_summary.append({
+                        "trip_id": e.trip_id,
+                        "trip_name": trip_name,
+                        "category": e.category,
+                        "amount": float(e.amount),
+                        "description": e.description,
+                        "date": e.expense_date.isoformat() if e.expense_date else None
+                    })
+            trip_context["all_expenses_summary"] = expenses_summary
+        except Exception as e:
+            logger.error(f"Error loading expenses summary in supervisor: {e}")
+        finally:
+            if 'db_exp' in locals():
+                db_exp.close()
+
         # === Phase 9: Dynamic Preference Learning ===
         # Only run if the message contains preference-indicating keywords (saves 1 LLM call for normal requests)
         PREF_KEYWORDS = ["hate", "love", "prefer", "always", "never", "dislike", "avoid",
@@ -751,11 +805,11 @@ If NO permanent preference is stated, output ONLY the word: NONE"""
 
         # Dates: YYYY-MM-DD or DD/MM/YYYY
         date_matches = _re.findall(r'\b(\d{4}-\d{2}-\d{2})\b', message)
-        if date_matches and not trip_context.get("departure_date"):
+        if date_matches:
             trip_context["departure_date"] = date_matches[0]
         # Budget: ₹50000 / Rs 50000 / 50000 rupees / 50k
         budget_match = _re.search(r'(?:₹|rs\.?\s*|inr\s*)(\d[\d,]*(?:\.\d+)?)\s*(?:k\b)?|(\d[\d,]*(?:\.\d+)?)\s*(?:k\b)?\s*(?:rupees?|inr)', message, _re.IGNORECASE)
-        if budget_match and not budget_constraints.get("total_budget"):
+        if budget_match:
             raw = (budget_match.group(1) or budget_match.group(2) or "").replace(",", "")
             try:
                 val = float(raw)
@@ -767,11 +821,11 @@ If NO permanent preference is stated, output ONLY the word: NONE"""
                 pass
         # Passengers
         pax_match = _re.search(r'(\d+)\s+(?:passengers?|people|persons?|adults?|travelers?|pax)', message, _re.IGNORECASE)
-        if pax_match and not trip_context.get("passengers"):
+        if pax_match:
             trip_context["passengers"] = int(pax_match.group(1))
         # Duration
         dur_match = _re.search(r'(\d+)\s+(?:days?|nights?)', message, _re.IGNORECASE)
-        if dur_match and not trip_context.get("duration_days"):
+        if dur_match:
             trip_context["duration_days"] = int(dur_match.group(1))
         # Origin/Destination: "from X to Y" pattern
         route_match = _re.search(r'\bfrom\s+([A-Za-z ]{2,20}?)\s+to\s+([A-Za-z ]{2,20})\b', message, _re.IGNORECASE)
@@ -782,13 +836,11 @@ If NO permanent preference is stated, output ONLY the word: NONE"""
                         "BANGALORE": "BLR", "BENGALURU": "BLR", "CHENNAI": "MAA", "KOLKATA": "CCU",
                         "HYDERABAD": "HYD", "PUNE": "PNQ", "AHMEDABAD": "AMD", "JAIPUR": "JAI",
                         "GOA": "GOI", "BALI": "DPS", "DUBAI": "DXB", "LONDON": "LHR", "PARIS": "CDG"}
-            if not trip_context.get("origin"):
-                trip_context["origin"] = IATA_MAP.get(orig_raw, orig_raw[:3])
-            if not trip_context.get("destination"):
-                trip_context["destination"] = dest_raw.capitalize()
+            trip_context["origin"] = IATA_MAP.get(orig_raw, orig_raw[:3])
+            trip_context["destination"] = dest_raw.capitalize()
         # Travel style
         for style in ["luxury", "business", "family", "solo", "adventure", "honeymoon"]:
-            if style in message.lower() and not trip_context.get("travel_style"):
+            if style in message.lower():
                 trip_context["travel_style"] = style.capitalize()
                 break
         logger.debug(f"[REGEX-EXTRACT] trip_context={trip_context}, budget={budget_constraints}")
@@ -852,10 +904,10 @@ If NO permanent preference is stated, output ONLY the word: NONE"""
         import re as _re
 
         date_matches = _re.findall(r'\b(\d{4}-\d{2}-\d{2})\b', message)
-        if date_matches and not trip_context.get("departure_date"):
+        if date_matches:
             trip_context["departure_date"] = date_matches[0]
         budget_match = _re.search(r'(?:₹|rs\.?\s*|inr\s*)(\d[\d,]*(?:\.\d+)?)\s*(?:k\b)?|(\d[\d,]*(?:\.\d+)?)\s*(?:k\b)?\s*(?:rupees?|inr)', message, _re.IGNORECASE)
-        if budget_match and not budget_constraints.get("total_budget"):
+        if budget_match:
             raw = (budget_match.group(1) or budget_match.group(2) or "").replace(",", "")
             try:
                 val = float(raw)
@@ -866,10 +918,10 @@ If NO permanent preference is stated, output ONLY the word: NONE"""
             except Exception:
                 pass
         pax_match = _re.search(r'(\d+)\s+(?:passengers?|people|persons?|adults?|travelers?|pax)', message, _re.IGNORECASE)
-        if pax_match and not trip_context.get("passengers"):
+        if pax_match:
             trip_context["passengers"] = int(pax_match.group(1))
         dur_match = _re.search(r'(\d+)\s+(?:days?|nights?)', message, _re.IGNORECASE)
-        if dur_match and not trip_context.get("duration_days"):
+        if dur_match:
             trip_context["duration_days"] = int(dur_match.group(1))
         route_match = _re.search(r'\bfrom\s+([A-Za-z ]{2,20}?)\s+to\s+([A-Za-z ]{2,20})\b', message, _re.IGNORECASE)
         if route_match:
@@ -879,12 +931,10 @@ If NO permanent preference is stated, output ONLY the word: NONE"""
                         "BANGALORE": "BLR", "BENGALURU": "BLR", "CHENNAI": "MAA", "KOLKATA": "CCU",
                         "HYDERABAD": "HYD", "PUNE": "PNQ", "AHMEDABAD": "AMD", "JAIPUR": "JAI",
                         "GOA": "GOI", "BALI": "DPS", "DUBAI": "DXB", "LONDON": "LHR", "PARIS": "CDG"}
-            if not trip_context.get("origin"):
-                trip_context["origin"] = IATA_MAP.get(orig_raw, orig_raw[:3])
-            if not trip_context.get("destination"):
-                trip_context["destination"] = dest_raw.capitalize()
+            trip_context["origin"] = IATA_MAP.get(orig_raw, orig_raw[:3])
+            trip_context["destination"] = dest_raw.capitalize()
         for style in ["luxury", "business", "family", "solo", "adventure", "honeymoon"]:
-            if style in message.lower() and not trip_context.get("travel_style"):
+            if style in message.lower():
                 trip_context["travel_style"] = style.capitalize()
                 break
 

@@ -24,7 +24,7 @@ if sentry_dsn and sentry_dsn != "your-sentry-dsn":
 
 from app.database import engine, Base, get_db
 from app.models import search_entities, payments
-from app.routes import auth, wallet, agents, voice, showcase, bookings, search, tracker, mybiz, wishlist, admin_panel, media, rent_a_ride, localities, payments as payments_routes, webhooks, profile, flights, hotels, weather, maps, system, currency, notifications, cabs, activities, visa, insurance, forex, esim, documents, loyalty, crm, insights, saas_routes, gateway, partner, feedback, cars, providers, users, support, analytics_ops, monitoring, recovery, buses, passengers
+from app.routes import auth, wallet, agents, voice, showcase, bookings, search, tracker, mybiz, wishlist, price_alerts, rewards, expenses, admin_panel, media, rent_a_ride, localities, payments as payments_routes, webhooks, profile, flights, hotels, weather, maps, system, currency, notifications, cabs, activities, visa, insurance, forex, esim, documents, loyalty, crm, insights, saas_routes, gateway, partner, feedback, cars, providers, users, support, analytics_ops, monitoring, recovery, buses, passengers, dashboard, groups
 from fastapi.staticfiles import StaticFiles
 import os
 from app.ml import fraud_model
@@ -230,6 +230,7 @@ async def unhandled_exception_handler(request, exc):
 
 # Include Route subtrees
 app.include_router(auth.router, prefix="/api/v1")
+app.include_router(dashboard.router, prefix="/api/v1")
 app.include_router(profile.router, prefix="/api/v1")
 app.include_router(passengers.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
@@ -245,6 +246,10 @@ app.include_router(search.router, prefix="/api/v1")
 app.include_router(tracker.router, prefix="/api/v1")
 app.include_router(mybiz.router, prefix="/api/v1")
 app.include_router(wishlist.router, prefix="/api/v1")
+app.include_router(price_alerts.router, prefix="/api/v1")
+app.include_router(rewards.router, prefix="/api/v1")
+app.include_router(expenses.router, prefix="/api/v1")
+app.include_router(groups.router, prefix="/api/v1")
 app.include_router(admin_panel.router, prefix="/api")
 app.include_router(admin_panel.admin_auth_router, prefix="/api")
 app.include_router(analytics_ops.router, prefix="/api/v1")
@@ -539,6 +544,22 @@ def startup_db_seed():
                         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_notif_user_created ON notifications (user_id, created_at);"))
                         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_notif_user_unread ON notifications (user_id, is_read);"))
                         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_notif_booking_ref ON notifications (booking_reference);"))
+                        conn.execute(text("""
+                            CREATE TABLE IF NOT EXISTS trips (
+                                id SERIAL PRIMARY KEY,
+                                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                                name VARCHAR(255) NOT NULL,
+                                destination VARCHAR(255),
+                                start_date DATE,
+                                end_date DATE,
+                                is_archived BOOLEAN NOT NULL DEFAULT FALSE,
+                                booking_references JSON DEFAULT '[]',
+                                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                                updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+                            );
+                        """))
+                        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_trips_user_id ON trips (user_id);"))
+                        conn.commit()
                         conn.execute(text("""
                             CREATE TABLE IF NOT EXISTS notification_deliveries (
                                 id SERIAL PRIMARY KEY,

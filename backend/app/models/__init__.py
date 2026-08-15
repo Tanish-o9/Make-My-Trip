@@ -1,7 +1,7 @@
 from app.models.core import (
     User, SavedTraveler, SavedPassenger, SavedPaymentMethod, Wishlist,
     LoyaltyAccount, LoyaltyTransaction, Coupon, WalletAccount, WalletTransaction,
-    RefreshToken, EmailVerification
+    RefreshToken, EmailVerification, Trip, TripExpense, TripMember, TripInvitation, TripExpenseSplit
 )
 
 from app.models.bookings import (
@@ -21,6 +21,7 @@ from app.models.payments import (
     Refund, ProcessedWebhookEvent
 )
 from app.models.wishlist import WishlistItem
+from app.models.price_alert import PriceAlert
 from app.models.media import Media
 from app.models.mybiz import Organization, EmployeeLink
 from app.models.search_entities import (
@@ -44,7 +45,7 @@ from app.models.workflow import WorkflowRule, WorkflowStep, WorkflowExecutionLog
 __all__ = [
     "User", "SavedTraveler", "SavedPassenger", "SavedPaymentMethod", "Wishlist",
     "LoyaltyAccount", "LoyaltyTransaction", "Coupon", "WalletAccount", "WalletTransaction",
-    "RefreshToken", "EmailVerification",
+    "RefreshToken", "EmailVerification", "Trip", "TripExpense", "TripMember", "TripInvitation", "TripExpenseSplit",
     "FlightBooking", "HotelBooking", "TrainBooking", "BusBooking", "CabBooking",
 
     "HolidayPackageBooking", "ActivityBooking", "CruiseBooking", "VisaApplication", "InsurancePolicy",
@@ -55,7 +56,8 @@ __all__ = [
     "LedgerRow", "SettlementBatch", "ReconciliationException", "ApprovalRequest",
     "VendorPayout", "Dispute", "AutoApprovalRule", "Payment", "PaymentTransaction",
     "Refund", "ProcessedWebhookEvent",
-    "WishlistItem", "Media", "Organization", "EmployeeLink",
+    "WishlistItem", "PriceAlert", "Media", "Organization", "EmployeeLink",
+
     "City", "Airport", "TrainStation", "BusTerminal", "CurrencyExchange",
     "CountryVisaRequirement", "TollPlaza", "FlightRoute", "HotelProperty",
     "HotelRoom", "VillaProperty", "HolidayPackage", "TrainRoute", "BusRoute",

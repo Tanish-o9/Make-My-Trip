@@ -89,6 +89,13 @@ class LoyaltyService:
         loyalty = cls.get_or_create_loyalty(db, user_id)
         points_to_award = int(booking_value * cls.EARN_RATE)
         if points_to_award > 0:
+            # Check idempotency to prevent duplicate reward
+            existing = db.query(LoyaltyTransaction).filter(
+                LoyaltyTransaction.booking_ref == booking_ref,
+                LoyaltyTransaction.points_delta > 0
+            ).first()
+            if existing:
+                return loyalty
             loyalty.points_balance += points_to_award
             transaction = LoyaltyTransaction(
                 loyalty_account_id=loyalty.id,
@@ -101,6 +108,53 @@ class LoyaltyService:
             db.refresh(loyalty)
             cls.recalculate_tier(db, user_id)
         return loyalty
+
+    @classmethod
+    def award_booking_points(cls, db: Session, user_id: int, vertical: str, booking_ref: str) -> LoyaltyAccount:
+        # Check idempotency to prevent duplicate point awarding
+        existing = db.query(LoyaltyTransaction).filter(
+            LoyaltyTransaction.booking_ref == booking_ref,
+            LoyaltyTransaction.points_delta > 0
+        ).first()
+        if existing:
+            return cls.get_or_create_loyalty(db, user_id)
+
+        # Determine points to award based on vertical
+        v = vertical.lower()
+        if "flight" in v:
+            points_to_award = 500
+            desc = "Flight Booking"
+        elif "bus" in v:
+            points_to_award = 100
+            desc = "Bus Booking"
+        elif "hotel" in v:
+            points_to_award = 400
+            desc = "Hotel Booking"
+        elif "activity" in v or "tour" in v:
+            points_to_award = 200
+            desc = "Activity Booking"
+        elif "train" in v:
+            points_to_award = 150
+            desc = "Train Booking"
+        else:
+            points_to_award = 100
+            desc = f"{vertical.capitalize()} Booking"
+
+        loyalty = cls.get_or_create_loyalty(db, user_id)
+        if points_to_award > 0:
+            loyalty.points_balance += points_to_award
+            transaction = LoyaltyTransaction(
+                loyalty_account_id=loyalty.id,
+                points_delta=points_to_award,
+                reason=f"+{points_to_award} {desc}",
+                booking_ref=booking_ref
+            )
+            db.add(transaction)
+            db.commit()
+            db.refresh(loyalty)
+            cls.recalculate_tier(db, user_id)
+        return loyalty
+
 
     @classmethod
     def redeem_points(cls, db: Session, user_id: int, points: int, booking_ref: str) -> LoyaltyAccount:

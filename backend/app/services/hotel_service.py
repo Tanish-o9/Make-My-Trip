@@ -251,7 +251,13 @@ class HotelService:
                 "distance": 0.8,
                 "freeCancellation": True,
                 "breakfastIncluded": True,
-                "stars": 5
+                "stars": 5,
+                "latitude": 15.2993,
+                "longitude": 74.1240,
+                "roomType": "Deluxe Palace Suite",
+                "amenities": ["Wifi", "Gym", "Swimming Pool", "Spa", "Breakfast Included"],
+                "cancellation": "Free Cancellation within 24 hours",
+                "paymentPolicy": "Pay at hotel allowed"
             },
             {
                 "hotelId": "10002",
@@ -264,8 +270,15 @@ class HotelService:
                 "address": f"45 Market Street, {city.capitalize()}",
                 "city": city.capitalize(),
                 "distance": 1.9,
-                "freeCancellation": True,
+                "freeCancellation": False,
                 "breakfastIncluded": False,
-                "stars": 3
+                "stars": 3,
+                "latitude": 15.3120,
+                "longitude": 74.1180,
+                "roomType": "Executive Garden Room",
+                "amenities": ["Wifi", "Air Conditioning"],
+                "cancellation": "Non-Refundable",
+                "paymentPolicy": "Prepaid Only"
             }
         ]
+

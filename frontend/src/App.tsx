@@ -19,6 +19,13 @@ import VerifyEmailPage from './VerifyEmailPage';
 import ForgotPasswordPage from './ForgotPasswordPage';
 import NotificationsPage from './NotificationsPage';
 import SupportCenterPage from './SupportCenterPage';
+import DashboardPage from './DashboardPage';
+import TripTimelinePage from './TripTimelinePage';
+import DocumentsPage from './DocumentsPage';
+import WishlistPage from './WishlistPage';
+import HotelMapView from './HotelMapView';
+import GroupTripDashboard from './GroupTripDashboard';
+import AIPlannerDashboard from './AIPlannerDashboard';
 
 
 import { API_BASE, API_URL, ADMIN_BASE, WS_BASE_API, SPECIAL_FARES, calculatePassengerFare, validateStudentDetails, calculateSearchDisplayFare, normalizeSpecialFareKey } from './config/api';
@@ -72,6 +79,154 @@ const decodeJwt = (t: string) => {
   }
 };
 
+function GroupTripsList({ token, onSelectTrip }: { token: string; onSelectTrip: (id: number) => void }) {
+  const [trips, setTrips] = useState<any[]>([]);
+  const [name, setName] = useState('');
+  const [destination, setDestination] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  const fetchTrips = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('http://localhost:8000/api/v1/trips', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTrips(data);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTrips();
+  }, [token]);
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('http://localhost:8000/api/v1/trips', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name,
+          destination,
+          start_date: startDate || null,
+          end_date: endDate || null,
+          booking_references: []
+        })
+      });
+      if (res.ok) {
+        setName('');
+        setDestination('');
+        setStartDate('');
+        setEndDate('');
+        fetchTrips();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  if (loading) {
+    return <div className="text-slate-400 text-xs text-center py-12">Loading trips...</div>;
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto p-4 space-y-6 text-left">
+      <h2 className="text-2xl font-black text-white uppercase tracking-wider">Your Group Trips Workspace</h2>
+      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="md:col-span-2 space-y-3">
+          {trips.length === 0 ? (
+            <div className="text-slate-500 text-xs">No trips found. Create one on the right to start collaborating!</div>
+          ) : (
+            trips.map((t: any) => (
+              <div key={t.id} className="bg-slate-950 border border-slate-900 rounded-xl p-4 flex justify-between items-center">
+                <div>
+                  <h3 className="font-extrabold text-sm text-white">{t.name}</h3>
+                  <p className="text-xs text-slate-400">📍 Destination: {t.destination}</p>
+                  <p className="text-[10px] text-slate-500">📅 {t.start_date || 'TBD'} to {t.end_date || 'TBD'}</p>
+                </div>
+                <button
+                  onClick={() => onSelectTrip(t.id)}
+                  className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-3.5 py-2 rounded-lg cursor-pointer"
+                >
+                  Enter Workspace →
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="bg-[#0b1329] border border-slate-850 p-4 rounded-xl text-xs space-y-3 h-fit">
+          <h4 className="font-black text-white uppercase tracking-wide">Create New Group Trip</h4>
+          <form onSubmit={handleCreate} className="space-y-3">
+            <div>
+              <label className="text-slate-400 font-bold block mb-1">Trip Name</label>
+              <input
+                type="text"
+                placeholder="e.g. GOA FRIENDS TRIP"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-white"
+                required
+              />
+            </div>
+            <div>
+              <label className="text-slate-400 font-bold block mb-1">Destination</label>
+              <input
+                type="text"
+                placeholder="e.g. Goa"
+                value={destination}
+                onChange={(e) => setDestination(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-white"
+                required
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-slate-400 font-bold block mb-1">Start Date</label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded px-1.5 py-1.5 text-white"
+                />
+              </div>
+              <div>
+                <label className="text-slate-400 font-bold block mb-1">End Date</label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded px-1.5 py-1.5 text-white"
+                />
+              </div>
+            </div>
+            <button
+              type="submit"
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-2 rounded uppercase tracking-wide cursor-pointer"
+            >
+              Create Workspace
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 let globalIsRefreshing = false;
 let globalRefreshQueue: Array<{ resolve: (token: string | null) => void }> = [];
 
@@ -79,7 +234,8 @@ export default function App() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [userRole, setUserRole] = useState<string | null>(localStorage.getItem('user_role'));
-  const [activeTab, setActiveTab] = useState<'explore' | 'chat' | 'wallet' | 'trips'>('explore');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'explore' | 'chat' | 'wallet' | 'trips' | 'documents' | 'wishlist' | 'group-trips' | 'ai-planner'>('dashboard');
+  const [selectedGroupTripId, setSelectedGroupTripId] = useState<number | null>(null);
   const [loadingVerticals, setLoadingVerticals] = useState<Record<string, boolean>>({});
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -218,6 +374,17 @@ export default function App() {
           ];
           const completed = fields.filter(f => !!f).length;
           setProfileCompletion(Math.round((completed / fields.length) * 100));
+        }
+      })
+      .catch(() => {});
+
+    fetch(`${API_URL}/wishlist`, {
+      headers: { "Authorization": `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setWishlistItems(data);
         }
       })
       .catch(() => {});
@@ -698,6 +865,23 @@ export default function App() {
   const [prefilledMessage, setPrefilledMessage] = useState("");
   const [checkoutData, setCheckoutData] = useState<any | null>(null);
 
+
+  const handleDeepLinkFlight = (origin: string, dest: string, date: string) => {
+    sessionStorage.setItem("fl_fromCity", origin);
+    sessionStorage.setItem("fl_toCity", dest);
+    sessionStorage.setItem("fl_depDate", date);
+    sessionStorage.setItem("active_vertical", "flights");
+    setActiveTab("explore");
+  };
+
+  const handleDeepLinkHotel = (dest: string, checkIn: string, checkOut: string) => {
+    sessionStorage.setItem("ht_city", dest);
+    sessionStorage.setItem("ht_checkIn", checkIn);
+    sessionStorage.setItem("ht_checkOut", checkOut);
+    sessionStorage.setItem("active_vertical", "hotels");
+    setActiveTab("explore");
+  };
+
   const handleOnBook = (bookData: any) => {
     try {
       sessionStorage.setItem("fl_last_checkout_data", JSON.stringify(bookData));
@@ -850,6 +1034,18 @@ export default function App() {
     return <NotificationsPage onNavigate={navigate} token={token} />;
   }
 
+  if (currentPath === "/dashboard") {
+    return <DashboardPage onNavigate={navigate} token={token} setActiveTab={(tab: any) => setActiveTab(tab)} />;
+  }
+
+  if (currentPath === "/trips") {
+    return <TripTimelinePage onNavigate={navigate} token={token} setActiveTab={(tab: any) => setActiveTab(tab)} />;
+  }
+
+  if (currentPath === "/documents") {
+    return <DocumentsPage onNavigate={navigate} token={token} setActiveTab={(tab: any) => setActiveTab(tab)} />;
+  }
+
   const checkoutMatch = currentPath.match(/^\/checkout\/([^/]+)$/) || currentPath.match(/^\/payment-failed\/([^/]+)$/);
   const confirmationMatch = 
     currentPath.match(/^\/bookings\/([^/]+)\/confirmation$/) || 
@@ -927,7 +1123,7 @@ export default function App() {
   }
 
   // 404 Page (Phase 17)
-  const validPaths = ["/", "/profile", "/notifications", "/design-tokens", "/admin", "/privacy", "/terms", "/support", "/help", "/forgot-password", "/reset-password"];
+  const validPaths = ["/", "/profile", "/notifications", "/design-tokens", "/admin", "/privacy", "/terms", "/support", "/help", "/forgot-password", "/reset-password", "/dashboard", "/trips", "/documents"];
 
   const isMatch = 
     validPaths.includes(currentPath) || 
@@ -956,6 +1152,49 @@ export default function App() {
       </div>
     );
   }
+
+  const toggleWishlist = async (itemType: string, refId: string, snapshot: any) => {
+    if (!token) {
+      alert("Please login to save items to your wishlist.");
+      return;
+    }
+    const existing = wishlistItems.find(w => w.item_ref_id === refId && w.item_type.toLowerCase() === itemType.toLowerCase());
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    };
+    if (existing) {
+      try {
+        const res = await fetch(`${API_URL}/wishlist/${existing.id}`, {
+          method: 'DELETE',
+          headers
+        });
+        if (res.ok) {
+          setWishlistItems(prev => prev.filter(w => w.id !== existing.id));
+        }
+      } catch (err) {
+        console.error("Failed to delete wishlist item", err);
+      }
+    } else {
+      try {
+        const res = await fetch(`${API_URL}/wishlist`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            item_type: itemType,
+            item_ref_id: refId,
+            snapshot_json: snapshot
+          })
+        });
+        if (res.ok) {
+          const newItem = await res.json();
+          setWishlistItems(prev => [...prev, newItem]);
+        }
+      } catch (err) {
+        console.error("Failed to add wishlist item", err);
+      }
+    }
+  };
 
   const isAdmin = userRole === 'admin' || userRole === 'super_admin' || userRole === 'finance_admin' || userRole === 'booking_approver';
 
@@ -1013,6 +1252,12 @@ export default function App() {
 
           <nav className="space-y-1">
             <SidebarBtn 
+              active={activeTab === 'dashboard'} 
+              icon={<Home size={20} />} 
+              label="Dashboard" 
+              onClick={() => { setActiveTab('dashboard'); setIsMobileSidebarOpen(false); }} 
+            />
+            <SidebarBtn 
               active={activeTab === 'explore'} 
               icon={<Compass size={20} />} 
               label="Explore & Book" 
@@ -1031,10 +1276,28 @@ export default function App() {
               onClick={() => { setActiveTab('trips'); setIsMobileSidebarOpen(false); }} 
             />
             <SidebarBtn 
+              active={activeTab === 'documents'} 
+              icon={<FileText size={20} />} 
+              label="Document Vault" 
+              onClick={() => { setActiveTab('documents'); setIsMobileSidebarOpen(false); }} 
+            />
+            <SidebarBtn 
               active={activeTab === 'wallet'} 
               icon={<Wallet size={20} />} 
               label="Wallet & Loyalty" 
               onClick={() => { setActiveTab('wallet'); setIsMobileSidebarOpen(false); }} 
+            />
+            <SidebarBtn 
+              active={activeTab === 'group-trips'} 
+              icon={<Users size={20} />} 
+              label="Group Trips" 
+              onClick={() => { setActiveTab('group-trips'); setSelectedGroupTripId(null); setIsMobileSidebarOpen(false); }} 
+            />
+            <SidebarBtn 
+              active={activeTab === 'ai-planner'} 
+              icon={<Sparkles size={20} />} 
+              label="AI Autonomous Planner" 
+              onClick={() => { setActiveTab('ai-planner'); setIsMobileSidebarOpen(false); }} 
             />
           </nav>
         </div>
@@ -1082,9 +1345,11 @@ export default function App() {
           {/* Nav Tabs */}
           <nav className="hidden md:flex items-center gap-6 h-full relative">
             {[
+              { id: 'dashboard', label: 'Dashboard' },
               { id: 'explore', label: 'Explore & Book' },
               { id: 'chat', label: 'AI Travel Assistant' },
               { id: 'trips', label: 'My Trips' },
+              { id: 'documents', label: 'Document Vault' },
               { id: 'wallet', label: 'Wallet & Loyalty' }
             ].map((tab) => {
               const isActive = activeTab === tab.id;
@@ -1293,6 +1558,16 @@ export default function App() {
                 passengers={passengers}
                 setPassengers={setPassengers}
                 token={token}
+                wishlistItems={wishlistItems}
+                toggleWishlist={toggleWishlist}
+              />
+            )}
+            {activeTab === 'dashboard' && (
+              <DashboardPage 
+                key="dashboard" 
+                onNavigate={navigate} 
+                token={token} 
+                setActiveTab={(tab: any) => setActiveTab(tab)} 
               />
             )}
             {activeTab === 'chat' && (
@@ -1305,8 +1580,54 @@ export default function App() {
                 setActiveTab={setActiveTab}
               />
             )}
-            {activeTab === 'trips' && <MyTripsView key="trips" userProfile={userProfile} setActiveTab={setActiveTab} onNavigate={navigate} />}
+            {activeTab === 'trips' && (
+              <TripTimelinePage 
+                key="trips" 
+                onNavigate={navigate} 
+                token={token} 
+                setActiveTab={(tab: any) => setActiveTab(tab)} 
+              />
+            )}
+            {activeTab === 'documents' && (
+              <DocumentsPage 
+                key="documents" 
+                onNavigate={navigate} 
+                token={token} 
+                setActiveTab={(tab: any) => setActiveTab(tab)} 
+              />
+            )}
             {activeTab === 'wallet' && <WalletView key="wallet" userProfile={userProfile} setUserProfile={setUserProfile} />}
+            {activeTab === 'wishlist' && (
+              <WishlistPage 
+                key="wishlist" 
+                token={token} 
+                onNavigate={navigate} 
+                setActiveTab={(tab: any) => setActiveTab(tab)}
+                onBook={handleOnBook}
+              />
+            )}
+            {activeTab === 'group-trips' && (
+              selectedGroupTripId ? (
+                <GroupTripDashboard
+                  tripId={selectedGroupTripId}
+                  currentUserId={1}
+                  token={token || ''}
+                  onBack={() => setSelectedGroupTripId(null)}
+                />
+              ) : (
+                <GroupTripsList
+                  token={token || ''}
+                  onSelectTrip={(id) => setSelectedGroupTripId(id)}
+                />
+              )
+            )}
+            {activeTab === 'ai-planner' && (
+              <AIPlannerDashboard
+                token={token || ''}
+                onDeepLinkFlight={handleDeepLinkFlight}
+                onDeepLinkHotel={handleDeepLinkHotel}
+              />
+            )}
             
           </AnimatePresence>
         </div>
@@ -1458,7 +1779,9 @@ function ExploreView({
   profileData,
   passengers,
   setPassengers,
-  token
+  token,
+  wishlistItems,
+  toggleWishlist
 }: { 
   currency: string, onBook: (data: any) => void, setActiveTab: any,
   onDetailClick: (vert: string, item: any) => void,
@@ -1475,7 +1798,9 @@ function ExploreView({
   profileData: any,
   passengers: number,
   setPassengers: React.Dispatch<React.SetStateAction<number>>,
-  token: string | null
+  token: string | null,
+  wishlistItems: any[],
+  toggleWishlist: (itemType: string, refId: string, snapshot: any) => Promise<void>
 }) {
   const [activeVertical, setActiveVertical] = useState<string>(() => sessionStorage.getItem("active_vertical") || 'flights');
   const [loadingVerticals, setLoadingVerticals] = useState<Record<string, boolean>>({});
@@ -1572,8 +1897,8 @@ function ExploreView({
             
             <div className="pt-1">
             {activeVertical === 'trip-planner' && <TripPlannerForm onBook={onBook} onDetailClick={onDetailClick} setPrefilledMessage={setPrefilledMessage} setActiveTab={setActiveTab} />}
-            {activeVertical === 'flights' && <FlightsSearchForm currency={currency} onBook={onBook} onDetailClick={onDetailClick} onTrackFlight={onTrackFlight} passengers={passengers} setPassengers={setPassengers} />}
-            {activeVertical === 'hotels' && <HotelsSearchForm onBook={onBook} onDetailClick={onDetailClick} />}
+            {activeVertical === 'flights' && <FlightsSearchForm currency={currency} onBook={onBook} onDetailClick={onDetailClick} onTrackFlight={onTrackFlight} passengers={passengers} setPassengers={setPassengers} wishlistItems={wishlistItems} toggleWishlist={toggleWishlist} token={token} />}
+            {activeVertical === 'hotels' && <HotelsSearchForm onBook={onBook} onDetailClick={onDetailClick} wishlistItems={wishlistItems} toggleWishlist={toggleWishlist} token={token} />}
             {activeVertical === 'villas' && <VillasSearchForm onBook={onBook} onDetailClick={onDetailClick} />}
             {activeVertical === 'holidays' && <HolidayPackagesSearchForm onBook={onBook} onDetailClick={onDetailClick} />}
             {activeVertical === 'trains' && <TrainsSearchForm onBook={onBook} onDetailClick={onDetailClick} />}
@@ -2409,14 +2734,20 @@ function FlightsSearchForm({
   onDetailClick, 
   onTrackFlight,
   passengers,
-  setPassengers
+  setPassengers,
+  wishlistItems = [],
+  toggleWishlist,
+  token
 }: { 
   currency: string, 
   onBook: (data: any) => void, 
   onDetailClick: (vert: string, item: any) => void, 
   onTrackFlight: (fnum: string) => void,
   passengers: number,
-  setPassengers: React.Dispatch<React.SetStateAction<number>>
+  setPassengers: React.Dispatch<React.SetStateAction<number>>,
+  wishlistItems?: any[],
+  toggleWishlist?: (itemType: string, refId: string, snapshot: any) => Promise<void>,
+  token: string | null
 }) {
   const [fromCity, setFromCity] = useState(() => sessionStorage.getItem("fl_fromCity") || "");
   const [toCity, setToCity] = useState(() => sessionStorage.getItem("fl_toCity") || "");
@@ -2431,6 +2762,49 @@ function FlightsSearchForm({
   useEffect(() => { sessionStorage.setItem("fl_depDate", depDate); }, [depDate]);
   useEffect(() => { sessionStorage.setItem("fl_depTime", depTime); }, [depTime]);
   useEffect(() => { sessionStorage.setItem("fl_cabin", cabin); }, [cabin]);
+
+  const handleCreatePriceAlert = async () => {
+    if (!token) {
+      alert("Please login to set price alerts.");
+      return;
+    }
+    const routeName = `${fromCity || 'Delhi'} → ${toCity || 'Goa'}`;
+    const targetPriceStr = prompt(`Set target price for ${routeName} (INR):`, "5000");
+    if (!targetPriceStr) return;
+    const targetPrice = parseFloat(targetPriceStr);
+    if (isNaN(targetPrice) || targetPrice <= 0) {
+      alert("Invalid price.");
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/price-alerts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          route: routeName,
+          vertical: "flight",
+          travel_date: depDate || new Date().toISOString().split('T')[0],
+          target_price: targetPrice,
+          current_price: results[0]?.price || 6000.0,
+          currency: currency || "INR"
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        alert(data.message || "Price alert set successfully!");
+      } else {
+        const err = await res.json();
+        alert(err.detail || "Failed to set price alert.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Could not set price alert.");
+    }
+  };
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -2801,6 +3175,21 @@ function FlightsSearchForm({
           <div className="space-y-3 mt-6">
             <VehicleRentalCrossSell destinationCity={toCity} dateRange={{ start: depDate }} />
             <SearchRouteMap vertical="flights" origin={fromCity} destination={toCity} />
+            <div className="bg-[#121c33] border border-slate-800/80 p-4 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h4 className="font-extrabold text-sm text-slate-100 flex items-center gap-1.5">
+                  🔔 Route Alert Tracker: {fromCity || "Delhi"} ➔ {toCity || "Goa"}
+                </h4>
+                <p className="text-[10px] text-slate-400 mt-0.5 font-bold">Set a target price limit and get notified instantly when live fares drop below it.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleCreatePriceAlert()}
+                className="bg-yellow-400 hover:bg-yellow-300 text-black border-2 border-black font-extrabold px-4 py-2 rounded-xl shadow-[3px_3px_0px_0px_#000000] cursor-pointer flex items-center gap-1 active:translate-y-px text-xs uppercase"
+              >
+                🔔 Track Price
+              </button>
+            </div>
             
             {/* Sorting & Filtering UI Controls */}
             <div className="flex flex-wrap gap-3 items-center justify-between bg-slate-900/60 p-4 rounded-xl border border-slate-800/80 mb-4">
@@ -3036,26 +3425,49 @@ function FlightsSearchForm({
                               </div>
                             )}
                           </div>
-                          <button 
-                            onClick={() => {
-                              setSelectedFlightSeats([]);
-                              setShowFlightSeatModal({
-                                res,
-                                airlineName,
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => toggleWishlist && toggleWishlist(
+                                "flight",
                                 flightNumber,
-                                origin,
-                                destination,
-                                cabinClass,
-                                specialFareType: fareCalc.fareKey,
-                                amount: res.total_price || res.price,
-                                provider_name: res.provider_name,
-                                offer_id: res.offer_id
-                              });
-                            }}
-                            className="bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-[11px] font-extrabold px-4 py-2 rounded-xl flex items-center gap-1 shadow-lg shadow-blue-600/10 cursor-pointer transition-all"
-                          >
-                            Select Seats <ArrowRight size={12} />
-                          </button>
+                                {
+                                  airline: airlineName,
+                                  origin,
+                                  destination,
+                                  price: basePricePerPax
+                                }
+                              )}
+                              className={`px-3 py-2 rounded-xl text-[11px] font-extrabold flex items-center gap-1 transition-all cursor-pointer border ${
+                                wishlistItems.some((w: any) => w.item_ref_id === flightNumber && w.item_type.toLowerCase() === 'flight')
+                                  ? "bg-rose-950/60 text-rose-400 border-rose-900/50"
+                                  : "bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700"
+                              }`}
+                            >
+                              <Heart size={12} className={wishlistItems.some((w: any) => w.item_ref_id === flightNumber && w.item_type.toLowerCase() === 'flight') ? "fill-rose-400 text-rose-400" : "text-slate-300"} />
+                              {wishlistItems.some((w: any) => w.item_ref_id === flightNumber && w.item_type.toLowerCase() === 'flight') ? "Saved" : "Save"}
+                            </button>
+                            <button 
+                              onClick={() => {
+                                setSelectedFlightSeats([]);
+                                setShowFlightSeatModal({
+                                  res,
+                                  airlineName,
+                                  flightNumber,
+                                  origin,
+                                  destination,
+                                  cabinClass,
+                                  specialFareType: fareCalc.fareKey,
+                                  amount: res.total_price || res.price,
+                                  provider_name: res.provider_name,
+                                  offer_id: res.offer_id
+                                });
+                              }}
+                              className="bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-[11px] font-extrabold px-4 py-2 rounded-xl flex items-center gap-1 shadow-lg shadow-blue-600/10 cursor-pointer transition-all"
+                            >
+                              Select Seats <ArrowRight size={12} />
+                            </button>
+                          </div>
                         </div>
                       );
                     })()}
@@ -3297,21 +3709,77 @@ const POPULAR_DESTINATIONS = [
   "Puducherry", "Port Blair", "Havelock Island", "Kavaratti", "Lakshadweep", "Daman", "Diu"
 ];
 
-function HotelsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => void, onDetailClick: (vert: string, item: any) => void }) {
-  const [city, setCity] = useState("");
+function HotelsSearchForm({ 
+  onBook, 
+  onDetailClick, 
+  wishlistItems = [], 
+  toggleWishlist, 
+  token 
+}: { 
+  onBook: (data: any) => void, 
+  onDetailClick: (vert: string, item: any) => void, 
+  wishlistItems?: any[], 
+  toggleWishlist?: (itemType: string, refId: string, snapshot: any) => Promise<void>, 
+  token: string | null 
+}) {
+  const [city, setCity] = useState(() => sessionStorage.getItem("ht_city") || "");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useTabLoading('hotels');
   const [selectedHotel, setSelectedHotel] = useState<any | null>(null);
 
-  const [checkIn, setCheckIn] = useState("");
-  const [checkOut, setCheckOut] = useState("");
-  const [guests, setGuests] = useState(2);
+  const [checkIn, setCheckIn] = useState(() => sessionStorage.getItem("ht_checkIn") || "");
+  const [checkOut, setCheckOut] = useState(() => sessionStorage.getItem("ht_checkOut") || "");
+  const [guests, setGuests] = useState(() => parseInt(sessionStorage.getItem("ht_guests") || "2", 10));
   const [starRating, setStarRating] = useState("all");
 
   const [sortBy, setSortBy] = useState("price_asc");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [cancellationFilter, setCancellationFilter] = useState("all");
+
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
+  const [selectedCompareHotels, setSelectedCompareHotels] = useState<any[]>([]);
+  const [showCompareModal, setShowCompareModal] = useState(false);
+  const [comparisonData, setComparisonData] = useState<any[]>([]);
+  const [loadingComparison, setLoadingComparison] = useState(false);
+
+  const handleToggleCompare = (hotel: any) => {
+    const hotelId = hotel.hotelId || hotel.hotel_id || "H101";
+    setSelectedCompareHotels(prev => {
+      const match = prev.some(h => (h.hotelId || h.hotel_id) === hotelId);
+      if (match) {
+        return prev.filter(h => (h.hotelId || h.hotel_id) !== hotelId);
+      } else {
+        if (prev.length >= 3) {
+          alert("You can compare up to 3 hotels.");
+          return prev;
+        }
+        return [...prev, hotel];
+      }
+    });
+  };
+
+  const fetchComparison = async () => {
+    if (selectedCompareHotels.length === 0) return;
+    setLoadingComparison(true);
+    setShowCompareModal(true);
+    try {
+      const queryParams = selectedCompareHotels.map(h => `hotelIds=${h.hotelId || h.hotel_id}`).join("&");
+      const res = await fetch(`${API_URL}/hotels/compare?${queryParams}`);
+      if (res.ok) {
+        const data = await res.json();
+        setComparisonData(data);
+      } else {
+        throw new Error("Failed to load comparison data.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error loading comparison details.");
+    } finally {
+      setLoadingComparison(false);
+    }
+  };
+
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -3389,7 +3857,15 @@ function HotelsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
       });
   };
 
+  const isFirstMount = useRef(true);
   useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      if (city && checkIn && checkOut) {
+        handleSearch();
+      }
+      return;
+    }
     if (results.length > 0) {
       handleSearch(sortBy, categoryFilter, cancellationFilter);
     }
@@ -3525,6 +4001,171 @@ function HotelsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
             }
           };
           const nights = calculateNights();
+
+          const renderContent = () => {
+            if (viewMode === 'list') {
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  {results.map((res, index) => {
+                    const hotelId = res.hotelId || res.hotel_id || "H101";
+                    const hotelName = res.hotelName || res.name || "Luxury Boutique Stay";
+                    const hotelImage = res.image || res.primary_photo_url || "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800";
+                    const rating = res.rating || 4.2;
+                    const reviewScore = res.reviewScore || res.guest_review_score || 8.4;
+                    const price = res.price || 0;
+                    const address = res.address || "Heritage Area";
+                    const distance = res.distance || res.distance_from_center || 1.5;
+                    const isBreakfast = res.breakfastIncluded !== undefined ? res.breakfastIncluded : res.breakfast_included;
+                    const isFreeCancel = res.freeCancellation !== undefined ? res.freeCancellation : res.free_cancellation;
+                    const starsCount = res.stars || 4;
+                    
+                    return (
+                      <div key={index} className="dark-card-override bg-[#121c33] p-4 rounded-2xl border border-slate-800 hover:border-slate-700 transition-all flex flex-col justify-between gap-4 relative">
+                        {res.ai_pick ? (
+                          <div className="absolute -top-2 left-4 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-[9px] text-white font-black px-2.5 py-0.5 rounded-full shadow-lg shadow-indigo-500/30 animate-pulse border border-indigo-400/30 z-20 flex items-center gap-1">✨ AI PICK: {res.ai_pick_reason}</div>
+                        ) : index === 0 ? (
+                          <div className="absolute -top-2 left-4 bg-gradient-to-r from-emerald-500 to-teal-400 text-[9px] text-white font-black px-2.5 py-0.5 rounded-full shadow-lg shadow-emerald-500/20 animate-pulse z-10">🏆 BEST PRICE</div>
+                        ) : null}
+                        <div onClick={() => onDetailClick("hotels", res)} className="cursor-pointer">
+                          <CardThumbnail ownerType="hotel" ownerId={hotelName} blurHash={res.blur_hash_base64} defaultUrl={hotelImage} />
+                          <div className="flex flex-col gap-1.5 mt-3 text-left">
+                            <div className="flex items-center gap-1.5">
+                              <span className="dark-card-badge text-[8px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                                {res.category || "Hotel"}
+                              </span>
+                              <span className="text-xs text-blue-400 font-black">{rating} ★ ({starsCount} Stars)</span>
+                            </div>
+                            
+                            <h4 className="font-extrabold text-slate-200 text-base mt-0.5">{hotelName}</h4>
+                            
+                            <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
+                              {reviewScore && (
+                                <span className="bg-blue-950/40 text-blue-400 border border-blue-500/20 px-1.5 py-0.5 rounded font-black">
+                                  ⭐ {reviewScore}/10
+                                </span>
+                              )}
+                              {res.review_count && (
+                                <span className="text-slate-400 font-medium">({res.review_count} reviews)</span>
+                              )}
+                              {distance && (
+                                <span className="text-slate-500">• {distance} km from center</span>
+                              )}
+                            </div>
+                            
+                            <div className="text-[10px] text-slate-400 truncate mt-0.5">
+                              📍 {address}
+                            </div>
+
+                            <p className="text-xs text-slate-400 mt-1">{res.details || "Boutique architecture, standard booking options available."}</p>
+                            
+                            <div className="text-xs text-slate-300 font-black mt-1 flex items-center gap-1">
+                              <span>🛏️</span>
+                              <span>{res.room_type || "Standard Room"}</span>
+                            </div>
+
+                            <div className="flex gap-1.5 flex-wrap mt-1">
+                              {isBreakfast && (
+                                <span className="text-[9px] bg-emerald-950/40 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded font-bold">🍳 Free Breakfast</span>
+                              )}
+                              {isFreeCancel && (
+                                <span className="text-[9px] bg-teal-950/40 text-teal-400 border border-teal-500/20 px-1.5 py-0.5 rounded font-bold">🛡️ Free Cancellation</span>
+                              )}
+                            </div>
+
+                            {res.alternatives && res.alternatives.length > 0 && (
+                              <div className="flex items-center gap-1.5 flex-wrap mt-2 pt-2 border-t border-slate-800/60">
+                                <span className="text-[9px] text-slate-500">Compare:</span>
+                                {res.alternatives.map((alt: any, ai: number) => (
+                                  <span key={ai} className="dark-card-badge text-[9px] px-1.5 py-0.5 rounded">
+                                    {alt.provider_name}: ₹{Number(alt.price).toLocaleString()}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            
+                            <span className="text-[10px] text-blue-400 font-bold block mt-1 hover:underline">View details, reviews & cancellation policies ➔</span>
+                          </div>
+                        </div>
+                        
+                        <div className="flex justify-between items-center pt-2 border-t border-slate-800/80">
+                          <div>
+                            <span className="text-[9px] text-slate-500 uppercase block font-bold">Price per night</span>
+                            <span className="font-black text-emerald-400 text-base">₹{price.toLocaleString()}</span>
+                            <span className="text-[9px] text-slate-400 block mt-0.5">
+                              Total for {nights} {nights === 1 ? "night" : "nights"}: <strong className="text-emerald-400">₹{Number(price * nights).toLocaleString()}</strong>
+                            </span>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => toggleWishlist && toggleWishlist(
+                                "hotel",
+                                hotelId,
+                                {
+                                  hotelName,
+                                  address,
+                                  price,
+                                  rating
+                                }
+                              )}
+                              className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1 transition-all border ${
+                                wishlistItems.some((w: any) => w.item_ref_id === hotelId && w.item_type.toLowerCase() === 'hotel')
+                                  ? "bg-rose-950/60 text-rose-400 border-rose-900/50"
+                                  : "bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-750"
+                              }`}
+                            >
+                              <Heart size={12} className={wishlistItems.some((w: any) => w.item_ref_id === hotelId && w.item_type.toLowerCase() === 'hotel') ? "fill-rose-400 text-rose-400" : "text-slate-300"} />
+                              {wishlistItems.some((w: any) => w.item_ref_id === hotelId && w.item_type.toLowerCase() === 'hotel') ? "Saved" : "Save"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleCompare(res)}
+                              className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                                selectedCompareHotels.some(h => (h.hotelId || h.hotel_id) === hotelId)
+                                  ? "bg-amber-600 text-white border-amber-500 hover:bg-amber-500"
+                                  : "bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-750"
+                              }`}
+                            >
+                              {selectedCompareHotels.some(h => (h.hotelId || h.hotel_id) === hotelId) ? "✓ Compared" : "+ Compare"}
+                            </button>
+                            <button 
+                              onClick={() => setSelectedHotel({ name: hotelName, blur_hash_base64: res.blur_hash_base64, primary_photo_url: hotelImage })}
+                              className="bg-slate-800 hover:bg-slate-750 text-white text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1 transition-all"
+                            >
+                              Snaps
+                            </button>
+                            <button 
+                              onClick={() => onBook({
+                                vertical: "hotels",
+                                amount: price * nights,
+                                details: {
+                                  hotel_name: hotelName,
+                                  hotel_id: hotelId,
+                                  room_type: res.room_type || "Deluxe Room",
+                                  guests: [{ name: "Traveler Guest", age: 32 }],
+                                  provider_name: "Booking.com API",
+                                  offer_id: `OF-BK-${hotelId}`
+                                },
+                                title: hotelName,
+                                subtitle: address
+                              })}
+                              className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1 shadow-md shadow-blue-500/10 transition-all"
+                            >
+                              Book Room
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            } else {
+              return (
+                <HotelMapView results={results} onBook={onBook} wishlistItems={wishlistItems} toggleWishlist={toggleWishlist} />
+              );
+            }
+          };
           
           return (
             <div className="w-full">
@@ -3571,8 +4212,30 @@ function HotelsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
                       <option value="free">Free Cancellation</option>
                     </select>
                   </div>
+                <div className="flex gap-2 items-center">
+                  <span className="text-[10px] text-slate-400 font-bold bg-slate-950 border border-slate-800/80 px-2.5 py-1.5 rounded">{results.length} hotels found</span>
+                  <div className="flex rounded-lg overflow-hidden border border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setViewMode('list')}
+                      className={`px-3 py-1.5 text-xs font-bold cursor-pointer transition-all ${
+                        viewMode === 'list' ? 'bg-blue-600 text-white' : 'bg-slate-950 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      List
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViewMode('map')}
+                      className={`px-3 py-1.5 text-xs font-bold cursor-pointer transition-all ${
+                        viewMode === 'map' ? 'bg-blue-600 text-white' : 'bg-slate-950 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Map
+                    </button>
+                  </div>
                 </div>
-                <span className="text-[10px] text-slate-400 font-bold bg-slate-950 border border-slate-800/80 px-2.5 py-1.5 rounded">{results.length} hotels found</span>
+                </div>
               </div>
 
               <div className="flex justify-between items-center mb-3 px-1">
@@ -3581,128 +4244,7 @@ function HotelsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
                   {"Comparing simulated inventory (HotelBeds & Expedia sandbox)"}
                 </span>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              {results.map((res, index) => {
-                const hotelId = res.hotelId || res.hotel_id || "H101";
-                const hotelName = res.hotelName || res.name || "Luxury Boutique Stay";
-                const hotelImage = res.image || res.primary_photo_url || "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800";
-                const rating = res.rating || 4.2;
-                const reviewScore = res.reviewScore || res.guest_review_score || 8.4;
-                const price = res.price || 0;
-                const address = res.address || "Heritage Area";
-                const distance = res.distance || res.distance_from_center || 1.5;
-                const isBreakfast = res.breakfastIncluded !== undefined ? res.breakfastIncluded : res.breakfast_included;
-                const isFreeCancel = res.freeCancellation !== undefined ? res.freeCancellation : res.free_cancellation;
-                const starsCount = res.stars || 4;
-                
-                return (
-                  <div key={index} className="dark-card-override bg-[#121c33] p-4 rounded-2xl border border-slate-800 hover:border-slate-700 transition-all flex flex-col justify-between gap-4 relative">
-                    {res.ai_pick ? (
-                      <div className="absolute -top-2 left-4 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-[9px] text-white font-black px-2.5 py-0.5 rounded-full shadow-lg shadow-indigo-500/30 animate-pulse border border-indigo-400/30 z-20 flex items-center gap-1">✨ AI PICK: {res.ai_pick_reason}</div>
-                    ) : index === 0 ? (
-                      <div className="absolute -top-2 left-4 bg-gradient-to-r from-emerald-500 to-teal-400 text-[9px] text-white font-black px-2.5 py-0.5 rounded-full shadow-lg shadow-emerald-500/20 animate-pulse z-10">🏆 BEST PRICE</div>
-                    ) : null}
-                    <div onClick={() => onDetailClick("hotels", res)} className="cursor-pointer">
-                      <CardThumbnail ownerType="hotel" ownerId={hotelName} blurHash={res.blur_hash_base64} defaultUrl={hotelImage} />
-                      <div className="flex flex-col gap-1.5 mt-3 text-left">
-                        <div className="flex items-center gap-1.5">
-                          <span className="dark-card-badge text-[8px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
-                            {res.category || "Hotel"}
-                          </span>
-                          <span className="text-xs text-blue-400 font-black">{rating} ★ ({starsCount} Stars)</span>
-                        </div>
-                        
-                        <h4 className="font-extrabold text-slate-200 text-base mt-0.5">{hotelName}</h4>
-                        
-                        <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
-                          {reviewScore && (
-                            <span className="bg-blue-950/40 text-blue-400 border border-blue-500/20 px-1.5 py-0.5 rounded font-black">
-                              ⭐ {reviewScore}/10
-                            </span>
-                          )}
-                          {res.review_count && (
-                            <span className="text-slate-400 font-medium">({res.review_count} reviews)</span>
-                          )}
-                          {distance && (
-                            <span className="text-slate-500">• {distance} km from center</span>
-                          )}
-                        </div>
-                        
-                        <div className="text-[10px] text-slate-400 truncate mt-0.5">
-                          📍 {address}
-                        </div>
-
-                        <p className="text-xs text-slate-400 mt-1">{res.details || "Boutique architecture, standard booking options available."}</p>
-                        
-                        <div className="text-xs text-slate-300 font-black mt-1 flex items-center gap-1">
-                          <span>🛏️</span>
-                          <span>{res.room_type || "Standard Room"}</span>
-                        </div>
-
-                        <div className="flex gap-1.5 flex-wrap mt-1">
-                          {isBreakfast && (
-                            <span className="text-[9px] bg-emerald-950/40 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded font-bold">🍳 Free Breakfast</span>
-                          )}
-                          {isFreeCancel && (
-                            <span className="text-[9px] bg-teal-950/40 text-teal-400 border border-teal-500/20 px-1.5 py-0.5 rounded font-bold">🛡️ Free Cancellation</span>
-                          )}
-                        </div>
-
-                        {res.alternatives && res.alternatives.length > 0 && (
-                          <div className="flex items-center gap-1.5 flex-wrap mt-2 pt-2 border-t border-slate-800/60">
-                            <span className="text-[9px] text-slate-500">Compare:</span>
-                            {res.alternatives.map((alt: any, ai: number) => (
-                              <span key={ai} className="dark-card-badge text-[9px] px-1.5 py-0.5 rounded">
-                                {alt.provider_name}: ₹{Number(alt.price).toLocaleString()}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        
-                        <span className="text-[10px] text-blue-400 font-bold block mt-1 hover:underline">View details, reviews & cancellation policies ➔</span>
-                      </div>
-                    </div>
-                    
-                    <div className="flex justify-between items-center pt-2 border-t border-slate-800/80">
-                      <div>
-                        <span className="text-[9px] text-slate-500 uppercase block font-bold">Price per night</span>
-                        <span className="font-black text-emerald-400 text-base">₹{price.toLocaleString()}</span>
-                        <span className="text-[9px] text-slate-400 block mt-0.5">
-                          Total for {nights} {nights === 1 ? "night" : "nights"}: <strong className="text-emerald-400">₹{Number(price * nights).toLocaleString()}</strong>
-                        </span>
-                      </div>
-                      <div className="flex gap-2">
-                        <button 
-                          onClick={() => setSelectedHotel({ name: hotelName, blur_hash_base64: res.blur_hash_base64, primary_photo_url: hotelImage })}
-                          className="bg-slate-800 hover:bg-slate-750 text-white text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1 transition-all"
-                        >
-                          Snaps
-                        </button>
-                        <button 
-                          onClick={() => onBook({
-                            vertical: "hotels",
-                            amount: price * nights,
-                            details: {
-                              hotel_name: hotelName,
-                              hotel_id: hotelId,
-                              room_type: res.room_type || "Deluxe Room",
-                              guests: [{ name: "Traveler Guest", age: 32 }],
-                              provider_name: "Booking.com API",
-                              offer_id: `OF-BK-${hotelId}`
-                            },
-                            title: hotelName,
-                            subtitle: address
-                          })}
-                          className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1 shadow-md shadow-blue-500/10 transition-all"
-                        >
-                          Book Room
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+              {renderContent()}
             </div>
           );
         })()}
@@ -3714,6 +4256,93 @@ function HotelsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
           ownerId={selectedHotel.name} 
           onClose={() => setSelectedHotel(null)} 
         />
+      )}
+
+      {/* Floating Compare Bar */}
+      {selectedCompareHotels.length > 0 && (
+        <div className="fixed bottom-6 right-6 z-40 bg-[#121c33] border-3 border-black shadow-[6px_6px_0px_0px_#000000] p-4 rounded-3xl flex items-center gap-4 animate-slideup">
+          <div className="flex flex-col text-left">
+            <span className="text-xs font-black text-slate-100">Hotel Comparison ({selectedCompareHotels.length}/3)</span>
+            <span className="text-[10px] text-slate-400 font-bold">Select up to 3 hotels to compare ratings, rooms & cancellation.</span>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setSelectedCompareHotels([])}
+              className="bg-slate-800 hover:bg-slate-755 text-slate-300 text-xs font-bold px-3 py-2 rounded-xl transition-all cursor-pointer border-none"
+            >
+              Clear
+            </button>
+            <button
+              onClick={fetchComparison}
+              className="bg-yellow-400 hover:bg-yellow-300 text-black border-2 border-black font-extrabold px-4 py-2 rounded-xl shadow-[3px_3px_0px_0px_#000000] cursor-pointer flex items-center gap-1 active:translate-y-px text-xs uppercase"
+            >
+              Compare Now
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Compare Modal */}
+      {showCompareModal && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#0b1329] border-3 border-black shadow-[8px_8px_0px_0px_#000000] w-full max-w-4xl max-h-[85vh] overflow-y-auto rounded-3xl p-6 relative font-sans text-left space-y-4">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-850">
+              <h3 className="text-lg font-black text-slate-100 flex items-center gap-2">📊 Hotel Side-by-Side Comparison</h3>
+              <button
+                onClick={() => setShowCompareModal(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-full hover:bg-slate-800 cursor-pointer border-none bg-transparent"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {loadingComparison ? (
+              <div className="text-center py-12 font-bold text-sm text-slate-400 animate-pulse">Loading comparison details from API...</div>
+            ) : comparisonData.length === 0 ? (
+              <div className="text-center py-12 font-bold text-sm text-slate-400">No comparison data available.</div>
+            ) : (
+              <div className="grid grid-cols-4 gap-4 mt-2">
+                {/* Headers column */}
+                <div className="space-y-4 pt-24 font-bold text-xs text-slate-400 border-r border-slate-800 pr-2">
+                  <div className="h-10 flex items-center">Price / Night</div>
+                  <div className="h-10 flex items-center">Rating</div>
+                  <div className="h-10 flex items-center">Room Type</div>
+                  <div className="h-10 flex items-center">Amenities</div>
+                  <div className="h-10 flex items-center">Cancellation Policy</div>
+                  <div className="h-10 flex items-center">Payment Options</div>
+                </div>
+
+                {/* Hotel columns */}
+                {comparisonData.map((h, i) => (
+                  <div key={i} className="space-y-4 text-center">
+                    <div className="h-24 flex flex-col items-center justify-end">
+                      <img src={h.image || "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=200"} className="w-16 h-16 object-cover rounded-xl border border-slate-800 mb-1" />
+                      <span className="font-extrabold text-xs text-slate-200 line-clamp-1">{h.name || h.hotelName}</span>
+                    </div>
+                    <div className="h-10 flex items-center justify-center font-bold text-sm text-emerald-400">
+                      ₹{Number(h.price || 0).toLocaleString()}
+                    </div>
+                    <div className="h-10 flex items-center justify-center font-bold text-xs text-yellow-400">
+                      {h.rating || 4.2} ★
+                    </div>
+                    <div className="h-10 flex items-center justify-center text-xs text-slate-300">
+                      {h.roomType || "Standard Room"}
+                    </div>
+                    <div className="h-10 flex items-center justify-center text-[10px] text-slate-400 line-clamp-2 px-1">
+                      {Array.isArray(h.amenities) ? h.amenities.join(", ") : (h.amenities || "WiFi, AC, Pool")}
+                    </div>
+                    <div className="h-10 flex items-center justify-center text-xs font-semibold text-sky-400">
+                      {h.cancellation || "Non-Refundable"}
+                    </div>
+                    <div className="h-10 flex items-center justify-center text-xs text-slate-400">
+                      {h.paymentPolicy || "Pay at Hotel / Prepaid"}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

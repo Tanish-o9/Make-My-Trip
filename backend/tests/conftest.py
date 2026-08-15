@@ -14,7 +14,7 @@ if os.path.exists("./test_travel_os.db"):
 from app.database import engine, Base
 
 # Import all models to register them on Base.metadata
-from app.models import core, bookings, showcase, mybiz, wishlist, agents, payments, audit
+from app.models import core, bookings, showcase, mybiz, wishlist, price_alert, agents, payments, audit
 from app.models.core import EmailVerification  # ensure email_verifications table is created
 # Import route modules that define inline ORM models
 from app.routes import crm  # Registers SupportTicket, TicketReply
@@ -64,6 +64,24 @@ def mock_external_providers(monkeypatch):
     # Mock redis_client in app.services.resilience to force local memory fallback
     import app.services.resilience
     monkeypatch.setattr(app.services.resilience, "redis_client", None)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def clean_database():
+    """Clean all tables once at the start of the test session to prevent pollution."""
+    from app.database import SessionLocal
+    db = SessionLocal()
+    try:
+        # Delete from all tables in reverse sorted order to satisfy foreign keys
+        for table in reversed(Base.metadata.sorted_tables):
+            db.execute(table.delete())
+        db.commit()
+    except Exception as e:
+        print(f"Failed to clean database tables: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
 
 
 

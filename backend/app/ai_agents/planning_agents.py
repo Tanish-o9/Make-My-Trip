@@ -127,8 +127,27 @@ def trip_planner_node(state: AgentState, config: Dict[str, Any] = None) -> dict:
     total_budget = budget.get("total_budget")
     passengers = context.get("passengers") or 1
     travel_style = context.get("travel_style") or "general"
-    cabin_class = context.get("cabin_class") or "ECONOMY"
-    hotel_tier = context.get("hotel_tier") or "MIDRANGE"
+    
+    messages = state.get("messages", [])
+    user_query = messages[-1]["content"] if messages else ""
+    query_l = user_query.lower()
+
+    # Budget Tiers Optimization
+    cabin_class = "ECONOMY"
+    hotel_tier = "MIDRANGE"
+
+    if "cheapest" in query_l or "make this trip cheaper" in query_l or "make it cheaper" in query_l or "budget" in query_l:
+        hotel_tier = "BUDGET"
+        cabin_class = "ECONOMY"
+    elif "premium" in query_l or "luxury" in query_l:
+        hotel_tier = "LUXURY"
+        cabin_class = "BUSINESS"
+    elif "comfort" in query_l:
+        hotel_tier = "MIDRANGE"
+        cabin_class = "ECONOMY"
+    elif "balanced" in query_l:
+        hotel_tier = "MIDRANGE"
+        cabin_class = "ECONOMY"
 
     # Check for missing parameters
     missing = []
@@ -204,7 +223,7 @@ Once you give me this information, I will instantly fetch everything for you.
             "total_price": float(ht.get("total_price", 0.0))
         })
 
-    report_agent_status(config, "AI Travel Consultant: Planning day-by-day slots...")
+    report_agent_status(config, "AI Travel Consultant: Day-by-day itinerary planning...")
     
     # Calculate duration
     try:
@@ -266,10 +285,14 @@ Once you give me this information, I will instantly fetch everything for you.
     forex_convert = currency_convert_tool(10000.0, target_curr)
     forex_desc = f"Suggested pocket money: ₹10,000 (~{target_curr} {forex_convert.get('converted_amount', 10000.0):.2f})."
 
+    # Wishlist summary injection
+    wishlist_summary = context.get("wishlist_summary", [])
+
     # Synthesize the final comprehensive response
     package_synthesis_prompt = f"""You are a senior travel consultant compiling a complete travel package.
 Destination: {destination} | Origin: {origin} | Dates: {departure_date} to {return_date} ({n_days} Days)
 Budget: ₹{total_budget:,} | Passengers: {passengers} | Style: {travel_style}
+Wishlist items to prioritize (if any): {json.dumps(wishlist_summary)}
 
 Top Flights: {json.dumps(flights_summary, default=str)}
 Top Hotels: {json.dumps(hotels_summary, default=str)}
@@ -290,6 +313,17 @@ Keep it detailed but concise. No code blocks in your response."""
         if k != "note":
             final_response += f"- {k.replace('_', ' ').title()}: {v}\n"
     final_response += f"Note: {emergency_res['contacts'].get('note', '')}"
+
+    # Calculate estimated costs to display budget notifications
+    est_flight_price = mapped_flights[0]["price"] if mapped_flights else 0.0
+    est_hotel_price = mapped_hotels[0]["total_price"] if mapped_hotels else 0.0
+    est_activities_price = 2000.0 * passengers # default activity baseline
+    estimated_total = (est_flight_price * passengers) + est_hotel_price + est_activities_price
+
+    # Prepend budget warning if exceeded
+    excess = estimated_total - total_budget
+    if excess > 0:
+        final_response = f"**⚠️ Estimated cost exceeds your budget by ₹{excess:,.2f}.**\n\n" + final_response
 
     # Inject metadata blocks
     final_response += f"\n\n```flights-data\n{json.dumps(mapped_flights, indent=2, default=str)}\n```"
@@ -325,6 +359,7 @@ Keep it detailed but concise. No code blocks in your response."""
     collected["emergency_contacts"] = emergency_res["contacts"]
     collected["visa_suggestion"] = visa_desc
     collected["forex_suggestion"] = forex_desc
+    collected["estimated_total"] = estimated_total
 
     return {
         "final_response": final_response,

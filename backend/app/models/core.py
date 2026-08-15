@@ -1,5 +1,5 @@
 import datetime
-from sqlalchemy import String, Integer, Numeric, DateTime, ForeignKey, Date, Boolean, Index, Text
+from sqlalchemy import String, Integer, Numeric, DateTime, ForeignKey, Date, Boolean, Index, Text, JSON
 from typing import Optional
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
@@ -326,3 +326,97 @@ class SecurityEvent(Base):
     )
 
     user = relationship("User")
+
+
+from sqlalchemy.ext.hybrid import hybrid_property
+
+class Trip(Base):
+    __tablename__ = "trips"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    destination: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    start_date: Mapped[Optional[datetime.date]] = mapped_column(Date, nullable=True)
+    end_date: Mapped[Optional[datetime.date]] = mapped_column(Date, nullable=True)
+    is_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    booking_references: Mapped[Optional[dict]] = mapped_column(JSON, default=list, nullable=True) # JSON list of strings
+    budget: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), default=0.0, nullable=True)
+    status: Mapped[Optional[str]] = mapped_column(String(50), default="active", nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=False
+    )
+
+    user = relationship("User")
+
+    @hybrid_property
+    def owner_id(self) -> int:
+        return self.user_id
+
+    @owner_id.setter
+    def owner_id(self, val: int):
+        self.user_id = val
+
+
+class TripMember(Base):
+    __tablename__ = "trip_members"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    trip_id: Mapped[int] = mapped_column(Integer, ForeignKey("trips.id", ondelete="CASCADE"), index=True, nullable=False)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    role: Mapped[str] = mapped_column(String(50), default="MEMBER", nullable=False)  # OWNER, MEMBER
+    joined_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+
+    trip = relationship("Trip")
+    user = relationship("User")
+
+
+class TripInvitation(Base):
+    __tablename__ = "trip_invitations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    trip_id: Mapped[int] = mapped_column(Integer, ForeignKey("trips.id", ondelete="CASCADE"), index=True, nullable=False)
+    token: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
+    email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    invited_by: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default="PENDING", nullable=False)  # PENDING, ACCEPTED, REJECTED
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    expires_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
+
+    trip = relationship("Trip")
+
+
+class TripExpense(Base):
+    __tablename__ = "trip_expenses"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    trip_id: Mapped[int] = mapped_column(Integer, ForeignKey("trips.id", ondelete="CASCADE"), index=True, nullable=False)
+    amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(10), default="INR", nullable=False)
+    category: Mapped[str] = mapped_column(String(50), nullable=False) # Transport, Hotel, Food, Activities, Shopping, Other
+    description: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    expense_date: Mapped[Optional[datetime.date]] = mapped_column(Date, nullable=True)
+    payer_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    split_type: Mapped[str] = mapped_column(String(50), default="equal", nullable=False) # equal, custom
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=False
+    )
+
+    trip = relationship("Trip")
+    splits = relationship("TripExpenseSplit", back_populates="expense", cascade="all, delete-orphan")
+
+
+class TripExpenseSplit(Base):
+    __tablename__ = "trip_expense_splits"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    expense_id: Mapped[int] = mapped_column(Integer, ForeignKey("trip_expenses.id", ondelete="CASCADE"), index=True, nullable=False)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+
+    expense = relationship("TripExpense", back_populates="splits")
+    user = relationship("User")
+
+
