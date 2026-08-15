@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Compass, MessageSquare, Wallet, ShieldAlert, Sparkles, Send, Mic, 
   MicOff, Search, Plane, Hotel, Calendar, Users, CheckCircle, RefreshCw,
@@ -127,6 +127,11 @@ export default function App() {
     studentVerificationStatus: string;
     studentIdFile: string;
     serviceId: string;
+    gender?: string;
+    savedPassengerId?: number;
+    isEdited?: boolean;
+    shouldSavePassenger?: boolean;
+    shouldUpdatePassenger?: boolean;
   }[]>(() => {
     const val = sessionStorage.getItem("fl_passengers");
     const count = val ? parseInt(val, 10) : 1;
@@ -146,7 +151,12 @@ export default function App() {
       studentEmail: "",
       studentVerificationStatus: "incomplete",
       studentIdFile: "",
-      serviceId: ""
+      serviceId: "",
+      gender: "Male",
+      savedPassengerId: undefined,
+      isEdited: false,
+      shouldSavePassenger: false,
+      shouldUpdatePassenger: false
     }));
   });
 
@@ -171,7 +181,12 @@ export default function App() {
           studentEmail: "",
           studentVerificationStatus: "incomplete",
           studentIdFile: "",
-          serviceId: ""
+          serviceId: "",
+          gender: "Male",
+          savedPassengerId: undefined,
+          isEdited: false,
+          shouldSavePassenger: false,
+          shouldUpdatePassenger: false
         }));
         return [...prevList, ...newItems];
       } else if (currentLength > passengers) {
@@ -4880,6 +4895,20 @@ function BusesSearchForm({
 
   const [passengersList, setPassengersList] = useState<Array<{ name: string; age: string; gender: string }>>([]);
   const [savedTravelers, setSavedTravelers] = useState<any[]>([]);
+  const [savedPassengers, setSavedPassengers] = useState<any[]>([]);
+  useEffect(() => {
+    if (!token) return;
+    fetch(`${API_URL}/passengers`, {
+      headers: { "Authorization": `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setSavedPassengers(data);
+        }
+      })
+      .catch(e => console.error("Error loading saved passengers in buses:", e));
+  }, [token]);
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [promoCode, setPromoCode] = useState("");
@@ -6398,8 +6427,59 @@ function BusesSearchForm({
               <h4 className="text-xs font-black uppercase tracking-wider text-blue-600 border-b border-slate-150 pb-2">Passenger Information</h4>
               
               {passengersList.map((passenger, idx) => (
-                <div key={idx} className="space-y-3 p-3 border-2 border-slate-200 rounded-2xl bg-slate-50/50">
+                 <div key={idx} className="space-y-3 p-3 border-2 border-slate-200 rounded-2xl bg-slate-50/50">
                   <span className="text-[10px] font-black text-slate-500 uppercase block">Traveler {idx + 1} (Seat {selectedSeats[idx]})</span>
+
+                  {/* Saved Passengers Selection Panel for Buses */}
+                  {savedPassengers.length > 0 && (
+                    <div className="mb-2 p-1.5 bg-[#eae5d9] border border-dashed border-black rounded-lg text-[10px]">
+                      <span className="text-[8px] uppercase font-black text-slate-700 block mb-0.5">
+                        👤 Select Saved Passenger
+                      </span>
+                      <div className="flex flex-wrap gap-1">
+                        {savedPassengers.map(sp => {
+                          const isAlreadySelected = passengersList.some((p, i) => i !== idx && p.name.toLowerCase() === sp.full_name.toLowerCase());
+                          return (
+                            <button
+                              key={sp.id}
+                              type="button"
+                              disabled={isAlreadySelected}
+                              onClick={() => {
+                                let calcAge = "30";
+                                if (sp.date_of_birth) {
+                                  calcAge = String(new Date().getFullYear() - new Date(sp.date_of_birth).getFullYear());
+                                } else if (sp.age) {
+                                  calcAge = String(sp.age);
+                                }
+                                setPassengersList(prev => prev.map((item, i) => i === idx ? {
+                                  ...item,
+                                  name: sp.full_name,
+                                  age: calcAge,
+                                  gender: sp.gender || "Male"
+                                } : item));
+                                
+                                // Mark used
+                                if (token) {
+                                  fetch(`${API_URL}/passengers/${sp.id}/use`, {
+                                    method: "POST",
+                                    headers: { "Authorization": `Bearer ${token}` }
+                                  }).catch(() => {});
+                                }
+                              }}
+                              className={`px-1.5 py-0.5 rounded text-[8px] font-black border border-black transition-all ${
+                                isAlreadySelected
+                                  ? "bg-slate-200 text-slate-400 border-slate-300 cursor-not-allowed opacity-50"
+                                  : "bg-white hover:bg-yellow-200 cursor-pointer"
+                              }`}
+                            >
+                              {sp.full_name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="space-y-1">
                       <label className="text-[9px] text-slate-400 font-extrabold uppercase">Full Name</label>
@@ -8568,6 +8648,30 @@ function InsuranceSearchForm({ onBook, onDetailClick }: { onBook: (data: any) =>
 /* 4.5 CHECKOUT MODAL & TRIP DASHBOARD SUB-COMPONENTS   */
 /* ---------------------------------------------------- */
 
+interface PassengerType {
+  id: number;
+  fullName: string;
+  age: string;
+  email: string;
+  phone: string;
+  specialFareType: string;
+  studentId: string;
+  studentName: string;
+  institutionName: string;
+  institutionCity: string;
+  studentCourse: string;
+  studentDateOfBirth: string;
+  studentEmail: string;
+  studentVerificationStatus: string;
+  studentIdFile: string;
+  serviceId: string;
+  gender?: string;
+  savedPassengerId?: number;
+  isEdited?: boolean;
+  shouldSavePassenger?: boolean;
+  shouldUpdatePassenger?: boolean;
+}
+
 function CheckoutModal({ 
   data, 
   onClose, 
@@ -8579,47 +8683,30 @@ function CheckoutModal({
   data: any, 
   onClose: () => void, 
   userProfile: any, 
-  passengersList: {
-    id: number;
-    fullName: string;
-    age: string;
-    email: string;
-    phone: string;
-    specialFareType: string;
-    studentId: string;
-    studentName: string;
-    institutionName: string;
-    institutionCity: string;
-    studentCourse: string;
-    studentDateOfBirth: string;
-    studentEmail: string;
-    studentVerificationStatus: string;
-    studentIdFile: string;
-    serviceId: string;
-  }[],
-  setPassengersList: React.Dispatch<React.SetStateAction<{
-    id: number;
-    fullName: string;
-    age: string;
-    email: string;
-    phone: string;
-    specialFareType: string;
-    studentId: string;
-    studentName: string;
-    institutionName: string;
-    institutionCity: string;
-    studentCourse: string;
-    studentDateOfBirth: string;
-    studentEmail: string;
-    studentVerificationStatus: string;
-    studentIdFile: string;
-    serviceId: string;
-  }[]>>,
+  passengersList: PassengerType[],
+  setPassengersList: React.Dispatch<React.SetStateAction<PassengerType[]>>,
   onConfirm: (payMethod: string) => void 
 }) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [payMethod, setPayMethod] = useState<'wallet' | 'card' | 'split' | 'corporate_billing'>('wallet');
   const [gateway, setGateway] = useState<'stripe' | 'razorpay'>('stripe');
+
+  // Saved passengers states
+  const [savedPassengers, setSavedPassengers] = useState<any[]>([]);
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    fetch(`${API_URL}/passengers`, {
+      headers: { "Authorization": `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setSavedPassengers(data);
+        }
+      })
+      .catch(e => console.error("Error loading saved passengers:", e));
+  }, []);
   
   // Card Inputs
   const [cardNumber, setCardNumber] = useState("");
@@ -8648,6 +8735,43 @@ function CheckoutModal({
   const [invoiceText, setInvoiceText] = useState("");
   const [timeLeft, setTimeLeft] = useState(300);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+
+  const persistSelectedPassengers = () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    passengersList.forEach(p => {
+      if (p.savedPassengerId && p.isEdited && p.shouldUpdatePassenger !== false) {
+        fetch(`${API_URL}/passengers/${p.savedPassengerId}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            full_name: p.fullName,
+            email: p.email || "",
+            phone: p.phone || "",
+            gender: p.gender || "Male"
+          })
+        }).catch(err => console.error("Error updating passenger:", err));
+      } else if (!p.savedPassengerId && p.fullName.trim() && p.shouldSavePassenger === true) {
+        fetch(`${API_URL}/passengers`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            full_name: p.fullName,
+            email: p.email || "",
+            phone: p.phone || "",
+            gender: p.gender || "Male",
+            force_update: true
+          })
+        }).catch(err => console.error("Error saving passenger:", err));
+      }
+    });
+  };
 
   // Fetch real profile details dynamically (Phase 7)
   useEffect(() => {
@@ -8688,6 +8812,7 @@ function CheckoutModal({
         alert("3D Secure 2FA validation completed successfully!");
         setRedirectUrl(null);
         setStep(3);
+        persistSelectedPassengers();
         onConfirm(payMethod);
         
         // Fetch invoice
@@ -8882,6 +9007,7 @@ function CheckoutModal({
                   .then(inv => setInvoiceText(inv.invoice_text || ""))
                   .catch(() => {});
                 setStep(3);
+                persistSelectedPassengers();
                 onConfirm(payMethod);
               } else {
                 const errMsg = (confirmRes.detail || confirmRes.message || "").toLowerCase();
@@ -8972,6 +9098,66 @@ function CheckoutModal({
                     <span className="text-[10px] uppercase font-black tracking-wider block border-b border-black/10 pb-1.5 mb-1">
                       PASSENGER {index + 1} - {isPrimary ? "PRIMARY PASSENGER DETAILS" : "PASSENGER DETAILS"}
                     </span>
+
+                    {/* Saved Passengers Selection Panel */}
+                    {savedPassengers.length > 0 && (
+                      <div className="mb-3 p-2 bg-[#eae5d9] border-2 border-dashed border-black rounded-lg">
+                        <span className="text-[9px] uppercase font-black text-slate-700 block mb-1">
+                          👤 Use Saved Passenger Suggestions
+                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          {savedPassengers.map(sp => {
+                            const isAlreadySelected = passengersList.some((p, idx) => idx !== index && p.fullName.toLowerCase() === sp.full_name.toLowerCase());
+                            return (
+                              <button
+                                key={sp.id}
+                                type="button"
+                                disabled={isAlreadySelected}
+                                onClick={() => {
+                                  const updated = [...passengersList];
+                                  let calcAge = "30";
+                                  if (sp.date_of_birth) {
+                                    calcAge = String(new Date().getFullYear() - new Date(sp.date_of_birth).getFullYear());
+                                  } else if (sp.age) {
+                                    calcAge = String(sp.age);
+                                  }
+                                  updated[index] = {
+                                    ...updated[index],
+                                    fullName: sp.full_name,
+                                    age: calcAge,
+                                    email: sp.email || "",
+                                    phone: sp.phone || "",
+                                    gender: sp.gender || "Male",
+                                    // Custom fields to track saved passenger mapping
+                                    savedPassengerId: sp.id,
+                                    isEdited: false,
+                                    shouldUpdatePassenger: false,
+                                    shouldSavePassenger: false
+                                  };
+                                  setPassengersList(updated);
+                                  
+                                  // Mark passenger as used in background
+                                  const token = localStorage.getItem("token");
+                                  if (token) {
+                                    fetch(`${API_URL}/passengers/${sp.id}/use`, {
+                                      method: "POST",
+                                      headers: { "Authorization": `Bearer ${token}` }
+                                    }).catch(() => {});
+                                  }
+                                }}
+                                className={`px-2 py-0.5 rounded text-[9px] font-black border-2 border-black flex items-center gap-1 transition-all ${
+                                  isAlreadySelected
+                                    ? "bg-slate-200 text-slate-400 border-slate-300 cursor-not-allowed opacity-50"
+                                    : "bg-white hover:bg-yellow-200 cursor-pointer"
+                                }`}
+                              >
+                                {sp.full_name} {sp.id_number_masked ? `(${sp.id_number_masked})` : ""}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                     
                     <div className="grid grid-cols-3 gap-2">
                       <div className="col-span-2">
@@ -8982,6 +9168,10 @@ function CheckoutModal({
                           onChange={(e) => {
                             const updated = [...passengersList];
                             updated[index].fullName = e.target.value;
+                            if (updated[index].savedPassengerId) {
+                              updated[index].isEdited = true;
+                              updated[index].shouldUpdatePassenger = true;
+                            }
                             setPassengersList(updated);
                           }} 
                           className="w-full bg-white border-2 border-black rounded px-2 py-1 text-xs font-bold" 
@@ -9000,6 +9190,10 @@ function CheckoutModal({
                           onChange={(e) => {
                             const updated = [...passengersList];
                             updated[index].age = e.target.value;
+                            if (updated[index].savedPassengerId) {
+                              updated[index].isEdited = true;
+                              updated[index].shouldUpdatePassenger = true;
+                            }
                             setPassengersList(updated);
                           }} 
                           className="w-full bg-white border-2 border-black rounded px-2 py-1 text-xs font-bold" 
@@ -9021,6 +9215,10 @@ function CheckoutModal({
                           onChange={(e) => {
                             const updated = [...passengersList];
                             updated[index].email = e.target.value;
+                            if (updated[index].savedPassengerId) {
+                              updated[index].isEdited = true;
+                              updated[index].shouldUpdatePassenger = true;
+                            }
                             setPassengersList(updated);
                           }} 
                           className="w-full bg-white border-2 border-black rounded px-2 py-1 text-xs font-bold" 
@@ -9039,6 +9237,10 @@ function CheckoutModal({
                           onChange={(e) => {
                             const updated = [...passengersList];
                             updated[index].phone = e.target.value;
+                            if (updated[index].savedPassengerId) {
+                              updated[index].isEdited = true;
+                              updated[index].shouldUpdatePassenger = true;
+                            }
                             setPassengersList(updated);
                           }} 
                           className="w-full bg-white border-2 border-black rounded px-2 py-1 text-xs font-bold" 
@@ -9050,6 +9252,41 @@ function CheckoutModal({
                         )}
                       </div>
                     </div>
+
+                    {/* Save or Update Saved Passenger Checkboxes */}
+                    {passenger.savedPassengerId ? (
+                      passenger.isEdited && (
+                        <label className="flex items-center gap-2 text-[10px] font-black text-blue-700 cursor-pointer pt-1">
+                          <input
+                            type="checkbox"
+                            checked={passenger.shouldUpdatePassenger !== false}
+                            onChange={(e) => {
+                              const updated = [...passengersList];
+                              updated[index].shouldUpdatePassenger = e.target.checked;
+                              setPassengersList(updated);
+                            }}
+                            className="accent-blue-600 rounded"
+                          />
+                          <span>Update saved passenger details for "{passenger.fullName}"</span>
+                        </label>
+                      )
+                    ) : (
+                      passenger.fullName.trim() && (
+                        <label className="flex items-center gap-2 text-[10px] font-black text-slate-700 cursor-pointer pt-1">
+                          <input
+                            type="checkbox"
+                            checked={passenger.shouldSavePassenger === true}
+                            onChange={(e) => {
+                              const updated = [...passengersList];
+                              updated[index].shouldSavePassenger = e.target.checked;
+                              setPassengersList(updated);
+                            }}
+                            className="accent-black rounded"
+                          />
+                          <span>Save passenger details for future bookings</span>
+                        </label>
+                      )
+                    )}
 
                     {/* Special Fare Selection for Flights */}
                     {data.vertical === "flights" && (

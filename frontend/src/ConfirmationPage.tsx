@@ -21,7 +21,53 @@ export function ConfirmationPage({ bookingId, onNavigate }: ConfirmationPageProp
   const [toast, setToast] = useState<{ show: boolean; message: string }>({ show: false, message: "" });
   const [showPdfModal, setShowPdfModal] = useState(false);
 
-  const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token') || null;
+  const token = localStorage.getItem('token') || localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token') || null;
+
+  const [savedPassengers, setSavedPassengers] = useState<any[]>([]);
+  const [savedStatus, setSavedStatus] = useState<Record<number, 'success' | 'error' | ''>>({});
+
+  useEffect(() => {
+    if (!token) return;
+    fetch(`${API_URL}/passengers`, {
+      headers: { "Authorization": `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setSavedPassengers(data);
+        }
+      })
+      .catch(err => console.error("Error loading saved passengers:", err));
+  }, [token]);
+
+  const handleSavePassenger = async (p: any, idx: number) => {
+    if (!token) return;
+    try {
+      const response = await fetch(`${API_URL}/passengers`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          full_name: p.fullName || p.name,
+          email: p.email || (details && details.contact && details.contact.email) || "",
+          phone: p.phone || (details && details.contact && details.contact.phone) || "",
+          gender: p.gender || "Male",
+          date_of_birth: p.dob || null,
+          force_update: true
+        })
+      });
+      if (response.ok) {
+        setSavedStatus(prev => ({ ...prev, [idx]: 'success' }));
+        showToast("👤 Passenger details saved successfully!");
+      } else {
+        setSavedStatus(prev => ({ ...prev, [idx]: 'error' }));
+      }
+    } catch (e) {
+      setSavedStatus(prev => ({ ...prev, [idx]: 'error' }));
+    }
+  };
 
   const showToast = (msg: string) => {
     setToast({ show: true, message: msg });
@@ -798,7 +844,55 @@ ${headerLine}
           </div>
         )}
 
-        {/* SMS & WhatsApp Action Controls (Phase 1 & 2) */}
+        {/* Saved Passengers Option (Post-Booking Consent) */}
+        {token && (booking?.pricing_snapshot?.passenger_details || ticket?.passenger_details || []).length > 0 && (
+          <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl text-left space-y-4 shadow-xl">
+            <h4 className="text-xs font-black uppercase tracking-wider text-yellow-400 border-b border-slate-800 pb-2 flex items-center gap-1.5">
+              👤 Save Passenger Details for Future Bookings
+            </h4>
+            <div className="space-y-3">
+              {(booking?.pricing_snapshot?.passenger_details || ticket?.passenger_details || []).map((p: any, idx: number) => {
+                const name = p.fullName || p.name;
+                const isAlreadySaved = savedPassengers.some(sp => sp.full_name.toLowerCase() === name.toLowerCase());
+                const status = savedStatus[idx];
+
+                return (
+                  <div key={idx} className="flex justify-between items-center bg-slate-950/40 p-3.5 rounded-2xl border border-slate-850 text-xs">
+                    <div>
+                      <strong className="text-slate-200 block">{name}</strong>
+                      <span className="text-[10px] text-slate-500 font-semibold uppercase">
+                        Age: {p.age || "N/A"} | Gender: {p.gender || "Male"}
+                      </span>
+                    </div>
+                    <div>
+                      {isAlreadySaved ? (
+                        <span className="text-[10px] text-green-400 font-bold bg-green-950/40 px-2.5 py-1 border border-green-900/40 rounded-lg">
+                          ✓ Saved to Suggestions
+                        </span>
+                      ) : status === 'success' ? (
+                        <span className="text-[10px] text-green-400 font-bold bg-green-950/40 px-2.5 py-1 border border-green-900/40 rounded-lg">
+                          ✓ Saved!
+                        </span>
+                      ) : status === 'error' ? (
+                        <span className="text-[10px] text-rose-400 font-bold bg-rose-950/40 px-2.5 py-1 border border-rose-900/40 rounded-lg">
+                          ⚠️ Error saving
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleSavePassenger(p, idx)}
+                          className="bg-yellow-400 hover:bg-yellow-300 text-slate-950 font-black py-1.5 px-3.5 rounded-xl text-[10px] uppercase cursor-pointer transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5"
+                        >
+                          Save details
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
         <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl text-left space-y-4 shadow-xl">
           <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 border-b border-slate-800 pb-2">
             Enterprise Dispatches & Reminders

@@ -1,5 +1,5 @@
 from app.models.core import (
-    User, SavedTraveler, SavedPaymentMethod, Wishlist,
+    User, SavedTraveler, SavedPassenger, SavedPaymentMethod, Wishlist,
     LoyaltyAccount, LoyaltyTransaction, Coupon, WalletAccount, WalletTransaction,
     RefreshToken, EmailVerification
 )
@@ -42,7 +42,7 @@ from app.models.developer import DeveloperProfile, ApiKey, OAuthClient, WebhookS
 from app.models.workflow import WorkflowRule, WorkflowStep, WorkflowExecutionLog
 
 __all__ = [
-    "User", "SavedTraveler", "SavedPaymentMethod", "Wishlist",
+    "User", "SavedTraveler", "SavedPassenger", "SavedPaymentMethod", "Wishlist",
     "LoyaltyAccount", "LoyaltyTransaction", "Coupon", "WalletAccount", "WalletTransaction",
     "RefreshToken", "EmailVerification",
     "FlightBooking", "HotelBooking", "TrainBooking", "BusBooking", "CabBooking",

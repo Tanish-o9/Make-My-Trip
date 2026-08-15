@@ -29,6 +29,7 @@ class User(Base):
 
     # Relationships
     saved_travelers = relationship("SavedTraveler", back_populates="user", cascade="all, delete-orphan")
+    saved_passengers = relationship("SavedPassenger", back_populates="user", cascade="all, delete-orphan")
     payment_methods = relationship("SavedPaymentMethod", back_populates="user", cascade="all, delete-orphan")
     wishlist_items = relationship("Wishlist", back_populates="user", cascade="all, delete-orphan")
     loyalty_account = relationship("LoyaltyAccount", uselist=False, back_populates="user", cascade="all, delete-orphan")
@@ -46,6 +47,29 @@ class SavedTraveler(Base):
     seed_batch_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
     user = relationship("User", back_populates="saved_travelers")
+
+
+class SavedPassenger(Base):
+    __tablename__ = "saved_passengers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    full_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    date_of_birth: Mapped[Optional[datetime.date]] = mapped_column(Date, nullable=True)
+    gender: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    nationality: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    id_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    id_number: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # Securely encrypted in DB
+    label: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow
+    )
+    last_used_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, default=datetime.datetime.utcnow)
+
+    user = relationship("User", back_populates="saved_passengers")
 
 
 class SavedPaymentMethod(Base):

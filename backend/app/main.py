@@ -24,7 +24,7 @@ if sentry_dsn and sentry_dsn != "your-sentry-dsn":
 
 from app.database import engine, Base, get_db
 from app.models import search_entities, payments
-from app.routes import auth, wallet, agents, voice, showcase, bookings, search, tracker, mybiz, wishlist, admin_panel, media, rent_a_ride, localities, payments as payments_routes, webhooks, profile, flights, hotels, weather, maps, system, currency, notifications, cabs, activities, visa, insurance, forex, esim, documents, loyalty, crm, insights, saas_routes, gateway, partner, feedback, cars, providers, users, support, analytics_ops, monitoring, recovery, buses
+from app.routes import auth, wallet, agents, voice, showcase, bookings, search, tracker, mybiz, wishlist, admin_panel, media, rent_a_ride, localities, payments as payments_routes, webhooks, profile, flights, hotels, weather, maps, system, currency, notifications, cabs, activities, visa, insurance, forex, esim, documents, loyalty, crm, insights, saas_routes, gateway, partner, feedback, cars, providers, users, support, analytics_ops, monitoring, recovery, buses, passengers
 from fastapi.staticfiles import StaticFiles
 import os
 from app.ml import fraud_model
@@ -231,6 +231,7 @@ async def unhandled_exception_handler(request, exc):
 # Include Route subtrees
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(profile.router, prefix="/api/v1")
+app.include_router(passengers.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
 app.include_router(support.router, prefix="/api/v1")
 app.include_router(wallet.router, prefix="/api/v1")
