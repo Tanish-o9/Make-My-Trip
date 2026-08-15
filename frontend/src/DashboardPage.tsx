@@ -211,9 +211,9 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
             )}
 
             {/* Recent Bookings List */}
-            <div className="bg-[#111827] border border-slate-700 p-6 rounded-3xl shadow-xl space-y-4">
-              <div className="flex justify-between items-center border-b border-slate-700 pb-3">
-                <h3 className="text-sm font-black uppercase tracking-wider text-white">Recent Bookings</h3>
+            <div style={{ background: '#111827', border: '1px solid #334155' }} className="p-6 rounded-3xl shadow-xl space-y-4">
+              <div style={{ borderBottom: '1px solid #334155' }} className="flex justify-between items-center pb-3">
+                <h3 className="text-sm font-black uppercase tracking-wider" style={{ color: '#ffffff' }}>Recent Bookings</h3>
                 <button 
                   onClick={() => setActiveTab('trips')}
                   className="text-xs font-bold text-yellow-400 hover:underline flex items-center gap-0.5"
@@ -227,45 +227,46 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
                   {recent_bookings.map((booking: any) => (
                     <div 
                       key={booking.booking_reference} 
-                      className="bg-slate-800 border border-slate-600 rounded-2xl p-3.5 flex flex-wrap md:flex-nowrap justify-between items-center gap-3 hover:border-slate-500 transition-colors"
+                      style={{ background: '#1e293b', border: '1px solid #475569', borderRadius: '14px', padding: '12px 14px' }}
+                      className="flex flex-wrap md:flex-nowrap justify-between items-center gap-3"
                     >
                       <div className="space-y-1 flex-1 min-w-0">
-                        {/* Title row */}
-                        <div className="text-xs font-black text-white truncate">
-                          {booking.title || booking.booking_reference}
+                        {/* Title */}
+                        <div className="text-xs font-black truncate" style={{ color: '#f1f5f9' }}>
+                          {booking.title || `${booking.vertical?.toUpperCase() || 'BOOKING'} — ${booking.booking_reference}`}
                         </div>
-                        {/* Sub info row */}
+                        {/* Sub info */}
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-mono text-[10px] font-bold text-slate-400">
-                            {booking.booking_reference}
+                          <span className="font-mono text-[10px] font-bold" style={{ color: '#94a3b8' }}>
+                            #{booking.booking_reference}
                           </span>
-                          <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${
-                            booking.status === 'CONFIRMED' 
-                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' 
-                              : booking.status === 'CANCELLED'
-                              ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                              : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                          }`}>
+                          <span style={{
+                            fontSize: '9px', fontWeight: 900, textTransform: 'uppercase',
+                            padding: '1px 8px', borderRadius: '999px',
+                            background: booking.status === 'CONFIRMED' ? 'rgba(16,185,129,0.15)' : booking.status === 'CANCELLED' || booking.status === 'EXPIRED' ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.15)',
+                            color: booking.status === 'CONFIRMED' ? '#6ee7b7' : booking.status === 'CANCELLED' || booking.status === 'EXPIRED' ? '#fca5a5' : '#fcd34d',
+                            border: `1px solid ${booking.status === 'CONFIRMED' ? 'rgba(16,185,129,0.3)' : booking.status === 'CANCELLED' || booking.status === 'EXPIRED' ? 'rgba(239,68,68,0.3)' : 'rgba(245,158,11,0.3)'}`
+                          }}>
                             {booking.status}
                           </span>
                         </div>
                         {/* Description */}
                         {booking.description && (
-                          <div className="text-[10px] text-slate-400 font-medium truncate">
+                          <div className="text-[10px] font-medium truncate" style={{ color: '#64748b' }}>
                             {booking.description}
                           </div>
                         )}
                       </div>
                       
                       <div className="flex items-center gap-3 flex-shrink-0">
-                        <span className="font-mono text-sm font-black text-white">
+                        <span className="font-mono text-sm font-black" style={{ color: '#f8fafc' }}>
                           ₹{booking.total_amount?.toLocaleString() || '0'}
                         </span>
                         <a 
                           href={`/api/v1/bookings/${booking.booking_reference}/pdf`} 
                           target="_blank" 
                           rel="noreferrer"
-                          className="p-1.5 rounded-lg bg-slate-700 border border-slate-600 hover:bg-yellow-400 hover:text-black hover:border-black transition-colors text-slate-300"
+                          style={{ background: '#334155', border: '1px solid #475569', borderRadius: '8px', padding: '6px', color: '#94a3b8', display: 'flex' }}
                           title="Download E-Ticket"
                         >
                           <Download size={14} />
@@ -275,11 +276,12 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
                   ))}
                 </div>
               ) : (
-                <div className="py-8 text-center text-sm text-slate-400 font-semibold border border-dashed border-slate-700 rounded-2xl">
+                <div style={{ border: '1px dashed #334155', borderRadius: '14px', color: '#94a3b8' }} className="py-8 text-center text-sm font-semibold">
                   No bookings found in your traveler ledger.
                 </div>
               )}
             </div>
+
 
             {/* Trip Expense Manager */}
             <TripExpenseManager token={token} />
