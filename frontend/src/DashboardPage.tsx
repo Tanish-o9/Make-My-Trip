@@ -25,36 +25,32 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
     return headers;
   };
 
-  const fetchDashboard = () => {
+  const fetchDashboard = async (attempt = 1) => {
     setLoading(true);
-    // Fetch main dashboard telemetry
-    fetch(`${API_URL}/dashboard`, { headers: getHeaders() })
-      .then(res => {
-        if (!res.ok) throw new Error('Failed to load dashboard telemetry.');
-        return res.json();
-      })
-      .then(resData => {
-        setData(resData);
-        setError(null);
-      })
-      .catch(err => {
-        console.error(err);
-        setError(err.message || 'Server connection error.');
-      })
-      .finally(() => setLoading(false));
+    setError(null);
+    try {
+      const res = await fetch(`${API_URL}/dashboard`, { headers: getHeaders() });
+      if (!res.ok) throw new Error(`Server error ${res.status}: Failed to load dashboard.`);
+      const resData = await res.json();
+      setData(resData);
+      setError(null);
+    } catch (err: any) {
+      if (attempt < 3) {
+        // Auto-retry up to 3 times with 1.5s delay
+        setTimeout(() => fetchDashboard(attempt + 1), 1500);
+        return;
+      }
+      console.error('Dashboard load failed after retries:', err);
+      setError(err.message || 'Could not connect to server. Please retry.');
+    } finally {
+      setLoading(false);
+    }
 
-    // Fetch rewards telemetry
+    // Fetch rewards (non-blocking, best-effort)
     fetch(`${API_URL}/rewards`, { headers: getHeaders() })
-      .then(res => {
-        if (!res.ok) throw new Error('Failed to load rewards.');
-        return res.json();
-      })
-      .then(resRewards => {
-        setRewardsData(resRewards);
-      })
-      .catch(err => {
-        console.error("Error loading loyalty rewards:", err);
-      });
+      .then(res => { if (res.ok) return res.json(); })
+      .then(resRewards => { if (resRewards) setRewardsData(resRewards); })
+      .catch(() => {});
   };
 
   useEffect(() => {
@@ -227,32 +223,41 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
               </div>
 
               {recent_bookings && recent_bookings.length > 0 ? (
-                <div className="divide-y divide-slate-800/80">
+                <div className="space-y-2">
                   {recent_bookings.map((booking: any) => (
                     <div 
                       key={booking.booking_reference} 
-                      className="py-3 flex flex-wrap md:flex-nowrap justify-between items-center gap-3 transition-colors hover:bg-slate-800/10 px-2 rounded-xl"
+                      className="bg-slate-800 border border-slate-600 rounded-2xl p-3.5 flex flex-wrap md:flex-nowrap justify-between items-center gap-3 hover:border-slate-500 transition-colors"
                     >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs font-black text-slate-200">
+                      <div className="space-y-1 flex-1 min-w-0">
+                        {/* Title row */}
+                        <div className="text-xs font-black text-white truncate">
+                          {booking.title || booking.booking_reference}
+                        </div>
+                        {/* Sub info row */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-[10px] font-bold text-slate-400">
                             {booking.booking_reference}
                           </span>
                           <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${
                             booking.status === 'CONFIRMED' 
-                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
-                              : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' 
+                              : booking.status === 'CANCELLED'
+                              ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                              : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
                           }`}>
                             {booking.status}
                           </span>
                         </div>
-                        <div className="text-[10px] text-slate-300 font-semibold">
-                          <span className="uppercase font-bold text-slate-400 mr-1.5">{booking.vertical}</span>
-                          Departing: {booking.start_date ? new Date(booking.start_date).toLocaleDateString() : 'TBD'}
-                        </div>
+                        {/* Description */}
+                        {booking.description && (
+                          <div className="text-[10px] text-slate-400 font-medium truncate">
+                            {booking.description}
+                          </div>
+                        )}
                       </div>
                       
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-3 flex-shrink-0">
                         <span className="font-mono text-sm font-black text-white">
                           ₹{booking.total_amount?.toLocaleString() || '0'}
                         </span>
@@ -260,7 +265,7 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
                           href={`/api/v1/bookings/${booking.booking_reference}/pdf`} 
                           target="_blank" 
                           rel="noreferrer"
-                          className="p-1.5 rounded-lg bg-slate-800/60 border border-slate-700/60 hover:bg-slate-700 hover:text-yellow-400 transition-colors"
+                          className="p-1.5 rounded-lg bg-slate-700 border border-slate-600 hover:bg-yellow-400 hover:text-black hover:border-black transition-colors text-slate-300"
                           title="Download E-Ticket"
                         >
                           <Download size={14} />
@@ -270,7 +275,7 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
                   ))}
                 </div>
               ) : (
-                <div className="py-6 text-center text-xs text-slate-500 font-semibold">
+                <div className="py-8 text-center text-sm text-slate-400 font-semibold border border-dashed border-slate-700 rounded-2xl">
                   No bookings found in your traveler ledger.
                 </div>
               )}

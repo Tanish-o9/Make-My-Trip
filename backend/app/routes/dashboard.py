@@ -424,8 +424,14 @@ def get_dashboard_data(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    check_and_generate_travel_reminders(db, current_user.id)
-    auto_group_user_bookings(db, current_user.id)
+    try:
+        check_and_generate_travel_reminders(db, current_user.id)
+    except Exception as exc:
+        logger.warning(f"Travel reminders skipped for user {current_user.id}: {exc}")
+    try:
+        auto_group_user_bookings(db, current_user.id)
+    except Exception as exc:
+        logger.warning(f"Auto-grouping skipped for user {current_user.id}: {exc}")
     
     profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
     full_name = profile.full_name if profile else current_user.email.split("@")[0].capitalize()
