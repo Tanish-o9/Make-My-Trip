@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Compass, FileText, Wallet, Bell, Shield, ArrowRight, Search, 
-  MapPin, Calendar, Clock, AlertTriangle, User, ChevronRight, Download, Award
+  MapPin, Calendar, Clock, AlertTriangle, User, ChevronRight, Download, Award,
+  Plane, Hotel, Home, Gift, TrendingUp, Bus, Users, Car, Coins, ShieldCheck, Heart, Sparkles
 } from 'lucide-react';
 import { API_URL } from './config/api';
 import TripExpenseManager from './TripExpenseManager';
@@ -18,6 +19,64 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+
+  const [offers, setOffers] = useState<any[] | null>(null);
+  const [offersLoading, setOffersLoading] = useState<boolean>(true);
+  const [offersError, setOffersError] = useState<string | null>(null);
+
+  const categories = [
+    { id: 'flights', label: 'Flights', icon: Plane, desc: 'Domestic & international flights', cta: 'Search Flights' },
+    { id: 'hotels', label: 'Hotels', icon: Hotel, desc: 'Stay at your favorite destinations', cta: 'Explore Hotels' },
+    { id: 'villas', label: 'Villas', icon: Home, desc: 'Stay at luxury private villas', cta: 'Explore Villas' },
+    { id: 'holidays', label: 'Holidays / Trips', icon: Gift, desc: 'Curated vacation packages', cta: 'Explore Holidays' },
+    { id: 'trains', label: 'Trains', icon: TrendingUp, desc: 'IRCTC tickets with zero fees', cta: 'Book Trains' },
+    { id: 'buses', label: 'Buses', icon: Bus, desc: 'Sleeper state & private buses', cta: 'Book Buses' },
+    { id: 'cabs', label: 'Cabs', icon: Users, desc: 'Outstation, local & airport transfers', cta: 'Book Cabs' },
+    { id: 'rent-a-ride', label: 'Cars / Self Drive', icon: Car, desc: 'Rent premium self-drive vehicles', cta: 'Rent Cars' },
+    { id: 'tours', label: 'Activities', icon: Compass, desc: 'Local experiences & guided tours', cta: 'Explore Activities' },
+    { id: 'visa', label: 'Visa', icon: FileText, desc: 'Apply travel visa online easily', cta: 'Apply Visa' },
+    { id: 'forex', label: 'Forex', icon: Coins, desc: 'Zero-commission currency exchange', cta: 'Buy Forex' },
+    { id: 'insurance', label: 'Travel Insurance', icon: ShieldCheck, desc: 'Instant travel coverage & protection', cta: 'Get Insurance' },
+    { id: 'wishlist', label: 'Wishlist', icon: Heart, desc: 'Your saved flights & hotels', cta: 'View Wishlist' },
+    { id: 'ai-planner', label: 'AI Trip Planner', icon: Sparkles, desc: 'Plan curated trips via AI instantly', cta: 'Ask AI' }
+  ];
+
+  const handleCategoryClick = (categoryId: string) => {
+    if (categoryId === 'wishlist') {
+      setActiveTab('wishlist');
+    } else if (categoryId === 'ai-planner') {
+      setActiveTab('ai-planner');
+    } else {
+      sessionStorage.setItem('active_vertical', categoryId);
+      setActiveTab('explore');
+    }
+  };
+
+  const handleOfferClick = (offer: any) => {
+    const code = offer.coupon_code || offer.promo_code;
+    if (code) {
+      navigator.clipboard?.writeText(code).catch(() => {});
+      sessionStorage.setItem('active_coupon', code);
+      sessionStorage.setItem('promo_code', code);
+    }
+    handleCategoryClick(offer.category);
+  };
+
+  const formatValidityDate = (dateStr: string) => {
+    try {
+      const d = new Date(dateStr);
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      return `${d.getDate()} ${months[d.getMonth()]}`;
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
+  const formatCategoryName = (cat: string) => {
+    if (!cat) return "";
+    if (cat.toLowerCase() === "bus") return "Buses";
+    return cat.charAt(0).toUpperCase() + cat.slice(1);
+  };
 
   const getHeaders = () => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -57,8 +116,27 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
       .then(d => { if (d) setRewardsData(d); })
       .catch(() => {});
   };
+  
+  const fetchOffers = async () => {
+    setOffersLoading(true);
+    setOffersError(null);
+    try {
+      const res = await fetch(`${API_URL}/offers/active`, { headers: getHeaders() });
+      if (!res.ok) throw new Error("Offers request failed");
+      const resData = await res.json();
+      setOffers(resData.offers || []);
+    } catch (err: any) {
+      console.error(err);
+      setOffersError("Offers are temporarily unavailable.");
+    } finally {
+      setOffersLoading(false);
+    }
+  };
 
-  useEffect(() => { fetchDashboard(); }, [token]);
+  useEffect(() => { 
+    fetchDashboard(); 
+    fetchOffers();
+  }, [token]);
 
   const getGreeting = () => {
     const hr = new Date().getHours();
@@ -202,22 +280,220 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
                 </div>
               </div>
             ) : (
-              <div className="bg-[#111827]/80 border border-slate-800/80 p-8 rounded-3xl text-center space-y-4 shadow-xl">
-                <div className="w-16 h-16 rounded-full bg-slate-800/60 flex items-center justify-center mx-auto text-2xl">
-                  ✨
+              <div className="bg-gradient-to-br from-[#1e293b]/60 to-[#0f172a]/95 border border-slate-800/80 p-6 md:p-8 rounded-3xl shadow-xl space-y-8 text-left">
+                {/* Header empty-state */}
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-slate-800/60 pb-6">
+                  <div className="space-y-1.5 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse" />
+                      <h2 className="text-sm font-black uppercase tracking-wider text-slate-200">NO UPCOMING TRIPS</h2>
+                    </div>
+                    <p className="text-xs text-slate-400 font-semibold max-w-xl">
+                      You don't have any journeys scheduled in the next 5 days. Ready to start planning your next travel gate?
+                    </p>
+                  </div>
+                  <button 
+                    onClick={() => setActiveTab('explore')}
+                    className="self-start sm:self-center px-4 py-2.5 bg-yellow-400 hover:bg-yellow-500 text-black text-xs font-black uppercase rounded-xl border border-black shadow-[3px_3px_0px_0px_#000000] active:translate-y-0.5 active:shadow-none transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                    aria-label="Book New Trip Now"
+                  >
+                    BOOK NEW TRIP NOW →
+                  </button>
                 </div>
-                <div className="space-y-2">
-                  <h3 className="text-sm font-black uppercase tracking-wider text-slate-300">No upcoming trips</h3>
-                  <p className="text-xs text-slate-500 font-semibold leading-relaxed max-w-sm mx-auto">
-                    You don't have any journeys scheduled in the next 5 days. Ready to start planning your next travel gate?
-                  </p>
+
+                {/* Explore Travel grid section */}
+                <div className="space-y-4">
+                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                    <Compass size={14} className="text-indigo-400" /> Explore Travel
+                  </h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                    {categories.map((cat) => {
+                      const IconComponent = cat.icon;
+                      // categoryOfferText retrieves the offer description dynamically or from fallbacks
+                      
+                      // Dynamic check to prevent runtime errors if helper was not defined locally
+                      const categoryOfferText = (() => {
+                        if (offers && offers.length > 0) {
+                          const matched = offers.find((o: any) => {
+                            const oCat = (o.category || "").toLowerCase().trim();
+                            const cId = cat.id.toLowerCase().trim();
+                            if (oCat === cId) return true;
+                            if (cId === "buses" && oCat === "bus") return true;
+                            if (cId === "rent-a-ride" && (oCat === "car" || oCat === "cars")) return true;
+                            if (cId === "tours" && (oCat === "activities" || oCat === "activity" || oCat === "tours")) return true;
+                            if (cId === "holidays" && (oCat === "holiday" || oCat === "holidays")) return true;
+                            return false;
+                          });
+                          if (matched) {
+                            return matched.discount_type === 'percentage' 
+                              ? `${matched.discount_value}% OFF`
+                              : `₹${matched.discount_value.toLocaleString()} OFF`;
+                          }
+                        }
+                        if (cat.id === 'flights') return '12% OFF';
+                        if (cat.id === 'hotels') return '20% OFF';
+                        if (cat.id === 'trains') return '10% OFF';
+                        if (cat.id === 'buses') return '20% OFF';
+                        if (cat.id === 'cabs') return '15% OFF';
+                        if (cat.id === 'holidays') return '₹1,500 OFF';
+                        if (cat.id === 'forex') return 'Best Rates';
+                        if (cat.id === 'visa') return 'From ₹999';
+                        if (cat.id === 'insurance') return 'From ₹49/day';
+                        return null;
+                      })();
+
+                      return (
+                        <div
+                          key={cat.id}
+                          onClick={() => handleCategoryClick(cat.id)}
+                          className="bg-slate-900/50 hover:bg-slate-900/80 border border-slate-800 hover:border-yellow-400/40 p-4 rounded-2xl flex flex-col justify-between items-start gap-3 transition-all duration-300 group cursor-pointer shadow-md text-left focus-within:ring-2 focus-within:ring-yellow-400 focus-within:outline-none"
+                          tabIndex={0}
+                          role="button"
+                          aria-label={`Explore ${cat.label}`}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              handleCategoryClick(cat.id);
+                            }
+                          }}
+                        >
+                          <div className="flex items-center gap-3 w-full">
+                            <div className="p-2 rounded-xl bg-slate-800/50 group-hover:scale-110 transition-all text-slate-400 group-hover:text-yellow-400 group-hover:bg-slate-800">
+                              <IconComponent size={18} />
+                            </div>
+                            <span className="text-[11px] font-black uppercase text-slate-200 tracking-wider group-hover:text-white transition-colors">
+                              {cat.label}
+                            </span>
+                          </div>
+
+                          <div className="flex-1 w-full space-y-1.5">
+                            <p className="text-[10px] text-slate-400 font-semibold leading-relaxed">
+                              {cat.desc}
+                            </p>
+                            {categoryOfferText && (
+                              <span className="inline-block text-[9px] font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 font-mono uppercase tracking-wider">
+                                🔥 {categoryOfferText}
+                              </span>
+                            )}
+                          </div>
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCategoryClick(cat.id);
+                            }}
+                            className="w-full py-1.5 bg-slate-850 hover:bg-slate-800 text-slate-300 hover:text-white font-black text-[9px] uppercase rounded-lg border border-slate-700/80 transition-all text-center focus:outline-none focus:ring-1 focus:ring-yellow-400"
+                            aria-label={`${cat.cta}`}
+                          >
+                            {cat.cta}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-                <button 
-                  onClick={() => setActiveTab('explore')}
-                  className="px-5 py-2.5 bg-yellow-400 hover:bg-yellow-500 text-black text-xs font-black uppercase rounded-xl border border-black shadow-[3px_3px_0px_0px_#000000] transition-all cursor-pointer"
-                >
-                  Book New Trip Now ➔
-                </button>
+
+                {/* 🔥 HOT DEALS FOR YOU section */}
+                <div className="space-y-4 pt-4 border-t border-slate-800/60">
+                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                    🔥 Hot Deals For You
+                  </h3>
+
+                  {offersLoading ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {[1, 2].map((i) => (
+                        <div key={i} className="h-36 bg-[#1e293b]/40 rounded-2xl animate-pulse border border-slate-800" />
+                      ))}
+                    </div>
+                  ) : offersError ? (
+                    <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/60 text-rose-400 text-xs font-semibold">
+                      ⚠️ {offersError}
+                    </div>
+                  ) : offers && offers.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {offers.map((offer) => {
+                        const discountText = offer.discount_type === 'percentage' 
+                          ? `${offer.discount_value}% OFF`
+                          : `Flat ₹${offer.discount_value.toLocaleString()} OFF`;
+                        
+                        return (
+                          <div
+                            key={offer.id}
+                            onClick={() => handleOfferClick(offer)}
+                            className="bg-slate-900/50 hover:bg-slate-900/80 border border-slate-800 hover:border-indigo-500/30 p-5 rounded-2xl relative overflow-hidden transition-all duration-300 flex flex-col justify-between gap-4 group cursor-pointer shadow-lg text-left focus-within:ring-2 focus-within:ring-indigo-500 focus-within:outline-none"
+                            tabIndex={0}
+                            role="button"
+                            aria-label={`Offer: ${offer.title}`}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                handleOfferClick(offer);
+                              }
+                            }}
+                          >
+                            <div className="space-y-2">
+                              <div className="flex justify-between items-start gap-2">
+                                <span className="text-[9px] font-black uppercase tracking-wider text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
+                                  {formatCategoryName(offer.category)}
+                                </span>
+                                {offer.tags && (
+                                  <span className="text-[9px] font-bold text-yellow-400/90 bg-yellow-400/5 px-2 py-0.5 rounded border border-yellow-400/10">
+                                    {offer.tags}
+                                  </span>
+                                )}
+                              </div>
+                              <h4 className="text-xs md:text-sm font-black text-slate-100 group-hover:text-yellow-400 transition-colors uppercase tracking-tight">
+                                {offer.title}
+                              </h4>
+                              <p className="text-[11px] text-slate-400 font-semibold leading-relaxed">
+                                {offer.description}
+                              </p>
+                            </div>
+
+                            <div className="flex flex-col gap-3 pt-3 border-t border-slate-800/80">
+                              <div className="flex items-center justify-between flex-wrap gap-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-black text-emerald-400 font-mono">
+                                    {discountText}
+                                  </span>
+                                  {offer.coupon_code && (
+                                    <span 
+                                      className="font-mono text-[9px] font-black bg-slate-950 px-2 py-0.5 rounded border border-slate-800 text-slate-300 cursor-copy hover:text-white"
+                                      title="Click to copy coupon code"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigator.clipboard?.writeText(offer.coupon_code).catch(() => {});
+                                        alert(`Coupon code ${offer.coupon_code} copied to clipboard!`);
+                                      }}
+                                    >
+                                      Code: {offer.coupon_code}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-[9px] text-slate-500 font-semibold">
+                                  {offer.valid_until ? `Valid until: ${formatValidityDate(offer.valid_until)}` : ''}
+                                </span>
+                              </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOfferClick(offer);
+                                }}
+                                className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[10px] uppercase rounded-xl border border-black shadow-[2px_2px_0px_0px_#000000] active:translate-y-0.5 active:shadow-none transition-all cursor-pointer text-center focus:outline-none focus:ring-1 focus:ring-yellow-400"
+                              >
+                                Explore {formatCategoryName(offer.category)}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/60 text-slate-400 text-xs font-semibold">
+                      No active offers right now.
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
