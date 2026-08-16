@@ -24,7 +24,7 @@ if sentry_dsn and sentry_dsn != "your-sentry-dsn":
 
 from app.database import engine, Base, get_db
 from app.models import search_entities, payments
-from app.routes import auth, wallet, agents, voice, showcase, bookings, search, tracker, mybiz, wishlist, price_alerts, rewards, expenses, admin_panel, media, rent_a_ride, localities, payments as payments_routes, webhooks, profile, flights, hotels, weather, maps, system, currency, notifications, cabs, activities, visa, insurance, forex, esim, documents, loyalty, crm, insights, saas_routes, gateway, partner, feedback, cars, providers, users, support, analytics_ops, monitoring, recovery, buses, passengers, dashboard, groups
+from app.routes import auth, wallet, agents, voice, showcase, bookings, search, tracker, mybiz, wishlist, price_alerts, rewards, expenses, admin_panel, media, rent_a_ride, localities, payments as payments_routes, webhooks, profile, flights, hotels, weather, maps, system, currency, notifications, cabs, activities, visa, insurance, forex, esim, documents, loyalty, crm, insights, saas_routes, gateway, partner, feedback, cars, providers, users, support, analytics_ops, monitoring, recovery, buses, passengers, dashboard, groups, offers
 from fastapi.staticfiles import StaticFiles
 import os
 from app.ml import fraud_model
@@ -293,6 +293,7 @@ app.include_router(cars.router, prefix="/api/v1")
 app.include_router(providers.router, prefix="/api/v1")
 app.include_router(buses.router, prefix="/api/buses")
 app.include_router(buses.router, prefix="/api/v1/buses")
+app.include_router(offers.router, prefix="/api/v1")
 
 @app.websocket("/ws/admin_notifications")
 async def admin_notifications_ws(websocket: WebSocket, token: Optional[str] = Query(None)):
