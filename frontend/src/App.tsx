@@ -3482,11 +3482,11 @@ function FlightsSearchForm({
       {/* Flight Seat Selector Modal */}
       {showFlightSeatModal && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#0b1021] border border-slate-800 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl text-slate-200">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+          <div className="rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl" style={{background:'#0b1021', border:'1px solid #1e293b', color:'#e2e8f0'}}>
+            <div className="flex justify-between items-center pb-2" style={{borderBottom:'1px solid #1e293b'}}>
               <div>
                 <div className="flex items-center gap-2">
-                  <h4 className="font-black text-sm uppercase text-slate-100">Select Cabin Seats</h4>
+                  <h4 className="font-black text-sm uppercase" style={{color:'#f1f5f9'}}>Select Cabin Seats</h4>
                   {flightSeatMapDetails && (
                     <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider ${
                       flightSeatMapDetails.seat_map_type === "LIVE" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-blue-500/20 text-blue-400 border border-blue-500/30"
