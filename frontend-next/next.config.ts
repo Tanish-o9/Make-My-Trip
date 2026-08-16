@@ -3,10 +3,11 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // Proxy all /api requests to the existing FastAPI backend (port 8000)
   async rewrites() {
+    const backendUrl = process.env.BACKEND_URL || "https://make-my-trip-production.up.railway.app";
     return [
       {
         source: "/api/:path*",
-        destination: "http://127.0.0.1:8000/api/:path*",
+        destination: `${backendUrl}/api/:path*`,
       },
     ];
   },
