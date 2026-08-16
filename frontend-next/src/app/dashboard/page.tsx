@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Scene3D } from "@/components/Scene3D";
 import { DashboardScene } from "@/scenes/DashboardScene";
+import { HomepageScene } from "@/scenes/HomepageScene";
 import { Button, Card, Badge, Skeleton } from "@/components/ui";
 import { usePerformance } from "@/context/PerformanceGuard";
 import {
@@ -219,22 +220,20 @@ export default function DashboardPage() {
       </svg>
       {/* Waypoint Markers on Fallback */}
       <div className="absolute flex gap-8 items-center z-10">
-        <div className="flex flex-col items-center">
-          <div className="w-3.5 h-3.5 rounded-full bg-teal shadow-[0_0_8px_#0FA3A0]" />
-          <span className="text-[9px] font-bold text-teal mt-1 font-display">START</span>
-        </div>
-        {recent_bookings.slice(0, 3).map((b: any, i: number) => (
-          <div key={i} className="flex flex-col items-center">
-            <div className="w-3.5 h-3.5 rounded-full bg-teal opacity-80" />
-            <span className="text-[9px] font-bold text-muted mt-1 font-display">WAYPOINT {i + 1}</span>
+        {["Manali", "Goa", "Jaipur", "Kerala", "Delhi"].map((city) => (
+          <div key={city} className="flex flex-col items-center">
+            <div
+              className={`rounded-full transition-all ${
+                city === "Delhi"
+                  ? "w-4.5 h-4.5 bg-marigold shadow-[0_0_10px_#FF9F1C] animate-pulse"
+                  : "w-3.5 h-3.5 bg-teal opacity-80"
+              }`}
+            />
+            <span className="text-[9px] font-bold text-muted mt-1 font-display uppercase">
+              {city}
+            </span>
           </div>
         ))}
-        {upcoming_trip && (
-          <div className="flex flex-col items-center">
-            <div className="w-4 h-4 rounded-full bg-marigold shadow-[0_0_10px_#FF9F1C] animate-pulse" />
-            <span className="text-[9px] font-bold text-marigold mt-1 font-display uppercase">UPCOMING</span>
-          </div>
-        )}
       </div>
       <span className="absolute bottom-4 right-4 text-[9px] font-data text-muted uppercase">
         2D Illustration Mode
@@ -375,7 +374,7 @@ export default function DashboardPage() {
 
           <Scene3D
             id="dashboard-map"
-            sceneContent={<DashboardScene bookings={recent_bookings} upcomingTrip={upcoming_trip} />}
+            sceneContent={<HomepageScene />}
             fallback={staticFallbackIllustration}
           />
           
