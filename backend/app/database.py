@@ -32,8 +32,9 @@ try:
             pool_size=int(os.getenv("DATABASE_POOL_SIZE", "15")),
             max_overflow=int(os.getenv("DATABASE_MAX_OVERFLOW", "25")),
             pool_recycle=int(os.getenv("DATABASE_POOL_RECYCLE", "1800")),
-            pool_timeout=int(os.getenv("DATABASE_POOL_TIMEOUT", "30")),
-            pool_pre_ping=True
+            pool_timeout=int(os.getenv("DATABASE_POOL_TIMEOUT", "10")),
+            pool_pre_ping=True,
+            connect_args={"connect_timeout": 5}  # fail fast — don't hang for 60s
         )
     else:
         engine = create_engine(
@@ -48,10 +49,19 @@ try:
             inspector = inspect(engine)
             if "users" in inspector.get_table_names():
                 columns = [c["name"] for c in inspector.get_columns("users")]
-                if "fcm_token" not in columns:
-                    print("Auto-migrating database: adding fcm_token column to users table.")
-                    conn.execute(text("ALTER TABLE users ADD COLUMN fcm_token VARCHAR(512)"))
-                    conn.commit()
+                missing_user_cols = {
+                    "fcm_token": "VARCHAR(512)",
+                    "email_verified": "BOOLEAN DEFAULT FALSE",
+                    "phone_verified": "BOOLEAN DEFAULT FALSE",
+                    "seed_batch_id": "VARCHAR(64)",
+                    "is_active": "BOOLEAN DEFAULT TRUE",
+                    "tenant_id": "VARCHAR(64)",
+                }
+                for col, col_type in missing_user_cols.items():
+                    if col not in columns:
+                        print(f"Auto-migrating database: adding {col} column to users table.")
+                        conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {col_type}"))
+                        conn.commit()
             if "seat_holds" in inspector.get_table_names():
                 columns = [c["name"] for c in inspector.get_columns("seat_holds")]
                 if "seat_type" not in columns:
