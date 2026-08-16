@@ -3,6 +3,7 @@ import "./globals.css";
 import { PerformanceGuard } from "@/context/PerformanceGuard";
 import { SceneProvider } from "@/context/SceneContext";
 import ClientCanvasWrapper from "@/components/ClientCanvasWrapper";
+import WebVitalsReporter from "@/components/WebVitalsReporter";
 
 export const metadata: Metadata = {
   title: "Ghumne Chale - Premium Flight & Hotel AI Trip Planner",
@@ -18,6 +19,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="antialiased overflow-x-hidden">
         <PerformanceGuard>
+          <WebVitalsReporter />
           <SceneProvider>
             {/* The single persistent R3F Canvas */}
             <ClientCanvasWrapper />

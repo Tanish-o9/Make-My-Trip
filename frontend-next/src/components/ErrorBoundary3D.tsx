@@ -2,6 +2,8 @@
 
 import React, { Component, ReactNode } from "react";
 
+import { log3DError } from "@/lib/telemetry";
+
 interface ErrorBoundary3DProps {
   pageName: string;
   setCanvasError: (val: boolean) => void;
@@ -28,6 +30,7 @@ export class ErrorBoundary3D extends Component<
       error,
       errorInfo
     );
+    log3DError(this.props.pageName, error.message || "3D Canvas Error", error.stack);
     this.props.setCanvasError(true);
   }
 

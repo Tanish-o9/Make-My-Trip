@@ -7,6 +7,8 @@ import { SearchScene } from "@/scenes/SearchScene";
 import { Button, Card, Badge, Input, Select, Skeleton } from "@/components/ui";
 import { Plane, Filter, SlidersHorizontal, MapPin, Calendar, Compass } from "lucide-react";
 
+import { logFunnel } from "@/lib/telemetry";
+
 // Mock flights database based on the TBO / Amadeus inventory schema
 const MOCK_FLIGHTS = [
   { id: "1", carrier: "IndiGo", flightNumber: "6E-502", from: "DEL", to: "BOM", price: 4800, duration: "2h 10m", stops: "direct", time: "06:00 - 08:10" },
@@ -19,6 +21,10 @@ const MOCK_FLIGHTS = [
 
 export default function SearchPage() {
   const router = useRouter();
+
+  useEffect(() => {
+    logFunnel("search");
+  }, []);
 
   // Local UI filters/sorting states
   const [fromCity, setFromCity] = useState("Delhi (DEL)");

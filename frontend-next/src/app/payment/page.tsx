@@ -16,6 +16,8 @@ import { Button, Card, Badge, StepIndicator } from "@/components/ui";
 import { usePerformance } from "@/context/PerformanceGuard";
 import { ShieldCheck, CreditCard, Wallet, QrCode, CheckCircle2, XCircle } from "lucide-react";
 
+import { logFunnel } from "@/lib/telemetry";
+
 export default function PaymentPage() {
   const router = useRouter();
   const { use3D } = usePerformance();
@@ -54,7 +56,13 @@ export default function PaymentPage() {
   const handleProcessPayment = (simulatedSuccess: boolean) => {
     setStatus("checkout"); // show loading state if needed
     setTimeout(() => {
-      setStatus(simulatedSuccess ? "success" : "failure");
+      if (simulatedSuccess) {
+        setStatus("success");
+        logFunnel("payment_success", { value: totalPrice, method: selectedMethod });
+      } else {
+        setStatus("failure");
+        logFunnel("payment_failure", { value: totalPrice, method: selectedMethod });
+      }
     }, 800);
   };
 

@@ -8,6 +8,8 @@ import { Button, Card, Badge, Input, Select, StepIndicator } from "@/components/
 import { usePerformance } from "@/context/PerformanceGuard";
 import { ArrowRight, ArrowLeft, Shield, Briefcase, Info } from "lucide-react";
 
+import { logFunnel } from "@/lib/telemetry";
+
 export default function BookPage() {
   const router = useRouter();
   const { use3D } = usePerformance();
@@ -29,6 +31,7 @@ export default function BookPage() {
 
   // Load from sessionStorage if exists to preserve data across refreshes
   useEffect(() => {
+    logFunnel("booking_start");
     const saved = sessionStorage.getItem("booking_details");
     if (saved) {
       try {

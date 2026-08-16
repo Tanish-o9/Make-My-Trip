@@ -7,9 +7,16 @@ import { Button, Card, Badge } from "@/components/ui";
 import { usePerformance } from "@/context/PerformanceGuard";
 import { ArrowRight, Compass, Award } from "lucide-react";
 
+import { useEffect } from "react";
+import { logFunnel } from "@/lib/telemetry";
+
 export default function Home() {
   const router = useRouter();
   const { use3D } = usePerformance();
+
+  useEffect(() => {
+    logFunnel("homepage");
+  }, []);
 
   // 2D Static SVG fallback illustration of the route ribbon curve
   const staticFallbackIllustration = (
