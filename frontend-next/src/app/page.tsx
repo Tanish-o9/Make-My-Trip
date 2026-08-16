@@ -57,16 +57,16 @@ export default function Home() {
       <nav className="border-b border-slate-900 bg-base/80 backdrop-blur-md sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <span className="font-display font-extrabold text-base tracking-wider text-[#F5F3EE] uppercase flex items-center gap-2">
+            <span className="font-display font-extrabold text-base tracking-wider text-primary uppercase flex items-center gap-2">
               ✈️ GHUMNE CHALE
             </span>
             <div className="hidden md:flex items-center gap-4 text-xs font-bold uppercase tracking-wider">
-              <span className="text-[#F5F3EE] border-b-2 border-marigold pb-1 px-1">
+              <span className="text-primary border-b-2 border-marigold pb-1 px-1">
                 Explore
               </span>
               <a
                 href="/dashboard"
-                className="text-muted hover:text-[#F5F3EE] transition-colors"
+                className="text-muted hover:text-primary transition-colors"
               >
                 My Trips
               </a>
@@ -90,7 +90,7 @@ export default function Home() {
         {/* Banner badge and main Space Grotesk headline */}
         <div className="space-y-3 text-left">
           <Badge variant="info">WEEKEND TRIPS • LOCAL OUTINGS • ADVENTURES</Badge>
-          <h1 className="font-display font-extrabold text-4xl md:text-5xl lg:text-6xl text-[#F5F3EE] uppercase tracking-tight max-w-3xl leading-[1.1]">
+          <h1 className="font-display font-extrabold text-4xl md:text-5xl lg:text-6xl text-primary uppercase tracking-tight max-w-3xl leading-[1.1]">
             Ghumo, ruko, phir aage badho
           </h1>
           <p className="text-xs md:text-sm text-muted font-semibold max-w-xl leading-relaxed">
@@ -104,7 +104,7 @@ export default function Home() {
             <span className="text-[10px] font-display font-black text-teal uppercase tracking-widest block">
               SYSTEM HEROPATH
             </span>
-            <span className="text-xs font-bold text-[#F5F3EE] block mt-0.5">
+            <span className="text-xs font-bold text-primary block mt-0.5">
               3D Dynamic Waypoint Ribbon
             </span>
           </div>
