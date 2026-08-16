@@ -3493,7 +3493,7 @@ function FlightsSearchForm({
                     </span>
                   )}
                 </div>
-                <p className="text-[10px] font-semibold mt-0.5" style={{color:'#93c5fd'}}>{showFlightSeatModal.airlineName} {showFlightSeatModal.flightNumber}</p>
+                <p className="text-[10px] font-semibold mt-0.5" style={{color:'#ffffff'}}>{showFlightSeatModal.airlineName} {showFlightSeatModal.flightNumber}</p>
               </div>
               <button onClick={() => setShowFlightSeatModal(null)} style={{color:'#60a5fa', background:'none', border:'none', fontSize:'16px', cursor:'pointer', fontWeight:'bold'}}>✕</button>
             </div>
@@ -3568,8 +3568,8 @@ function FlightsSearchForm({
                   })}
                 </div>
 
-                <div className="pt-3 flex justify-between items-center text-xs font-bold" style={{borderTop:'1px solid #1e3a5f', color:'#93c5fd'}}>
-                  <span style={{color:'#93c5fd'}}>Selected: {selectedFlightSeats.length} / {passengers}</span>
+                <div className="pt-3 flex justify-between items-center text-xs font-bold" style={{borderTop:'1px solid #1e3a5f', color:'#ffffff'}}>
+                  <span style={{color:'#ffffff'}}>Selected: {selectedFlightSeats.length} / {passengers}</span>
                   <span style={{color:'#facc15'}}>Seats: {selectedFlightSeats.join(", ") || "None"}</span>
                 </div>
 
