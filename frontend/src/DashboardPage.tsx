@@ -27,7 +27,6 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
   const categories = [
     { id: 'flights', label: 'Flights', icon: Plane, desc: 'Domestic & international flights', cta: 'Search Flights' },
     { id: 'hotels', label: 'Hotels', icon: Hotel, desc: 'Stay at your favorite destinations', cta: 'Explore Hotels' },
-    { id: 'villas', label: 'Villas', icon: Home, desc: 'Stay at luxury private villas', cta: 'Explore Villas' },
     { id: 'holidays', label: 'Holidays / Trips', icon: Gift, desc: 'Curated vacation packages', cta: 'Explore Holidays' },
     { id: 'trains', label: 'Trains', icon: TrendingUp, desc: 'IRCTC tickets with zero fees', cta: 'Book Trains' },
     { id: 'buses', label: 'Buses', icon: Bus, desc: 'Sleeper state & private buses', cta: 'Book Buses' },
@@ -346,7 +345,7 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
                         <div
                           key={cat.id}
                           onClick={() => handleCategoryClick(cat.id)}
-                          className="bg-slate-900/50 hover:bg-slate-900/80 border border-slate-800 hover:border-yellow-400/40 p-4 rounded-2xl flex flex-col justify-between items-start gap-3 transition-all duration-300 group cursor-pointer shadow-md text-left focus-within:ring-2 focus-within:ring-yellow-400 focus-within:outline-none"
+                          className="bg-[#0f172a]/55 hover:bg-[#0f172a]/85 border border-[#1e293b] hover:border-yellow-400/40 p-4 rounded-2xl flex flex-col justify-between items-start gap-3 transition-all duration-300 group cursor-pointer shadow-md text-left focus-within:ring-2 focus-within:ring-yellow-400 focus-within:outline-none"
                           tabIndex={0}
                           role="button"
                           aria-label={`Explore ${cat.label}`}
@@ -358,7 +357,7 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
                           }}
                         >
                           <div className="flex items-center gap-3 w-full">
-                            <div className="p-2 rounded-xl bg-slate-800/50 group-hover:scale-110 transition-all text-slate-400 group-hover:text-yellow-400 group-hover:bg-slate-800">
+                            <div className="p-2 rounded-xl bg-[#1e293b]/55 group-hover:scale-110 transition-all text-slate-400 group-hover:text-yellow-400 group-hover:bg-[#1e293b]">
                               <IconComponent size={18} />
                             </div>
                             <span className="text-[11px] font-black uppercase text-slate-200 tracking-wider group-hover:text-white transition-colors">
@@ -382,7 +381,7 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
                               e.stopPropagation();
                               handleCategoryClick(cat.id);
                             }}
-                            className="w-full py-1.5 bg-slate-850 hover:bg-slate-800 text-slate-300 hover:text-white font-black text-[9px] uppercase rounded-lg border border-slate-700/80 transition-all text-center focus:outline-none focus:ring-1 focus:ring-yellow-400"
+                            className="w-full py-1.5 bg-[#1e293b] hover:bg-[#334155] text-slate-300 hover:text-white font-black text-[9px] uppercase rounded-lg border border-[#334155]/80 transition-all text-center focus:outline-none focus:ring-1 focus:ring-yellow-400"
                             aria-label={`${cat.cta}`}
                           >
                             {cat.cta}
