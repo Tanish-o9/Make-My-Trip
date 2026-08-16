@@ -3500,7 +3500,7 @@ function FlightsSearchForm({
               <button onClick={() => setShowFlightSeatModal(null)} className="text-slate-400 hover:text-white font-extrabold text-sm">✕</button>
             </div>
             
-            <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-700 text-[10px] font-bold flex justify-between" style={{color:'#ffffff'}}>
+            <div className="p-3 rounded-xl text-[10px] font-bold flex justify-between" style={{background:'rgba(15,23,42,0.6)', border:'1px solid #334155', color:'#e2e8f0'}}>
               <span>Window (A-C)</span>
               <span style={{color:'#facc15'}}>✈️ Front of Aircraft</span>
               <span>Window (D-F)</span>
@@ -3514,13 +3514,13 @@ function FlightsSearchForm({
             ) : (
               <>
                 {/* Scrollable Cabin Seating */}
-                <div className="max-h-64 overflow-y-auto pr-1 py-2 space-y-2">
+                <div className="max-h-64 overflow-y-auto pr-1 py-2 space-y-2" style={{color:'#ffffff'}}>
                   {Array.from({ length: 10 }, (_, rIdx) => {
                     const row = rIdx + 1;
                     const cols = ["A", "B", "C", "D", "E", "F"];
                     return (
                       <div key={row} className="flex justify-between items-center gap-2">
-                        <span className="text-[10px] font-bold w-4 text-center" style={{color:'#ffffff'}}>{row}</span>
+                        <span className="text-[10px] font-bold w-4 text-center" style={{color:'#e2e8f0', minWidth:'16px'}}>{row}</span>
                         <div className="flex-1 grid grid-cols-6 gap-1">
                           {cols.map((col, cIdx) => {
                             const seat = `${row}${col}`;
@@ -3553,11 +3553,18 @@ function FlightsSearchForm({
                                   }}
                                   className={`w-8 h-8 rounded border text-[10px] font-black transition-all flex items-center justify-center cursor-pointer ${
                                     isTaken 
-                                      ? 'bg-slate-800/40 border-slate-700 text-slate-400 cursor-not-allowed' 
+                                      ? 'cursor-not-allowed'
                                       : isSelected
-                                        ? 'bg-yellow-400 border-yellow-500 text-slate-900 shadow-md shadow-yellow-400/20'
-                                        : 'bg-slate-900/60 border-slate-600 text-white hover:border-slate-400'
+                                        ? 'shadow-md'
+                                        : ''
                                   }`}
+                                  style={
+                                    isTaken
+                                      ? { background: 'rgba(30,41,59,0.4)', borderColor: '#334155', color: '#94a3b8' }
+                                      : isSelected
+                                        ? { background: '#facc15', borderColor: '#eab308', color: '#0f172a' }
+                                        : { background: 'rgba(15,23,42,0.6)', borderColor: '#475569', color: '#ffffff' }
+                                  }
                                 >
                                   {col}
                                 </button>
