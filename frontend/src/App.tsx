@@ -3551,20 +3551,13 @@ function FlightsSearchForm({
                                       }
                                     }
                                   }}
-                                  className={`w-8 h-8 rounded border text-[10px] font-black transition-all flex items-center justify-center cursor-pointer ${
+                                  className={`w-8 h-8 rounded border text-[10px] font-black transition-all flex items-center justify-center ${
                                     isTaken 
-                                      ? 'cursor-not-allowed'
+                                      ? 'seat-btn-taken'
                                       : isSelected
-                                        ? 'shadow-md'
-                                        : ''
+                                        ? 'seat-btn-selected shadow-md'
+                                        : 'seat-btn-available cursor-pointer'
                                   }`}
-                                  style={
-                                    isTaken
-                                      ? { background: 'rgba(30,41,59,0.4)', borderColor: '#334155', color: '#94a3b8' }
-                                      : isSelected
-                                        ? { background: '#facc15', borderColor: '#eab308', color: '#0f172a' }
-                                        : { background: 'rgba(15,23,42,0.6)', borderColor: '#475569', color: '#ffffff' }
-                                  }
                                 >
                                   {col}
                                 </button>
