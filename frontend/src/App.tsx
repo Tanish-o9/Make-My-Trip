@@ -3485,13 +3485,15 @@ function FlightsSearchForm({
           {/* Injected styles — ID specificity beats all class !important rules */}
           <style>{`
             #seat-map-modal * { box-sizing: border-box; }
+            #seat-map-modal h4 { color: #60a5fa !important; font-family: inherit !important; letter-spacing: 0.05em !important; }
+            #seat-map-modal .demo-badge { background: rgba(59,130,246,0.15) !important; color: #60a5fa !important; border: 1px solid #3b82f6 !important; border-radius: 4px !important; padding: 2px 6px !important; font-size: 8px !important; font-weight: 900 !important; text-transform: uppercase !important; box-shadow: none !important; transform: none !important; }
             #seat-map-modal .smw  { color: #ffffff !important; }
             #seat-map-modal .smy  { color: #facc15 !important; }
             #seat-map-modal .smb  { color: #60a5fa !important; }
             #seat-map-modal .smm  { color: #93c5fd !important; }
-            #seat-map-modal .seat-btn-available { background: rgba(10,20,50,0.85) !important; border: 1px solid #3b82f6 !important; color: #60a5fa !important; border-radius: 6px !important; box-shadow: none !important; }
-            #seat-map-modal .seat-btn-taken     { background: rgba(10,20,50,0.4)  !important; border: 1px solid #1e3a5f !important; color: #1e3a5f   !important; border-radius: 6px !important; box-shadow: none !important; }
-            #seat-map-modal .seat-btn-selected  { background: #facc15             !important; border: 2px solid #eab308 !important; color: #0f172a   !important; border-radius: 6px !important; box-shadow: 0 0 8px rgba(250,204,21,0.4) !important; }
+            #seat-map-modal .seat-btn-available { background: rgba(10,20,50,0.85) !important; border: 1px solid #3b82f6 !important; color: #60a5fa !important; border-radius: 6px !important; box-shadow: none !important; transform: none !important; }
+            #seat-map-modal .seat-btn-taken     { background: rgba(10,20,50,0.4)  !important; border: 1px solid #1e3a5f !important; color: #1e3a5f   !important; border-radius: 6px !important; box-shadow: none !important; transform: none !important; }
+            #seat-map-modal .seat-btn-selected  { background: #facc15             !important; border: 2px solid #eab308 !important; color: #0f172a   !important; border-radius: 6px !important; box-shadow: 0 0 8px rgba(250,204,21,0.4) !important; transform: none !important; }
           `}</style>
           <div id="seat-map-modal" className="rounded-2xl p-5 max-w-sm w-full space-y-4" style={{background:'#0a1628', border:'2px solid #1e40af', color:'#e2e8f0', boxShadow:'0 0 40px rgba(59,130,246,0.15)'}}>
             <div className="flex justify-between items-center pb-3" style={{borderBottom:'1px solid #1e3a5f'}}>
@@ -3499,7 +3501,7 @@ function FlightsSearchForm({
                 <div className="flex items-center gap-2">
                   <h4 className="font-black text-sm uppercase" style={{color:'#60a5fa', letterSpacing:'0.05em'}}>Select Cabin Seats</h4>
                   {flightSeatMapDetails && (
-                    <span className="text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider" style={{background:'rgba(59,130,246,0.15)', color:'#60a5fa', border:'1px solid #3b82f6'}}>
+                    <span className="demo-badge">
                       {flightSeatMapDetails.seat_map_type} MAP
                     </span>
                   )}
