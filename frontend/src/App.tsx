@@ -3481,26 +3481,24 @@ function FlightsSearchForm({
 
       {/* Flight Seat Selector Modal */}
       {showFlightSeatModal && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl" style={{background:'#0b1021', border:'1px solid #1e293b', color:'#e2e8f0'}}>
-            <div className="flex justify-between items-center pb-2" style={{borderBottom:'1px solid #1e293b'}}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:'rgba(0,0,0,0.85)'}}>
+          <div className="rounded-2xl p-5 max-w-sm w-full space-y-4" style={{background:'#0a1628', border:'2px solid #1e40af', color:'#e2e8f0', boxShadow:'0 0 40px rgba(59,130,246,0.15)'}}>
+            <div className="flex justify-between items-center pb-3" style={{borderBottom:'1px solid #1e3a5f'}}>
               <div>
                 <div className="flex items-center gap-2">
-                  <h4 className="font-black text-sm uppercase" style={{color:'#f1f5f9'}}>Select Cabin Seats</h4>
+                  <h4 className="font-black text-sm uppercase" style={{color:'#60a5fa', letterSpacing:'0.05em'}}>Select Cabin Seats</h4>
                   {flightSeatMapDetails && (
-                    <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider ${
-                      flightSeatMapDetails.seat_map_type === "LIVE" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-blue-500/20 text-blue-400 border border-blue-500/30"
-                    }`}>
+                    <span className="text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider" style={{background:'rgba(59,130,246,0.15)', color:'#60a5fa', border:'1px solid #3b82f6'}}>
                       {flightSeatMapDetails.seat_map_type} MAP
                     </span>
                   )}
                 </div>
-                <p className="text-[10px] font-semibold" style={{color:'#ffffff'}}>{showFlightSeatModal.airlineName} {showFlightSeatModal.flightNumber}</p>
+                <p className="text-[10px] font-semibold mt-0.5" style={{color:'#93c5fd'}}>{showFlightSeatModal.airlineName} {showFlightSeatModal.flightNumber}</p>
               </div>
-              <button onClick={() => setShowFlightSeatModal(null)} className="text-slate-400 hover:text-white font-extrabold text-sm">✕</button>
+              <button onClick={() => setShowFlightSeatModal(null)} style={{color:'#60a5fa', background:'none', border:'none', fontSize:'16px', cursor:'pointer', fontWeight:'bold'}}>✕</button>
             </div>
-            
-            <div className="p-3 rounded-xl text-[10px] font-bold flex justify-between" style={{background:'rgba(15,23,42,0.6)', border:'1px solid #334155', color:'#e2e8f0'}}>
+
+            <div className="p-2 rounded-lg text-[10px] font-bold flex justify-between" style={{background:'rgba(30,64,175,0.12)', border:'1px solid #1e3a5f', color:'#93c5fd'}}>
               <span>Window (A-C)</span>
               <span style={{color:'#facc15'}}>✈️ Front of Aircraft</span>
               <span>Window (D-F)</span>
@@ -3514,13 +3512,13 @@ function FlightsSearchForm({
             ) : (
               <>
                 {/* Scrollable Cabin Seating */}
-                <div className="max-h-64 overflow-y-auto pr-1 py-2 space-y-2" style={{color:'#ffffff'}}>
+                <div className="max-h-64 overflow-y-auto pr-1 py-2 space-y-2" style={{color:'#60a5fa'}}>
                   {Array.from({ length: 10 }, (_, rIdx) => {
                     const row = rIdx + 1;
                     const cols = ["A", "B", "C", "D", "E", "F"];
                     return (
                       <div key={row} className="flex justify-between items-center gap-2">
-                        <span className="text-[10px] font-bold w-4 text-center" style={{color:'#e2e8f0', minWidth:'16px'}}>{row}</span>
+                        <span className="text-[10px] font-bold text-center" style={{color:'#93c5fd', minWidth:'12px'}}>{row}</span>
                         <div className="flex-1 grid grid-cols-6 gap-1">
                           {cols.map((col, cIdx) => {
                             const seat = `${row}${col}`;
@@ -3570,8 +3568,8 @@ function FlightsSearchForm({
                   })}
                 </div>
 
-                <div className="border-t border-slate-700 pt-3 flex justify-between items-center text-xs font-bold" style={{color:'#ffffff'}}>
-                  <span>Selected: {selectedFlightSeats.length} / {passengers}</span>
+                <div className="pt-3 flex justify-between items-center text-xs font-bold" style={{borderTop:'1px solid #1e3a5f', color:'#93c5fd'}}>
+                  <span style={{color:'#93c5fd'}}>Selected: {selectedFlightSeats.length} / {passengers}</span>
                   <span style={{color:'#facc15'}}>Seats: {selectedFlightSeats.join(", ") || "None"}</span>
                 </div>
 
@@ -3609,8 +3607,8 @@ function FlightsSearchForm({
                     });
                     setShowFlightSeatModal(null);
                   }}
-                  className="w-full bg-blue-600 hover:bg-blue-500 text-white font-extrabold py-2.5 rounded-xl text-xs uppercase transition-all cursor-pointer shadow-lg shadow-blue-600/10"
-                >
+                  className="w-full font-extrabold py-3 rounded-xl text-xs uppercase cursor-pointer"
+                  style={{background:'linear-gradient(135deg,#2563eb,#1d4ed8)', color:'#ffffff', border:'1px solid #3b82f6', letterSpacing:'0.08em', boxShadow:'0 4px 15px rgba(37,99,235,0.4)'}}>
                   Confirm Seats & Book Flight
                 </button>
               </>

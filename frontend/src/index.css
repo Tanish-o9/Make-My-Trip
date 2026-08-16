@@ -66,24 +66,32 @@
 /* ─── Flight Seat Map overrides ───────────────────────────────────────────
    Must come AFTER the neobrutalist block so these !important rules win.   */
 .seat-btn-available {
-  background: rgba(15,23,42,0.7) !important;
-  border-color: #475569 !important;
-  color: #ffffff !important;
+  background: rgba(10, 20, 50, 0.85) !important;
+  border: 1px solid #3b82f6 !important;
+  color: #60a5fa !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
 }
 .seat-btn-available:hover {
-  border-color: #94a3b8 !important;
-  color: #ffffff !important;
+  background: rgba(59, 130, 246, 0.18) !important;
+  border-color: #93c5fd !important;
+  color: #bfdbfe !important;
+  transform: none !important;
 }
 .seat-btn-taken {
-  background: rgba(30,41,59,0.4) !important;
-  border-color: #334155 !important;
-  color: #94a3b8 !important;
+  background: rgba(10, 20, 50, 0.4) !important;
+  border: 1px solid #1e3a5f !important;
+  color: #1e3a5f !important;
   cursor: not-allowed !important;
+  box-shadow: none !important;
+  border-radius: 6px !important;
 }
 .seat-btn-selected {
   background: #facc15 !important;
-  border-color: #eab308 !important;
+  border: 2px solid #eab308 !important;
   color: #0f172a !important;
+  box-shadow: 0 0 8px rgba(250,204,21,0.4) !important;
+  border-radius: 6px !important;
 }
 /* ─────────────────────────────────────────────────────────────────────── */
 
