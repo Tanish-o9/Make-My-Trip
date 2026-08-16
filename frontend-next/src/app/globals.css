@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+/* ─── Phase 0: Design Tokens ──────────────────────────────────────── */
+@theme inline {
+  /* Colours */
+  --color-base:         #14162B;
+  --color-surface:      #1E2140;
+  --color-marigold:     #FF9F1C;
+  --color-teal:         #0FA3A0;
+  --color-chili:        #E63946;
+  --color-sand:         #F2E8CF;
+  --color-primary:      #F5F3EE;
+  --color-muted:        #A9ABC4;
+
+  /* Typography */
+  --font-display: "Space Grotesk", sans-serif;
+  --font-body:    "Inter", sans-serif;
+  --font-data:    "JetBrains Mono", monospace;
+
+  /* Radius */
+  --radius-sm:  8px;
+  --radius-md:  12px;
+  --radius-lg:  20px;
+}
+
+/* ─── Google Fonts ─────────────────────────────────────────────────── */
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap");
+
+/* ─── Base Resets ──────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-base);
+  color: var(--color-primary);
+  font-family: var(--font-body);
+  margin: 0;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Utility helpers (non-Tailwind tokens) ────────────────────────── */
+.font-display  { font-family: var(--font-display); }
+.font-body     { font-family: var(--font-body); }
+.font-data     { font-family: var(--font-data); }
+
+/* ─── 3D canvas overlay — sits behind content ──────────────────────── */
+#r3f-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ─── Page content sits above canvas ──────────────────────────────── */
+#page-root {
+  position: relative;
+  z-index: 1;
+}
+
+/* ─── Reduced motion: disable all transitions/animations globally ──── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ─── Scrollbar ────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-surface); border-radius: 999px; }
