@@ -205,7 +205,7 @@ header,
 .premium-btn-primary,
 button.bg-\[var\(--color-gold\)\],
 .bg-amber-500,
-.bg-yellow-400,
+.bg-yellow-400:not(.seat-btn-selected),
 input[type="submit"],
 .btn {
   background-color: var(--color-teal) !important;
@@ -241,35 +241,35 @@ input[type="submit"]:active {
 }
 
 /* Alternating light pastels for inactive category tabs inside search form */
-.flex-wrap button:not(.text-\[var\(--color-gold\)\]):nth-child(5n+1) {
+.flex-wrap button:not(.text-\[var\(--color-gold\)\]):not(.seat-btn-available):not(.seat-btn-taken):not(.seat-btn-selected):nth-child(5n+1) {
   background-color: #E3FAF0 !important; /* Light Green */
   color: #000000 !important;
   border: 3px solid #000000 !important;
   box-shadow: 3px 3px 0px #000000 !important;
   border-radius: var(--radius-inner) !important;
 }
-.flex-wrap button:not(.text-\[var\(--color-gold\)\]):nth-child(5n+2) {
+.flex-wrap button:not(.text-\[var\(--color-gold\)\]):not(.seat-btn-available):not(.seat-btn-taken):not(.seat-btn-selected):nth-child(5n+2) {
   background-color: #E3F2FD !important; /* Light Blue */
   color: #000000 !important;
   border: 3px solid #000000 !important;
   box-shadow: 3px 3px 0px #000000 !important;
   border-radius: var(--radius-inner) !important;
 }
-.flex-wrap button:not(.text-\[var\(--color-gold\)\]):nth-child(5n+3) {
+.flex-wrap button:not(.text-\[var\(--color-gold\)\]):not(.seat-btn-available):not(.seat-btn-taken):not(.seat-btn-selected):nth-child(5n+3) {
   background-color: #FFF3CD !important; /* Light Yellow */
   color: #000000 !important;
   border: 3px solid #000000 !important;
   box-shadow: 3px 3px 0px #000000 !important;
   border-radius: var(--radius-inner) !important;
 }
-.flex-wrap button:not(.text-\[var\(--color-gold\)\]):nth-child(5n+4) {
+.flex-wrap button:not(.text-\[var\(--color-gold\)\]):not(.seat-btn-available):not(.seat-btn-taken):not(.seat-btn-selected):nth-child(5n+4) {
   background-color: #FCE4EC !important; /* Light Pink */
   color: #000000 !important;
   border: 3px solid #000000 !important;
   box-shadow: 3px 3px 0px #000000 !important;
   border-radius: var(--radius-inner) !important;
 }
-.flex-wrap button:not(.text-\[var\(--color-gold\)\]):nth-child(5n) {
+.flex-wrap button:not(.text-\[var\(--color-gold\)\]):not(.seat-btn-available):not(.seat-btn-taken):not(.seat-btn-selected):nth-child(5n) {
   background-color: #F3E5F5 !important; /* Light Purple */
   color: #000000 !important;
   border: 3px solid #000000 !important;
