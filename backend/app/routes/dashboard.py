@@ -424,51 +424,65 @@ def get_dashboard_data(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    try:
-        check_and_generate_travel_reminders(db, current_user.id)
-    except Exception as exc:
-        logger.warning(f"Travel reminders skipped for user {current_user.id}: {exc}")
-    try:
-        auto_group_user_bookings(db, current_user.id)
-    except Exception as exc:
-        logger.warning(f"Auto-grouping skipped for user {current_user.id}: {exc}")
-    
+    # ── 1. Fetch all bookings ONCE and reuse everywhere ──────────────────────
+    all_bookings = get_all_user_bookings(db, current_user.id)
+
+    # ── 2. Background side-effects (non-blocking, skip if no bookings) ───────
+    if all_bookings:
+        try:
+            check_and_generate_travel_reminders(db, current_user.id)
+        except Exception as exc:
+            logger.warning(f"Travel reminders skipped for user {current_user.id}: {exc}")
+        try:
+            auto_group_user_bookings(db, current_user.id)
+        except Exception as exc:
+            logger.warning(f"Auto-grouping skipped for user {current_user.id}: {exc}")
+
+    # ── 3. User profile ───────────────────────────────────────────────────────
     profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
     full_name = profile.full_name if profile else current_user.email.split("@")[0].capitalize()
     first_name = full_name.split()[0] if full_name else "Traveler"
-    
+
     user_summary = {
         "first_name": first_name,
         "full_name": full_name,
         "email": current_user.email,
         "role": current_user.role
     }
-    
+
+    # ── 4. Wallet, loyalty, counts — single query each ───────────────────────
     wallet = db.query(WalletAccount).filter(WalletAccount.user_id == current_user.id).first()
     wallet_summary = {
         "balance": float(wallet.balance) if wallet else 0.0,
         "currency": wallet.currency if wallet else "INR"
     }
-    
+
     loyalty = db.query(LoyaltyAccount).filter(LoyaltyAccount.user_id == current_user.id).first()
     reward_points = loyalty.points_balance if loyalty else 0
-    
+
     wishlist_count = db.query(WishlistItem).filter(WishlistItem.user_id == current_user.id).count()
-    notification_count = db.query(Notification).filter(Notification.user_id == current_user.id, Notification.is_read == False).count()
-    
+    notification_count = db.query(Notification).filter(
+        Notification.user_id == current_user.id,
+        Notification.is_read == False
+    ).count()
+
+    # ── 5. Price alerts — from wishlist items (already queried above) ─────────
     wish_items = db.query(WishlistItem).filter(WishlistItem.user_id == current_user.id).all()
-    price_alerts_count = 0
-    for item in wish_items:
-        saved_price = float(item.snapshot_json.get("price", 0.0))
-        if saved_price > 0:
-            price_alerts_count += 1
-            
-    all_bookings = get_all_user_bookings(db, current_user.id)
+    price_alerts_count = sum(
+        1 for item in wish_items
+        if float((item.snapshot_json or {}).get("price", 0.0)) > 0
+    )
+
+    # ── 6. Recent bookings (already have all_bookings, just slice) ────────────
     recent_bookings = [serialize_booking(b) for b in all_bookings[:5]]
-    
+
+    # ── 7. Upcoming trip ──────────────────────────────────────────────────────
     now = datetime.datetime.utcnow().date()
-    trips = db.query(Trip).filter(Trip.user_id == current_user.id, Trip.is_archived == False).all()
-    
+    trips = db.query(Trip).filter(
+        Trip.user_id == current_user.id,
+        Trip.is_archived == False
+    ).all()
+
     upcoming_trip = None
     future_trips = [t for t in trips if t.start_date and t.start_date >= now]
     if future_trips:
@@ -476,11 +490,11 @@ def get_dashboard_data(
         t = future_trips[0]
         upcoming_bookings = []
         if t.booking_references:
+            booking_map = {b.booking_reference: b for b in all_bookings}
             for ref in t.booking_references:
-                for b in all_bookings:
-                    if b.booking_reference == ref:
-                        upcoming_bookings.append(serialize_booking(b))
-        
+                if ref in booking_map:
+                    upcoming_bookings.append(serialize_booking(booking_map[ref]))
+
         upcoming_trip = {
             "id": t.id,
             "name": t.name,
@@ -489,7 +503,7 @@ def get_dashboard_data(
             "end_date": t.end_date.isoformat() if t.end_date else None,
             "bookings": upcoming_bookings
         }
-        
+
     return {
         "user_summary": user_summary,
         "wallet_summary": wallet_summary,

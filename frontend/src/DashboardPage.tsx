@@ -88,22 +88,31 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
     setLoading(true);
     setError(null);
     setRetryCount(attempt - 1);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000); // 8s timeout
     try {
-      const res = await fetch(`${API_URL}/dashboard`, { headers: getHeaders() });
+      const res = await fetch(`${API_URL}/dashboard`, {
+        headers: getHeaders(),
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
       if (!res.ok) throw new Error(`Server returned ${res.status} — please retry.`);
       const resData = await res.json();
       setData(resData);
       setError(null);
       setRetryCount(0);
     } catch (err: any) {
-      if (attempt < 4) {
+      clearTimeout(timeout);
+      if (attempt < 3) {
         setRetryCount(attempt);
-        setTimeout(() => fetchDashboard(attempt + 1), 1800);
+        setTimeout(() => fetchDashboard(attempt + 1), 1000);
         return;
       }
-      const msg = err.message?.includes('Failed to fetch')
-        ? 'Cannot reach backend server. Make sure the backend is running on port 8000.'
-        : err.message || 'Dashboard load failed. Please retry.';
+      const msg = err.name === 'AbortError'
+        ? 'Dashboard load timed out. The backend might be slow — please retry.'
+        : err.message?.includes('Failed to fetch')
+          ? 'Cannot reach backend server. Make sure the backend is running on port 8000.'
+          : err.message || 'Dashboard load failed. Please retry.';
       setError(msg);
     } finally {
       setLoading(false);
