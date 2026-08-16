@@ -155,7 +155,7 @@ export default function Home() {
         <div className="flex flex-wrap gap-4 justify-start pt-2">
           <Button
             variant="primary-marigold"
-            onClick={() => window.location.href = "http://localhost:3000/"}
+            onClick={() => router.push("/search")}
             className="flex items-center gap-2"
           >
             Plan a trip <ArrowRight size={14} />

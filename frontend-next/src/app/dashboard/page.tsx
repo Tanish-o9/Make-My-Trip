@@ -36,12 +36,17 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
 
-  // Check auth and trigger fetches on mount
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+
+  // Check auth and trigger fetches on mount/token change
   useEffect(() => {
     const localToken = localStorage.getItem("token");
     if (!localToken) {
-      // Redirect to Vite app's login if token is missing
-      router.push("http://localhost:3000/");
+      setLoading(false);
+      setToken(null);
       return;
     }
     setToken(localToken);
@@ -52,8 +57,8 @@ export default function DashboardPage() {
       try {
         const [dashData, rewardsData, activeOffers] = await Promise.all([
           fetchDashboardData(localToken),
-          fetchRewardsData(localToken).catch(() => null), // fail-safe non-blocking
-          fetchActiveOffers(localToken).catch(() => []),   // fail-safe non-blocking
+          fetchRewardsData(localToken).catch(() => null),
+          fetchActiveOffers(localToken).catch(() => []),
         ]);
         setData(dashData);
         if (rewardsData) setRewards(rewardsData);
@@ -66,12 +71,54 @@ export default function DashboardPage() {
     };
 
     loadData();
-  }, [router]);
+  }, [token]);
+
+  const handleLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loginEmail || !loginPassword) {
+      setLoginError("Please enter email and password.");
+      return;
+    }
+    setLoginLoading(true);
+    setLoginError(null);
+
+    try {
+      const formBody = `username=${encodeURIComponent(loginEmail.trim())}&password=${encodeURIComponent(loginPassword)}`;
+      const res = await fetch("/api/auth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: formBody,
+      });
+
+      if (!res.ok) {
+        throw new Error("Invalid credentials. Use ankit@example.com / userpass123");
+      }
+
+      const tokenData = await res.json();
+      localStorage.setItem("token", tokenData.access_token);
+      localStorage.setItem("refresh_token", tokenData.refresh_token || "");
+      localStorage.setItem("user_role", tokenData.role || "user");
+      
+      setToken(tokenData.access_token);
+    } catch (err: any) {
+      setLoginError(err.message || "Connection failed.");
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  const handleDemoFill = () => {
+    setLoginEmail("ankit@example.com");
+    setLoginPassword("userpass123");
+  };
 
   // Logouts
   const handleLogout = () => {
     localStorage.removeItem("token");
-    router.push("http://localhost:3000/");
+    localStorage.removeItem("refresh_token");
+    localStorage.removeItem("user_role");
+    setToken(null);
+    setData(null);
   };
 
   if (loading) {
@@ -206,7 +253,7 @@ export default function DashboardPage() {
               ✈️ GHUMNE CHALE
             </span>
             <div className="hidden md:flex items-center gap-4 text-xs font-bold uppercase tracking-wider">
-              <a href="http://localhost:3000/" className="text-muted hover:text-[#F5F3EE] transition-colors">
+              <a href="/" className="text-muted hover:text-[#F5F3EE] transition-colors">
                 Explore
               </a>
               <span className="text-marigold border-b-2 border-marigold pb-1 px-1">
@@ -215,24 +262,94 @@ export default function DashboardPage() {
             </div>
           </div>
           
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 bg-surface border border-slate-800 px-3 py-1.5 rounded-full text-xs font-bold">
-              <Award size={14} className="text-marigold" />
-              <span className="text-muted">Tier:</span>
-              <span className="text-primary capitalize">{rewards?.level || "Silver"}</span>
+          {token && (
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 bg-surface border border-slate-800 px-3 py-1.5 rounded-full text-xs font-bold">
+                <Award size={14} className="text-marigold" />
+                <span className="text-muted">Tier:</span>
+                <span className="text-primary capitalize">{rewards?.level || "Silver"}</span>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="p-2 rounded-full bg-surface border border-slate-800 hover:border-chili text-muted hover:text-chili transition-colors cursor-pointer"
+                title="Sign Out"
+              >
+                <LogOut size={14} />
+              </button>
             </div>
-            <button
-              onClick={handleLogout}
-              className="p-2 rounded-full bg-surface border border-slate-800 hover:border-chili text-muted hover:text-chili transition-colors cursor-pointer"
-              title="Sign Out"
-            >
-              <LogOut size={14} />
-            </button>
-          </div>
+          )}
         </div>
       </nav>
 
-      <div className="max-w-7xl mx-auto px-4 md:px-8 mt-8 space-y-8">
+      {!token ? (
+        <div className="max-w-md mx-auto px-4 mt-16 space-y-6">
+          <Card variant="default" className="p-6 space-y-6 text-left border-slate-800 bg-surface/50 backdrop-blur-md">
+            <div className="text-center space-y-2">
+              <span className="font-display font-extrabold text-2xl tracking-wider text-primary uppercase">
+                ✈️ GHUMNE CHALE
+              </span>
+              <p className="text-[10px] text-muted font-bold uppercase tracking-wider">
+                Enter credentials to view bookings ledger
+              </p>
+            </div>
+
+            <form onSubmit={handleLoginSubmit} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-[10px] text-muted font-bold uppercase">Email Address</label>
+                <input
+                  type="email"
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                  className="w-full bg-[#111322] border border-slate-850 rounded-md px-3 py-2 text-xs text-primary focus:outline-none focus:border-marigold"
+                  placeholder="e.g. ankit@example.com"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] text-muted font-bold uppercase">Password</label>
+                <input
+                  type="password"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  className="w-full bg-[#111322] border border-slate-850 rounded-md px-3 py-2 text-xs text-primary focus:outline-none focus:border-marigold"
+                  placeholder="Enter password"
+                  required
+                />
+              </div>
+
+              {loginError && (
+                <div className="p-3 bg-chili/10 border border-chili/20 rounded-md text-chili text-[10px] font-bold">
+                  {loginError}
+                </div>
+              )}
+
+              <Button
+                variant="primary-marigold"
+                type="submit"
+                className="w-full text-center py-2.5 font-bold uppercase text-xs tracking-wider"
+                disabled={loginLoading}
+              >
+                {loginLoading ? "Opening Ledger..." : "Open bookings ledger"}
+              </Button>
+            </form>
+
+            <div className="border-t border-slate-850 pt-4 flex flex-col gap-2">
+              <span className="text-[9px] text-muted text-center font-semibold">
+                Don't have credentials? Use our simulated test account:
+              </span>
+              <Button
+                variant="ghost"
+                onClick={handleDemoFill}
+                className="w-full text-center text-[10px] text-teal border-slate-850"
+              >
+                Auto-fill Demo Account
+              </Button>
+            </div>
+          </Card>
+        </div>
+      ) : (
+        <div className="max-w-7xl mx-auto px-4 md:px-8 mt-8 space-y-8">
         {/* 2. Header band */}
         <div className="space-y-2 text-left">
           <Badge variant="upcoming">YOUR JOURNEY SO FAR</Badge>
@@ -307,7 +424,7 @@ export default function DashboardPage() {
         <div className="flex flex-wrap gap-4 justify-start pt-2">
           <Button
             variant="primary-marigold"
-            onClick={() => router.push("http://localhost:3000/")}
+            onClick={() => router.push("/search")}
             className="flex items-center gap-2"
           >
             Plan your next trip <ArrowRight size={14} />
@@ -388,7 +505,7 @@ export default function DashboardPage() {
                 <p className="text-xs font-semibold text-muted">Abhi tak koi trip nahi</p>
                 <Button
                   variant="secondary-teal"
-                  onClick={() => router.push("http://localhost:3000/")}
+                  onClick={() => router.push("/search")}
                 >
                   Plan a trip now
                 </Button>
@@ -450,7 +567,7 @@ export default function DashboardPage() {
               <div className="pt-2">
                 <Button
                   variant="ghost"
-                  onClick={() => router.push("http://localhost:3000/notifications")}
+                  onClick={() => router.push("/dashboard")}
                   className="w-full text-center border-slate-800 text-[10px] py-2"
                 >
                   Open Alerts Channel
@@ -475,6 +592,7 @@ export default function DashboardPage() {
         </div>
 
       </div>
+      )}
     </div>
   );
 }
