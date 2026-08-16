@@ -95,6 +95,12 @@
 }
 /* ─────────────────────────────────────────────────────────────────────── */
 
+/* Seat modal text - force white regardless of any global override */
+.seat-modal-white  { color: #ffffff !important; }
+.seat-modal-yellow { color: #facc15 !important; }
+.seat-modal-blue   { color: #60a5fa !important; }
+.seat-modal-muted  { color: #93c5fd !important; }
+
 .premium-card:hover {
   transform: translate(-2px, -2px) !important;
   box-shadow: var(--shadow-lg) !important;

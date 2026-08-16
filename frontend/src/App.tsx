@@ -3493,15 +3493,15 @@ function FlightsSearchForm({
                     </span>
                   )}
                 </div>
-                <p className="text-[10px] font-semibold mt-0.5" style={{color:'#ffffff'}}>{showFlightSeatModal.airlineName} {showFlightSeatModal.flightNumber}</p>
+                <p className="seat-modal-white text-[10px] font-semibold mt-0.5">{showFlightSeatModal.airlineName} {showFlightSeatModal.flightNumber}</p>
               </div>
               <button onClick={() => setShowFlightSeatModal(null)} style={{color:'#60a5fa', background:'none', border:'none', fontSize:'16px', cursor:'pointer', fontWeight:'bold'}}>✕</button>
             </div>
 
-            <div className="p-2 rounded-lg text-[10px] font-bold flex justify-between" style={{background:'rgba(30,64,175,0.12)', border:'1px solid #1e3a5f', color:'#93c5fd'}}>
-              <span>Window (A-C)</span>
-              <span style={{color:'#facc15'}}>✈️ Front of Aircraft</span>
-              <span>Window (D-F)</span>
+            <div className="p-2 rounded-lg text-[10px] font-bold flex justify-between" style={{background:'rgba(30,64,175,0.12)', border:'1px solid #1e3a5f'}}>
+              <span className="seat-modal-muted">Window (A-C)</span>
+              <span className="seat-modal-yellow">✈️ Front of Aircraft</span>
+              <span className="seat-modal-muted">Window (D-F)</span>
             </div>
 
             {loadingFlightSeats ? (
@@ -3518,7 +3518,7 @@ function FlightsSearchForm({
                     const cols = ["A", "B", "C", "D", "E", "F"];
                     return (
                       <div key={row} className="flex justify-between items-center gap-2">
-                        <span className="text-[10px] font-bold text-center" style={{color:'#93c5fd', minWidth:'12px'}}>{row}</span>
+                        <span className="seat-modal-muted text-[10px] font-bold text-center" style={{minWidth:'12px'}}>{row}</span>
                         <div className="flex-1 grid grid-cols-6 gap-1">
                           {cols.map((col, cIdx) => {
                             const seat = `${row}${col}`;
@@ -3568,9 +3568,9 @@ function FlightsSearchForm({
                   })}
                 </div>
 
-                <div className="pt-3 flex justify-between items-center text-xs font-bold" style={{borderTop:'1px solid #1e3a5f', color:'#ffffff'}}>
-                  <span style={{color:'#ffffff'}}>Selected: {selectedFlightSeats.length} / {passengers}</span>
-                  <span style={{color:'#facc15'}}>Seats: {selectedFlightSeats.join(", ") || "None"}</span>
+                <div className="pt-3 flex justify-between items-center text-xs font-bold" style={{borderTop:'1px solid #1e3a5f'}}>
+                  <span className="seat-modal-white">Selected: {selectedFlightSeats.length} / {passengers}</span>
+                  <span className="seat-modal-yellow">Seats: {selectedFlightSeats.join(", ") || "None"}</span>
                 </div>
 
                 <button 
