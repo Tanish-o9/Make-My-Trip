@@ -51,8 +51,33 @@ export default function Home() {
     </div>
   );
 
+  const schemaOrgData = {
+    "@context": "https://schema.org",
+    "@type": "TravelAgency",
+    "name": "Ghumne Chale",
+    "url": "http://localhost:3001",
+    "logo": "http://localhost:3001/next.svg",
+    "description": "Premium Flight & Hotel AI Trip Planner with 3D Ledger Pathways.",
+    "address": {
+      "@type": "PostalAddress",
+      "addressLocality": "New Delhi",
+      "addressCountry": "IN"
+    }
+  };
+
   return (
     <div className="min-h-screen bg-base text-primary font-body pb-12 flex flex-col justify-between">
+      {/* SEO & Meta Elements */}
+      <title>Ghumne Chale - Premium Flight & Hotel AI Trip Planner</title>
+      <meta name="description" content="AI-First Travel Planner with stunning 3D cosmic route ribbons. Book premium stays and flights instantly." />
+      <meta property="og:title" content="Ghumne Chale - Premium AI Trip Planner" />
+      <meta property="og:description" content="AI-First Travel Planner with stunning 3D cosmic route ribbons." />
+      <meta property="og:type" content="website" />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaOrgData) }}
+      />
+
       {/* Top Navbar */}
       <nav className="border-b border-slate-900 bg-base/80 backdrop-blur-md sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 md:px-8 h-16 flex items-center justify-between">

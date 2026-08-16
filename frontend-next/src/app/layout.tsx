@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { PerformanceGuard } from "@/context/PerformanceGuard";
 import { SceneProvider } from "@/context/SceneContext";
-import { PersistentCanvas } from "@/components/PersistentCanvas";
+import ClientCanvasWrapper from "@/components/ClientCanvasWrapper";
 
 export const metadata: Metadata = {
   title: "Ghumne Chale - Premium Flight & Hotel AI Trip Planner",
@@ -20,7 +20,7 @@ export default function RootLayout({
         <PerformanceGuard>
           <SceneProvider>
             {/* The single persistent R3F Canvas */}
-            <PersistentCanvas />
+            <ClientCanvasWrapper />
             
             {/* The DOM overlay where standard Next.js page content renders */}
             <div id="page-root">

@@ -21,23 +21,22 @@ interface Scene3DProps {
 }
 
 export function Scene3D({ id, sceneContent, fallback }: Scene3DProps) {
-  const { registerScene, clearScene } = useScene();
+  const { registerScene, clearScene, canvasError } = useScene();
   const { use3D, ready } = usePerformance();
 
   useEffect(() => {
-    if (use3D && ready) {
+    if (use3D && ready && !canvasError) {
       registerScene(id, sceneContent);
       return () => {
         clearScene(id);
       };
     }
-  }, [id, sceneContent, registerScene, clearScene, use3D, ready]);
+  }, [id, sceneContent, registerScene, clearScene, use3D, ready, canvasError]);
 
-  // If performance guard has run and determined 3D is disabled, render 2D fallback directly.
-  if (ready && !use3D) {
+  // Render 2D fallback directly if 3D is disabled or if R3F canvas crashed
+  if (ready && (!use3D || canvasError)) {
     return <>{fallback}</>;
   }
 
-  // Otherwise, don't render anything in the DOM (the content goes into the global persistent Canvas)
   return null;
 }

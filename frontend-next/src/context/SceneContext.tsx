@@ -32,15 +32,19 @@ interface SceneEntry {
 interface SceneCtx {
   activeScene: SceneEntry | null;
   transitioning: boolean;
+  canvasError: boolean;
   registerScene: (id: string, content: ReactElement) => void;
   clearScene: (id: string) => void;
+  setCanvasError: (val: boolean) => void;
 }
 
 const SceneContext = createContext<SceneCtx>({
   activeScene: null,
   transitioning: false,
+  canvasError: false,
   registerScene: () => {},
   clearScene: () => {},
+  setCanvasError: () => {},
 });
 
 export function useScene() {
@@ -50,15 +54,14 @@ export function useScene() {
 export function SceneProvider({ children }: { children: ReactNode }) {
   const [activeScene, setActiveScene] = useState<SceneEntry | null>(null);
   const [transitioning, setTransitioning] = useState(false);
+  const [canvasError, setCanvasError] = useState(false);
 
   const registerScene = useCallback(
     (id: string, content: ReactElement) => {
-      // If same scene re-registered, skip transition
       if (activeScene?.id === id) {
         setActiveScene({ id, content });
         return;
       }
-      // Crossfade: fade out current, swap, fade in
       setTransitioning(true);
       setTimeout(() => {
         setActiveScene({ id, content });
@@ -83,7 +86,14 @@ export function SceneProvider({ children }: { children: ReactNode }) {
 
   return (
     <SceneContext.Provider
-      value={{ activeScene, transitioning, registerScene, clearScene }}
+      value={{
+        activeScene,
+        transitioning,
+        canvasError,
+        registerScene,
+        clearScene,
+        setCanvasError,
+      }}
     >
       {children}
     </SceneContext.Provider>

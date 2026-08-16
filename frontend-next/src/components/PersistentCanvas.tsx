@@ -14,13 +14,14 @@ import { Canvas } from "@react-three/fiber";
 import { Suspense } from "react";
 import { useScene } from "@/context/SceneContext";
 import { usePerformance } from "@/context/PerformanceGuard";
+import { ErrorBoundary3D } from "./ErrorBoundary3D";
 
 export function PersistentCanvas() {
   const { use3D } = usePerformance();
-  const { activeScene, transitioning } = useScene();
+  const { activeScene, transitioning, canvasError, setCanvasError } = useScene();
 
-  // Don't mount Canvas at all when 3D is off
-  if (!use3D) return null;
+  // Don't mount Canvas at all when 3D is off or has crashed
+  if (!use3D || canvasError) return null;
 
   return (
     <div
@@ -41,7 +42,12 @@ export function PersistentCanvas() {
       >
         <ambientLight intensity={0.4} />
         <Suspense fallback={null}>
-          {activeScene?.content ?? null}
+          <ErrorBoundary3D
+            pageName={activeScene?.id || "unknown"}
+            setCanvasError={setCanvasError}
+          >
+            {activeScene?.content ?? null}
+          </ErrorBoundary3D>
         </Suspense>
       </Canvas>
     </div>

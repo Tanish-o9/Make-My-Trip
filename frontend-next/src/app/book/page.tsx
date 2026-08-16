@@ -108,6 +108,8 @@ export default function BookPage() {
 
   return (
     <div className="min-h-screen bg-base text-primary font-body pb-12">
+      <title>Book Flights & Hotels | Ghumne Chale</title>
+      <meta name="robots" content="noindex,nofollow" />
       {/* Top Navbar */}
       <nav className="border-b border-slate-900 bg-base/80 backdrop-blur-md sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
