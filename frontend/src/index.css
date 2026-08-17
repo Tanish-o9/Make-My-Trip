@@ -63,6 +63,31 @@
   transition: transform 0.15s ease, box-shadow 0.15s ease !important;
 }
 
+/* Ensure text inside neobrutalist light cards is visible (dark slate) */
+.premium-card [class*="text-slate-"],
+.premium-card [class*="text-gray-"],
+.premium-card .text-white,
+[class*="bg-[#131A29]"] [class*="text-slate-"],
+[class*="bg-[#131A29]"] [class*="text-gray-"],
+[class*="bg-[#131A29]"] .text-white,
+[class*="bg-[#1C2438]"] [class*="text-slate-"],
+[class*="bg-[#1C2438]"] [class*="text-gray-"],
+[class*="bg-[#1C2438]"] .text-white,
+[class*="bg-[#0B0E14]"] [class*="text-slate-"],
+[class*="bg-[#0B0E14]"] [class*="text-gray-"],
+[class*="bg-[#0B0E14]"] .text-white,
+[class*="bg-slate-900"] [class*="text-slate-"],
+[class*="bg-slate-900"] [class*="text-gray-"],
+[class*="bg-slate-900"] .text-white,
+[class*="bg-slate-800"] [class*="text-slate-"],
+[class*="bg-slate-800"] [class*="text-gray-"],
+[class*="bg-slate-800"] .text-white,
+[class*="bg-gray-900"] [class*="text-slate-"],
+[class*="bg-gray-900"] [class*="text-gray-"],
+[class*="bg-gray-900"] .text-white {
+  color: #1e293b !important;
+}
+
 /* ─── Flight Seat Map overrides ───────────────────────────────────────────
    Must come AFTER the neobrutalist block so these !important rules win.   */
 .seat-btn-available {
