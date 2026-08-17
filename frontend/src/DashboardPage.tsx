@@ -230,11 +230,11 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
           </div>
         </div>
 
-        {/* Dashboard Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Dashboard Content Container */}
+        <div className="space-y-6">
           
           {/* Main Content Column */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="space-y-6">
             
             {/* Next Upcoming Trip Card */}
             {upcoming_trip ? (
@@ -486,118 +486,6 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
             </div>
 
           </div>
-
-          {/* Right Sidebar Column */}
-          <div className="space-y-6">
-            
-            {/* Wallet & Rewards Card */}
-            <div className="bg-gradient-to-br from-[#1e1b4b] to-[#111827] border border-slate-600 p-6 rounded-3xl shadow-xl space-y-4 text-left">
-              <div className="flex justify-between items-center">
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">Wallet Summary</span>
-                <span className="flex items-center gap-1 text-[10px] bg-indigo-500/10 text-indigo-400 font-black px-2 py-0.5 rounded border border-indigo-500/20">
-                  <Award size={12} /> {rewardsData?.level || user_summary?.tier || 'Silver'} Member
-                </span>
-              </div>
-              
-              <div className="space-y-1">
-                <span className="text-2xl md:text-3xl font-mono font-black text-slate-100">
-                  ₹{wallet_summary?.balance?.toLocaleString() || '0'}
-                </span>
-                <span className="text-[10px] text-slate-500 font-semibold block">Available balance in your Wallet</span>
-              </div>
-
-              {/* Loyalty Rewards Display */}
-              <div className="border-t border-slate-800/80 pt-4 space-y-3">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-400 font-bold uppercase tracking-wider text-[9px]">Loyalty Points Balance</span>
-                  <span className="font-mono text-sm font-black text-yellow-400">
-                    {rewardsData?.points !== undefined ? rewardsData.points : (reward_points || 0)} pts
-                  </span>
-                </div>
-
-                {/* Progress Bar */}
-                <div className="space-y-1">
-                  <div className="flex justify-between text-[9px] font-bold text-slate-400 uppercase">
-                    <span>Level: {rewardsData?.level || 'Explorer'}</span>
-                    {rewardsData?.next_level && <span>Next Level: {rewardsData.next_level}</span>}
-                  </div>
-                  <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-gradient-to-r from-yellow-500 to-amber-400 transition-all duration-500"
-                      style={{ width: `${rewardsData?.progress || 0}%` }}
-                    />
-                  </div>
-                  <div className="text-[8px] text-slate-500 text-right font-semibold">
-                    {rewardsData?.progress || 0}% progress to next tier
-                  </div>
-                </div>
-
-                {/* Loyalty Transaction History */}
-                {rewardsData?.history && rewardsData.history.length > 0 && (
-                  <div className="space-y-1.5 mt-2">
-                    <span className="text-[9px] text-slate-500 uppercase tracking-wider block font-bold">Transaction History</span>
-                    <div className="max-h-24 overflow-y-auto space-y-1 pr-1">
-                      {rewardsData.history.map((tx: any, idx: number) => (
-                        <div key={idx} className="flex justify-between items-center text-[10px] bg-slate-950/40 p-1.5 rounded-lg border border-slate-900/60">
-                          <span className="text-slate-300 font-medium truncate max-w-[140px]" title={tx.description}>
-                            {tx.description}
-                          </span>
-                          <span className="text-slate-500 font-mono text-[8px]">
-                            {tx.created_at ? new Date(tx.created_at).toLocaleDateString() : 'Recent'}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="border-t border-slate-800/80 pt-4 flex justify-between items-center">
-                <button
-                  onClick={() => setActiveTab('wallet')}
-                  className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase rounded-lg border border-black shadow-[2px_2px_0px_0px_#000000] transition-all cursor-pointer"
-                >
-                  Manage Wallet
-                </button>
-              </div>
-            </div>
-
-            {/* Notifications Telemetry Teaser */}
-            <div className="bg-[#111827] border border-slate-700 p-6 rounded-3xl shadow-xl space-y-4 text-left">
-              <div className="flex justify-between items-center border-b border-slate-700 pb-3">
-                <span className="text-xs font-black uppercase tracking-wider text-white">Live Telemetry Alerts</span>
-                {unread_notification_count > 0 && (
-                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse border border-black" />
-                )}
-              </div>
-              
-              <div className="space-y-2">
-                <p className="text-[11px] text-slate-400 font-semibold leading-relaxed">
-                  You have <span className="text-rose-400 font-black">{unread_notification_count || 0} unread</span> alerts in your live telemetry channel.
-                </p>
-                <button 
-                  onClick={() => onNavigate('/notifications')}
-                  className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-black uppercase rounded-xl border border-slate-700 transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                >
-                  Open Notifications Hub <ChevronRight size={12} />
-                </button>
-              </div>
-            </div>
-
-            {/* Wishlist & Price Alerts */}
-            <div className="bg-[#111827] border border-slate-700 p-6 rounded-3xl shadow-xl space-y-4 text-left">
-              <div className="flex justify-between items-center border-b border-slate-700 pb-3">
-                <span className="text-xs font-black uppercase tracking-wider text-white">Active Price Alerts</span>
-                <span className="font-mono text-xs font-black text-yellow-400">{active_price_alerts_count || 0}</span>
-              </div>
-              
-              <p className="text-[11px] text-slate-400 font-semibold leading-relaxed">
-                Smart agents are monitoring ticket price swings across your wishlist. We'll alert you on drop events.
-              </p>
-            </div>
-
-          </div>
-
         </div>
 
       </div>
