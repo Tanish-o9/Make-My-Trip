@@ -561,6 +561,87 @@ def startup_db_seed():
                         """))
                         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_trips_user_id ON trips (user_id);"))
                         conn.commit()
+
+                        # ALTER trips table for collaborative extensions
+                        conn.execute(text("ALTER TABLE trips ADD COLUMN IF NOT EXISTS description TEXT;"))
+                        conn.execute(text("ALTER TABLE trips ADD COLUMN IF NOT EXISTS cover_image_url VARCHAR(500);"))
+                        conn.execute(text("ALTER TABLE trips ADD COLUMN IF NOT EXISTS trip_type VARCHAR(50) DEFAULT 'Friends';"))
+                        conn.execute(text("ALTER TABLE trips ADD COLUMN IF NOT EXISTS budget NUMERIC(12, 2) DEFAULT 0.0;"))
+                        conn.execute(text("ALTER TABLE trips ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'active';"))
+                        conn.commit()
+
+                        # Create collaborative workspace tables
+                        conn.execute(text("""
+                            CREATE TABLE IF NOT EXISTS trip_activities (
+                                id SERIAL PRIMARY KEY,
+                                trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+                                title VARCHAR(255) NOT NULL,
+                                date DATE NOT NULL,
+                                start_time VARCHAR(50) NOT NULL,
+                                end_time VARCHAR(50),
+                                location VARCHAR(255),
+                                description TEXT,
+                                estimated_cost NUMERIC(12, 2) DEFAULT 0.0,
+                                category VARCHAR(50) NOT NULL DEFAULT 'Other',
+                                assigned_member_id INTEGER REFERENCES users(id) ON DELETE SET NULL
+                            );
+                        """))
+                        conn.execute(text("""
+                            CREATE TABLE IF NOT EXISTS trip_tasks (
+                                id SERIAL PRIMARY KEY,
+                                trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+                                title VARCHAR(255) NOT NULL,
+                                description TEXT,
+                                assignee_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                                due_date DATE,
+                                priority VARCHAR(20) NOT NULL DEFAULT 'MEDIUM',
+                                status VARCHAR(20) NOT NULL DEFAULT 'TODO'
+                            );
+                        """))
+                        conn.execute(text("""
+                            CREATE TABLE IF NOT EXISTS trip_polls (
+                                id SERIAL PRIMARY KEY,
+                                trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+                                question VARCHAR(512) NOT NULL,
+                                created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                                is_closed BOOLEAN NOT NULL DEFAULT FALSE,
+                                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+                            );
+                        """))
+                        conn.execute(text("""
+                            CREATE TABLE IF NOT EXISTS trip_poll_options (
+                                id SERIAL PRIMARY KEY,
+                                poll_id INTEGER NOT NULL REFERENCES trip_polls(id) ON DELETE CASCADE,
+                                option_text VARCHAR(255) NOT NULL
+                            );
+                        """))
+                        conn.execute(text("""
+                            CREATE TABLE IF NOT EXISTS trip_poll_votes (
+                                id SERIAL PRIMARY KEY,
+                                poll_id INTEGER NOT NULL REFERENCES trip_polls(id) ON DELETE CASCADE,
+                                option_id INTEGER NOT NULL REFERENCES trip_poll_options(id) ON DELETE CASCADE,
+                                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE
+                            );
+                        """))
+                        conn.execute(text("""
+                            CREATE TABLE IF NOT EXISTS trip_messages (
+                                id SERIAL PRIMARY KEY,
+                                trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+                                sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                                message TEXT NOT NULL,
+                                timestamp TIMESTAMP NOT NULL DEFAULT NOW()
+                            );
+                        """))
+                        conn.execute(text("""
+                            CREATE TABLE IF NOT EXISTS trip_activity_logs (
+                                id SERIAL PRIMARY KEY,
+                                trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+                                actor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                                action VARCHAR(512) NOT NULL,
+                                timestamp TIMESTAMP NOT NULL DEFAULT NOW()
+                            );
+                        """))
+                        conn.commit()
                         conn.execute(text("""
                             CREATE TABLE IF NOT EXISTS notification_deliveries (
                                 id SERIAL PRIMARY KEY,

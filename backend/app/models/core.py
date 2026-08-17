@@ -343,6 +343,9 @@ class Trip(Base):
     booking_references: Mapped[Optional[dict]] = mapped_column(JSON, default=list, nullable=True) # JSON list of strings
     budget: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), default=0.0, nullable=True)
     status: Mapped[Optional[str]] = mapped_column(String(50), default="active", nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    cover_image_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    trip_type: Mapped[Optional[str]] = mapped_column(String(50), default="Friends", nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=False
@@ -418,5 +421,104 @@ class TripExpenseSplit(Base):
 
     expense = relationship("TripExpense", back_populates="splits")
     user = relationship("User")
+
+
+class TripActivity(Base):
+    __tablename__ = "trip_activities"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    trip_id: Mapped[int] = mapped_column(Integer, ForeignKey("trips.id", ondelete="CASCADE"), index=True, nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    date: Mapped[datetime.date] = mapped_column(Date, nullable=False)
+    start_time: Mapped[str] = mapped_column(String(50), nullable=False) # e.g. "10:00 AM"
+    end_time: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    location: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    estimated_cost: Mapped[float] = mapped_column(Numeric(12, 2), default=0.0, nullable=False)
+    category: Mapped[str] = mapped_column(String(50), default="Other", nullable=False) # Flight, Hotel, Food, Sightseeing, Transport, Activity, Other
+    assigned_member_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    trip = relationship("Trip")
+    assigned_member = relationship("User")
+
+
+class TripTask(Base):
+    __tablename__ = "trip_tasks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    trip_id: Mapped[int] = mapped_column(Integer, ForeignKey("trips.id", ondelete="CASCADE"), index=True, nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    assignee_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    due_date: Mapped[Optional[datetime.date]] = mapped_column(Date, nullable=True)
+    priority: Mapped[str] = mapped_column(String(20), default="MEDIUM", nullable=False) # LOW, MEDIUM, HIGH
+    status: Mapped[str] = mapped_column(String(20), default="TODO", nullable=False) # TODO, IN PROGRESS, DONE
+
+    trip = relationship("Trip")
+    assignee = relationship("User")
+
+
+class TripPoll(Base):
+    __tablename__ = "trip_polls"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    trip_id: Mapped[int] = mapped_column(Integer, ForeignKey("trips.id", ondelete="CASCADE"), index=True, nullable=False)
+    question: Mapped[str] = mapped_column(String(512), nullable=False)
+    created_by: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    is_closed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+
+    trip = relationship("Trip")
+    creator = relationship("User")
+    options = relationship("TripPollOption", back_populates="poll", cascade="all, delete-orphan")
+
+
+class TripPollOption(Base):
+    __tablename__ = "trip_poll_options"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    poll_id: Mapped[int] = mapped_column(Integer, ForeignKey("trip_polls.id", ondelete="CASCADE"), index=True, nullable=False)
+    option_text: Mapped[str] = mapped_column(String(255), nullable=False)
+
+    poll = relationship("TripPoll", back_populates="options")
+
+
+class TripPollVote(Base):
+    __tablename__ = "trip_poll_votes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    poll_id: Mapped[int] = mapped_column(Integer, ForeignKey("trip_polls.id", ondelete="CASCADE"), index=True, nullable=False)
+    option_id: Mapped[int] = mapped_column(Integer, ForeignKey("trip_poll_options.id", ondelete="CASCADE"), index=True, nullable=False)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+
+    poll = relationship("TripPoll")
+    option = relationship("TripPollOption")
+    user = relationship("User")
+
+
+class TripMessage(Base):
+    __tablename__ = "trip_messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    trip_id: Mapped[int] = mapped_column(Integer, ForeignKey("trips.id", ondelete="CASCADE"), index=True, nullable=False)
+    sender_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    timestamp: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+
+    trip = relationship("Trip")
+    sender = relationship("User")
+
+
+class TripActivityLog(Base):
+    __tablename__ = "trip_activity_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    trip_id: Mapped[int] = mapped_column(Integer, ForeignKey("trips.id", ondelete="CASCADE"), index=True, nullable=False)
+    actor_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    action: Mapped[str] = mapped_column(String(512), nullable=False)
+    timestamp: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+
+    trip = relationship("Trip")
+    actor = relationship("User")
 
 

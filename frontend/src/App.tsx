@@ -1610,7 +1610,10 @@ export default function App() {
               selectedGroupTripId ? (
                 <GroupTripDashboard
                   tripId={selectedGroupTripId}
-                  currentUserId={1}
+                  currentUserId={(() => {
+                    const decoded = token ? decodeJwt(token) : null;
+                    return decoded?.id || 1;
+                  })()}
                   token={token || ''}
                   onBack={() => setSelectedGroupTripId(null)}
                 />
