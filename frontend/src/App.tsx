@@ -89,16 +89,164 @@ const TRIP_GRADIENTS = [
 ];
 const TRIP_EMOJIS = ['🏖️','🏔️','🗼','🌴','🎡','🗺️','🏕️','✈️','🚢','🌅'];
 
+// ── Popular Indian destination dataset ──────────────────────────────────────
+const INDIA_DESTINATIONS = [
+  { name: 'Goa', state: 'Goa', country: 'India', lat: 15.4909, lng: 73.8278 },
+  { name: 'Mumbai', state: 'Maharashtra', country: 'India', lat: 19.0760, lng: 72.8777 },
+  { name: 'Delhi', state: 'Delhi', country: 'India', lat: 28.6139, lng: 77.2090 },
+  { name: 'New Delhi', state: 'Delhi', country: 'India', lat: 28.6139, lng: 77.2090 },
+  { name: 'Jaipur', state: 'Rajasthan', country: 'India', lat: 26.9124, lng: 75.7873 },
+  { name: 'Udaipur', state: 'Rajasthan', country: 'India', lat: 24.5854, lng: 73.7125 },
+  { name: 'Manali', state: 'Himachal Pradesh', country: 'India', lat: 32.2432, lng: 77.1892 },
+  { name: 'Shimla', state: 'Himachal Pradesh', country: 'India', lat: 31.1048, lng: 77.1734 },
+  { name: 'Rishikesh', state: 'Uttarakhand', country: 'India', lat: 30.0869, lng: 78.2676 },
+  { name: 'Varanasi', state: 'Uttar Pradesh', country: 'India', lat: 25.3176, lng: 82.9739 },
+  { name: 'Agra', state: 'Uttar Pradesh', country: 'India', lat: 27.1767, lng: 78.0081 },
+  { name: 'Bengaluru', state: 'Karnataka', country: 'India', lat: 12.9716, lng: 77.5946 },
+  { name: 'Hyderabad', state: 'Telangana', country: 'India', lat: 17.3850, lng: 78.4867 },
+  { name: 'Chennai', state: 'Tamil Nadu', country: 'India', lat: 13.0827, lng: 80.2707 },
+  { name: 'Kolkata', state: 'West Bengal', country: 'India', lat: 22.5726, lng: 88.3639 },
+  { name: 'Pune', state: 'Maharashtra', country: 'India', lat: 18.5204, lng: 73.8567 },
+  { name: 'Amritsar', state: 'Punjab', country: 'India', lat: 31.6340, lng: 74.8723 },
+  { name: 'Mysuru', state: 'Karnataka', country: 'India', lat: 12.2958, lng: 76.6394 },
+  { name: 'Jaisalmer', state: 'Rajasthan', country: 'India', lat: 26.9157, lng: 70.9083 },
+  { name: 'Srinagar', state: 'Jammu & Kashmir', country: 'India', lat: 34.0837, lng: 74.7973 },
+  { name: 'Leh', state: 'Ladakh', country: 'India', lat: 34.1526, lng: 77.5770 },
+  { name: 'Darjeeling', state: 'West Bengal', country: 'India', lat: 27.0360, lng: 88.2627 },
+  { name: 'Ooty', state: 'Tamil Nadu', country: 'India', lat: 11.4102, lng: 76.6950 },
+  { name: 'Gokarna', state: 'Karnataka', country: 'India', lat: 14.5479, lng: 74.3188 },
+  { name: 'Andaman', state: 'Andaman & Nicobar', country: 'India', lat: 11.7401, lng: 92.6586 },
+  { name: 'Pondicherry', state: 'Puducherry', country: 'India', lat: 11.9416, lng: 79.8083 },
+  { name: 'Coorg', state: 'Karnataka', country: 'India', lat: 12.3375, lng: 75.8069 },
+  { name: 'Munnar', state: 'Kerala', country: 'India', lat: 10.0889, lng: 77.0595 },
+  { name: 'Alleppey', state: 'Kerala', country: 'India', lat: 9.4981, lng: 76.3388 },
+  { name: 'Kasol', state: 'Himachal Pradesh', country: 'India', lat: 32.0114, lng: 77.3140 },
+  { name: 'Spiti Valley', state: 'Himachal Pradesh', country: 'India', lat: 32.2461, lng: 78.0338 },
+  { name: 'Ranthambore', state: 'Rajasthan', country: 'India', lat: 25.9760, lng: 76.5050 },
+  { name: 'Gorakhpur', state: 'Uttar Pradesh', country: 'India', lat: 26.7606, lng: 83.3732 },
+  { name: 'Guwahati', state: 'Assam', country: 'India', lat: 26.1445, lng: 91.7362 },
+  { name: 'Shillong', state: 'Meghalaya', country: 'India', lat: 25.5788, lng: 91.8933 },
+  { name: 'Aizawl', state: 'Mizoram', country: 'India', lat: 23.7271, lng: 92.7176 },
+  { name: 'Gangtok', state: 'Sikkim', country: 'India', lat: 27.3389, lng: 88.6065 },
+  { name: 'Haridwar', state: 'Uttarakhand', country: 'India', lat: 29.9457, lng: 78.1642 },
+  { name: 'Nainital', state: 'Uttarakhand', country: 'India', lat: 29.3919, lng: 79.4542 },
+  { name: 'Mussoorie', state: 'Uttarakhand', country: 'India', lat: 30.4598, lng: 78.0664 },
+];
+
+function DestinationAutocomplete({ value, onChange }: { value: string; onChange: (name: string) => void }) {
+  const [query, setQuery] = useState(value);
+  const [suggestions, setSuggestions] = useState<typeof INDIA_DESTINATIONS>([]);
+  const [show, setShow] = useState(false);
+  const [highlightIdx, setHighlightIdx] = useState(-1);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  // Filter suggestions on query change
+  useEffect(() => {
+    if (query.length < 2) { setSuggestions([]); setShow(false); return; }
+    const q = query.toLowerCase().trim();
+    const filtered = INDIA_DESTINATIONS.filter(d =>
+      d.name.toLowerCase().includes(q) || d.state.toLowerCase().includes(q)
+    ).slice(0, 6);
+    setSuggestions(filtered);
+    setShow(filtered.length > 0);
+    setHighlightIdx(-1);
+  }, [query]);
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setShow(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const select = (dest: typeof INDIA_DESTINATIONS[0]) => {
+    setQuery(dest.name);
+    onChange(dest.name);
+    setShow(false);
+  };
+
+  const handleKey = (e: React.KeyboardEvent) => {
+    if (!show) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); setHighlightIdx(i => Math.min(i + 1, suggestions.length - 1)); }
+    if (e.key === 'ArrowUp') { e.preventDefault(); setHighlightIdx(i => Math.max(i - 1, 0)); }
+    if (e.key === 'Enter' && highlightIdx >= 0) { e.preventDefault(); select(suggestions[highlightIdx]); }
+    if (e.key === 'Escape') setShow(false);
+  };
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <input
+        type="text"
+        placeholder="e.g. Goa, Manali, Mumbai…"
+        value={query}
+        required
+        onChange={e => { setQuery(e.target.value); onChange(e.target.value); }}
+        onFocus={() => { if (query.length >= 2 && suggestions.length > 0) setShow(true); }}
+        onKeyDown={handleKey}
+        className="w-full rounded-lg px-3 py-2.5 text-sm text-white border border-slate-700 focus:border-purple-500 outline-none transition-colors"
+        style={{ background: 'rgba(255,255,255,0.04)' }}
+        autoComplete="off"
+      />
+      {show && (
+        <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-xl border border-slate-700 overflow-hidden shadow-2xl"
+          style={{ background: '#0d1829' }}>
+          {suggestions.map((d, i) => (
+            <div
+              key={d.name + d.state}
+              className={`px-3 py-2.5 cursor-pointer flex items-start gap-2 transition-colors ${i === highlightIdx ? 'bg-purple-900/40' : 'hover:bg-white/5'}`}
+              onMouseDown={() => select(d)}
+            >
+              <span className="text-purple-400 mt-0.5 flex-shrink-0">📍</span>
+              <div>
+                <div className="text-white text-sm font-semibold">{d.name}</div>
+                <div className="text-slate-500 text-[11px]">{d.state}, {d.country}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {query.length >= 2 && suggestions.length === 0 && (
+        <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-xl border border-slate-700 px-4 py-3 text-slate-400 text-xs"
+          style={{ background: '#0d1829' }}>
+          No results for "<span className="text-white">{query}</span>". You can still use this destination.
+        </div>
+      )}
+    </div>
+  );
+}
+
 function GroupTripsList({ token, onSelectTrip }: { token: string; onSelectTrip: (id: number) => void }) {
   const [trips, setTrips] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  // Modal form state
   const [name, setName] = useState('');
   const [destination, setDestination] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [budget, setBudget] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [tripType, setTripType] = useState('Friends');
+  const [friendEmails, setFriendEmails] = useState<string[]>(['', '']);
   const [creating, setCreating] = useState(false);
-  const [showModal, setShowModal] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+  // Derived: duration
+  const duration = React.useMemo(() => {
+    if (!startDate || !endDate) return null;
+    const diff = Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000);
+    return diff > 0 ? diff : null;
+  }, [startDate, endDate]);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const fetchTrips = async () => {
     try {
@@ -106,43 +254,79 @@ function GroupTripsList({ token, onSelectTrip }: { token: string; onSelectTrip: 
       const res = await fetch('http://localhost:8000/api/v1/trips', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (res.ok) {
-        const data = await res.json();
-        setTrips(data);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+      if (res.ok) setTrips(await res.json());
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
   };
 
   useEffect(() => { fetchTrips(); }, [token]);
 
+  const resetModal = () => {
+    setName(''); setDestination(''); setStartDate(''); setEndDate('');
+    setBudget(''); setTripType('Friends');
+    setFriendEmails(['', '']); setFormError(null);
+  };
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
+
+    // Validation
+    if (!name.trim()) { setFormError('Trip name is required.'); return; }
+    if (!destination.trim()) { setFormError('Destination is required.'); return; }
+    if (startDate && endDate && endDate < startDate) {
+      setFormError('End date cannot be before start date.'); return;
+    }
+
     setCreating(true);
     try {
       const res = await fetch('http://localhost:8000/api/v1/trips', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
-          name, destination,
+          name: name.trim(),
+          destination: destination.trim(),
           start_date: startDate || null,
           end_date: endDate || null,
-          budget: budget ? parseFloat(budget) : null,
+          budget: budget ? parseFloat(budget) : 0,
+          trip_type: tripType,
           booking_references: []
         })
       });
-      if (res.ok) {
-        const newTrip = await res.json();
-        setName(''); setDestination(''); setStartDate(''); setEndDate(''); setBudget('');
-        setShowModal(false);
-        await fetchTrips();
-        onSelectTrip(newTrip.id);
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        setFormError(errData.detail || 'Unable to create trip. Please try again.');
+        return;
       }
-    } catch (err) { console.error(err); }
-    finally { setCreating(false); }
+
+      const newTrip = await res.json();
+      if (!newTrip?.id) { setFormError('Unexpected server response. Please try again.'); return; }
+
+      // Optionally send invites (fire & forget — no block)
+      const validEmails = friendEmails.filter(e => e.trim() && /\S+@\S+\.\S+/.test(e.trim()));
+      for (const email of validEmails) {
+        fetch(`http://localhost:8000/api/v1/trips/${newTrip.id}/invite`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ email })
+        }).catch(() => {});
+      }
+
+      setShowModal(false);
+      resetModal();
+      showToast('🎉 Group trip created successfully!');
+
+      // Refresh list then navigate
+      await fetchTrips();
+      onSelectTrip(newTrip.id);
+
+    } catch (err) {
+      console.error('[CreateTrip]', err);
+      setFormError('Network error. Please check your connection.');
+    } finally {
+      setCreating(false);
+    }
   };
 
   const getDays = (s: string, e: string) => {
@@ -162,6 +346,14 @@ function GroupTripsList({ token, onSelectTrip }: { token: string; onSelectTrip: 
 
   return (
     <div className="min-h-full w-full" style={{ fontFamily: "'Inter', sans-serif" }}>
+
+      {/* ── Toast notification ── */}
+      {toast && (
+        <div className="fixed top-6 right-6 z-[100] px-5 py-3 rounded-xl text-sm font-bold text-white shadow-2xl border border-emerald-700/50"
+          style={{ background: 'linear-gradient(135deg,#065f46,#064e3b)', animation: 'fadeIn 0.3s ease' }}>
+          {toast}
+        </div>
+      )}
 
       {/* ── Hero Banner ── */}
       <div className="relative overflow-hidden rounded-2xl mb-8 p-8"
@@ -191,7 +383,7 @@ function GroupTripsList({ token, onSelectTrip }: { token: string; onSelectTrip: 
           <div className="relative z-10 mt-6 grid grid-cols-3 gap-4">
             {[
               { label: 'Total Trips', value: trips.length, icon: '🗺️' },
-              { label: 'Destinations', value: new Set(trips.map((t:any)=>t.destination)).size, icon: '📍' },
+              { label: 'Destinations', value: new Set(trips.map((t:any) => t.destination)).size, icon: '📍' },
               { label: 'Active', value: trips.filter((t:any) => !t.end_date || new Date(t.end_date) >= new Date()).length, icon: '🟢' },
             ].map(s => (
               <div key={s.label} className="bg-white/5 border border-white/10 rounded-xl p-3 text-center backdrop-blur-sm">
@@ -234,37 +426,40 @@ function GroupTripsList({ token, onSelectTrip }: { token: string; onSelectTrip: 
                 style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.4)' }}
                 onClick={() => onSelectTrip(t.id)}
               >
-                {/* Card Header */}
                 <div className="p-5 pb-3">
                   <div className="flex items-start justify-between mb-3">
                     <span className="text-4xl">{emoji}</span>
-                    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide border ${isPast ? 'text-slate-400 border-slate-700 bg-slate-900/50' : 'text-emerald-400 border-emerald-700/50 bg-emerald-900/30'}`}>
-                      {isPast ? 'Completed' : 'Active'}
-                    </span>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide border ${isPast ? 'text-slate-400 border-slate-700 bg-slate-900/50' : 'text-emerald-400 border-emerald-700/50 bg-emerald-900/30'}`}>
+                        {isPast ? 'Completed' : 'Active'}
+                      </span>
+                      {t.trip_type && (
+                        <span className="text-[10px] text-purple-400 font-semibold">{t.trip_type}</span>
+                      )}
+                    </div>
                   </div>
                   <h3 className="font-black text-white text-lg leading-tight mb-1">{t.name}</h3>
                   <p className="text-slate-300 text-xs flex items-center gap-1.5">
                     <span>📍</span>{t.destination}
                   </p>
                 </div>
-
-                {/* Card Body */}
                 <div className="px-5 pb-4 space-y-2">
                   <div className="flex items-center gap-4 text-[11px] text-slate-400">
                     {t.start_date && <span>📅 {new Date(t.start_date).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</span>}
                     {days && <span className="text-purple-400 font-bold">{days}d</span>}
                   </div>
-                  {t.budget && (
+                  {t.budget > 0 && (
                     <div className="text-[11px] text-slate-400">
                       💰 Budget: <span className="text-white font-bold">₹{Number(t.budget).toLocaleString('en-IN')}</span>
                     </div>
                   )}
+                  <div className="text-[11px] text-slate-500">
+                    👥 {t.member_count || 1} member{(t.member_count || 1) > 1 ? 's' : ''}
+                  </div>
                 </div>
-
-                {/* Card Footer CTA */}
                 <div className="border-t border-white/10 px-5 py-3 flex items-center justify-between">
                   <div className="flex -space-x-1.5">
-                    {[...Array(Math.min(3, (t.members_count||1)))].map((_,i)=>(
+                    {[...Array(Math.min(3, (t.member_count||1)))].map((_,i)=>(
                       <div key={i} className="w-6 h-6 rounded-full border-2 border-slate-800 flex items-center justify-center text-[10px] font-bold"
                         style={{ background: `hsl(${(i*80+idx*40)%360},60%,45%)` }}>
                         {String.fromCharCode(65+i)}
@@ -295,67 +490,172 @@ function GroupTripsList({ token, onSelectTrip }: { token: string; onSelectTrip: 
 
       {/* ── Create Trip Modal ── */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)' }}>
-          <div className="w-full max-w-md rounded-2xl border border-slate-700 p-6 shadow-2xl"
-            style={{ background: 'linear-gradient(135deg,#0f1629 0%,#0a1020 100%)' }}
-            onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-5">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.80)', backdropFilter: 'blur(10px)' }}
+          onClick={() => { if (!creating) { setShowModal(false); resetModal(); } }}
+        >
+          <div
+            className="w-full max-w-lg rounded-2xl border border-slate-700 shadow-2xl overflow-hidden"
+            style={{ background: 'linear-gradient(160deg,#0f1629 0%,#080f1e 100%)', maxHeight: '90vh', overflowY: 'auto' }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-slate-800"
+              style={{ background: 'linear-gradient(160deg,#0f1629,#080f1e)' }}>
               <div>
-                <h3 className="text-lg font-black text-white">Create Group Trip</h3>
-                <p className="text-xs text-slate-400 mt-0.5">Set up your shared travel workspace</p>
+                <h3 className="text-lg font-black text-white">✈️ Create Group Trip</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Fill in details and invite your friends</p>
               </div>
-              <button onClick={() => setShowModal(false)} className="text-slate-500 hover:text-white text-xl leading-none cursor-pointer transition-colors">✕</button>
+              <button
+                type="button"
+                onClick={() => { if (!creating) { setShowModal(false); resetModal(); } }}
+                className="text-slate-500 hover:text-white text-xl leading-none cursor-pointer transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10"
+              >✕</button>
             </div>
 
-            <form onSubmit={handleCreate} className="space-y-4">
-              {[
-                { label: '✈️ Trip Name', placeholder: 'e.g. Goa Trip 2025', val: name, set: setName, required: true },
-                { label: '📍 Destination', placeholder: 'e.g. Goa, India', val: destination, set: setDestination, required: true },
-              ].map(f => (
-                <div key={f.label}>
-                  <label className="text-xs font-bold text-slate-400 block mb-1.5">{f.label}</label>
-                  <input
-                    type="text" placeholder={f.placeholder} value={f.val} required={f.required}
-                    onChange={e => f.set(e.target.value)}
-                    className="w-full rounded-lg px-3 py-2.5 text-sm text-white border border-slate-700 focus:border-purple-500 outline-none transition-colors"
-                    style={{ background: 'rgba(255,255,255,0.04)' }}
-                  />
-                </div>
-              ))}
+            <form onSubmit={handleCreate} className="px-6 py-5 space-y-4">
 
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  { label: '📅 Start Date', val: startDate, set: setStartDate },
-                  { label: '🏁 End Date', val: endDate, set: setEndDate },
-                ].map(f => (
-                  <div key={f.label}>
-                    <label className="text-xs font-bold text-slate-400 block mb-1.5">{f.label}</label>
-                    <input
-                      type="date" value={f.val}
-                      onChange={e => f.set(e.target.value)}
-                      className="w-full rounded-lg px-3 py-2 text-sm text-white border border-slate-700 focus:border-purple-500 outline-none transition-colors"
-                      style={{ background: 'rgba(255,255,255,0.04)', colorScheme: 'dark' }}
-                    />
-                  </div>
-                ))}
-              </div>
-
+              {/* Trip Name */}
               <div>
-                <label className="text-xs font-bold text-slate-400 block mb-1.5">💰 Total Budget (₹)</label>
+                <label className="text-xs font-bold text-slate-400 block mb-1.5" htmlFor="gt-name">✈️ Trip Name *</label>
                 <input
-                  type="number" placeholder="e.g. 50000" value={budget}
-                  onChange={e => setBudget(e.target.value)}
+                  id="gt-name"
+                  type="text"
+                  placeholder="e.g. Goa Friends Trip 2025"
+                  value={name}
+                  required
+                  onChange={e => setName(e.target.value)}
                   className="w-full rounded-lg px-3 py-2.5 text-sm text-white border border-slate-700 focus:border-purple-500 outline-none transition-colors"
-                  style={{ background: 'rgba(255,255,255,0.04)' }}
+                  style={{ background: 'rgba(255,255,255,0.05)' }}
                 />
               </div>
 
+              {/* Destination Autocomplete */}
+              <div>
+                <label className="text-xs font-bold text-slate-400 block mb-1.5">📍 Destination *</label>
+                <DestinationAutocomplete value={destination} onChange={setDestination} />
+              </div>
+
+              {/* Trip Type */}
+              <div>
+                <label className="text-xs font-bold text-slate-400 block mb-1.5">🏷️ Trip Type</label>
+                <div className="flex flex-wrap gap-2">
+                  {['Friends','Family','Couple','Solo','Work','Honeymoon'].map(t => (
+                    <button
+                      key={t} type="button"
+                      onClick={() => setTripType(t)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer ${tripType === t ? 'border-purple-500 bg-purple-900/40 text-purple-300' : 'border-slate-700 text-slate-400 hover:border-slate-600'}`}
+                    >{t}</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Dates */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-400 block mb-1.5" htmlFor="gt-start">📅 Start Date</label>
+                  <input
+                    id="gt-start"
+                    type="date"
+                    value={startDate}
+                    min={today}
+                    onChange={e => {
+                      setStartDate(e.target.value);
+                      if (endDate && e.target.value > endDate) setEndDate('');
+                    }}
+                    className="w-full rounded-lg px-3 py-2 text-sm text-white border border-slate-700 focus:border-purple-500 outline-none transition-colors cursor-pointer"
+                    style={{ background: '#1a2540', colorScheme: 'dark' }}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-400 block mb-1.5" htmlFor="gt-end">🏁 End Date</label>
+                  <input
+                    id="gt-end"
+                    type="date"
+                    value={endDate}
+                    min={startDate || today}
+                    onChange={e => setEndDate(e.target.value)}
+                    className="w-full rounded-lg px-3 py-2 text-sm text-white border border-slate-700 focus:border-purple-500 outline-none transition-colors cursor-pointer"
+                    style={{ background: '#1a2540', colorScheme: 'dark' }}
+                  />
+                </div>
+              </div>
+
+              {/* Duration badge */}
+              {duration && (
+                <div className="text-xs text-center text-purple-400 font-bold bg-purple-900/20 border border-purple-800/30 rounded-lg py-1.5">
+                  🌙 {duration} Night{duration > 1 ? 's' : ''} · {duration + 1} Day{duration + 1 > 1 ? 's' : ''}
+                </div>
+              )}
+
+              {/* Budget */}
+              <div>
+                <label className="text-xs font-bold text-slate-400 block mb-1.5" htmlFor="gt-budget">💰 Total Budget (₹)</label>
+                <input
+                  id="gt-budget"
+                  type="number"
+                  placeholder="e.g. 50000"
+                  value={budget}
+                  min={0}
+                  onChange={e => setBudget(e.target.value)}
+                  className="w-full rounded-lg px-3 py-2.5 text-sm text-white border border-slate-700 focus:border-purple-500 outline-none transition-colors"
+                  style={{ background: 'rgba(255,255,255,0.05)' }}
+                />
+              </div>
+
+              {/* Invite Friends */}
+              <div>
+                <label className="text-xs font-bold text-slate-400 block mb-1.5">👥 Invite Friends (optional)</label>
+                <div className="space-y-2">
+                  {friendEmails.map((email, idx) => (
+                    <div key={idx} className="flex gap-2">
+                      <input
+                        type="email"
+                        placeholder={`Friend ${idx + 1} email address`}
+                        value={email}
+                        onChange={e => {
+                          const updated = [...friendEmails];
+                          updated[idx] = e.target.value;
+                          setFriendEmails(updated);
+                        }}
+                        className="flex-1 rounded-lg px-3 py-2 text-sm text-white border border-slate-700 focus:border-purple-500 outline-none transition-colors"
+                        style={{ background: 'rgba(255,255,255,0.05)' }}
+                      />
+                      {idx >= 2 && (
+                        <button
+                          type="button"
+                          onClick={() => setFriendEmails(friendEmails.filter((_, i) => i !== idx))}
+                          className="text-slate-500 hover:text-red-400 transition-colors px-2 cursor-pointer"
+                        >✕</button>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setFriendEmails([...friendEmails, ''])}
+                    className="text-xs text-purple-400 hover:text-purple-300 font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                  >
+                    <span>+</span> Add another friend
+                  </button>
+                </div>
+              </div>
+
+              {/* Error message */}
+              {formError && (
+                <div className="text-red-400 text-xs bg-red-900/20 border border-red-800/40 rounded-lg px-3 py-2">
+                  ⚠️ {formError}
+                </div>
+              )}
+
+              {/* Submit */}
               <button
-                type="submit" disabled={creating}
-                className="w-full py-3 rounded-xl font-black text-sm text-white cursor-pointer transition-all duration-200 hover:scale-[1.02] active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed mt-2"
+                type="submit"
+                disabled={creating}
+                className="w-full py-3 rounded-xl font-black text-sm text-white cursor-pointer transition-all duration-200 hover:scale-[1.02] active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
                 style={{ background: 'linear-gradient(135deg,#7c3aed,#2563eb)', boxShadow: '0 0 20px rgba(124,58,237,0.3)' }}
               >
-                {creating ? '⏳ Creating…' : '🚀 Launch Workspace'}
+                {creating ? '⏳ Creating Workspace…' : '🚀 Launch Workspace'}
               </button>
             </form>
           </div>
@@ -364,6 +664,7 @@ function GroupTripsList({ token, onSelectTrip }: { token: string; onSelectTrip: 
     </div>
   );
 }
+
 
 
 let globalIsRefreshing = false;
