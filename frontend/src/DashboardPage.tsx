@@ -410,11 +410,11 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
                   {offersLoading ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {[1, 2].map((i) => (
-                        <div key={i} className="h-36 bg-[#1e293b]/40 rounded-2xl animate-pulse border border-slate-800" />
+                        <div key={i} className="h-36 bg-[#1e293b]/40 rounded-2xl animate-pulse border border-[#1e293b]/60" />
                       ))}
                     </div>
                   ) : offersError ? (
-                    <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/60 text-rose-400 text-xs font-semibold">
+                    <div className="p-4 rounded-xl bg-[#0f172a]/40 border border-[#1e293b]/60 text-rose-400 text-xs font-semibold">
                       ⚠️ {offersError}
                     </div>
                   ) : offers && offers.length > 0 ? (
@@ -428,14 +428,14 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
                           <div
                             key={offer.id}
                             onClick={() => handleOfferClick(offer)}
-                            className="bg-slate-900/50 hover:bg-slate-900/80 border border-slate-800 hover:border-indigo-500/30 p-5 rounded-2xl relative overflow-hidden transition-all duration-300 flex flex-col justify-between gap-4 group cursor-pointer shadow-lg text-left focus-within:ring-2 focus-within:ring-indigo-500 focus-within:outline-none"
+                            className="bg-[#0f172a]/55 hover:bg-[#0f172a]/85 border border-[#1e293b] hover:border-indigo-500/30 p-5 rounded-2xl relative overflow-hidden transition-all duration-300 flex flex-col justify-between gap-4 group cursor-pointer shadow-lg text-left focus-within:ring-2 focus-within:ring-indigo-500 focus-within:outline-none"
                             tabIndex={0}
                             role="button"
                             aria-label={`Offer: ${offer.title}`}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                handleOfferClick(offer);
+                                  e.preventDefault();
+                                  handleOfferClick(offer);
                               }
                             }}
                           >
@@ -458,7 +458,7 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
                               </p>
                             </div>
 
-                            <div className="flex flex-col gap-3 pt-3 border-t border-slate-800/80">
+                            <div className="flex flex-col gap-3 pt-3 border-t border-[#1e293b]/80">
                               <div className="flex items-center justify-between flex-wrap gap-2">
                                 <div className="flex items-center gap-2">
                                   <span className="text-xs font-black text-emerald-400 font-mono">
@@ -466,7 +466,7 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
                                   </span>
                                   {offer.coupon_code && (
                                     <span 
-                                      className="font-mono text-[9px] font-black bg-slate-950 px-2 py-0.5 rounded border border-slate-800 text-slate-300 cursor-copy hover:text-white"
+                                      className="font-mono text-[9px] font-black bg-[#0b0f19] px-2 py-0.5 rounded border border-[#1e293b]/60 text-slate-300 cursor-copy hover:text-white"
                                       title="Click to copy coupon code"
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -497,7 +497,7 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
                       })}
                     </div>
                   ) : (
-                    <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/60 text-slate-400 text-xs font-semibold">
+                    <div className="p-4 rounded-xl bg-[#0f172a]/40 border border-[#1e293b]/60 text-slate-400 text-xs font-semibold">
                       No active offers right now.
                     </div>
                   )}

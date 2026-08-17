@@ -280,75 +280,7 @@ export default function DashboardPage() {
         </div>
       </nav>
 
-      {!token ? (
-        <div className="max-w-md mx-auto px-4 mt-16 space-y-6">
-          <Card variant="default" className="p-6 space-y-6 text-left border-slate-800 bg-surface/50 backdrop-blur-md">
-            <div className="text-center space-y-2">
-              <span className="font-display font-extrabold text-2xl tracking-wider text-primary uppercase">
-                ✈️ GHUMNE CHALE
-              </span>
-              <p className="text-[10px] text-muted font-bold uppercase tracking-wider">
-                Enter credentials to view bookings ledger
-              </p>
-            </div>
-
-            <form onSubmit={handleLoginSubmit} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-[10px] text-muted font-bold uppercase">Email Address</label>
-                <input
-                  type="email"
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                  className="w-full bg-[#111322] border border-slate-850 rounded-md px-3 py-2 text-xs text-primary focus:outline-none focus:border-marigold"
-                  placeholder="e.g. ankit@example.com"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] text-muted font-bold uppercase">Password</label>
-                <input
-                  type="password"
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  className="w-full bg-[#111322] border border-slate-850 rounded-md px-3 py-2 text-xs text-primary focus:outline-none focus:border-marigold"
-                  placeholder="Enter password"
-                  required
-                />
-              </div>
-
-              {loginError && (
-                <div className="p-3 bg-chili/10 border border-chili/20 rounded-md text-chili text-[10px] font-bold">
-                  {loginError}
-                </div>
-              )}
-
-              <Button
-                variant="primary-marigold"
-                type="submit"
-                className="w-full text-center py-2.5 font-bold uppercase text-xs tracking-wider"
-                disabled={loginLoading}
-              >
-                {loginLoading ? "Opening Ledger..." : "Open bookings ledger"}
-              </Button>
-            </form>
-
-            <div className="border-t border-slate-850 pt-4 flex flex-col gap-2">
-              <span className="text-[9px] text-muted text-center font-semibold">
-                Don't have credentials? Use our simulated test account:
-              </span>
-              <Button
-                variant="ghost"
-                onClick={handleDemoFill}
-                className="w-full text-center text-[10px] text-teal border-slate-850"
-              >
-                Auto-fill Demo Account
-              </Button>
-            </div>
-          </Card>
-        </div>
-      ) : (
-        <div className="max-w-7xl mx-auto px-4 md:px-8 mt-8 space-y-8">
+      <div className="max-w-7xl mx-auto px-4 md:px-8 mt-8 space-y-8">
         {/* 2. Header band */}
         <div className="space-y-2 text-left">
           <Badge variant="upcoming">YOUR JOURNEY SO FAR</Badge>
@@ -591,7 +523,6 @@ export default function DashboardPage() {
         </div>
 
       </div>
-      )}
     </div>
   );
 }
