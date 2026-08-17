@@ -309,95 +309,70 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
                   </button>
                 </div>
 
-                {/* Explore Travel grid section */}
-                <div className="space-y-4">
-                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-2">
-                    <Compass size={14} className="text-indigo-400" /> Explore Travel
-                  </h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                    {categories.map((cat) => {
-                      const IconComponent = cat.icon;
-                      // categoryOfferText retrieves the offer description dynamically or from fallbacks
+                {/* Premium Dashboard Welcome Hero Section */}
+                <div className="relative overflow-hidden rounded-3xl border border-[#334155] bg-gradient-to-br from-[#0f172a] via-[#1e1b4b]/40 to-[#0f172a] p-8 md:p-10 shadow-2xl text-left">
+                  {/* Glowing background highlights */}
+                  <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-indigo-600/10 blur-[100px] pointer-events-none" />
+                  <div className="absolute -left-20 -bottom-20 h-64 w-64 rounded-full bg-yellow-500/5 blur-[100px] pointer-events-none" />
+                  
+                  <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                    <div className="space-y-4 max-w-2xl">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[10px] font-black uppercase tracking-wider">
+                        ✨ Next-Gen AI Trip Planner
+                      </div>
+                      <h2 className="text-xl md:text-3xl font-black text-white tracking-tight uppercase leading-none">
+                        Welcome to <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-orange-400 to-indigo-400">Ghumne Chale</span>
+                      </h2>
+                      <p className="text-[11px] md:text-xs text-slate-400 font-semibold leading-relaxed">
+                        Experience intelligent travel coordination. Our advanced AI Copilot generates custom itineraries, maps out multi-city routes, keeps tabs on real-time flight changes, and manages secure transactions for hotels, cabs, and flight tickets globally.
+                      </p>
                       
-                      // Dynamic check to prevent runtime errors if helper was not defined locally
-                      const categoryOfferText = (() => {
-                        if (offers && offers.length > 0) {
-                          const matched = offers.find((o: any) => {
-                            const oCat = (o.category || "").toLowerCase().trim();
-                            const cId = cat.id.toLowerCase().trim();
-                            if (oCat === cId) return true;
-                            if (cId === "buses" && oCat === "bus") return true;
-                            if (cId === "rent-a-ride" && (oCat === "car" || oCat === "cars")) return true;
-                            if (cId === "tours" && (oCat === "activities" || oCat === "activity" || oCat === "tours")) return true;
-                            if (cId === "holidays" && (oCat === "holiday" || oCat === "holidays")) return true;
-                            return false;
-                          });
-                          if (matched) {
-                            return matched.discount_type === 'percentage' 
-                              ? `${matched.discount_value}% OFF`
-                              : `₹${matched.discount_value.toLocaleString()} OFF`;
-                          }
-                        }
-                        if (cat.id === 'flights') return '12% OFF';
-                        if (cat.id === 'hotels') return '20% OFF';
-                        if (cat.id === 'trains') return '10% OFF';
-                        if (cat.id === 'buses') return '20% OFF';
-                        if (cat.id === 'cabs') return '15% OFF';
-                        if (cat.id === 'holidays') return '₹1,500 OFF';
-                        if (cat.id === 'forex') return 'Best Rates';
-                        if (cat.id === 'visa') return 'From ₹999';
-                        if (cat.id === 'insurance') return 'From ₹49/day';
-                        return null;
-                      })();
-
-                      return (
-                        <div
-                          key={cat.id}
-                          onClick={() => handleCategoryClick(cat.id)}
-                          className="bg-[#0f172a]/55 hover:bg-[#0f172a]/85 border border-[#1e293b] hover:border-yellow-400/40 p-4 rounded-2xl flex flex-col justify-between items-start gap-3 transition-all duration-300 group cursor-pointer shadow-md text-left focus-within:ring-2 focus-within:ring-yellow-400 focus-within:outline-none"
-                          tabIndex={0}
-                          role="button"
-                          aria-label={`Explore ${cat.label}`}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              handleCategoryClick(cat.id);
-                            }
-                          }}
-                        >
-                          <div className="flex items-center gap-3 w-full">
-                            <div className="p-2 rounded-xl bg-[#1e293b]/55 group-hover:scale-110 transition-all text-slate-400 group-hover:text-yellow-400 group-hover:bg-[#1e293b]">
-                              <IconComponent size={18} />
-                            </div>
-                            <span className="text-[11px] font-black uppercase text-slate-200 tracking-wider group-hover:text-white transition-colors">
-                              {cat.label}
-                            </span>
-                          </div>
-
-                          <div className="flex-1 w-full space-y-1.5">
-                            <p className="text-[10px] text-slate-400 font-semibold leading-relaxed">
-                              {cat.desc}
-                            </p>
-                            {categoryOfferText && (
-                              <span className="inline-block text-[9px] font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 font-mono uppercase tracking-wider">
-                                🔥 {categoryOfferText}
-                              </span>
-                            )}
-                          </div>
-
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleCategoryClick(cat.id);
-                            }}
-                            className="w-full py-1.5 bg-[#1e293b] hover:bg-[#334155] text-slate-300 hover:text-white font-black text-[9px] uppercase rounded-lg border border-[#334155]/80 transition-all text-center focus:outline-none focus:ring-1 focus:ring-yellow-400"
-                            aria-label={`${cat.cta}`}
-                          >
-                            {cat.cta}
-                          </button>
+                      <div className="flex flex-wrap gap-3 pt-1">
+                        <div className="flex items-center gap-2 bg-[#0b0f19] px-3.5 py-2 rounded-xl border border-[#1e293b] shadow-inner">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping" />
+                          <span className="text-[9px] text-slate-300 font-black uppercase tracking-wider font-mono">AI Engine: Online</span>
                         </div>
-                      );
-                    })}
+                        <div className="flex items-center gap-2 bg-[#0b0f19] px-3.5 py-2 rounded-xl border border-[#1e293b] shadow-inner">
+                          <span className="text-yellow-400 text-[10px]">⚡</span>
+                          <span className="text-[9px] text-slate-300 font-black uppercase tracking-wider font-mono">Direct API Gateways</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-row md:flex-col gap-3 w-full md:w-auto">
+                      <button
+                        onClick={() => handleCategoryClick("ai-planner")}
+                        className="flex-1 md:w-48 py-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-black text-[10px] uppercase tracking-wider rounded-xl border border-indigo-500/30 shadow-lg hover:shadow-indigo-500/20 active:translate-y-0.5 active:shadow-none transition-all cursor-pointer text-center"
+                      >
+                        🚀 Launch AI Planner
+                      </button>
+                      <button
+                        onClick={() => onNavigate("/profile")}
+                        className="flex-1 md:w-48 py-3.5 bg-[#1e293b]/50 hover:bg-[#1e293b] text-slate-300 hover:text-white font-black text-[10px] uppercase tracking-wider rounded-xl border border-[#334155] active:translate-y-0.5 transition-all cursor-pointer text-center"
+                      >
+                        👤 View Profile
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Micro stats banner for premium feel */}
+                  <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-4 border-t border-[#1e293b]/60 pt-6">
+                    <div>
+                      <span className="block text-[9px] text-slate-500 font-black uppercase tracking-wider">Global Search</span>
+                      <span className="text-xs font-black text-slate-200 uppercase tracking-tight">Instant Fares</span>
+                    </div>
+                    <div>
+                      <span className="block text-[9px] text-slate-500 font-black uppercase tracking-wider">PCI Compliance</span>
+                      <span className="text-xs font-black text-emerald-400 uppercase tracking-tight">100% Secure</span>
+                    </div>
+                    <div>
+                      <span className="block text-[9px] text-slate-500 font-black uppercase tracking-wider">Live Assistance</span>
+                      <span className="text-xs font-black text-indigo-400 uppercase tracking-tight">24/7 AI Chat</span>
+                    </div>
+                    <div>
+                      <span className="block text-[9px] text-slate-500 font-black uppercase tracking-wider">Smart Invoices</span>
+                      <span className="text-xs font-black text-slate-200 uppercase tracking-tight">One-Click PDF</span>
+                    </div>
                   </div>
                 </div>
 
