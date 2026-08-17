@@ -218,69 +218,127 @@ function DestinationAutocomplete({ value, onChange }: { value: string; onChange:
 }
 
 function GroupTripsList({ token, onSelectTrip }: { token: string; onSelectTrip: (id: number) => void }) {
+  const GT_API = `${API_URL}/trips`;
+
+  // ── Trips list state ──────────────────────────────────────────────────────
   const [trips, setTrips] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
-  // Modal form state
+  // ── Wizard state ──────────────────────────────────────────────────────────
+  const [showWizard, setShowWizard] = useState(false);
+  const [wizardStep, setWizardStep] = useState(1); // 1=Details 2=Members 3=Review
+
+  // Step 1 — Trip Details
   const [name, setName] = useState('');
   const [destination, setDestination] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [budget, setBudget] = useState('');
   const [tripType, setTripType] = useState('Friends');
-  const [friendEmails, setFriendEmails] = useState<string[]>(['', '']);
+  const [tripDesc, setTripDesc] = useState('');
+
+  // Step 2 — Members
+  type MemberRow = { name: string; email: string; phone: string };
+  const [members, setMembers] = useState<MemberRow[]>([{ name: '', email: '', phone: '' }]);
+
+  // Step 3 — Review
+  const [confirmCheck1, setConfirmCheck1] = useState(false);
+  const [confirmCheck2, setConfirmCheck2] = useState(false);
+
+  // Submission
   const [creating, setCreating] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [stepError, setStepError] = useState<string | null>(null);
 
-  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  const today = new Date().toISOString().split('T')[0];
 
-  // Derived: duration
   const duration = React.useMemo(() => {
     if (!startDate || !endDate) return null;
     const diff = Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000);
     return diff > 0 ? diff : null;
   }, [startDate, endDate]);
 
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
+  // ── Toast helper ──────────────────────────────────────────────────────────
+  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 4000);
   };
 
+  // ── Fetch trips ───────────────────────────────────────────────────────────
   const fetchTrips = async () => {
     try {
       setLoading(true);
-      const res = await fetch('http://localhost:8000/api/v1/trips', {
+      setListError(null);
+      const res = await fetch(GT_API, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (res.ok) setTrips(await res.json());
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
+      if (res.ok) {
+        setTrips(await res.json());
+      } else if (res.status === 401) {
+        setListError('Session expired. Please log in again.');
+      } else {
+        setListError('Unable to load trips. Please try again.');
+      }
+    } catch {
+      setListError('Cannot connect to server. Make sure the app is running.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { fetchTrips(); }, [token]);
 
-  const resetModal = () => {
-    setName(''); setDestination(''); setStartDate(''); setEndDate('');
-    setBudget(''); setTripType('Friends');
-    setFriendEmails(['', '']); setFormError(null);
+  // ── Wizard helpers ────────────────────────────────────────────────────────
+  const resetWizard = () => {
+    setWizardStep(1); setName(''); setDestination(''); setStartDate(''); setEndDate('');
+    setBudget(''); setTripType('Friends'); setTripDesc('');
+    setMembers([{ name: '', email: '', phone: '' }]);
+    setConfirmCheck1(false); setConfirmCheck2(false); setStepError(null);
   };
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormError(null);
+  const openWizard = () => { resetWizard(); setShowWizard(true); };
+  const closeWizard = () => { if (!creating) { setShowWizard(false); resetWizard(); } };
 
-    // Validation
-    if (!name.trim()) { setFormError('Trip name is required.'); return; }
-    if (!destination.trim()) { setFormError('Destination is required.'); return; }
-    if (startDate && endDate && endDate < startDate) {
-      setFormError('End date cannot be before start date.'); return;
+  // Step validations
+  const validateStep1 = (): string | null => {
+    if (!name.trim()) return 'Trip name is required.';
+    if (!destination.trim()) return 'Destination is required.';
+    if (startDate && endDate && endDate < startDate) return 'End date cannot be before start date.';
+    return null;
+  };
+
+  const validateStep2 = (): string | null => {
+    const validMembers = members.filter(m => m.email.trim());
+    for (const m of validMembers) {
+      if (!/\S+@\S+\.\S+/.test(m.email.trim())) return `Invalid email: ${m.email}`;
+      if (m.phone && !/^\+?[\d\s\-()]{7,15}$/.test(m.phone.trim())) return `Invalid phone for ${m.email}`;
     }
+    // Check duplicate emails
+    const emails = validMembers.map(m => m.email.trim().toLowerCase());
+    if (new Set(emails).size !== emails.length) return 'Duplicate email addresses found.';
+    return null;
+  };
 
+  const goToStep2 = () => {
+    const err = validateStep1();
+    if (err) { setStepError(err); return; }
+    setStepError(null); setWizardStep(2);
+  };
+
+  const goToStep3 = () => {
+    const err = validateStep2();
+    if (err) { setStepError(err); return; }
+    setStepError(null); setWizardStep(3);
+  };
+
+  // ── Create trip ───────────────────────────────────────────────────────────
+  const handleCreate = async () => {
+    if (!confirmCheck1 || !confirmCheck2) { setStepError('Please confirm both checkboxes.'); return; }
+    setStepError(null);
     setCreating(true);
     try {
-      const res = await fetch('http://localhost:8000/api/v1/trips', {
+      const res = await fetch(GT_API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
@@ -290,40 +348,45 @@ function GroupTripsList({ token, onSelectTrip }: { token: string; onSelectTrip: 
           end_date: endDate || null,
           budget: budget ? parseFloat(budget) : 0,
           trip_type: tripType,
+          description: tripDesc.trim() || null,
           booking_references: []
         })
       });
 
       if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        setFormError(errData.detail || 'Unable to create trip. Please try again.');
+        let errMsg = 'Unable to create trip.';
+        try {
+          const errData = await res.json();
+          if (res.status === 401) errMsg = 'Your session has expired. Please log in again.';
+          else if (res.status === 422) errMsg = 'Please check your trip details and try again.';
+          else if (res.status >= 500) errMsg = 'Server error. Please try again in a moment.';
+          else errMsg = errData.detail || errData.message || errMsg;
+        } catch {}
+        setStepError(errMsg);
         return;
       }
 
       const newTrip = await res.json();
-      if (!newTrip?.id) { setFormError('Unexpected server response. Please try again.'); return; }
+      if (!newTrip?.id) { setStepError('Unexpected server response. Please try again.'); return; }
 
-      // Optionally send invites (fire & forget — no block)
-      const validEmails = friendEmails.filter(e => e.trim() && /\S+@\S+\.\S+/.test(e.trim()));
-      for (const email of validEmails) {
-        fetch(`http://localhost:8000/api/v1/trips/${newTrip.id}/invite`, {
+      // Fire-and-forget invites for valid emails
+      const validInvites = members.filter(m => m.email.trim() && /\S+@\S+\.\S+/.test(m.email.trim()));
+      for (const m of validInvites) {
+        fetch(`${GT_API}/${newTrip.id}/invite`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ email })
+          body: JSON.stringify({ email: m.email.trim() })
         }).catch(() => {});
       }
 
-      setShowModal(false);
-      resetModal();
-      showToast('🎉 Group trip created successfully!');
-
-      // Refresh list then navigate
+      setShowWizard(false);
+      resetWizard();
+      showToast('🎉 Group trip workspace created!');
       await fetchTrips();
       onSelectTrip(newTrip.id);
 
-    } catch (err) {
-      console.error('[CreateTrip]', err);
-      setFormError('Network error. Please check your connection.');
+    } catch {
+      setStepError('Network error. Please check your connection and try again.');
     } finally {
       setCreating(false);
     }
@@ -335,23 +398,20 @@ function GroupTripsList({ token, onSelectTrip }: { token: string; onSelectTrip: 
     return diff > 0 ? diff : null;
   };
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 gap-4">
-        <div className="w-10 h-10 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
-        <p className="text-slate-400 text-sm">Loading your group trips…</p>
-      </div>
-    );
-  }
-
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-full w-full" style={{ fontFamily: "'Inter', sans-serif" }}>
 
-      {/* ── Toast notification ── */}
+      {/* ── Toast ── */}
       {toast && (
-        <div className="fixed top-6 right-6 z-[100] px-5 py-3 rounded-xl text-sm font-bold text-white shadow-2xl border border-emerald-700/50"
-          style={{ background: 'linear-gradient(135deg,#065f46,#064e3b)', animation: 'fadeIn 0.3s ease' }}>
-          {toast}
+        <div
+          className="fixed top-6 right-6 z-[200] px-5 py-3 rounded-xl text-sm font-bold text-white shadow-2xl border transition-all"
+          style={{
+            background: toast.type === 'success' ? 'linear-gradient(135deg,#065f46,#064e3b)' : 'linear-gradient(135deg,#7f1d1d,#991b1b)',
+            borderColor: toast.type === 'success' ? '#047857' : '#dc2626'
+          }}
+        >
+          {toast.msg}
         </div>
       )}
 
@@ -369,22 +429,18 @@ function GroupTripsList({ token, onSelectTrip }: { token: string; onSelectTrip: 
             <h1 className="text-3xl font-black text-white mb-1">Plan Together. Travel Better.</h1>
             <p className="text-slate-400 text-sm max-w-lg">Collaborate with your squad — split expenses, build itineraries, vote on destinations, and chat in real time.</p>
           </div>
-          <button
-            onClick={() => setShowModal(true)}
+          <button onClick={openWizard}
             className="flex-shrink-0 flex items-center gap-2 px-6 py-3 rounded-xl font-black text-sm text-white cursor-pointer transition-all duration-200 hover:scale-105 active:scale-95"
-            style={{ background: 'linear-gradient(135deg,#7c3aed,#2563eb)', boxShadow: '0 0 30px rgba(124,58,237,0.4)' }}
-          >
+            style={{ background: 'linear-gradient(135deg,#7c3aed,#2563eb)', boxShadow: '0 0 30px rgba(124,58,237,0.4)' }}>
             <span className="text-lg">+</span> New Group Trip
           </button>
         </div>
-
-        {/* Stats Row */}
         {trips.length > 0 && (
           <div className="relative z-10 mt-6 grid grid-cols-3 gap-4">
             {[
               { label: 'Total Trips', value: trips.length, icon: '🗺️' },
-              { label: 'Destinations', value: new Set(trips.map((t:any) => t.destination)).size, icon: '📍' },
-              { label: 'Active', value: trips.filter((t:any) => !t.end_date || new Date(t.end_date) >= new Date()).length, icon: '🟢' },
+              { label: 'Destinations', value: new Set(trips.map((t: any) => t.destination)).size, icon: '📍' },
+              { label: 'Active', value: trips.filter((t: any) => !t.end_date || new Date(t.end_date) >= new Date()).length, icon: '🟢' },
             ].map(s => (
               <div key={s.label} className="bg-white/5 border border-white/10 rounded-xl p-3 text-center backdrop-blur-sm">
                 <div className="text-lg mb-0.5">{s.icon}</div>
@@ -396,18 +452,27 @@ function GroupTripsList({ token, onSelectTrip }: { token: string; onSelectTrip: 
         )}
       </div>
 
-      {/* ── Trip Cards Grid ── */}
-      {trips.length === 0 ? (
+      {/* ── List area ── */}
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-24 gap-4">
+          <div className="w-10 h-10 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+          <p className="text-slate-400 text-sm">Loading your group trips…</p>
+        </div>
+      ) : listError ? (
+        <div className="flex flex-col items-center justify-center py-16 gap-4">
+          <div className="text-4xl">⚠️</div>
+          <p className="text-red-400 text-sm font-semibold">{listError}</p>
+          <button onClick={fetchTrips} className="px-5 py-2 rounded-lg text-xs font-bold text-white border border-slate-700 hover:border-purple-500 transition-colors cursor-pointer" style={{ background: 'rgba(255,255,255,0.05)' }}>
+            ↻ Retry
+          </button>
+        </div>
+      ) : trips.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 gap-5">
           <div className="text-6xl animate-bounce">🌍</div>
           <div className="text-center">
             <h3 className="text-xl font-black text-white mb-2">No Group Trips Yet</h3>
-            <p className="text-slate-400 text-sm mb-6">Create your first group trip and invite your travel buddies!</p>
-            <button
-              onClick={() => setShowModal(true)}
-              className="px-8 py-3 rounded-xl font-black text-sm text-white cursor-pointer transition-all duration-200 hover:scale-105"
-              style={{ background: 'linear-gradient(135deg,#7c3aed,#2563eb)' }}
-            >
+            <p className="text-slate-400 text-sm mb-6">Create your first group trip and invite your travel squad!</p>
+            <button onClick={openWizard} className="px-8 py-3 rounded-xl font-black text-sm text-white cursor-pointer transition-all duration-200 hover:scale-105" style={{ background: 'linear-gradient(135deg,#7c3aed,#2563eb)' }}>
               ✈️ Create First Trip
             </button>
           </div>
@@ -420,12 +485,10 @@ function GroupTripsList({ token, onSelectTrip }: { token: string; onSelectTrip: 
             const days = getDays(t.start_date, t.end_date);
             const isPast = t.end_date && new Date(t.end_date) < new Date();
             return (
-              <div
-                key={t.id}
+              <div key={t.id}
                 className={`relative overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-br ${grad} group cursor-pointer transition-all duration-300 hover:scale-[1.02] hover:border-slate-600`}
                 style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.4)' }}
-                onClick={() => onSelectTrip(t.id)}
-              >
+                onClick={() => onSelectTrip(t.id)}>
                 <div className="p-5 pb-3">
                   <div className="flex items-start justify-between mb-3">
                     <span className="text-4xl">{emoji}</span>
@@ -433,37 +496,25 @@ function GroupTripsList({ token, onSelectTrip }: { token: string; onSelectTrip: 
                       <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide border ${isPast ? 'text-slate-400 border-slate-700 bg-slate-900/50' : 'text-emerald-400 border-emerald-700/50 bg-emerald-900/30'}`}>
                         {isPast ? 'Completed' : 'Active'}
                       </span>
-                      {t.trip_type && (
-                        <span className="text-[10px] text-purple-400 font-semibold">{t.trip_type}</span>
-                      )}
+                      {t.trip_type && <span className="text-[10px] text-purple-400 font-semibold">{t.trip_type}</span>}
                     </div>
                   </div>
                   <h3 className="font-black text-white text-lg leading-tight mb-1">{t.name}</h3>
-                  <p className="text-slate-300 text-xs flex items-center gap-1.5">
-                    <span>📍</span>{t.destination}
-                  </p>
+                  <p className="text-slate-300 text-xs flex items-center gap-1.5"><span>📍</span>{t.destination}</p>
                 </div>
                 <div className="px-5 pb-4 space-y-2">
                   <div className="flex items-center gap-4 text-[11px] text-slate-400">
-                    {t.start_date && <span>📅 {new Date(t.start_date).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</span>}
+                    {t.start_date && <span>📅 {new Date(t.start_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
                     {days && <span className="text-purple-400 font-bold">{days}d</span>}
                   </div>
-                  {t.budget > 0 && (
-                    <div className="text-[11px] text-slate-400">
-                      💰 Budget: <span className="text-white font-bold">₹{Number(t.budget).toLocaleString('en-IN')}</span>
-                    </div>
-                  )}
-                  <div className="text-[11px] text-slate-500">
-                    👥 {t.member_count || 1} member{(t.member_count || 1) > 1 ? 's' : ''}
-                  </div>
+                  {t.budget > 0 && <div className="text-[11px] text-slate-400">💰 Budget: <span className="text-white font-bold">₹{Number(t.budget).toLocaleString('en-IN')}</span></div>}
+                  <div className="text-[11px] text-slate-500">👥 {t.member_count || 1} member{(t.member_count || 1) > 1 ? 's' : ''}</div>
                 </div>
                 <div className="border-t border-white/10 px-5 py-3 flex items-center justify-between">
                   <div className="flex -space-x-1.5">
-                    {[...Array(Math.min(3, (t.member_count||1)))].map((_,i)=>(
+                    {[...Array(Math.min(3, t.member_count || 1))].map((_, i) => (
                       <div key={i} className="w-6 h-6 rounded-full border-2 border-slate-800 flex items-center justify-center text-[10px] font-bold"
-                        style={{ background: `hsl(${(i*80+idx*40)%360},60%,45%)` }}>
-                        {String.fromCharCode(65+i)}
-                      </div>
+                        style={{ background: `hsl(${(i * 80 + idx * 40) % 360},60%,45%)` }}>{String.fromCharCode(65 + i)}</div>
                     ))}
                   </div>
                   <span className="text-xs font-bold text-blue-400 group-hover:text-white transition-colors flex items-center gap-1">
@@ -473,191 +524,263 @@ function GroupTripsList({ token, onSelectTrip }: { token: string; onSelectTrip: 
               </div>
             );
           })}
-
-          {/* + New Trip Card */}
-          <div
-            onClick={() => setShowModal(true)}
-            className="relative overflow-hidden rounded-2xl border-2 border-dashed border-slate-700 hover:border-purple-600/60 flex flex-col items-center justify-center gap-3 p-8 cursor-pointer transition-all duration-300 hover:bg-purple-900/10 min-h-[200px] group"
-          >
+          <div onClick={openWizard}
+            className="relative overflow-hidden rounded-2xl border-2 border-dashed border-slate-700 hover:border-purple-600/60 flex flex-col items-center justify-center gap-3 p-8 cursor-pointer transition-all duration-300 hover:bg-purple-900/10 min-h-[200px] group">
             <div className="w-12 h-12 rounded-full bg-slate-800 group-hover:bg-purple-900/40 flex items-center justify-center text-2xl transition-all duration-300 group-hover:scale-110">+</div>
-            <div className="text-center">
-              <p className="text-slate-300 font-bold text-sm">New Group Trip</p>
-              <p className="text-slate-500 text-xs mt-0.5">Start planning with your crew</p>
-            </div>
+            <div className="text-center"><p className="text-slate-300 font-bold text-sm">New Group Trip</p><p className="text-slate-500 text-xs mt-0.5">Start planning with your crew</p></div>
           </div>
         </div>
       )}
 
-      {/* ── Create Trip Modal ── */}
-      {showModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ backgroundColor: 'rgba(0,0,0,0.80)', backdropFilter: 'blur(10px)' }}
-          onClick={() => { if (!creating) { setShowModal(false); resetModal(); } }}
-        >
+      {/* ════════════════════════════════════════════════════════════════════
+          WIZARD MODAL
+          ════════════════════════════════════════════════════════════════ */}
+      {showWizard && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)' }}
+          onClick={closeWizard}>
           <div
-            className="w-full max-w-lg rounded-2xl border border-slate-700 shadow-2xl overflow-hidden"
-            style={{ background: 'linear-gradient(160deg,#0f1629 0%,#080f1e 100%)', maxHeight: '90vh', overflowY: 'auto' }}
-            onClick={e => e.stopPropagation()}
-          >
-            {/* Modal header */}
-            <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-slate-800"
-              style={{ background: 'linear-gradient(160deg,#0f1629,#080f1e)' }}>
+            className="w-full sm:max-w-xl rounded-t-3xl sm:rounded-2xl border border-slate-700/80 shadow-2xl flex flex-col"
+            style={{ background: 'linear-gradient(160deg,#0d1525 0%,#070d1a 100%)', maxHeight: '95vh' }}
+            onClick={e => e.stopPropagation()}>
+
+            {/* ── Wizard Header ── */}
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-slate-800 flex-shrink-0">
               <div>
-                <h3 className="text-lg font-black text-white">✈️ Create Group Trip</h3>
-                <p className="text-xs text-slate-400 mt-0.5">Fill in details and invite your friends</p>
+                <h2 className="text-lg font-black text-white">
+                  {wizardStep === 1 && '✈️ Trip Details'}
+                  {wizardStep === 2 && '👥 Add Members'}
+                  {wizardStep === 3 && '📋 Review & Confirm'}
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {wizardStep === 1 && 'Tell us about your trip'}
+                  {wizardStep === 2 && 'Who is coming with you?'}
+                  {wizardStep === 3 && 'Everything look right?'}
+                </p>
               </div>
-              <button
-                type="button"
-                onClick={() => { if (!creating) { setShowModal(false); resetModal(); } }}
-                className="text-slate-500 hover:text-white text-xl leading-none cursor-pointer transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10"
-              >✕</button>
+              <button onClick={closeWizard} disabled={creating}
+                className="text-slate-500 hover:text-white transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 cursor-pointer">✕</button>
             </div>
 
-            <form onSubmit={handleCreate} className="px-6 py-5 space-y-4">
-
-              {/* Trip Name */}
-              <div>
-                <label className="text-xs font-bold text-slate-400 block mb-1.5" htmlFor="gt-name">✈️ Trip Name *</label>
-                <input
-                  id="gt-name"
-                  type="text"
-                  placeholder="e.g. Goa Friends Trip 2025"
-                  value={name}
-                  required
-                  onChange={e => setName(e.target.value)}
-                  className="w-full rounded-lg px-3 py-2.5 text-sm text-white border border-slate-700 focus:border-purple-500 outline-none transition-colors"
-                  style={{ background: 'rgba(255,255,255,0.05)' }}
-                />
-              </div>
-
-              {/* Destination Autocomplete */}
-              <div>
-                <label className="text-xs font-bold text-slate-400 block mb-1.5">📍 Destination *</label>
-                <DestinationAutocomplete value={destination} onChange={setDestination} />
-              </div>
-
-              {/* Trip Type */}
-              <div>
-                <label className="text-xs font-bold text-slate-400 block mb-1.5">🏷️ Trip Type</label>
-                <div className="flex flex-wrap gap-2">
-                  {['Friends','Family','Couple','Solo','Work','Honeymoon'].map(t => (
-                    <button
-                      key={t} type="button"
-                      onClick={() => setTripType(t)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer ${tripType === t ? 'border-purple-500 bg-purple-900/40 text-purple-300' : 'border-slate-700 text-slate-400 hover:border-slate-600'}`}
-                    >{t}</button>
-                  ))}
+            {/* ── Progress Bar ── */}
+            <div className="flex gap-1 px-6 py-3 flex-shrink-0">
+              {['Trip Details', 'Members', 'Review'].map((label, i) => (
+                <div key={label} className="flex-1 flex flex-col gap-1">
+                  <div className={`h-1 rounded-full transition-all duration-300 ${i + 1 <= wizardStep ? 'bg-purple-500' : 'bg-slate-800'}`} />
+                  <span className={`text-[9px] font-bold uppercase tracking-wider transition-colors ${i + 1 === wizardStep ? 'text-purple-400' : i + 1 < wizardStep ? 'text-emerald-500' : 'text-slate-600'}`}>
+                    {i + 1 < wizardStep ? '✓ ' : `${i + 1}. `}{label}
+                  </span>
                 </div>
-              </div>
+              ))}
+            </div>
 
-              {/* Dates */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-400 block mb-1.5" htmlFor="gt-start">📅 Start Date</label>
-                  <input
-                    id="gt-start"
-                    type="date"
-                    value={startDate}
-                    min={today}
-                    onChange={e => {
-                      setStartDate(e.target.value);
-                      if (endDate && e.target.value > endDate) setEndDate('');
-                    }}
-                    className="w-full rounded-lg px-3 py-2 text-sm text-white border border-slate-700 focus:border-purple-500 outline-none transition-colors cursor-pointer"
-                    style={{ background: '#1a2540', colorScheme: 'dark' }}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-400 block mb-1.5" htmlFor="gt-end">🏁 End Date</label>
-                  <input
-                    id="gt-end"
-                    type="date"
-                    value={endDate}
-                    min={startDate || today}
-                    onChange={e => setEndDate(e.target.value)}
-                    className="w-full rounded-lg px-3 py-2 text-sm text-white border border-slate-700 focus:border-purple-500 outline-none transition-colors cursor-pointer"
-                    style={{ background: '#1a2540', colorScheme: 'dark' }}
-                  />
-                </div>
-              </div>
+            {/* ── Step Content (scrollable) ── */}
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
 
-              {/* Duration badge */}
-              {duration && (
-                <div className="text-xs text-center text-purple-400 font-bold bg-purple-900/20 border border-purple-800/30 rounded-lg py-1.5">
-                  🌙 {duration} Night{duration > 1 ? 's' : ''} · {duration + 1} Day{duration + 1 > 1 ? 's' : ''}
-                </div>
-              )}
+              {/* ─────────────── STEP 1: TRIP DETAILS ─────────────── */}
+              {wizardStep === 1 && (
+                <>
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 block mb-1.5" htmlFor="gt-name">✈️ Trip Name *</label>
+                    <input id="gt-name" type="text" placeholder="e.g. Goa Friends Trip 2025"
+                      value={name} onChange={e => setName(e.target.value)}
+                      className="w-full rounded-lg px-3 py-2.5 text-sm text-white border border-slate-700 focus:border-purple-500 outline-none transition-colors"
+                      style={{ background: 'rgba(255,255,255,0.05)' }} />
+                  </div>
 
-              {/* Budget */}
-              <div>
-                <label className="text-xs font-bold text-slate-400 block mb-1.5" htmlFor="gt-budget">💰 Total Budget (₹)</label>
-                <input
-                  id="gt-budget"
-                  type="number"
-                  placeholder="e.g. 50000"
-                  value={budget}
-                  min={0}
-                  onChange={e => setBudget(e.target.value)}
-                  className="w-full rounded-lg px-3 py-2.5 text-sm text-white border border-slate-700 focus:border-purple-500 outline-none transition-colors"
-                  style={{ background: 'rgba(255,255,255,0.05)' }}
-                />
-              </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 block mb-1.5">📍 Destination *</label>
+                    <DestinationAutocomplete value={destination} onChange={setDestination} />
+                  </div>
 
-              {/* Invite Friends */}
-              <div>
-                <label className="text-xs font-bold text-slate-400 block mb-1.5">👥 Invite Friends (optional)</label>
-                <div className="space-y-2">
-                  {friendEmails.map((email, idx) => (
-                    <div key={idx} className="flex gap-2">
-                      <input
-                        type="email"
-                        placeholder={`Friend ${idx + 1} email address`}
-                        value={email}
-                        onChange={e => {
-                          const updated = [...friendEmails];
-                          updated[idx] = e.target.value;
-                          setFriendEmails(updated);
-                        }}
-                        className="flex-1 rounded-lg px-3 py-2 text-sm text-white border border-slate-700 focus:border-purple-500 outline-none transition-colors"
-                        style={{ background: 'rgba(255,255,255,0.05)' }}
-                      />
-                      {idx >= 2 && (
-                        <button
-                          type="button"
-                          onClick={() => setFriendEmails(friendEmails.filter((_, i) => i !== idx))}
-                          className="text-slate-500 hover:text-red-400 transition-colors px-2 cursor-pointer"
-                        >✕</button>
-                      )}
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 block mb-1.5">🏷️ Trip Type</label>
+                    <div className="flex flex-wrap gap-2">
+                      {['Friends', 'Family', 'Couple', 'College', 'Corporate', 'Honeymoon'].map(t => (
+                        <button key={t} type="button" onClick={() => setTripType(t)}
+                          className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer ${tripType === t ? 'border-purple-500 bg-purple-900/40 text-purple-300' : 'border-slate-700 text-slate-400 hover:border-slate-600'}`}>
+                          {t}
+                        </button>
+                      ))}
                     </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => setFriendEmails([...friendEmails, ''])}
-                    className="text-xs text-purple-400 hover:text-purple-300 font-semibold flex items-center gap-1 cursor-pointer transition-colors"
-                  >
-                    <span>+</span> Add another friend
-                  </button>
-                </div>
-              </div>
+                  </div>
 
-              {/* Error message */}
-              {formError && (
-                <div className="text-red-400 text-xs bg-red-900/20 border border-red-800/40 rounded-lg px-3 py-2">
-                  ⚠️ {formError}
-                </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 block mb-1.5" htmlFor="gt-start">📅 Start Date</label>
+                      <input id="gt-start" type="date" value={startDate} min={today}
+                        onChange={e => { setStartDate(e.target.value); if (endDate && e.target.value > endDate) setEndDate(''); }}
+                        className="w-full rounded-lg px-3 py-2 text-sm text-white border border-slate-700 focus:border-purple-500 outline-none transition-colors cursor-pointer"
+                        style={{ background: '#1a2540', colorScheme: 'dark' }} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 block mb-1.5" htmlFor="gt-end">🏁 End Date</label>
+                      <input id="gt-end" type="date" value={endDate} min={startDate || today}
+                        onChange={e => setEndDate(e.target.value)}
+                        className="w-full rounded-lg px-3 py-2 text-sm text-white border border-slate-700 focus:border-purple-500 outline-none transition-colors cursor-pointer"
+                        style={{ background: '#1a2540', colorScheme: 'dark' }} />
+                    </div>
+                  </div>
+                  {duration && (
+                    <div className="text-xs text-center text-purple-400 font-bold bg-purple-900/20 border border-purple-800/30 rounded-lg py-1.5">
+                      🌙 {duration} Night{duration > 1 ? 's' : ''} · {duration + 1} Day{duration + 1 > 1 ? 's' : ''}
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 block mb-1.5" htmlFor="gt-budget">💰 Total Budget (₹)</label>
+                    <input id="gt-budget" type="number" placeholder="e.g. 50000" value={budget} min={0}
+                      onChange={e => setBudget(e.target.value)}
+                      className="w-full rounded-lg px-3 py-2.5 text-sm text-white border border-slate-700 focus:border-purple-500 outline-none transition-colors"
+                      style={{ background: 'rgba(255,255,255,0.05)' }} />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 block mb-1.5" htmlFor="gt-desc">📝 Description (optional)</label>
+                    <textarea id="gt-desc" rows={2} placeholder="Brief trip description…"
+                      value={tripDesc} onChange={e => setTripDesc(e.target.value)}
+                      className="w-full rounded-lg px-3 py-2 text-sm text-white border border-slate-700 focus:border-purple-500 outline-none transition-colors resize-none"
+                      style={{ background: 'rgba(255,255,255,0.05)' }} />
+                  </div>
+                </>
               )}
 
-              {/* Submit */}
-              <button
-                type="submit"
-                disabled={creating}
-                className="w-full py-3 rounded-xl font-black text-sm text-white cursor-pointer transition-all duration-200 hover:scale-[1.02] active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
-                style={{ background: 'linear-gradient(135deg,#7c3aed,#2563eb)', boxShadow: '0 0 20px rgba(124,58,237,0.3)' }}
-              >
-                {creating ? '⏳ Creating Workspace…' : '🚀 Launch Workspace'}
-              </button>
-            </form>
+              {/* ─────────────── STEP 2: MEMBERS ─────────────── */}
+              {wizardStep === 2 && (
+                <>
+                  <p className="text-xs text-slate-400 bg-slate-800/50 rounded-lg px-3 py-2 border border-slate-700/50">
+                    💡 Add friends you want to invite. They'll receive an invitation link via email. Name and phone are optional.
+                  </p>
+                  <div className="space-y-3">
+                    {members.map((m, idx) => (
+                      <div key={idx} className="rounded-xl border border-slate-700/60 p-4 space-y-2.5" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-bold text-slate-300">👤 Friend {idx + 1}</span>
+                          {members.length > 1 && (
+                            <button type="button" onClick={() => setMembers(members.filter((_, i) => i !== idx))}
+                              className="text-slate-500 hover:text-red-400 transition-colors text-xs cursor-pointer">✕ Remove</button>
+                          )}
+                        </div>
+                        <input type="text" placeholder="Full Name (optional)"
+                          value={m.name} onChange={e => { const u = [...members]; u[idx].name = e.target.value; setMembers(u); }}
+                          className="w-full rounded-lg px-3 py-2 text-sm text-white border border-slate-700 focus:border-purple-500 outline-none transition-colors"
+                          style={{ background: 'rgba(255,255,255,0.05)' }} />
+                        <input type="email" placeholder="Email address *"
+                          value={m.email} onChange={e => { const u = [...members]; u[idx].email = e.target.value; setMembers(u); }}
+                          className="w-full rounded-lg px-3 py-2 text-sm text-white border border-slate-700 focus:border-purple-500 outline-none transition-colors"
+                          style={{ background: 'rgba(255,255,255,0.05)' }} />
+                        <div className="flex gap-2">
+                          <span className="text-xs text-slate-400 self-center flex-shrink-0 bg-slate-800 px-2 py-2 rounded-lg border border-slate-700">+91</span>
+                          <input type="tel" placeholder="Phone (optional)"
+                            value={m.phone} onChange={e => { const u = [...members]; u[idx].phone = e.target.value; setMembers(u); }}
+                            className="flex-1 rounded-lg px-3 py-2 text-sm text-white border border-slate-700 focus:border-purple-500 outline-none transition-colors"
+                            style={{ background: 'rgba(255,255,255,0.05)' }} />
+                        </div>
+                      </div>
+                    ))}
+                    <button type="button" onClick={() => setMembers([...members, { name: '', email: '', phone: '' }])}
+                      className="text-xs text-purple-400 hover:text-purple-300 font-semibold flex items-center gap-1 cursor-pointer transition-colors py-1">
+                      <span>+</span> Add Another Friend
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* ─────────────── STEP 3: REVIEW ─────────────── */}
+              {wizardStep === 3 && (
+                <>
+                  <div className="rounded-xl border border-slate-700/60 overflow-hidden" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                    <div className="px-4 py-3 border-b border-slate-800">
+                      <h4 className="text-sm font-black text-white">{name}</h4>
+                      <p className="text-xs text-slate-400">📍 {destination} · 🏷️ {tripType}</p>
+                    </div>
+                    <div className="px-4 py-3 grid grid-cols-2 gap-3 text-xs text-slate-400">
+                      {startDate && <div>📅 Start<br /><span className="text-white font-bold">{new Date(startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>}
+                      {endDate && <div>🏁 End<br /><span className="text-white font-bold">{new Date(endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>}
+                      {duration && <div>🌙 Duration<br /><span className="text-purple-400 font-bold">{duration} Night{duration > 1 ? 's' : ''}</span></div>}
+                      {budget && <div>💰 Budget<br /><span className="text-emerald-400 font-bold">₹{Number(parseFloat(budget)).toLocaleString('en-IN')}</span></div>}
+                    </div>
+                    {tripDesc && <div className="px-4 pb-3 text-xs text-slate-400">{tripDesc}</div>}
+                  </div>
+
+                  {/* Members review */}
+                  {members.some(m => m.email.trim()) && (
+                    <div>
+                      <p className="text-xs font-bold text-slate-400 mb-2">👥 Invitations will be sent to:</p>
+                      <div className="space-y-1.5">
+                        {members.filter(m => m.email.trim()).map((m, i) => (
+                          <div key={i} className="flex items-center gap-2 text-xs text-slate-300 bg-slate-800/40 rounded-lg px-3 py-2">
+                            <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0" style={{ background: `hsl(${i * 60},60%,45%)` }}>{(m.name || m.email).charAt(0).toUpperCase()}</span>
+                            <span className="truncate">{m.name ? `${m.name} (${m.email})` : m.email}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Checklist */}
+                  <div className="space-y-2 pt-1">
+                    {[
+                      { key: 'c1', val: confirmCheck1, set: setConfirmCheck1, text: 'I confirm the trip details are correct.' },
+                      { key: 'c2', val: confirmCheck2, set: setConfirmCheck2, text: 'I understand that invites will be sent to all added members.' },
+                    ].map(c => (
+                      <label key={c.key} className="flex items-start gap-3 cursor-pointer group">
+                        <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border transition-all mt-0.5 ${c.val ? 'bg-purple-600 border-purple-600' : 'border-slate-600 group-hover:border-purple-500'}`}
+                          onClick={() => c.set(!c.val)}>
+                          {c.val && <span className="text-white text-xs font-black">✓</span>}
+                        </div>
+                        <span className="text-xs text-slate-300 leading-relaxed">{c.text}</span>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* ── Step Error ── */}
+              {stepError && (
+                <div className="text-red-400 text-xs bg-red-900/20 border border-red-800/40 rounded-lg px-3 py-2.5 flex items-start gap-2">
+                  <span className="flex-shrink-0">⚠️</span>
+                  <span>{stepError}</span>
+                </div>
+              )}
+            </div>
+
+            {/* ── Sticky Footer ── */}
+            <div className="flex-shrink-0 px-6 py-4 border-t border-slate-800 flex items-center justify-between gap-3">
+              {wizardStep > 1 ? (
+                <button type="button" disabled={creating} onClick={() => { setStepError(null); setWizardStep(s => s - 1); }}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-300 border border-slate-700 hover:border-slate-500 transition-all cursor-pointer disabled:opacity-40">
+                  ← Back
+                </button>
+              ) : (
+                <button type="button" onClick={closeWizard}
+                  className="px-4 py-2.5 rounded-xl text-sm font-bold text-slate-500 hover:text-slate-300 transition-colors cursor-pointer">
+                  Cancel
+                </button>
+              )}
+
+              {wizardStep === 1 && (
+                <button type="button" onClick={goToStep2}
+                  className="flex-1 max-w-xs py-2.5 rounded-xl font-black text-sm text-white cursor-pointer transition-all duration-200 hover:scale-[1.02] active:scale-95"
+                  style={{ background: 'linear-gradient(135deg,#7c3aed,#2563eb)' }}>
+                  Continue to Members →
+                </button>
+              )}
+              {wizardStep === 2 && (
+                <button type="button" onClick={goToStep3}
+                  className="flex-1 max-w-xs py-2.5 rounded-xl font-black text-sm text-white cursor-pointer transition-all duration-200 hover:scale-[1.02] active:scale-95"
+                  style={{ background: 'linear-gradient(135deg,#7c3aed,#2563eb)' }}>
+                  Review Trip →
+                </button>
+              )}
+              {wizardStep === 3 && (
+                <button type="button" disabled={creating || !confirmCheck1 || !confirmCheck2} onClick={handleCreate}
+                  className="flex-1 max-w-xs py-2.5 rounded-xl font-black text-sm text-white cursor-pointer transition-all duration-200 hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ background: 'linear-gradient(135deg,#7c3aed,#2563eb)', boxShadow: '0 0 20px rgba(124,58,237,0.3)' }}>
+                  {creating ? '⏳ Creating…' : '🚀 Launch Workspace'}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
