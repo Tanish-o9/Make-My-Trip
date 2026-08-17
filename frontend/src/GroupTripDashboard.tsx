@@ -107,6 +107,8 @@ interface ActivityLog {
   timestamp: string;
 }
 
+import { API_URL } from './config/api';
+
 export default function GroupTripDashboard({
   tripId,
   currentUserId,
@@ -184,8 +186,6 @@ export default function GroupTripDashboard({
   const [aiMessage, setAiMessage] = useState('');
   const [aiResponse, setAiResponse] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
-
-  const API_URL = 'http://localhost:8000/api/v1';
 
   const fetchData = async () => {
     try {
