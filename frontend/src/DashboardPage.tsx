@@ -294,10 +294,10 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
                   <div className="space-y-1.5 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse" />
-                      <h2 className="text-sm font-black uppercase tracking-wider text-slate-200">NO UPCOMING TRIPS</h2>
+                      <h2 className="text-xs font-black uppercase tracking-wider text-slate-300">No Active Journeys</h2>
                     </div>
                     <p className="text-xs text-slate-400 font-semibold max-w-xl">
-                      You don't have any journeys scheduled in the next 5 days. Ready to start planning your next travel gate?
+                      Your travel timeline is currently clear. Use the AI Trip Planner below to start designing your next customized flight itinerary or hotel stay.
                     </p>
                   </div>
                   <button 
