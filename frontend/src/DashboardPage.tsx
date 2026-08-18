@@ -13,6 +13,7 @@ interface DashboardPageProps {
   setActiveTab: (tab: string) => void;
 }
 
+export default function DashboardPage({ onNavigate, token, setActiveTab }: DashboardPageProps) {
   const DEFAULT_DASHBOARD_DATA = {
     user_summary: {
       first_name: "Traveler",
@@ -188,7 +189,7 @@ interface DashboardPageProps {
             Tried {retryCount + 1} time{retryCount > 0 ? 's' : ''} — backend may be offline
           </div>
           <button
-            onClick={() => fetchDashboard(1)}
+            onClick={() => fetchDashboard()}
             className="w-full py-3 font-black uppercase text-xs cursor-pointer transition-all"
             style={{ background: '#3b82f6', color: '#fff', borderRadius: '12px', border: '2px solid #1d4ed8' }}
           >
