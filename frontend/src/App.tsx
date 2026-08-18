@@ -3293,22 +3293,22 @@ function LocationSwapField({
   const [isEditingFrom, setIsEditingFrom] = useState(false);
   const [isEditingTo, setIsEditingTo] = useState(false);
 
-  const getAirportCode = (val: string, fallback: string) => {
-    if (!val) return fallback;
+  const getAirportCode = (val: string, fallback: string = "") => {
+    if (!val || !val.trim()) return fallback;
     const match = val.match(/\(([^)]+)\)/);
-    return match ? match[1].toUpperCase() : val.substring(0, 3).toUpperCase();
+    return match ? match[1].toUpperCase() : (val.trim().length === 3 ? val.trim().toUpperCase() : val.trim().substring(0, 3).toUpperCase());
   };
 
-  const getCityName = (val: string, fallback: string) => {
-    if (!val) return fallback;
+  const getCityName = (val: string, fallback: string = "") => {
+    if (!val || !val.trim()) return fallback;
     const match = val.match(/^([^(]+)/);
     return match ? match[1].trim() : val;
   };
 
-  const fromCode = getAirportCode(fromValue, "DEL");
-  const fromCityName = getCityName(fromValue, "Delhi");
-  const toCode = getAirportCode(toValue, "BOM");
-  const toCityName = getCityName(toValue, "Select");
+  const fromCode = getAirportCode(fromValue, "");
+  const fromCityName = getCityName(fromValue, "Select Origin");
+  const toCode = getAirportCode(toValue, "");
+  const toCityName = getCityName(toValue, "Select Destination");
 
   return (
     <div className="relative grid grid-cols-2 gap-2 bg-[var(--color-surface)] border border-slate-800 rounded-[var(--radius-card)] p-4 shadow-sm h-[74px]">
@@ -3337,8 +3337,8 @@ function LocationSwapField({
           />
         ) : (
           <div className="flex flex-col">
-            <span className="font-mono text-2xl font-bold text-[var(--color-gold)] leading-none">{fromCode}</span>
-            <span className="text-[10px] text-[var(--color-ivory-dim)] truncate mt-0.5">{fromCityName}</span>
+            <span className="font-mono text-2xl font-bold text-[var(--color-gold)] leading-none">{fromCode || "FROM"}</span>
+            <span className="text-[10px] text-[var(--color-ivory-dim)] truncate mt-0.5">{fromCityName || "Select Origin"}</span>
           </div>
         )}
 
@@ -3397,7 +3397,7 @@ function LocationSwapField({
           />
         ) : (
           <div className="flex flex-col items-end">
-            <span className="font-mono text-2xl font-bold text-[var(--color-gold)] leading-none">{toCode || "---"}</span>
+            <span className="font-mono text-2xl font-bold text-[var(--color-gold)] leading-none">{toCode || "TO"}</span>
             <span className="text-[10px] text-[var(--color-ivory-dim)] truncate mt-0.5">{toCityName || "Select Destination"}</span>
           </div>
         )}
