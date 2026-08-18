@@ -10257,23 +10257,72 @@ function CheckoutModal({
   const [payMethod, setPayMethod] = useState<'wallet' | 'card' | 'split' | 'corporate_billing'>('wallet');
   const [gateway, setGateway] = useState<'stripe' | 'razorpay'>('stripe');
 
-  // Saved passengers states
+  // Saved passengers states & Auto-population
   const [savedPassengers, setSavedPassengers] = useState<any[]>([]);
+  
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token) return;
-    fetch(`${API_URL}/passengers`, {
-      headers: { "Authorization": `Bearer ${token}` }
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) {
-          setSavedPassengers(data);
-        }
+    let localSaved: any[] = [];
+    try {
+      const raw = localStorage.getItem("saved_passengers_cache");
+      if (raw) localSaved = JSON.parse(raw);
+    } catch (e) {}
+
+    const applySavedPassengers = (list: any[]) => {
+      if (!Array.isArray(list) || list.length === 0) return;
+      setSavedPassengers(list);
+
+      // Auto-fill passengersList if fields are currently empty or default
+      setPassengersList(prev => {
+        const updated = [...prev];
+        list.forEach((sp, idx) => {
+          if (idx < updated.length) {
+            const currentName = (updated[idx].fullName || "").trim();
+            if (!currentName || currentName === "John Doe") {
+              let calcAge = "30";
+              if (sp.date_of_birth) {
+                calcAge = String(new Date().getFullYear() - new Date(sp.date_of_birth).getFullYear());
+              } else if (sp.age) {
+                calcAge = String(sp.age);
+              }
+              updated[idx] = {
+                ...updated[idx],
+                fullName: sp.full_name || sp.fullName || "",
+                age: calcAge,
+                email: sp.email || "",
+                phone: sp.phone || "",
+                gender: sp.gender || "Male",
+                savedPassengerId: sp.id,
+                shouldSavePassenger: true
+              };
+            }
+          }
+        });
+        return updated;
+      });
+    };
+
+    if (localSaved.length > 0) {
+      applySavedPassengers(localSaved);
+    }
+
+    if (token) {
+      fetch(`${API_URL}/passengers`, {
+        headers: { "Authorization": `Bearer ${token}` }
       })
-      .catch(e => console.error("Error loading saved passengers:", e));
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data) && data.length > 0) {
+            try {
+              localStorage.setItem("saved_passengers_cache", JSON.stringify(data));
+            } catch (e) {}
+            applySavedPassengers(data);
+          }
+        })
+        .catch(e => console.error("Error loading saved passengers:", e));
+    }
   }, []);
-  
+
   // Card Inputs
   const [cardNumber, setCardNumber] = useState("");
   const [cardExpiry, setCardExpiry] = useState("");
@@ -10303,6 +10352,37 @@ function CheckoutModal({
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   const persistSelectedPassengers = () => {
+    // 1. Always save/update in localStorage cache for instant future booking auto-fill
+    try {
+      const existingRaw = localStorage.getItem("saved_passengers_cache");
+      let existing: any[] = existingRaw ? JSON.parse(existingRaw) : [];
+      passengersList.forEach(p => {
+        if (p.fullName && p.fullName.trim() && p.shouldSavePassenger !== false) {
+          const cleanName = p.fullName.trim();
+          const idx = existing.findIndex(e => (e.full_name || e.fullName || "").toLowerCase() === cleanName.toLowerCase());
+          const newEntry = {
+            id: p.savedPassengerId || Date.now(),
+            full_name: cleanName,
+            fullName: cleanName,
+            age: p.age || "30",
+            email: p.email || "",
+            phone: p.phone || "",
+            gender: p.gender || "Male"
+          };
+          if (idx >= 0) {
+            existing[idx] = { ...existing[idx], ...newEntry };
+          } else {
+            existing.push(newEntry);
+          }
+        }
+      });
+      localStorage.setItem("saved_passengers_cache", JSON.stringify(existing));
+      setSavedPassengers(existing);
+    } catch (err) {
+      console.error("Error writing saved passengers cache:", err);
+    }
+
+    // 2. Persist to Backend API if token exists
     const token = localStorage.getItem("token");
     if (!token) return;
     passengersList.forEach(p => {
@@ -10320,7 +10400,7 @@ function CheckoutModal({
             gender: p.gender || "Male"
           })
         }).catch(err => console.error("Error updating passenger:", err));
-      } else if (!p.savedPassengerId && p.fullName.trim() && p.shouldSavePassenger === true) {
+      } else if (!p.savedPassengerId && p.fullName.trim() && p.shouldSavePassenger !== false) {
         fetch(`${API_URL}/passengers`, {
           method: "POST",
           headers: {
@@ -11330,6 +11410,7 @@ function CheckoutModal({
                 }
 
                 setError("");
+                persistSelectedPassengers();
                 setStep(2);
               }}
               className="w-full bg-yellow-300 hover:bg-yellow-400 border-3 border-black font-black text-sm py-2.5 rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] cursor-pointer transition-all uppercase"
