@@ -3886,7 +3886,7 @@ function FlightsSearchForm({
         return res.json();
       })
       .then(data => {
-        setResults(data);
+        setResults(Array.isArray(data) ? data.slice(0, 7) : data);
         setLoading(false);
       })
       .catch(err => {

@@ -47,7 +47,7 @@ class FlightProviderManager:
                         o.details["provider_latency"] = f"{latency} ms"
                         o.details["provider_status"] = "Success"
                         o.details["provider_source"] = "Live API"
-                    return offers
+                    return offers[:7]
                 else:
                     logger.warning(f"FlightProviderManager: {provider.__class__.__name__} returned 0 offers, trying next.")
             except Exception as e:

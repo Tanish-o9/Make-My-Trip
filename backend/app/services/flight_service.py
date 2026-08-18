@@ -143,12 +143,13 @@ class FlightService:
         # 2. Store in Redis Cache
         if redis_client and results and not is_testing:
             try:
-                redis_client.setex(cache_key, 3600, json.dumps(results))
+                redis_client.setex(cache_key, 3600, json.dumps(results[:7]))
                 logger.info(f"Stored search results in Redis cache for key {cache_key}.")
             except Exception as se:
                 logger.warning(f"Failed to store in Redis cache: {se}")
 
-        return results
+        # Audit: Cap flight search results to max 6-7 realistic flights per search
+        return results[:7]
 
     @staticmethod
     def _get_fallback_mock_flights(from_airport: str, to_airport: str, passengers: int = 1) -> List[Dict[str, Any]]:
