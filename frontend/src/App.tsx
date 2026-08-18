@@ -14703,8 +14703,8 @@ function ChatView({
                           {p.badge}
                         </span>
                       </div>
-                      <div className="text-sm font-black text-black group-hover:text-slate-900 transition-colors">{p.label}</div>
-                      <div className="text-xs font-bold text-slate-800 mt-1 line-clamp-2 leading-relaxed">{p.text}</div>
+                      <div className="text-sm font-black !text-black !opacity-100" style={{ color: '#000000', opacity: 1 }}>{p.label}</div>
+                      <div className="text-xs font-bold !text-black !opacity-100 mt-1 line-clamp-2 leading-relaxed" style={{ color: '#000000', opacity: 1 }}>{p.text}</div>
                     </div>
                   </div>
                 </button>
