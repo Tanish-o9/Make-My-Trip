@@ -3869,7 +3869,7 @@ function FlightsSearchForm({
     const fromCode = getIATACode(effectiveFrom);
     const toCode = getIATACode(effectiveTo);
     
-    let url = `${API_URL}/flights/search?from=${encodeURIComponent(fromCode)}&to=${encodeURIComponent(toCode)}&passengers=${passengers}&refresh=true&t=${Date.now()}`;
+    let url = `${API_URL}/flights/search?from=${encodeURIComponent(fromCode)}&to=${encodeURIComponent(toCode)}&passengers=${passengers}&date=${encodeURIComponent(effectiveDate)}&time=${encodeURIComponent(depTime || '15:00')}&cabin=${encodeURIComponent(cabin || 'Economy')}&refresh=true&t=${Date.now()}`;
     if (overrideSort) url += `&sort_by=${overrideSort}`;
     if (overrideStops && overrideStops !== "all") url += `&stops=${overrideStops}`;
     if (overrideCarrier) url += `&carrier=${encodeURIComponent(overrideCarrier)}`;

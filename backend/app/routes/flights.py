@@ -17,11 +17,14 @@ async def search_flights(
     from_airport: str = Query(..., alias="from", description="Departure IATA code"),
     to_airport: str = Query(..., alias="to", description="Arrival IATA code"),
     passengers: int = Query(1, description="Number of passengers"),
+    date: Optional[str] = Query(None, description="Departure date YYYY-MM-DD"),
+    time: Optional[str] = Query(None, description="Preferred departure time"),
+    cabin: Optional[str] = Query(None, description="Cabin class"),
     refresh: bool = Query(False, description="Bypass cache for fresh search results"),
 ):
     """
     Search flights from departure to arrival airports.
-    Example: GET /api/v1/flights/search?from=DEL&to=GOI&passengers=1&refresh=true
+    Example: GET /api/v1/flights/search?from=DEL&to=GOI&passengers=1&date=2026-08-14&refresh=true
     """
     from_clean = from_airport.strip().upper()
     to_clean = to_airport.strip().upper()
@@ -33,7 +36,7 @@ async def search_flights(
         raise HTTPException(status_code=400, detail="Arrival airport IATA code must be exactly 3 alphabetic letters.")
 
     try:
-        results = await FlightService.search_flights(from_clean, to_clean, passengers, refresh=refresh)
+        results = await FlightService.search_flights(from_clean, to_clean, passengers, date_str=date, refresh=refresh)
         if not results:
             raise HTTPException(status_code=404, detail=f"No flights found matching the route {from_clean} to {to_clean}.")
         return results[:7]
