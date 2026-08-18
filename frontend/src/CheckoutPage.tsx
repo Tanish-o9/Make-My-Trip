@@ -614,7 +614,7 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
             {/* Payment Content Display */}
             <div className="bg-white border-4 border-black rounded-2xl p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] min-h-[300px] flex flex-col justify-between">
               
-              {activeTab === "upi" ? (
+              {activeTab === "upi" && (
                 <div className="text-center space-y-4 my-auto">
                   {!qrCodeUrl ? (
                     <div className="space-y-4 py-8">
@@ -666,7 +666,111 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                     </div>
                   )}
                 </div>
-              ) : (
+              )}
+
+              {activeTab === "netbanking" && (
+                <div className="text-center space-y-4 my-auto py-4">
+                  <div className="bg-[#eae5d9] border-3 border-black p-4 rounded-xl max-w-md mx-auto text-left space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] uppercase font-black tracking-wide text-black">Netbanking Protocol</span>
+                      <span className="bg-yellow-300 border border-black text-[9px] font-black px-2 py-0.5 rounded uppercase font-mono">50+ Banks Supported</span>
+                    </div>
+                    <h4 className="font-black text-sm uppercase text-black flex items-center gap-1.5">
+                      <Globe size={16} /> Select Netbanking Bank
+                    </h4>
+                    
+                    <div className="grid grid-cols-2 gap-2 text-xs font-black">
+                      <div className="p-2.5 bg-white border-2 border-black rounded-lg hover:bg-yellow-100 cursor-pointer flex items-center gap-2 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                        🏦 HDFC Bank
+                      </div>
+                      <div className="p-2.5 bg-white border-2 border-black rounded-lg hover:bg-yellow-100 cursor-pointer flex items-center gap-2 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                        🏦 ICICI Bank
+                      </div>
+                      <div className="p-2.5 bg-white border-2 border-black rounded-lg hover:bg-yellow-100 cursor-pointer flex items-center gap-2 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                        🏦 State Bank of India
+                      </div>
+                      <div className="p-2.5 bg-white border-2 border-black rounded-lg hover:bg-yellow-100 cursor-pointer flex items-center gap-2 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                        🏦 Axis Bank
+                      </div>
+                      <div className="p-2.5 bg-white border-2 border-black rounded-lg hover:bg-yellow-100 cursor-pointer flex items-center gap-2 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                        🏦 Kotak Mahindra
+                      </div>
+                      <div className="p-2.5 bg-white border-2 border-black rounded-lg hover:bg-yellow-100 cursor-pointer flex items-center gap-2 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                        🏦 Punjab National
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-center items-center max-w-md mx-auto">
+                    <button
+                      onClick={payWithRazorpay}
+                      disabled={paymentLoading || !humanApproved || profileIncomplete}
+                      className="w-full bg-emerald-400 hover:bg-emerald-500 disabled:bg-emerald-200 text-black border-3 border-black px-6 py-3 font-black text-xs uppercase rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      {paymentLoading ? (
+                        <>
+                          <RefreshCw className="animate-spin" size={16} /> Launching Netbanking Gateway...
+                        </>
+                      ) : (
+                        `Pay ₹${booking.total_amount.toLocaleString()} via Netbanking`
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "wallet" && (
+                <div className="text-center space-y-4 my-auto py-4">
+                  <div className="bg-[#eae5d9] border-3 border-black p-4 rounded-xl max-w-md mx-auto text-left space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] uppercase font-black tracking-wide text-black">Digital Wallet Protocol</span>
+                      <span className="bg-yellow-300 border border-black text-[9px] font-black px-2 py-0.5 rounded uppercase font-mono">Instant Auth</span>
+                    </div>
+                    <h4 className="font-black text-sm uppercase text-black flex items-center gap-1.5">
+                      <Wallet size={16} /> Select Wallet Partner
+                    </h4>
+                    
+                    <div className="grid grid-cols-2 gap-2 text-xs font-black">
+                      <div className="p-2.5 bg-white border-2 border-black rounded-lg hover:bg-yellow-100 cursor-pointer flex items-center gap-2 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                        👛 Paytm Wallet
+                      </div>
+                      <div className="p-2.5 bg-white border-2 border-black rounded-lg hover:bg-yellow-100 cursor-pointer flex items-center gap-2 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                        👛 PhonePe Wallet
+                      </div>
+                      <div className="p-2.5 bg-white border-2 border-black rounded-lg hover:bg-yellow-100 cursor-pointer flex items-center gap-2 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                        👛 Amazon Pay
+                      </div>
+                      <div className="p-2.5 bg-white border-2 border-black rounded-lg hover:bg-yellow-100 cursor-pointer flex items-center gap-2 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                        👛 Mobikwik
+                      </div>
+                      <div className="p-2.5 bg-white border-2 border-black rounded-lg hover:bg-yellow-100 cursor-pointer flex items-center gap-2 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                        👛 Airtel Money
+                      </div>
+                      <div className="p-2.5 bg-white border-2 border-black rounded-lg hover:bg-yellow-100 cursor-pointer flex items-center gap-2 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                        👛 Freecharge
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-center items-center max-w-md mx-auto">
+                    <button
+                      onClick={payWithRazorpay}
+                      disabled={paymentLoading || !humanApproved || profileIncomplete}
+                      className="w-full bg-emerald-400 hover:bg-emerald-500 disabled:bg-emerald-200 text-black border-3 border-black px-6 py-3 font-black text-xs uppercase rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      {paymentLoading ? (
+                        <>
+                          <RefreshCw className="animate-spin" size={16} /> Launching Wallet Gateway...
+                        </>
+                      ) : (
+                        `Pay ₹${booking.total_amount.toLocaleString()} via Wallet`
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "card" && (
                 <div className="text-center space-y-4 my-auto py-6">
                   <div className="bg-[#eae5d9] border-3 border-black p-4 rounded-xl max-w-md mx-auto text-left space-y-2">
                     <span className="text-[10px] uppercase font-black tracking-wide text-black">Secure Payment Protocol</span>
@@ -690,7 +794,7 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                           <RefreshCw className="animate-spin" size={16} /> Opening Gateway...
                         </>
                       ) : (
-                        `Pay ₹${booking.total_amount.toLocaleString()} Now`
+                        `Pay ₹${booking.total_amount.toLocaleString()} via Card`
                       )}
                     </button>
                   </div>
