@@ -14669,36 +14669,42 @@ function ChatView({
         ))}
 
         {messages.length <= 1 && (
-          <div className="max-w-2xl mx-auto space-y-4 pt-6">
+          <div className="max-w-3xl mx-auto space-y-5 pt-6">
             <div className="text-center">
-              <div className="text-2xl mb-1">🤖</div>
-              <h4 className="text-xs text-slate-300 font-extrabold uppercase tracking-widest">World's Best Autonomous Ghumne Chale</h4>
-              <p className="text-[10px] text-slate-500 mt-1">Powered by LangGraph multi-agent orchestration • WebSocket streaming • Enterprise memory</p>
+              <div className="text-3xl mb-1.5 animate-bounce">🤖</div>
+              <h4 className="text-sm font-black text-black uppercase tracking-widest bg-yellow-300 border-3 border-black py-1.5 px-4 rounded-xl inline-block shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                WORLD'S BEST AUTONOMOUS GHUMNE CHALE
+              </h4>
+              <p className="text-xs text-slate-200 font-bold mt-2">
+                Powered by LangGraph multi-agent orchestration • WebSocket streaming • Enterprise memory
+              </p>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               {[
-                { emoji: '🚀', label: 'Full Trip Package', text: 'I have ₹70,000. Delhi to Goa. 4 days. Nightlife. December 15th.', badge: 'AI PLANNER' },
-                { emoji: '✈️', label: 'Search Flights', text: 'Show me Business class flights from Delhi to Dubai on December 20th.', badge: 'FLIGHT SEARCH' },
-                { emoji: '🏨', label: 'Luxury Hotels', text: 'Find 5-star hotels in Udaipur for 3 nights from December 25th.', badge: 'HOTEL SEARCH' },
-                { emoji: '📋', label: 'Visa Requirements', text: 'What are the visa requirements for an Indian passport holder visiting Thailand?', badge: 'VISA AGENT' },
-                { emoji: '🌦️', label: 'Weather & Packing', text: 'What is the weather like in Goa in December? What should I pack?', badge: 'WEATHER AGENT' },
-                { emoji: '💰', label: 'Budget Planner', text: 'I have ₹1,20,000 for a Europe trip. Plan a 10-day budget breakdown for Paris, Amsterdam, and Berlin.', badge: 'BUDGET AGENT' },
-                { emoji: '🛡️', label: 'Travel Insurance', text: 'What travel insurance should I get for a 7-day international trip to Bali?', badge: 'INSURANCE' },
-                { emoji: '🆘', label: 'Emergency Contacts', text: 'What are the emergency helplines and embassy contacts for travelers visiting Thailand?', badge: 'EMERGENCY' }
+                { emoji: '🚀', label: 'Full Trip Package', text: 'I have ₹70,000. Delhi to Goa. 4 days. Nightlife. December 15th.', badge: 'AI PLANNER', bg: 'bg-amber-100' },
+                { emoji: '✈️', label: 'Search Flights', text: 'Show me Business class flights from Delhi to Dubai on December 20th.', badge: 'FLIGHT SEARCH', bg: 'bg-sky-100' },
+                { emoji: '🏨', label: 'Luxury Hotels', text: 'Find 5-star hotels in Udaipur for 3 nights from December 25th.', badge: 'HOTEL SEARCH', bg: 'bg-emerald-100' },
+                { emoji: '📋', label: 'Visa Requirements', text: 'What are the visa requirements for an Indian passport holder visiting Thailand?', badge: 'VISA AGENT', bg: 'bg-purple-100' },
+                { emoji: '🌦️', label: 'Weather & Packing', text: 'What is the weather like in Goa in December? What should I pack?', badge: 'WEATHER AGENT', bg: 'bg-teal-100' },
+                { emoji: '💰', label: 'Budget Planner', text: 'I have ₹1,20,000 for a Europe trip. Plan a 10-day budget breakdown for Paris, Amsterdam, and Berlin.', badge: 'BUDGET AGENT', bg: 'bg-yellow-200' },
+                { emoji: '🛡️', label: 'Travel Insurance', text: 'What travel insurance should I get for a 7-day international trip to Bali?', badge: 'INSURANCE', bg: 'bg-rose-100' },
+                { emoji: '🆘', label: 'Emergency Contacts', text: 'What are the emergency helplines and embassy contacts for travelers visiting Thailand?', badge: 'EMERGENCY', bg: 'bg-orange-100' }
               ].map((p, idx) => (
                 <button
                   key={idx}
                   onClick={() => triggerSendMessage(p.text)}
-                  className="p-3.5 bg-slate-900/80 border border-slate-800 hover:border-blue-500/50 rounded-xl text-left shadow hover:bg-slate-800/60 transition-all cursor-pointer group"
+                  className={`p-4 ${p.bg} border-3 border-black rounded-2xl text-left shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 transition-all cursor-pointer group`}
                 >
-                  <div className="flex items-start gap-2.5">
-                    <span className="text-lg">{p.emoji}</span>
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl p-1 bg-white rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] shrink-0">{p.emoji}</span>
                     <div>
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className="text-[10px] text-blue-400 font-black bg-blue-950/30 px-1.5 py-0.5 rounded border border-blue-900/30">{p.badge}</span>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className="text-[10px] text-yellow-300 font-black bg-black px-2 py-0.5 rounded border border-black uppercase font-mono shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]">
+                          {p.badge}
+                        </span>
                       </div>
-                      <div className="text-xs font-bold text-slate-200 group-hover:text-white transition-colors">{p.label}</div>
-                      <div className="text-[10px] text-slate-500 mt-0.5 line-clamp-2 leading-relaxed">{p.text}</div>
+                      <div className="text-sm font-black text-black group-hover:text-slate-900 transition-colors">{p.label}</div>
+                      <div className="text-xs font-bold text-slate-800 mt-1 line-clamp-2 leading-relaxed">{p.text}</div>
                     </div>
                   </div>
                 </button>
