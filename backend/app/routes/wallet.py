@@ -13,13 +13,26 @@ from app.services.wallet_loyalty import WalletService, LoyaltyService, CouponSer
 router = APIRouter(prefix="/wallet-loyalty", tags=["wallet-loyalty"])
 
 # Schema definitions
+class WalletTransactionResponse(BaseModel):
+    id: int
+    amount: float
+    type: str
+    balance_before: float = 0.0
+    balance_after: float = 0.0
+    reference: str = ""
+    description: str = ""
+    status: str = "COMPLETED"
+    timestamp: datetime.datetime
+
 class WalletResponse(BaseModel):
     balance: float
     currency: str
+    transactions: List[WalletTransactionResponse] = []
 
 class WalletTopupRequest(BaseModel):
     amount: float = Field(..., gt=0)
-    payment_token: str  # Simulated stripe card token
+    payment_token: str = "test_token_dev"  # Simulated stripe/test card token
+    description: str = "Wallet Recharge"
 
 class CouponApplyRequest(BaseModel):
     code: str
@@ -47,32 +60,50 @@ class WishlistRequest(BaseModel):
 @router.get("/wallet", response_model=WalletResponse)
 def get_wallet(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     wallet = WalletService.get_or_create_wallet(db, user.id)
-    return {"balance": float(wallet.balance), "currency": wallet.currency}
+    txs = db.query(WalletTransaction).filter(WalletTransaction.wallet_account_id == wallet.id).order_by(WalletTransaction.timestamp.desc()).all()
+    
+    tx_list = []
+    for tx in txs:
+        tx_list.append(WalletTransactionResponse(
+            id=tx.id,
+            amount=float(tx.amount),
+            type=tx.type,
+            balance_before=float(tx.balance_before or 0.0),
+            balance_after=float(tx.balance_after or 0.0),
+            reference=tx.reference or "",
+            description=tx.description or (f"Wallet {tx.type.capitalize()}"),
+            status=tx.status or "COMPLETED",
+            timestamp=tx.timestamp
+        ))
 
-@router.post("/wallet/topup", response_model=WalletResponse)
+    return {
+        "balance": float(wallet.balance),
+        "currency": wallet.currency,
+        "transactions": tx_list
+    }
+
+@router.post("/wallet/topup")
 def top_up_wallet(
     req: WalletTopupRequest,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # Simulated payment processing step (Stripe customer tokenization)
-    payment_ref = f"stripe_txn_{datetime.datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
+    payment_ref = f"RECHARGE-{datetime.datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
     
-    # Write saved payment method reference for later use
-    pm = SavedPaymentMethod(
-        user_id=user.id,
-        provider="stripe",
-        provider_customer_id="cust_stripe_dummy",
-        payment_token=req.payment_token,
-        brand="Visa",
-        last4="4242",
-        exp_month=12,
-        exp_year=2030
+    wallet = WalletService.top_up(
+        db=db, 
+        user_id=user.id, 
+        amount=Decimal(str(req.amount)), 
+        reference=payment_ref, 
+        description=req.description or "Wallet Recharge"
     )
-    db.add(pm)
-    
-    wallet = WalletService.top_up(db, user.id, Decimal(str(req.amount)), payment_ref)
-    return {"balance": float(wallet.balance), "currency": wallet.currency}
+
+    return {
+        "success": True,
+        "message": f"✓ ₹{req.amount:,.2f} added successfully",
+        "balance": float(wallet.balance),
+        "currency": wallet.currency
+    }
 
 @router.get("/loyalty")
 def get_loyalty_summary(user: User = Depends(get_current_user), db: Session = Depends(get_db)):

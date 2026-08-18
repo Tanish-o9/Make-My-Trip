@@ -10350,6 +10350,22 @@ function CheckoutModal({
   const [invoiceText, setInvoiceText] = useState("");
   const [timeLeft, setTimeLeft] = useState(300);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [realWalletBalance, setRealWalletBalance] = useState<number>(userProfile?.walletBalance || 5000);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    fetch(`${API_URL}/wallet-loyalty/wallet`, {
+      headers: { "Authorization": `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data && typeof data.balance === "number") {
+          setRealWalletBalance(data.balance);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const persistSelectedPassengers = () => {
     // 1. Always save/update in localStorage cache for instant future booking auto-fill
@@ -11456,7 +11472,7 @@ function CheckoutModal({
                     <input type="radio" checked={payMethod === 'wallet'} onChange={() => setPayMethod('wallet')} className="accent-black" />
                     <span className="font-black text-xs uppercase">Travel Wallet Only</span>
                   </div>
-                  <span className="text-xs font-bold text-slate-700">Bal: ₹{userProfile.walletBalance.toLocaleString()}</span>
+                  <span className="text-xs font-bold text-slate-700">Bal: ₹{realWalletBalance.toLocaleString()}</span>
                 </label>
                 <label className={`flex justify-between items-center p-3 border-2 border-black rounded-lg cursor-pointer ${payMethod === 'card' ? 'bg-yellow-300 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]' : 'bg-white'}`}>
                   <div className="flex items-center gap-2">
@@ -11481,6 +11497,37 @@ function CheckoutModal({
                 </label>
               </div>
             </div>
+
+            {/* Wallet payment summary breakdown */}
+            {payMethod === 'wallet' && (
+              <div className="border-3 border-black p-3.5 rounded-xl bg-amber-50 space-y-2 text-black font-sans shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                <span className="text-xs font-black uppercase block border-b-2 border-black/20 pb-1" style={{ color: '#000000', opacity: 1 }}>
+                  💳 Wallet Payment Summary
+                </span>
+                <div className="flex justify-between items-center text-xs font-bold" style={{ color: '#000000', opacity: 1 }}>
+                  <span>Wallet Balance:</span>
+                  <span className="font-black text-black">₹{realWalletBalance.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center text-xs font-bold" style={{ color: '#000000', opacity: 1 }}>
+                  <span>Payable:</span>
+                  <span className="font-black text-red-600">₹{finalAmount.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center text-xs font-bold border-t border-black/10 pt-1.5" style={{ color: '#000000', opacity: 1 }}>
+                  <span>After Payment:</span>
+                  <span className={`font-black ${realWalletBalance >= finalAmount ? 'text-emerald-700' : 'text-red-700'}`}>
+                    {realWalletBalance >= finalAmount
+                      ? `₹${(realWalletBalance - finalAmount).toLocaleString()}`
+                      : "Insufficient Wallet Balance"}
+                  </span>
+                </div>
+
+                {realWalletBalance < finalAmount && (
+                  <div className="bg-red-100 border-2 border-red-600 p-2.5 rounded-lg text-[11px] font-black text-red-800 uppercase mt-1">
+                    ⚠️ Insufficient wallet balance. Please add money to your wallet or choose a different payment method.
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Card fields panel if card selected */}
             {(payMethod === 'card' || payMethod === 'split') && (
@@ -14857,34 +14904,110 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
   const [topupAmount, setTopupAmount] = useState("");
   const [couponCode, setCouponCode] = useState("");
   const [couponStatus, setCouponStatus] = useState("");
+  const [topupSuccess, setTopupSuccess] = useState<string | null>(null);
+  const [loadingTopup, setLoadingTopup] = useState(false);
+  const [transactions, setTransactions] = useState<any[]>([]);
+
+  const fetchWallet = () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    fetch(`${API_URL}/wallet-loyalty/wallet`, {
+      headers: { "Authorization": `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data && typeof data.balance === "number") {
+          setUserProfile((prev: any) => ({
+            ...prev,
+            walletBalance: data.balance
+          }));
+          if (Array.isArray(data.transactions)) {
+            setTransactions(data.transactions);
+          }
+        }
+      })
+      .catch(e => console.error("Error loading wallet balance:", e));
+  };
+
+  useEffect(() => {
+    fetchWallet();
+  }, []);
 
   const handleTopup = (e: React.FormEvent) => {
     e.preventDefault();
     const val = parseFloat(topupAmount);
     if (!val || val <= 0) return;
-    setUserProfile((prev: any) => ({
-      ...prev,
-      walletBalance: prev.walletBalance + val
-    }));
-    setTopupAmount("");
-    alert(`Wallet Top-up of ₹${val.toLocaleString()} completed using Stripe token gateway.`);
+
+    setLoadingTopup(true);
+    setTopupSuccess(null);
+    const token = localStorage.getItem("token");
+
+    fetch(`${API_URL}/wallet-loyalty/wallet/topup`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { "Authorization": `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({
+        amount: val,
+        description: "Dev/Test Wallet Recharge"
+      })
+    })
+      .then(res => res.json())
+      .then(data => {
+        setLoadingTopup(false);
+        if (data.success || data.balance !== undefined) {
+          const newBal = data.balance;
+          setUserProfile((prev: any) => ({
+            ...prev,
+            walletBalance: newBal
+          }));
+          setTopupSuccess(`✓ ₹${val.toLocaleString()} added successfully! New Balance: ₹${newBal.toLocaleString()}`);
+          setTopupAmount("");
+          fetchWallet();
+        } else {
+          alert(data.detail || "Top up failed.");
+        }
+      })
+      .catch(err => {
+        setLoadingTopup(false);
+        alert("Top up error: " + err.message);
+      });
   };
 
   const handleApplyCoupon = () => {
-    if (couponCode.toUpperCase() === "SAVE10") {
-      setCouponStatus("Coupon SAVE10 applied! 10% discount loaded on checkouts.");
-    } else {
-      setCouponStatus("Invalid coupon code.");
-    }
+    if (!couponCode.trim()) return;
+    const token = localStorage.getItem("token");
+    fetch(`${API_URL}/wallet-loyalty/coupon/validate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { "Authorization": `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({
+        code: couponCode.trim(),
+        order_value: 1000.0
+      })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.valid) {
+          setCouponStatus(`Coupon ${data.code} applied! Discount: ₹${data.discount_amount}`);
+        } else {
+          setCouponStatus(data.detail || "Invalid coupon code.");
+        }
+      })
+      .catch(() => setCouponStatus("Invalid coupon code."));
   };
 
   return (
     <div className="p-4 md:p-8 pb-28 md:pb-16 h-full overflow-y-auto overflow-x-hidden max-w-4xl mx-auto space-y-6">
-      <div className="bg-gradient-to-r from-blue-900/60 to-indigo-900/60 rounded-2xl p-6 border border-blue-500/20 shadow-xl flex justify-between items-center">
+      {/* Active Balance Banner */}
+      <div className="bg-gradient-to-r from-blue-900/60 to-indigo-900/60 rounded-2xl p-6 border border-blue-500/20 shadow-xl flex justify-between items-center text-left">
         <div>
-          <span className="text-xs text-blue-300 font-bold uppercase tracking-wider">Active Balance</span>
+          <span className="text-xs text-blue-300 font-bold uppercase tracking-wider">Active Wallet Balance</span>
           <h3 className="text-3xl font-black text-white mt-1">₹{userProfile.walletBalance.toLocaleString()}</h3>
-          <p className="text-xs text-slate-400 mt-2">Preferred currency is synced in INR. All travel refunds credit instantly.</p>
+          <p className="text-xs text-slate-400 mt-2">Ghumne Chale Wallet is backed by real-time backend ledger. Instant travel refunds & 1-click checkout.</p>
         </div>
         <div className="text-right">
           <span className="text-[10px] bg-blue-500/20 text-blue-300 px-2.5 py-1 rounded-full font-bold">{userProfile.tier} Member</span>
@@ -14892,55 +15015,79 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
         </div>
       </div>
 
+      {/* Topup Success Notification Banner */}
+      {topupSuccess && (
+        <div className="bg-emerald-100 border-3 border-emerald-600 p-4 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-emerald-900 font-sans space-y-1 text-left">
+          <div className="flex items-center gap-2 font-black text-base">
+            <CheckCircle size={20} className="text-emerald-700" />
+            <span>{topupSuccess.split("!")[0]}!</span>
+          </div>
+          <div className="text-sm font-bold text-emerald-800">
+            {topupSuccess.split("!")[1] || ""}
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-        <div className="glass-card p-6 rounded-2xl border border-slate-800 space-y-4">
-          <h4 className="font-bold text-slate-200 flex items-center gap-2"><CreditCard size={18} className="text-blue-500" /> Wallet Recharge</h4>
+        {/* Add Money Card */}
+        <div className="glass-card p-6 rounded-2xl border border-slate-800 space-y-4 text-left">
+          <div className="flex justify-between items-center">
+            <h4 className="font-bold text-slate-200 flex items-center gap-2">
+              <CreditCard size={18} className="text-blue-500" /> + Add Money
+            </h4>
+            <span className="text-[9px] bg-yellow-400/20 text-yellow-300 px-2 py-0.5 rounded font-black border border-yellow-500/30 uppercase">Dev Test Mode</span>
+          </div>
           <form onSubmit={handleTopup} className="space-y-3">
             <div className="space-y-1.5">
-              <label className="text-xs text-slate-400">Recharge Amount (INR)</label>
-              <input 
-                type="number" 
-                value={topupAmount}
-                onChange={(e) => setTopupAmount(e.target.value)}
-                placeholder="Enter amount (e.g. 5000)"
-                className="w-full px-4 py-2.5 rounded-lg text-sm glass-input"
-              />
+              <label className="text-xs text-slate-400 font-bold">Enter Recharge Amount (INR)</label>
+              <div className="relative">
+                <span className="absolute left-3 top-2.5 text-slate-400 font-black">₹</span>
+                <input 
+                  type="number" 
+                  value={topupAmount}
+                  onChange={(e) => setTopupAmount(e.target.value)}
+                  placeholder="25000"
+                  className="w-full pl-8 pr-4 py-2.5 rounded-xl text-sm glass-input font-bold"
+                />
+              </div>
             </div>
             <button 
               type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-lg text-sm transition-all shadow-md shadow-blue-500/10"
+              disabled={loadingTopup}
+              className="w-full bg-yellow-300 hover:bg-yellow-400 text-black border-2 border-black font-black py-2.5 rounded-xl text-sm transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] uppercase active:translate-y-0.5 cursor-pointer"
             >
-              Add Money via Card
+              {loadingTopup ? "Crediting Wallet..." : "[ ADD MONEY ]"}
             </button>
           </form>
         </div>
 
-        <div className="glass-card p-6 rounded-2xl border border-slate-800 space-y-4">
+        {/* Coupon Center Card */}
+        <div className="glass-card p-6 rounded-2xl border border-slate-800 space-y-4 text-left">
           <h4 className="font-bold text-slate-200 flex items-center gap-2"><Tag size={18} className="text-blue-500" /> Coupon Center</h4>
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <label className="text-xs text-slate-400">Discount Code</label>
+              <label className="text-xs text-slate-400 font-bold">Discount Code</label>
               <input 
                 type="text" 
                 value={couponCode}
                 onChange={(e) => setCouponCode(e.target.value)}
-                placeholder="Enter code (e.g. SAVE10)"
-                className="w-full px-4 py-2.5 rounded-lg text-sm glass-input"
+                placeholder="SAVE10, FLYFAST"
+                className="w-full px-4 py-2.5 rounded-xl text-sm glass-input font-bold"
               />
             </div>
             <button 
               onClick={handleApplyCoupon}
-              className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-2.5 rounded-lg text-sm transition-all"
+              className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-2.5 rounded-xl text-sm transition-all cursor-pointer uppercase"
             >
               Validate Coupon
             </button>
-            {couponStatus && <div className="text-xs text-blue-400 font-medium px-1 mt-2">{couponStatus}</div>}
+            {couponStatus && <div className="text-xs text-blue-400 font-bold px-1 mt-2">{couponStatus}</div>}
           </div>
         </div>
       </div>
 
       {/* Ghumne Chale Analytics Dashboard */}
-      <div className="glass-card p-6 rounded-2xl border border-slate-800 space-y-4">
+      <div className="glass-card p-6 rounded-2xl border border-slate-800 space-y-4 text-left">
         <h4 className="font-bold text-slate-200 flex items-center gap-2">🚀 GHUMNE CHALE ENTERPRISE-GRADE ANALYTICS</h4>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <div className="bg-[#121c33] p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
@@ -14976,44 +15123,45 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
         </div>
       </div>
 
-      {/* Ledger & Travel Credits Section */}
-      <div className="glass-card p-6 rounded-2xl border border-slate-800 space-y-4">
-        <h4 className="font-bold text-slate-200 flex items-center gap-2">📑 TRANSACTION HISTORY & TRAVEL CREDITS</h4>
+      {/* Real Backend Ledger & Transaction History Section */}
+      <div className="glass-card p-6 rounded-2xl border border-slate-800 space-y-4 text-left">
+        <h4 className="font-bold text-slate-200 flex items-center gap-2">📑 TRANSACTION HISTORY & WALLET LEDGER</h4>
         <div className="space-y-3">
-          <div className="flex justify-between items-center bg-slate-900/60 p-3 rounded-lg border border-slate-800">
-            <div>
-              <span className="text-[9px] bg-emerald-950 text-emerald-400 font-extrabold px-1.5 py-0.5 rounded border border-emerald-500/20">CASHBACK CREDITED</span>
-              <span className="text-xs text-slate-300 font-bold block mt-1">₹2,500 Cashback from Goa Package Booking</span>
-            </div>
-            <span className="text-xs font-black text-emerald-400">+₹2,500</span>
-          </div>
-
-          <div className="flex justify-between items-center bg-slate-900/60 p-3 rounded-lg border border-slate-800">
-            <div>
-              <span className="text-[9px] bg-blue-950 text-blue-400 font-extrabold px-1.5 py-0.5 rounded border border-blue-500/20">REFUND PROCESSED</span>
-              <span className="text-xs text-slate-300 font-bold block mt-1">Refund for Flight booking cancellation #TX-1092</span>
-            </div>
-            <div className="text-right">
-              <span className="text-xs font-black text-blue-400">+₹5,200</span>
-              <span className="text-[8px] text-slate-500 block mt-0.5">Cleared on 2026-08-01</span>
-            </div>
-          </div>
-
-          <div className="flex justify-between items-center bg-slate-900/60 p-3 rounded-lg border border-slate-800">
-            <div>
-              <span className="text-[9px] bg-purple-950 text-purple-400 font-extrabold px-1.5 py-0.5 rounded border border-purple-500/20">TRAVEL VOUCHER CREDIT</span>
-              <span className="text-xs text-slate-300 font-bold block mt-1">Airline cancel voucher compensation #UK-902-CR</span>
-            </div>
-            <span className="text-xs font-black text-purple-400">+₹4,000</span>
-          </div>
-
-          <div className="flex justify-between items-center bg-slate-900/60 p-3 rounded-lg border border-slate-800">
-            <div>
-              <span className="text-[9px] bg-slate-950 text-slate-400 font-extrabold px-1.5 py-0.5 rounded border border-slate-800">DEBITED ORDER</span>
-              <span className="text-xs text-slate-300 font-bold block mt-1">Payment for hotel booking #HT-20384</span>
-            </div>
-            <span className="text-xs font-black text-red-400">-₹12,400</span>
-          </div>
+          {transactions.length > 0 ? (
+            transactions.map((tx: any) => {
+              const isCredit = tx.type === 'credit';
+              return (
+                <div key={tx.id} className="flex justify-between items-center bg-slate-900/80 p-3.5 rounded-xl border border-slate-800 shadow-sm">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[9px] font-black px-2 py-0.5 rounded border uppercase tracking-wider ${
+                        isCredit 
+                          ? 'bg-emerald-950 text-emerald-400 border-emerald-500/30' 
+                          : 'bg-rose-950 text-rose-400 border-rose-500/30'
+                      }`}>
+                        {isCredit ? 'CREDIT' : 'DEBIT'}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono">#{tx.reference || tx.id}</span>
+                    </div>
+                    <span className="text-xs text-white font-bold block">{tx.description || (isCredit ? 'Wallet Credit' : 'Wallet Payment')}</span>
+                    <span className="text-[10px] text-slate-400 block font-mono">
+                      Bal: ₹{tx.balance_before.toLocaleString()} ➔ ₹{tx.balance_after.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className={`text-sm font-black ${isCredit ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {isCredit ? '+' : '-'}₹{tx.amount.toLocaleString()}
+                    </span>
+                    <span className="text-[9px] text-slate-500 block mt-0.5">
+                      {new Date(tx.timestamp).toLocaleDateString()} {new Date(tx.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="text-slate-400 text-xs text-center py-4 font-bold">No wallet transactions recorded yet.</div>
+          )}
         </div>
       </div>
     </div>

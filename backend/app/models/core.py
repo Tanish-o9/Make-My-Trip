@@ -164,7 +164,11 @@ class WalletTransaction(Base):
     wallet_account_id: Mapped[int] = mapped_column(Integer, ForeignKey("wallet_accounts.id"), index=True, nullable=False)
     amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     type: Mapped[str] = mapped_column(String(20), nullable=False)  # credit, debit
-    reference: Mapped[str] = mapped_column(String(255), nullable=True) # booking_id, recharge_id
+    balance_before: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), nullable=True)
+    balance_after: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), nullable=True)
+    reference: Mapped[Optional[str]] = mapped_column(String(255), nullable=True) # booking_id, recharge_id
+    description: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    status: Mapped[str] = mapped_column(String(50), default="COMPLETED")
     timestamp: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
     seed_batch_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 

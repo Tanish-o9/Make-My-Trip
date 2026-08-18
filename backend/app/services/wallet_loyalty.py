@@ -17,21 +17,65 @@ class WalletService:
     def get_or_create_wallet(db: Session, user_id: int) -> WalletAccount:
         wallet = db.query(WalletAccount).filter(WalletAccount.user_id == user_id).first()
         if not wallet:
-            wallet = WalletAccount(user_id=user_id, balance=Decimal("0.00"), currency="INR")
+            # Seed wallet with initial test balance of 5000.00 for active testing
+            wallet = WalletAccount(user_id=user_id, balance=Decimal("5000.00"), currency="INR")
             db.add(wallet)
+            db.commit()
+            db.refresh(wallet)
+            # Create initial transaction ledger entry
+            tx = WalletTransaction(
+                wallet_account_id=wallet.id,
+                amount=Decimal("5000.00"),
+                type="credit",
+                balance_before=Decimal("0.00"),
+                balance_after=Decimal("5000.00"),
+                reference="WELCOME_BONUS",
+                description="Welcome Bonus Credit",
+                status="COMPLETED"
+            )
+            db.add(tx)
             db.commit()
             db.refresh(wallet)
         return wallet
 
     @classmethod
-    def top_up(cls, db: Session, user_id: int, amount: Decimal, reference: str) -> WalletAccount:
+    def top_up(
+        cls, 
+        db: Session, 
+        user_id: int, 
+        amount: Decimal, 
+        reference: str, 
+        description: str = "Wallet Recharge", 
+        mode: str = "test"
+    ) -> WalletAccount:
+        if amount <= 0:
+            raise ValueError("Recharge amount must be positive.")
+        
         wallet = cls.get_or_create_wallet(db, user_id)
+        
+        # Idempotency check on reference
+        if reference and reference != "test_topup":
+            existing = db.query(WalletTransaction).filter(
+                WalletTransaction.wallet_account_id == wallet.id,
+                WalletTransaction.reference == reference,
+                WalletTransaction.type == "credit"
+            ).first()
+            if existing:
+                return wallet
+
+        bal_before = Decimal(str(wallet.balance))
         wallet.balance += amount
+        bal_after = Decimal(str(wallet.balance))
+
         transaction = WalletTransaction(
             wallet_account_id=wallet.id,
             amount=amount,
             type="credit",
-            reference=reference
+            balance_before=bal_before,
+            balance_after=bal_after,
+            reference=reference or f"recharge_{int(datetime.datetime.utcnow().timestamp())}",
+            description=description or "Wallet Recharge",
+            status="COMPLETED"
         )
         db.add(transaction)
         db.commit()
@@ -39,16 +83,45 @@ class WalletService:
         return wallet
 
     @classmethod
-    def debit_for_booking(cls, db: Session, user_id: int, amount: Decimal, booking_ref: str) -> WalletAccount:
+    def debit_for_booking(
+        cls, 
+        db: Session, 
+        user_id: int, 
+        amount: Decimal, 
+        booking_ref: str, 
+        description: str = "Booking Payment"
+    ) -> WalletAccount:
+        if amount <= 0:
+            raise ValueError("Debit amount must be positive.")
+
         wallet = cls.get_or_create_wallet(db, user_id)
-        if wallet.balance < amount:
-            raise InsufficientWalletBalance("Insufficient balance in wallet")
+        
+        if Decimal(str(wallet.balance)) < amount:
+            raise InsufficientWalletBalance("Insufficient wallet balance")
+
+        # Idempotency check for duplicate debit
+        if booking_ref:
+            existing = db.query(WalletTransaction).filter(
+                WalletTransaction.wallet_account_id == wallet.id,
+                WalletTransaction.reference == booking_ref,
+                WalletTransaction.type == "debit"
+            ).first()
+            if existing:
+                return wallet
+
+        bal_before = Decimal(str(wallet.balance))
         wallet.balance -= amount
+        bal_after = Decimal(str(wallet.balance))
+
         transaction = WalletTransaction(
             wallet_account_id=wallet.id,
             amount=amount,
             type="debit",
-            reference=booking_ref
+            balance_before=bal_before,
+            balance_after=bal_after,
+            reference=booking_ref,
+            description=description or f"Payment for booking {booking_ref}",
+            status="COMPLETED"
         )
         db.add(transaction)
         db.commit()
@@ -56,14 +129,42 @@ class WalletService:
         return wallet
 
     @classmethod
-    def refund_to_wallet(cls, db: Session, user_id: int, amount: Decimal, booking_ref: str) -> WalletAccount:
+    def refund_to_wallet(
+        cls, 
+        db: Session, 
+        user_id: int, 
+        amount: Decimal, 
+        booking_ref: str, 
+        description: str = "Booking Refund"
+    ) -> WalletAccount:
+        if amount <= 0:
+            return cls.get_or_create_wallet(db, user_id)
+
         wallet = cls.get_or_create_wallet(db, user_id)
+        ref_str = f"Refund: {booking_ref}" if not booking_ref.startswith("Refund:") else booking_ref
+
+        # Idempotency check to prevent duplicate refund
+        existing = db.query(WalletTransaction).filter(
+            WalletTransaction.wallet_account_id == wallet.id,
+            (WalletTransaction.reference == ref_str) | (WalletTransaction.reference == booking_ref),
+            WalletTransaction.type == "credit"
+        ).first()
+        if existing:
+            return wallet
+
+        bal_before = Decimal(str(wallet.balance))
         wallet.balance += amount
+        bal_after = Decimal(str(wallet.balance))
+
         transaction = WalletTransaction(
             wallet_account_id=wallet.id,
             amount=amount,
             type="credit",
-            reference=f"Refund: {booking_ref}"
+            balance_before=bal_before,
+            balance_after=bal_after,
+            reference=ref_str,
+            description=description or f"Refund for booking {booking_ref}",
+            status="COMPLETED"
         )
         db.add(transaction)
         db.commit()
