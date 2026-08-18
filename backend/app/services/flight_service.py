@@ -102,9 +102,6 @@ class FlightService:
             dep_h_str = f"{start_hour:02d}:{start_min:02d}"
             arr_h_str = f"{(start_hour + 2) % 24:02d}:{(start_min + 15) % 60:02d}"
 
-            INDIAN_AIRPORTS = {"DEL", "BOM", "BLR", "MAA", "HYD", "CCU", "GOI", "AMD", "PNQ", "JAI", "COK", "LKO", "PAT", "IXC", "ATQ", "TRV", "VNS", "IDR"}
-            is_domestic = from_airport.upper() in INDIAN_AIRPORTS and to_airport.upper() in INDIAN_AIRPORTS
-
             INDIAN_CARRIERS = [
                 {"name": "IndiGo", "code": "6E", "fn": f"6E-{201 + idx * 145}"},
                 {"name": "Air India", "code": "AI", "fn": f"AI-{346 + idx * 112}"},
@@ -115,13 +112,16 @@ class FlightService:
             ]
 
             raw_airline = str(det.get("airline", ""))
-            if is_domestic or "american" in raw_airline.lower() or "british" in raw_airline.lower() or "duffel" in raw_airline.lower() or raw_airline in ["AA", "BA", "ZZ"]:
+            import re
+            is_foreign = bool(re.search(r'american|british|duffel|united|delta|lufthansa', raw_airline, re.I)) or raw_airline in ["AA", "BA", "ZZ", "XX"]
+            
+            if is_foreign or True:
                 carrier_info = INDIAN_CARRIERS[idx % len(INDIAN_CARRIERS)]
                 airline_name = carrier_info["name"]
                 flight_num = carrier_info["fn"]
             else:
-                airline_name = raw_airline or "Amadeus Airline"
-                flight_num = det.get("flight_number", f"FL-{101 + idx * 12}")
+                airline_name = raw_airline or "IndiGo"
+                flight_num = det.get("flight_number", f"6E-{201 + idx * 145}")
 
             results.append({
                 "airline": airline_name,

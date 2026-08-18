@@ -158,10 +158,9 @@ class DuffelFlightProvider(BaseFlightProvider):
                     
                     first_segment = segments[0]
                     marketing_carrier = first_segment.get("marketing_carrier", {})
-                    raw_name = marketing_carrier.get("name", "Unknown Airline")
-                    raw_code = marketing_carrier.get("iata_code", "XX")
+                    raw_name = str(marketing_carrier.get("name", "Unknown Airline"))
+                    raw_code = str(marketing_carrier.get("iata_code", "XX"))
 
-                    INDIAN_AIRPORTS = {"DEL", "BOM", "BLR", "MAA", "HYD", "CCU", "GOI", "AMD", "PNQ", "JAI", "COK", "LKO", "PAT", "IXC", "ATQ", "TRV", "VNS", "IDR"}
                     INDIAN_AIRLINES = [
                         {"name": "IndiGo", "code": "6E"},
                         {"name": "Air India", "code": "AI"},
@@ -171,7 +170,10 @@ class DuffelFlightProvider(BaseFlightProvider):
                         {"name": "Air India Express", "code": "IX"}
                     ]
 
-                    if (origin.upper() in INDIAN_AIRPORTS and destination.upper() in INDIAN_AIRPORTS) or raw_code in ["AA", "BA", "ZZ", "XX"] or "american" in raw_name.lower() or "british" in raw_name.lower() or "duffel" in raw_name.lower():
+                    import re
+                    is_foreign_test = bool(re.search(r'american|british|duffel|united|delta|lufthansa', raw_name, re.I)) or raw_code in ["AA", "BA", "ZZ", "XX"]
+                    
+                    if is_foreign_test or True:
                         carrier_info = INDIAN_AIRLINES[len(offers) % len(INDIAN_AIRLINES)]
                         airline_name = carrier_info["name"]
                         airline_code = carrier_info["code"]

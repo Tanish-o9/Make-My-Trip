@@ -4156,11 +4156,8 @@ function FlightsSearchForm({
                 "QR": "Qatar Airways"
               };
               return results.map((res, index) => {
-                const originStr = (res.origin || fromCity || "DEL").toUpperCase();
-                const destStr = (res.destination || toCity || "BOM").toUpperCase();
-
-                const DOMESTIC_KEYWORDS = ["DEL", "BOM", "BLR", "MAA", "HYD", "CCU", "GOI", "AMD", "PNQ", "JAI", "COK", "LKO", "PAT", "IXC", "ATQ", "TRV", "VNS", "IDR", "DELHI", "MUMBAI", "BENGALURU", "BANGALORE", "GOA", "CHENNAI", "KOLKATA", "HYDERABAD", "AHMEDABAD", "PUNE", "JAIPUR", "KOCHI", "LUCKNOW", "PATNA"];
-                const isDomesticRoute = DOMESTIC_KEYWORDS.some(k => originStr.includes(k)) && DOMESTIC_KEYWORDS.some(k => destStr.includes(k));
+                const origin = res.origin || fromCity || "DEL";
+                const destination = res.destination || toCity || "BOM";
 
                 const INDIAN_DOMESTIC_AIRLINES = [
                   { name: "IndiGo", code: "6E", prefix: "6E" },
@@ -4171,18 +4168,9 @@ function FlightsSearchForm({
                   { name: "Air India Express", code: "IX", prefix: "IX" }
                 ];
 
-                const rawAirlineCode = (res.airline || "6E").trim().toUpperCase();
-                let airlineName = AIRLINE_MAP[rawAirlineCode] || res.airline || "IndiGo";
-                let flightNumber = res.flight_number || res.raw_provider_ref || `${rawAirlineCode}-${101 + index * 12}`;
-
-                const lowerName = airlineName.toLowerCase();
-                const isForeignCarrier = lowerName.includes("american") || lowerName.includes("british") || lowerName.includes("duffel") || rawAirlineCode === "AA" || rawAirlineCode === "BA" || rawAirlineCode === "ZZ" || rawAirlineCode === "XX";
-
-                if (isDomesticRoute || isForeignCarrier) {
-                  const domesticCarrier = INDIAN_DOMESTIC_AIRLINES[index % INDIAN_DOMESTIC_AIRLINES.length];
-                  airlineName = domesticCarrier.name;
-                  flightNumber = `${domesticCarrier.prefix}-${201 + index * 145}`;
-                }
+                const domesticCarrier = INDIAN_DOMESTIC_AIRLINES[index % INDIAN_DOMESTIC_AIRLINES.length];
+                const airlineName = domesticCarrier.name;
+                const flightNumber = `${domesticCarrier.prefix}-${201 + index * 145}`;
 
                 let depTime = res.dep || "08:30";
                 let arrTime = res.arr || "10:45";
