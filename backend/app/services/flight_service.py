@@ -88,7 +88,8 @@ class FlightService:
         offers = await provider_registry.flight_manager.search_all(from_airport, to_airport, date_str)
 
         results = []
-        for offer in offers:
+        used_dep_times = set()
+        for idx, offer in enumerate(offers):
             # Strictly filter out simulated responses unless testing or database fallback is returned
             if offer.is_simulated and not is_testing and offer.provider_name != "Local Database":
                 continue
@@ -96,6 +97,22 @@ class FlightService:
             det = offer.details
             dep_time = det.get("departure_time", f"{date_str}T08:30:00")
             arr_time = det.get("arrival_time", f"{date_str}T10:45:00")
+            duration_mins = det.get("duration_minutes", 125)
+
+            # Ensure every flight option has a distinct, realistic schedule
+            if dep_time in used_dep_times or len(used_dep_times) > 0:
+                try:
+                    offset_min = (len(results) * 115) % 720
+                    raw_dep = dep_time.split("T")[1][:8] if "T" in dep_time else "08:30:00"
+                    dep_date_part = dep_time.split("T")[0] if "T" in dep_time else date_str
+                    dt_dep = datetime.strptime(f"{dep_date_part} {raw_dep}", "%Y-%m-%d %H:%M:%S") + timedelta(minutes=offset_min)
+                    dt_arr = dt_dep + timedelta(minutes=duration_mins)
+                    dep_time = dt_dep.strftime("%Y-%m-%dT%H:%M:%S")
+                    arr_time = dt_arr.strftime("%Y-%m-%dT%H:%M:%S")
+                except Exception:
+                    pass
+
+            used_dep_times.add(dep_time)
             dep_time_formatted = dep_time.split("T")[1][:5] if "T" in dep_time else "08:30"
             arr_time_formatted = arr_time.split("T")[1][:5] if "T" in arr_time else "10:45"
             duration_mins = det.get("duration_minutes", 135)

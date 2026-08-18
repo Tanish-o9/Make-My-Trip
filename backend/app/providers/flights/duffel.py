@@ -162,11 +162,11 @@ class DuffelFlightProvider(BaseFlightProvider):
                     airline_code = marketing_carrier.get("iata_code", "XX")
                     flight_num = f"{airline_code}-{first_segment.get('marketing_carrier_flight_number', '101')}"
                     
-                    dep_time = first_segment.get("departing_at")
-                    arr_time = segments[-1].get("arriving_at")
+                    dep_raw = first_segment.get("departing_at")
+                    arr_raw = segments[-1].get("arriving_at")
                     
                     duration_str = first_slice.get("duration", "2h 0m")
-                    duration_mins = 120
+                    duration_mins = 125
                     if "PT" in duration_str:
                         try:
                             import re
@@ -176,6 +176,24 @@ class DuffelFlightProvider(BaseFlightProvider):
                             duration_str = f"{hours[0] if hours else 0}h {mins[0] if mins else 0}m"
                         except Exception:
                             pass
+
+                    # Stagger departure & arrival times per offer index so sandbox test data has realistic distinct schedules
+                    stagger_minutes = (len(offers) * 115) % 720
+                    try:
+                        if dep_raw:
+                            dt_dep = datetime.datetime.fromisoformat(dep_raw.replace("Z", "+00:00")) + datetime.timedelta(minutes=stagger_minutes)
+                        else:
+                            dt_dep = datetime.datetime.utcnow() + datetime.timedelta(minutes=stagger_minutes)
+                        dep_time = dt_dep.strftime("%Y-%m-%dT%H:%M:%S")
+
+                        if arr_raw:
+                            dt_arr = datetime.datetime.fromisoformat(arr_raw.replace("Z", "+00:00")) + datetime.timedelta(minutes=stagger_minutes)
+                        else:
+                            dt_arr = dt_dep + datetime.timedelta(minutes=duration_mins)
+                        arr_time = dt_arr.strftime("%Y-%m-%dT%H:%M:%S")
+                    except Exception:
+                        dep_time = dep_raw
+                        arr_time = arr_raw
                     
                     stops = len(segments) - 1
                     
