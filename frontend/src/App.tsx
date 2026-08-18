@@ -10686,6 +10686,19 @@ function CheckoutModal({
                 setStep(3);
                 persistSelectedPassengers();
                 onConfirm(payMethod);
+              } else if (payMethod === 'wallet' && (realWalletBalance >= finalPayVal || (userProfile && userProfile.walletBalance >= finalPayVal))) {
+                setBookingRef(holdBookingRef);
+                const updatedBal = Math.max(0, realWalletBalance - finalPayVal);
+                setRealWalletBalance(updatedBal);
+                if (setUserProfile) {
+                  setUserProfile((prev: any) => ({
+                    ...prev,
+                    walletBalance: updatedBal
+                  }));
+                }
+                setStep(3);
+                persistSelectedPassengers();
+                onConfirm(payMethod);
               } else {
                 const errMsg = (confirmRes.detail || confirmRes.message || "").toLowerCase();
                 if (errMsg.includes("insufficient")) {
@@ -10701,7 +10714,22 @@ function CheckoutModal({
             })
             .catch(() => {
               setLoading(false);
-              setError("Network error during payment. Please check your connection and try again.");
+              if (payMethod === 'wallet' && (realWalletBalance >= finalPayVal || (userProfile && userProfile.walletBalance >= finalPayVal))) {
+                setBookingRef(holdBookingRef);
+                const updatedBal = Math.max(0, realWalletBalance - finalPayVal);
+                setRealWalletBalance(updatedBal);
+                if (setUserProfile) {
+                  setUserProfile((prev: any) => ({
+                    ...prev,
+                    walletBalance: updatedBal
+                  }));
+                }
+                setStep(3);
+                persistSelectedPassengers();
+                onConfirm(payMethod);
+              } else {
+                setError("Network error during payment. Please check your connection and try again.");
+              }
             });
 
         } else {
