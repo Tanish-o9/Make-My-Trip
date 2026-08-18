@@ -3872,11 +3872,12 @@ function FlightsSearchForm({
     setLoading(true);
     setResults([]);
     setError(null);
+    sessionStorage.removeItem("fl_results");
     
     const fromCode = getIATACode(fromCity);
     const toCode = getIATACode(toCity);
     
-    let url = `${API_URL}/flights/search?from=${encodeURIComponent(fromCode)}&to=${encodeURIComponent(toCode)}&passengers=${passengers}`;
+    let url = `${API_URL}/flights/search?from=${encodeURIComponent(fromCode)}&to=${encodeURIComponent(toCode)}&passengers=${passengers}&refresh=true&t=${Date.now()}`;
     if (overrideSort) url += `&sort_by=${overrideSort}`;
     if (overrideStops && overrideStops !== "all") url += `&stops=${overrideStops}`;
     if (overrideCarrier) url += `&carrier=${encodeURIComponent(overrideCarrier)}`;

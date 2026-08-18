@@ -60,7 +60,7 @@ class FlightService:
         raise last_err
 
     @classmethod
-    async def search_flights(cls, from_airport: str, to_airport: str, passengers: int = 1, date_str: str = None) -> List[Dict[str, Any]]:
+    async def search_flights(cls, from_airport: str, to_airport: str, passengers: int = 1, date_str: str = None, refresh: bool = False) -> List[Dict[str, Any]]:
         from datetime import datetime, timedelta
         import sys
         is_testing = "pytest" in sys.modules
@@ -70,8 +70,8 @@ class FlightService:
             date_str = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
         cache_key = f"flight_search:{from_airport.upper().strip()}:{to_airport.upper().strip()}:{date_str}:{passengers}"
 
-        # 1. Try Redis Cache
-        if redis_client and not is_testing:
+        # 1. Try Redis Cache (skip if fresh search requested)
+        if redis_client and not is_testing and not refresh:
             try:
                 cached_val = redis_client.get(cache_key)
                 if cached_val:
