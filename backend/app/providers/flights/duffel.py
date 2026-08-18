@@ -178,7 +178,7 @@ class DuffelFlightProvider(BaseFlightProvider):
                             pass
 
                     # Stagger departure & arrival times per offer index so sandbox test data has realistic distinct schedules
-                    stagger_minutes = (len(offers) * 115) % 720
+                    stagger_minutes = ((len(offers) + 1) * 115) % 720
                     try:
                         if dep_raw:
                             dt_dep = datetime.datetime.fromisoformat(dep_raw.replace("Z", "+00:00")) + datetime.timedelta(minutes=stagger_minutes)

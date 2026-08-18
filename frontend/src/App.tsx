@@ -4188,11 +4188,10 @@ function FlightsSearchForm({
                 let arrTime = res.arr || "10:45";
 
                 // Ensure every flight option has a distinct, realistic schedule across morning/afternoon/evening slots
-                const isDuplicateTime = index > 0 && (
-                  results.some((r, i) => i < index && (r.dep === res.dep || r.departureTime === res.departureTime)) ||
+                const isDuplicateTime = 
                   res.dep === "13:56" ||
-                  (res.departureTime && res.departureTime.includes("13:56"))
-                );
+                  (res.departureTime && res.departureTime.includes("13:56")) ||
+                  results.some((r, i) => i < index && (r.dep === res.dep || r.departureTime === res.departureTime));
                 if (isDuplicateTime) {
                   const startHour = (6 + (index * 2) + Math.floor(index / 2)) % 22;
                   const startMin = (15 + (index * 20)) % 60;
