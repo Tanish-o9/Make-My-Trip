@@ -3868,10 +3868,12 @@ function FlightsSearchForm({
       alert("Source and Destination airports cannot be identical.");
       return;
     }
-    setLoading(true);
-    setResults([]);
+    
+    // Keep current results visible on screen while updating in background
+    if (!results || results.length === 0) {
+      setLoading(true);
+    }
     setError(null);
-    sessionStorage.removeItem("fl_results");
     
     const fromCode = getIATACode(effectiveFrom);
     const toCode = getIATACode(effectiveTo);
@@ -3887,13 +3889,16 @@ function FlightsSearchForm({
         return res.json();
       })
       .then(data => {
-        setResults(Array.isArray(data) ? data.slice(0, 7) : data);
+        const sliced = Array.isArray(data) ? data.slice(0, 7) : data;
+        setResults(sliced);
+        try {
+          sessionStorage.setItem("fl_results", JSON.stringify(sliced));
+        } catch (e) {}
         setLoading(false);
       })
       .catch(err => {
         console.error(err);
         setError("Failed to fetch flights. Please try again.");
-        setResults([]);
         setLoading(false);
       });
   };
