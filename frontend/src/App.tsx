@@ -10649,10 +10649,10 @@ function CheckoutModal({
 
         {step === 1 && (
           <div className="space-y-4 text-left">
-            <div className="bg-[#eae5d9] p-3 border-3 border-black rounded-lg space-y-1">
-              <span className="text-[10px] uppercase font-bold text-slate-600">Category: {data.vertical.toUpperCase()}</span>
-              <h4 className="font-black text-base">{data.title}</h4>
-              <p className="text-xs text-slate-600 font-semibold">{data.subtitle}</p>
+            <div className="bg-[#eae5d9] p-3.5 border-3 border-black rounded-xl space-y-1 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+              <span className="text-[11px] uppercase font-black text-black block" style={{ color: '#000000', opacity: 1 }}>Category: {data.vertical.toUpperCase()}</span>
+              <h4 className="font-black text-lg text-black uppercase" style={{ color: '#000000', opacity: 1 }}>{data.title}</h4>
+              <p className="text-xs text-slate-900 font-bold" style={{ color: '#000000', opacity: 1 }}>{data.subtitle}</p>
             </div>
 
             {/* Passenger Forms */}
@@ -10660,15 +10660,15 @@ function CheckoutModal({
               {passengersList.map((passenger, index) => {
                 const isPrimary = index === 0;
                 return (
-                  <div key={passenger.id} className="border-3 border-black p-4 rounded-xl bg-slate-50 space-y-3 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
-                    <span className="text-[10px] uppercase font-black tracking-wider block border-b border-black/10 pb-1.5 mb-1">
+                  <div key={passenger.id} className="border-3 border-black p-4 rounded-xl bg-slate-50 space-y-3 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] text-black">
+                    <span className="text-xs font-black uppercase tracking-wider block border-b-2 border-black/10 pb-1.5 mb-1 text-black" style={{ color: '#000000', opacity: 1 }}>
                       PASSENGER {index + 1} - {isPrimary ? "PRIMARY PASSENGER DETAILS" : "PASSENGER DETAILS"}
                     </span>
 
                     {/* Saved Passengers Selection Panel */}
                     {savedPassengers.length > 0 && (
-                      <div className="mb-3 p-2 bg-[#eae5d9] border-2 border-dashed border-black rounded-lg">
-                        <span className="text-[9px] uppercase font-black text-slate-700 block mb-1">
+                      <div className="mb-3 p-2.5 bg-[#eae5d9] border-2 border-dashed border-black rounded-lg">
+                        <span className="text-[10px] uppercase font-black text-black block mb-1" style={{ color: '#000000', opacity: 1 }}>
                           👤 Use Saved Passenger Suggestions
                         </span>
                         <div className="flex flex-wrap gap-1">
@@ -10711,10 +10711,10 @@ function CheckoutModal({
                                     }).catch(() => {});
                                   }
                                 }}
-                                className={`px-2 py-0.5 rounded text-[9px] font-black border-2 border-black flex items-center gap-1 transition-all ${
+                                className={`px-2 py-0.5 rounded text-[10px] font-black border-2 border-black flex items-center gap-1 transition-all ${
                                   isAlreadySelected
-                                    ? "bg-slate-200 text-slate-400 border-slate-300 cursor-not-allowed opacity-50"
-                                    : "bg-white hover:bg-yellow-200 cursor-pointer"
+                                    ? "bg-slate-200 text-slate-500 border-slate-400 cursor-not-allowed opacity-60"
+                                    : "bg-white text-black hover:bg-yellow-200 cursor-pointer"
                                 }`}
                               >
                                 {sp.full_name} {sp.id_number_masked ? `(${sp.id_number_masked})` : ""}
@@ -10727,7 +10727,7 @@ function CheckoutModal({
                     
                     <div className="grid grid-cols-3 gap-2">
                       <div className="col-span-2">
-                        <label className="text-[9px] uppercase font-bold text-slate-500">Full Name</label>
+                        <label className="text-[10px] uppercase font-black text-black block mb-0.5" style={{ color: '#000000', opacity: 1 }}>Full Name</label>
                         <input 
                           type="text" 
                           value={passenger.fullName} 
@@ -10740,7 +10740,7 @@ function CheckoutModal({
                             }
                             setPassengersList(updated);
                           }} 
-                          className="w-full bg-white border-2 border-black rounded px-2 py-1 text-xs font-bold" 
+                          className="w-full bg-white border-2 border-black rounded px-2.5 py-1.5 text-xs font-black text-black outline-none" 
                         />
                         {validationErrors[`passenger_${index}_fullName`] && (
                           <span className="text-[9px] text-rose-600 font-bold block mt-0.5">
@@ -10749,7 +10749,7 @@ function CheckoutModal({
                         )}
                       </div>
                       <div>
-                        <label className="text-[9px] uppercase font-bold text-slate-500">Age</label>
+                        <label className="text-[10px] uppercase font-black text-black block mb-0.5" style={{ color: '#000000', opacity: 1 }}>Age</label>
                         <input 
                           type="number" 
                           value={passenger.age} 
@@ -10762,7 +10762,7 @@ function CheckoutModal({
                             }
                             setPassengersList(updated);
                           }} 
-                          className="w-full bg-white border-2 border-black rounded px-2 py-1 text-xs font-bold" 
+                          className="w-full bg-white border-2 border-black rounded px-2.5 py-1.5 text-xs font-black text-black outline-none" 
                         />
                         {validationErrors[`passenger_${index}_age`] && (
                           <span className="text-[9px] text-rose-600 font-bold block mt-0.5">
@@ -10774,7 +10774,7 @@ function CheckoutModal({
 
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="text-[9px] uppercase font-bold text-slate-500">Email Address (for 2FA & Tickets)</label>
+                        <label className="text-[10px] uppercase font-black text-black block mb-0.5" style={{ color: '#000000', opacity: 1 }}>Email Address (for 2FA & Tickets)</label>
                         <input 
                           type="email" 
                           value={passenger.email} 
@@ -10787,7 +10787,7 @@ function CheckoutModal({
                             }
                             setPassengersList(updated);
                           }} 
-                          className="w-full bg-white border-2 border-black rounded px-2 py-1 text-xs font-bold" 
+                          className="w-full bg-white border-2 border-black rounded px-2.5 py-1.5 text-xs font-black text-black outline-none" 
                         />
                         {validationErrors[`passenger_${index}_email`] && (
                           <span className="text-[9px] text-rose-600 font-bold block mt-0.5">
@@ -10796,7 +10796,7 @@ function CheckoutModal({
                         )}
                       </div>
                       <div>
-                        <label className="text-[9px] uppercase font-bold text-slate-500">Phone Number (SMS Alerts)</label>
+                        <label className="text-[10px] uppercase font-black text-black block mb-0.5" style={{ color: '#000000', opacity: 1 }}>Phone Number (SMS Alerts)</label>
                         <input 
                           type="text" 
                           value={passenger.phone} 
@@ -10809,7 +10809,7 @@ function CheckoutModal({
                             }
                             setPassengersList(updated);
                           }} 
-                          className="w-full bg-white border-2 border-black rounded px-2 py-1 text-xs font-bold" 
+                          className="w-full bg-white border-2 border-black rounded px-2.5 py-1.5 text-xs font-black text-black outline-none" 
                         />
                         {validationErrors[`passenger_${index}_phone`] && (
                           <span className="text-[9px] text-rose-600 font-bold block mt-0.5">
@@ -10838,7 +10838,7 @@ function CheckoutModal({
                       )
                     ) : (
                       passenger.fullName.trim() && (
-                        <label className="flex items-center gap-2 text-[10px] font-black text-slate-700 cursor-pointer pt-1">
+                        <label className="flex items-center gap-2 text-[10px] font-black text-slate-900 cursor-pointer pt-1">
                           <input
                             type="checkbox"
                             checked={passenger.shouldSavePassenger === true}
@@ -10849,14 +10849,14 @@ function CheckoutModal({
                             }}
                             className="accent-black rounded"
                           />
-                          <span>Save passenger details for future bookings</span>
+                          <span style={{ color: '#000000', opacity: 1 }}>Save passenger details for future bookings</span>
                         </label>
                       )
                     )}
 
                     {/* Special Fare Selection for Flights */}
                     {data.vertical === "flights" && (
-                      <div className="border-t border-black/10 pt-2.5 space-y-2.5">
+                      <div className="border-t-2 border-black/10 pt-2.5 space-y-2.5">
                         <div className="flex items-center justify-between">
                           <label className="flex items-center gap-2 text-xs font-bold cursor-pointer">
                             <input
@@ -10885,14 +10885,14 @@ function CheckoutModal({
                               }}
                               className="accent-black rounded border-2 w-4 h-4 cursor-pointer"
                             />
-                            <span className="font-extrabold text-slate-800">Student Special Fare — Save 10%</span>
+                            <span className="font-black text-black" style={{ color: '#000000', opacity: 1 }}>Student Special Fare — Save 10%</span>
                           </label>
                         </div>
 
                         {passenger.specialFareType !== "student" && (
                           <div className="space-y-1.5">
-                            <span className="text-[9px] uppercase font-bold text-slate-500 block">Other Fare Categories</span>
-                            <div className="grid grid-cols-3 gap-1">
+                            <span className="text-[10px] uppercase font-black text-black block" style={{ color: '#000000', opacity: 1 }}>Other Fare Categories</span>
+                            <div className="grid grid-cols-3 gap-1.5">
                               {[
                                 { value: "regular", label: "Regular" },
                                 { value: "senior", label: "Senior Citizen" },
@@ -10923,10 +10923,10 @@ function CheckoutModal({
                                       return updated;
                                     });
                                   }}
-                                  className={`text-[9px] font-bold py-1 border-2 border-black rounded transition-all ${
+                                  className={`text-[10px] font-black py-1.5 border-2 border-black rounded transition-all cursor-pointer ${
                                     passenger.specialFareType === opt.value
-                                      ? "bg-yellow-300 text-black animate-pulse"
-                                      : "bg-white text-slate-700 hover:bg-slate-50"
+                                      ? "bg-yellow-300 text-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]"
+                                      : "bg-white text-black hover:bg-yellow-100"
                                   }`}
                                 >
                                   {opt.label}
@@ -11256,26 +11256,26 @@ function CheckoutModal({
             </div>
 
             {/* Dynamic Fare Breakdown in checkout footer */}
-            <div className="border-y-3 border-black py-2.5 space-y-1.5 text-xs font-bold bg-slate-50 px-1">
-              <div className="flex justify-between text-slate-600">
-                <span>Base Fare Total:</span>
-                <span>₹{Math.round(breakdown.baseFareTotal).toLocaleString()}</span>
+            <div className="border-y-3 border-black py-3 space-y-2 text-xs font-black bg-slate-50 px-2 text-black">
+              <div className="flex justify-between text-black">
+                <span className="font-black text-black" style={{ color: '#000000', opacity: 1 }}>Base Fare Total:</span>
+                <span className="font-black text-black" style={{ color: '#000000', opacity: 1 }}>₹{Math.round(breakdown.baseFareTotal).toLocaleString()}</span>
               </div>
               {data.details?.seat_fare > 0 && (
-                <div className="flex justify-between text-slate-600">
-                  <span>Seat/Berth Selection:</span>
-                  <span>₹{Math.round(data.details.seat_fare).toLocaleString()}</span>
+                <div className="flex justify-between text-black">
+                  <span className="font-black text-black" style={{ color: '#000000', opacity: 1 }}>Seat/Berth Selection:</span>
+                  <span className="font-black text-black" style={{ color: '#000000', opacity: 1 }}>₹{Math.round(data.details.seat_fare).toLocaleString()}</span>
                 </div>
               )}
               {breakdown.totalDiscount > 0 && (
-                <div className="flex justify-between text-green-600">
-                  <span>Special Fare Discounts:</span>
-                  <span>-₹{Math.round(breakdown.totalDiscount).toLocaleString()}</span>
+                <div className="flex justify-between text-green-700">
+                  <span className="font-black">Special Fare Discounts:</span>
+                  <span className="font-black">-₹{Math.round(breakdown.totalDiscount).toLocaleString()}</span>
                 </div>
               )}
-              <div className="flex justify-between border-t border-black/10 pt-1.5 font-black text-sm">
-                <span>Total Amount Payable:</span>
-                <span className="text-red-600">₹{Math.round(breakdown.finalFare + (data.details?.seat_fare || 0)).toLocaleString()}</span>
+              <div className="flex justify-between border-t-2 border-black/20 pt-2 font-black text-base">
+                <span className="font-black text-black" style={{ color: '#000000', opacity: 1 }}>Total Amount Payable:</span>
+                <span className="text-red-600 font-black text-lg">₹{Math.round(breakdown.finalFare + (data.details?.seat_fare || 0)).toLocaleString()}</span>
               </div>
             </div>
 
