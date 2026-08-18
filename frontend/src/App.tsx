@@ -3673,19 +3673,13 @@ function FlightsSearchForm({
   toggleWishlist?: (itemType: string, refId: string, snapshot: any) => Promise<void>,
   token: string | null
 }) {
-  const [fromCity, setFromCity] = useState(() => sessionStorage.getItem("fl_fromCity") || "");
-  const [toCity, setToCity] = useState(() => sessionStorage.getItem("fl_toCity") || "");
+  const [fromCity, setFromCity] = useState("");
+  const [toCity, setToCity] = useState("");
   const [showFromSuggestions, setShowFromSuggestions] = useState(false);
   const [showToSuggestions, setShowToSuggestions] = useState(false);
-  const [depDate, setDepDate] = useState(() => sessionStorage.getItem("fl_depDate") || "");
-  const [depTime, setDepTime] = useState(() => sessionStorage.getItem("fl_depTime") || "");
-  const [cabin, setCabin] = useState(() => sessionStorage.getItem("fl_cabin") || "Economy");
-
-  useEffect(() => { sessionStorage.setItem("fl_fromCity", fromCity); }, [fromCity]);
-  useEffect(() => { sessionStorage.setItem("fl_toCity", toCity); }, [toCity]);
-  useEffect(() => { sessionStorage.setItem("fl_depDate", depDate); }, [depDate]);
-  useEffect(() => { sessionStorage.setItem("fl_depTime", depTime); }, [depTime]);
-  useEffect(() => { sessionStorage.setItem("fl_cabin", cabin); }, [cabin]);
+  const [depDate, setDepDate] = useState("");
+  const [depTime, setDepTime] = useState("");
+  const [cabin, setCabin] = useState("Economy");
 
   const handleCreatePriceAlert = async () => {
     if (!token) {
@@ -3765,25 +3759,7 @@ function FlightsSearchForm({
   const [gstInvoice, setGstInvoice] = useState(() => sessionStorage.getItem("fl_gstInvoice") === "true");
   const [priceProtection, setPriceProtection] = useState(() => sessionStorage.getItem("fl_priceProtection") === "true");
   
-  const [results, setResults] = useState<any[]>(() => {
-    try {
-      const saved = sessionStorage.getItem("fl_results");
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      return [];
-    }
-  });
-
-  useEffect(() => { sessionStorage.setItem("fl_specialFare", specialFare); }, [specialFare]);
-  useEffect(() => { sessionStorage.setItem("fl_gstInvoice", String(gstInvoice)); }, [gstInvoice]);
-  useEffect(() => { sessionStorage.setItem("fl_priceProtection", String(priceProtection)); }, [priceProtection]);
-  useEffect(() => { 
-    if (results.length > 0) {
-      try {
-        sessionStorage.setItem("fl_results", JSON.stringify(results));
-      } catch (e) {}
-    }
-  }, [results]);
+  const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useTabLoading('flights');
   const [showPayoutModal, setShowPayoutModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -3855,28 +3831,28 @@ function FlightsSearchForm({
   };
 
   const handleSearch = (overrideSort = sortBy, overrideStops = stops, overrideCarrier = carrier) => {
-    const effectiveFrom = (fromCity && fromCity.trim()) || "DEL";
-    const effectiveTo = (toCity && toCity.trim()) || "BOM";
-    const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0];
-    const effectiveDate = depDate || tomorrowStr;
-
-    if (!fromCity) setFromCity(effectiveFrom);
-    if (!toCity) setToCity(effectiveTo);
-    if (!depDate) setDepDate(effectiveDate);
-
-    if (effectiveFrom.trim().toLowerCase() === effectiveTo.trim().toLowerCase()) {
+    if (!fromCity.trim()) {
+      alert("Please enter an origin city (From).");
+      return;
+    }
+    if (!toCity.trim()) {
+      alert("Please enter a destination city (To).");
+      return;
+    }
+    if (fromCity.trim().toLowerCase() === toCity.trim().toLowerCase()) {
       alert("Source and Destination airports cannot be identical.");
       return;
     }
-    
-    // Keep current results visible on screen while updating in background
-    if (!results || results.length === 0) {
-      setLoading(true);
-    }
+
+    const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    const effectiveDate = depDate || tomorrowStr;
+
+    setLoading(true);
+    setResults([]);
     setError(null);
     
-    const fromCode = getIATACode(effectiveFrom);
-    const toCode = getIATACode(effectiveTo);
+    const fromCode = getIATACode(fromCity);
+    const toCode = getIATACode(toCity);
     
     let url = `${API_URL}/flights/search?from=${encodeURIComponent(fromCode)}&to=${encodeURIComponent(toCode)}&passengers=${passengers}&date=${encodeURIComponent(effectiveDate)}&time=${encodeURIComponent(depTime || '15:00')}&cabin=${encodeURIComponent(cabin || 'Economy')}&refresh=true&t=${Date.now()}`;
     if (overrideSort) url += `&sort_by=${overrideSort}`;
@@ -3891,14 +3867,12 @@ function FlightsSearchForm({
       .then(data => {
         const sliced = Array.isArray(data) ? data.slice(0, 7) : data;
         setResults(sliced);
-        try {
-          sessionStorage.setItem("fl_results", JSON.stringify(sliced));
-        } catch (e) {}
         setLoading(false);
       })
       .catch(err => {
         console.error(err);
         setError("Failed to fetch flights. Please try again.");
+        setResults([]);
         setLoading(false);
       });
   };
@@ -3907,11 +3881,6 @@ function FlightsSearchForm({
   useEffect(() => {
     if (isFirstMount.current) {
       isFirstMount.current = false;
-      const f = fromCity || "DEL";
-      const t = toCity || "BOM";
-      if (!fromCity) setFromCity("DEL");
-      if (!toCity) setToCity("BOM");
-      handleSearch(sortBy, stops, carrier);
       return;
     }
     if (results.length > 0) {
