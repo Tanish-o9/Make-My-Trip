@@ -4422,7 +4422,7 @@ function FlightsSearchForm({
             <div className="flex justify-between items-center pb-3" style={{borderBottom:'1px solid #1e3a5f'}}>
               <div>
                 <div className="flex items-center gap-2">
-                  <h4 className="font-black text-sm uppercase" style={{color:'#60a5fa', letterSpacing:'0.05em'}}>Select Cabin Seats</h4>
+                  <h4 className="font-black text-sm uppercase" style={{color:'#60a5fa', letterSpacing:'0.05em'}}>Select Cabin Seats (Portal Active)</h4>
                   {flightSeatMapDetails && (
                     <span className="demo-badge">
                       {flightSeatMapDetails.seat_map_type} MAP
