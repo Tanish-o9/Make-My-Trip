@@ -271,78 +271,81 @@ export default function TripTimelinePage({ onNavigate, token, setActiveTab }: Tr
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {trips.map(trip => (
-                  <div 
-                    key={trip.id} 
-                    className={`border p-6 rounded-3xl relative overflow-hidden transition-all shadow-lg flex flex-col justify-between h-56 ${
-                      trip.is_archived 
-                        ? 'bg-slate-950/40 border-slate-900 opacity-60' 
-                        : 'bg-[#111827]/80 border-slate-800 hover:border-slate-700 hover:shadow-xl'
-                    }`}
-                  >
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-start gap-2">
-                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${
-                          trip.is_archived 
-                            ? 'bg-slate-850 text-slate-500 border-slate-800' 
-                            : 'bg-yellow-400/10 text-yellow-400 border-yellow-400/20'
-                        }`}>
-                          {trip.is_archived ? 'Archived' : 'Active'}
+                {trips.map((trip, idx) => {
+                  const bgColors = ['bg-amber-100', 'bg-sky-100', 'bg-emerald-100', 'bg-purple-100', 'bg-rose-100', 'bg-yellow-200'];
+                  const cardBg = bgColors[idx % bgColors.length];
+                  
+                  return (
+                    <div 
+                      key={trip.id} 
+                      className={`border-3 border-black p-6 rounded-3xl relative overflow-hidden transition-all shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 flex flex-col justify-between h-56 text-black ${
+                        trip.is_archived ? 'bg-slate-200 opacity-70' : cardBg
+                      }`}
+                    >
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-start gap-2">
+                          <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] ${
+                            trip.is_archived 
+                              ? 'bg-slate-800 text-white' 
+                              : 'bg-black text-yellow-300'
+                          }`}>
+                            {trip.is_archived ? 'Archived' : 'Active'}
+                          </span>
+                          
+                          <div className="flex items-center gap-1.5 text-black">
+                            <button 
+                              onClick={() => { setShowRenameModal(trip); setRenameName(trip.name); }}
+                              className="p-1 rounded bg-white/80 border border-black hover:bg-black hover:text-white transition-colors cursor-pointer"
+                              title="Rename Trip"
+                            >
+                              <Edit3 size={14} />
+                            </button>
+                            <button 
+                              onClick={() => handleToggleArchive(trip)}
+                              className="p-1 rounded bg-white/80 border border-black hover:bg-black hover:text-white transition-colors cursor-pointer"
+                              title={trip.is_archived ? 'Unarchive' : 'Archive'}
+                            >
+                              <Archive size={14} />
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteTrip(trip.id)}
+                              className="p-1 rounded bg-white/80 border border-black hover:bg-rose-600 hover:text-white transition-colors cursor-pointer"
+                              title="Delete Trip"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+
+                        <h3 className="text-base font-black text-black uppercase tracking-tight line-clamp-1" style={{ color: '#000000' }}>
+                          {trip.name}
+                        </h3>
+
+                        <div className="text-xs text-slate-900 space-y-1 font-bold" style={{ color: '#000000' }}>
+                          <div className="flex items-center gap-1.5">
+                            <MapPin size={13} className="text-black shrink-0" /> <span style={{ color: '#000000' }}>{trip.destination || 'Multiple destinations'}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <Calendar size={13} className="text-black shrink-0" /> <span style={{ color: '#000000' }}>{trip.start_date || 'TBD'} to {trip.end_date || 'TBD'}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="border-t-2 border-black pt-3 mt-3 flex justify-between items-center">
+                        <span className="text-xs text-black font-black uppercase" style={{ color: '#000000' }}>
+                          {trip.bookings_count} Bookings
                         </span>
                         
-                        <div className="flex items-center gap-1.5 text-slate-400">
-                          <button 
-                            onClick={() => { setShowRenameModal(trip); setRenameName(trip.name); }}
-                            className="p-1 rounded hover:bg-slate-800 hover:text-white"
-                            title="Rename Trip"
-                          >
-                            <Edit3 size={13} />
-                          </button>
-                          <button 
-                            onClick={() => handleToggleArchive(trip)}
-                            className="p-1 rounded hover:bg-slate-800 hover:text-white"
-                            title={trip.is_archived ? 'Unarchive' : 'Archive'}
-                          >
-                            <Archive size={13} />
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteTrip(trip.id)}
-                            className="p-1 rounded hover:bg-slate-800 hover:text-rose-400"
-                            title="Delete Trip"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      </div>
-
-                      <h3 className="text-base font-black text-slate-100 uppercase tracking-tight line-clamp-1">
-                        {trip.name}
-                      </h3>
-
-                      <div className="text-[10px] text-slate-400 space-y-1 font-semibold">
-                        <div className="flex items-center gap-1">
-                          <MapPin size={11} className="text-slate-500" /> {trip.destination || 'Multiple destinations'}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Calendar size={11} className="text-slate-500" /> {trip.start_date || 'TBD'} to {trip.end_date || 'TBD'}
-                        </div>
+                        <button
+                          onClick={() => { setSelectedTripId(trip.id); fetchTimeline(trip.id); }}
+                          className="px-4 py-1.5 bg-black hover:bg-slate-900 text-yellow-300 text-xs font-black uppercase rounded-xl border border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer flex items-center gap-1.5"
+                        >
+                          Timeline <Clock size={13} />
+                        </button>
                       </div>
                     </div>
-
-                    <div className="border-t border-slate-800/80 pt-4 mt-4 flex justify-between items-center">
-                      <span className="text-[10px] text-slate-500 font-bold uppercase">
-                        {trip.bookings_count} Bookings
-                      </span>
-                      
-                      <button
-                        onClick={() => { setSelectedTripId(trip.id); fetchTimeline(trip.id); }}
-                        className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-black uppercase rounded-lg border border-slate-700 transition-all cursor-pointer flex items-center gap-1"
-                      >
-                        Timeline <Clock size={12} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </>
@@ -362,63 +365,68 @@ export default function TripTimelinePage({ onNavigate, token, setActiveTab }: Tr
                   ))}
                 </div>
               ) : timelineData && timelineData.timeline?.length > 0 ? (
-                <div className="relative border-l border-slate-800 pl-6 ml-4 space-y-6">
-                  {timelineData.timeline.map((event: any, index: number) => (
-                    <div key={event.booking_reference + index} className="relative group">
-                      
-                      {/* Timeline dot */}
-                      <span className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full bg-slate-900 border-2 border-yellow-400 group-hover:scale-125 transition-transform" />
-                      
-                      <div className="bg-[#111827]/60 border border-slate-800 p-5 rounded-2xl space-y-3 transition-all group-hover:border-slate-700">
-                        <div className="flex justify-between items-start gap-3">
-                          <div>
-                            <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-slate-800 text-yellow-400 border border-slate-700">
-                              {event.vertical}
+                <div className="relative border-l-3 border-black pl-6 ml-4 space-y-6">
+                  {timelineData.timeline.map((event: any, index: number) => {
+                    const eventBgs = ['bg-sky-100', 'bg-emerald-100', 'bg-amber-100', 'bg-purple-100'];
+                    const evBg = eventBgs[index % eventBgs.length];
+
+                    return (
+                      <div key={event.booking_reference + index} className="relative group">
+                        
+                        {/* Timeline dot */}
+                        <span className="absolute -left-[32px] top-2 w-5 h-5 rounded-full bg-yellow-400 border-3 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] group-hover:scale-125 transition-transform" />
+                        
+                        <div className={`${evBg} border-3 border-black p-5 rounded-2xl space-y-3 transition-all shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] text-black`}>
+                          <div className="flex justify-between items-start gap-3">
+                            <div>
+                              <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-black text-yellow-300 border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]">
+                                {event.vertical}
+                              </span>
+                              <h3 className="text-sm font-black text-black mt-1.5 uppercase tracking-tight" style={{ color: '#000000' }}>
+                                {event.title}
+                              </h3>
+                            </div>
+                            
+                            <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] ${
+                              event.status === 'CONFIRMED'
+                                ? 'bg-emerald-400 text-black'
+                                : 'bg-yellow-300 text-black'
+                            }`}>
+                              {event.status}
                             </span>
-                            <h3 className="text-sm font-black text-slate-200 mt-1.5 uppercase tracking-tight">
-                              {event.title}
-                            </h3>
                           </div>
-                          
-                          <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${
-                            event.status === 'CONFIRMED'
-                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                              : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                          }`}>
-                            {event.status}
-                          </span>
+
+                          <div className="text-xs text-slate-900 space-y-1 font-bold" style={{ color: '#000000' }}>
+                            <p className="flex items-center gap-1.5">
+                              <Clock size={13} className="text-black shrink-0" /> <span style={{ color: '#000000' }}>Start: {new Date(event.start_time).toLocaleString()}</span>
+                            </p>
+                            <p className="flex items-center gap-1.5">
+                              <MapPin size={13} className="text-black shrink-0" /> <span style={{ color: '#000000' }}>Details: {event.details}</span>
+                            </p>
+                          </div>
+
+                          <div className="flex justify-between items-center border-t-2 border-black pt-3 mt-3 text-xs">
+                            <span className="font-mono text-black font-black uppercase" style={{ color: '#000000' }}>
+                              REF: {event.booking_reference}
+                            </span>
+                            
+                            <a
+                              href={`${API_URL}/bookings/${event.booking_reference}/pdf`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-3 py-1.5 bg-black hover:bg-slate-900 text-white rounded-xl font-black uppercase border border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all flex items-center gap-1 text-[11px]"
+                            >
+                              PDF Document <Download size={12} />
+                            </a>
+                          </div>
                         </div>
 
-                        <div className="text-[10px] text-slate-400 space-y-1 font-semibold">
-                          <p className="flex items-center gap-1">
-                            <Clock size={11} className="text-slate-500" /> Start: {new Date(event.start_time).toLocaleString()}
-                          </p>
-                          <p className="flex items-center gap-1">
-                            <MapPin size={11} className="text-slate-500" /> Details: {event.details}
-                          </p>
-                        </div>
-
-                        <div className="flex justify-between items-center border-t border-slate-800/80 pt-3 mt-3 text-[10px]">
-                          <span className="font-mono text-slate-500 font-bold uppercase">
-                            REF: {event.booking_reference}
-                          </span>
-                          
-                          <a
-                            href={`${API_URL}/bookings/${event.booking_reference}/pdf`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="px-2.5 py-1 bg-slate-800 hover:bg-slate-750 text-white rounded font-black uppercase border border-slate-700 transition-all flex items-center gap-1"
-                          >
-                            PDF Document <Download size={11} />
-                          </a>
-                        </div>
                       </div>
-
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
-                <div className="bg-[#111827]/40 border border-slate-800 border-dashed p-8 rounded-3xl text-center text-xs text-slate-500 font-semibold">
+                <div className="bg-amber-50 border-3 border-black border-dashed p-8 rounded-3xl text-center text-xs text-black font-bold shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
                   No confirmed bookings are associated with this trip yet.
                 </div>
               )}
@@ -427,37 +435,37 @@ export default function TripTimelinePage({ onNavigate, token, setActiveTab }: Tr
             {/* Sidebar Details / Actions Column */}
             {timelineData && (
               <div className="space-y-6">
-                <div className="bg-[#111827]/80 border border-slate-800 p-6 rounded-3xl shadow-xl space-y-4">
-                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Trip Overview</h3>
+                <div className="bg-yellow-100 border-3 border-black p-6 rounded-3xl shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] space-y-4 text-black">
+                  <h3 className="text-xs font-black uppercase tracking-wider text-black border-b-2 border-black pb-2">Trip Overview</h3>
                   
-                  <div className="space-y-3 font-semibold text-xs">
+                  <div className="space-y-3 font-bold text-xs" style={{ color: '#000000' }}>
                     <div>
-                      <span className="text-[10px] text-slate-500 uppercase tracking-wider block">Trip Name</span>
-                      <span className="text-slate-200 text-sm font-bold uppercase">{timelineData.trip.name}</span>
+                      <span className="text-[10px] text-black font-black uppercase tracking-wider block">Trip Name</span>
+                      <span className="text-black text-base font-black uppercase" style={{ color: '#000000' }}>{timelineData.trip.name}</span>
                     </div>
                     <div>
-                      <span className="text-[10px] text-slate-500 uppercase tracking-wider block">Destination</span>
-                      <span className="text-slate-200">{timelineData.trip.destination || 'Multiple destinations'}</span>
+                      <span className="text-[10px] text-black font-black uppercase tracking-wider block">Destination</span>
+                      <span className="text-black font-bold" style={{ color: '#000000' }}>{timelineData.trip.destination || 'Multiple destinations'}</span>
                     </div>
                     <div>
-                      <span className="text-[10px] text-slate-500 uppercase tracking-wider block">Timeline Dates</span>
-                      <span className="text-slate-200">
+                      <span className="text-[10px] text-black font-black uppercase tracking-wider block">Timeline Dates</span>
+                      <span className="text-black font-bold" style={{ color: '#000000' }}>
                         {timelineData.trip.start_date || 'TBD'} to {timelineData.trip.end_date || 'TBD'}
                       </span>
                     </div>
                   </div>
 
-                  <div className="border-t border-slate-800 pt-4 space-y-3">
+                  <div className="border-t-2 border-black pt-4 space-y-3">
                     <button
                       onClick={() => handleDownloadAllDocsZip(timelineData.trip.id)}
-                      className="w-full py-2.5 bg-yellow-400 hover:bg-yellow-500 text-black text-xs font-black uppercase rounded-xl border border-black shadow-[3px_3px_0px_0px_#000000] active:translate-y-0.5 active:shadow-none transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                      className="w-full py-2.5 bg-emerald-400 hover:bg-emerald-500 text-black text-xs font-black uppercase rounded-xl border border-black shadow-[3px_3px_0px_0px_#000000] active:translate-y-0.5 active:shadow-none transition-all cursor-pointer flex items-center justify-center gap-1.5"
                     >
                       <Archive size={14} /> Download All Docs (ZIP)
                     </button>
                     
                     <button
                       onClick={() => handleToggleArchive(timelineData.trip)}
-                      className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-black uppercase rounded-xl border border-slate-700 transition-all cursor-pointer"
+                      className="w-full py-2 bg-black hover:bg-slate-900 text-yellow-300 text-[11px] font-black uppercase rounded-xl border border-black shadow-[2px_2px_0px_0px_#000000] transition-all cursor-pointer"
                     >
                       {timelineData.trip.is_archived ? 'Activate Trip' : 'Archive Journey'}
                     </button>
