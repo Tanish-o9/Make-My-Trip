@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from decimal import Decimal
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel, Field
 import datetime
 
@@ -31,8 +31,8 @@ class WalletResponse(BaseModel):
 
 class WalletTopupRequest(BaseModel):
     amount: float = Field(..., gt=0)
-    payment_token: str = "test_token_dev"  # Simulated stripe/test card token
-    description: str = "Wallet Recharge"
+    payment_token: Optional[str] = "test_token_dev"  # Simulated stripe/test card token
+    description: Optional[str] = "Wallet Recharge"
 
 class CouponApplyRequest(BaseModel):
     code: str

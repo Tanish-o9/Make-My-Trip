@@ -1,5 +1,6 @@
 import datetime
 from decimal import Decimal
+from typing import Any
 from sqlalchemy.orm import Session
 from app.models.core import (
     User, WalletAccount, WalletTransaction, LoyaltyAccount,
@@ -17,23 +18,8 @@ class WalletService:
     def get_or_create_wallet(db: Session, user_id: int) -> WalletAccount:
         wallet = db.query(WalletAccount).filter(WalletAccount.user_id == user_id).first()
         if not wallet:
-            # Seed wallet with initial test balance of 5000.00 for active testing
-            wallet = WalletAccount(user_id=user_id, balance=Decimal("5000.00"), currency="INR")
+            wallet = WalletAccount(user_id=user_id, balance=0.00, currency="INR")
             db.add(wallet)
-            db.commit()
-            db.refresh(wallet)
-            # Create initial transaction ledger entry
-            tx = WalletTransaction(
-                wallet_account_id=wallet.id,
-                amount=Decimal("5000.00"),
-                type="credit",
-                balance_before=Decimal("0.00"),
-                balance_after=Decimal("5000.00"),
-                reference="WELCOME_BONUS",
-                description="Welcome Bonus Credit",
-                status="COMPLETED"
-            )
-            db.add(tx)
             db.commit()
             db.refresh(wallet)
         return wallet
@@ -43,12 +29,13 @@ class WalletService:
         cls, 
         db: Session, 
         user_id: int, 
-        amount: Decimal, 
+        amount: Any, 
         reference: str, 
         description: str = "Wallet Recharge", 
         mode: str = "test"
     ) -> WalletAccount:
-        if amount <= 0:
+        amt_float = float(amount)
+        if amt_float <= 0:
             raise ValueError("Recharge amount must be positive.")
         
         wallet = cls.get_or_create_wallet(db, user_id)
@@ -63,13 +50,13 @@ class WalletService:
             if existing:
                 return wallet
 
-        bal_before = Decimal(str(wallet.balance))
-        wallet.balance += amount
-        bal_after = Decimal(str(wallet.balance))
+        bal_before = float(wallet.balance or 0.0)
+        wallet.balance = round(bal_before + amt_float, 2)
+        bal_after = float(wallet.balance)
 
         transaction = WalletTransaction(
             wallet_account_id=wallet.id,
-            amount=amount,
+            amount=amt_float,
             type="credit",
             balance_before=bal_before,
             balance_after=bal_after,
@@ -87,16 +74,18 @@ class WalletService:
         cls, 
         db: Session, 
         user_id: int, 
-        amount: Decimal, 
+        amount: Any, 
         booking_ref: str, 
         description: str = "Booking Payment"
     ) -> WalletAccount:
-        if amount <= 0:
+        amt_float = float(amount)
+        if amt_float <= 0:
             raise ValueError("Debit amount must be positive.")
 
         wallet = cls.get_or_create_wallet(db, user_id)
+        bal_before = float(wallet.balance or 0.0)
         
-        if Decimal(str(wallet.balance)) < amount:
+        if bal_before < amt_float:
             raise InsufficientWalletBalance("Insufficient wallet balance")
 
         # Idempotency check for duplicate debit
@@ -109,13 +98,12 @@ class WalletService:
             if existing:
                 return wallet
 
-        bal_before = Decimal(str(wallet.balance))
-        wallet.balance -= amount
-        bal_after = Decimal(str(wallet.balance))
+        wallet.balance = round(bal_before - amt_float, 2)
+        bal_after = float(wallet.balance)
 
         transaction = WalletTransaction(
             wallet_account_id=wallet.id,
-            amount=amount,
+            amount=amt_float,
             type="debit",
             balance_before=bal_before,
             balance_after=bal_after,
@@ -133,11 +121,12 @@ class WalletService:
         cls, 
         db: Session, 
         user_id: int, 
-        amount: Decimal, 
+        amount: Any, 
         booking_ref: str, 
         description: str = "Booking Refund"
     ) -> WalletAccount:
-        if amount <= 0:
+        amt_float = float(amount)
+        if amt_float <= 0:
             return cls.get_or_create_wallet(db, user_id)
 
         wallet = cls.get_or_create_wallet(db, user_id)
@@ -152,13 +141,13 @@ class WalletService:
         if existing:
             return wallet
 
-        bal_before = Decimal(str(wallet.balance))
-        wallet.balance += amount
-        bal_after = Decimal(str(wallet.balance))
+        bal_before = float(wallet.balance or 0.0)
+        wallet.balance = round(bal_before + amt_float, 2)
+        bal_after = float(wallet.balance)
 
         transaction = WalletTransaction(
             wallet_account_id=wallet.id,
-            amount=amount,
+            amount=amt_float,
             type="credit",
             balance_before=bal_before,
             balance_after=bal_after,
