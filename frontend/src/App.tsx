@@ -3765,7 +3765,14 @@ function FlightsSearchForm({
   const [gstInvoice, setGstInvoice] = useState(() => sessionStorage.getItem("fl_gstInvoice") === "true");
   const [priceProtection, setPriceProtection] = useState(() => sessionStorage.getItem("fl_priceProtection") === "true");
   
-  const [results, setResults] = useState<any[]>([]);
+  const [results, setResults] = useState<any[]>(() => {
+    try {
+      const saved = sessionStorage.getItem("fl_results");
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
 
   useEffect(() => { sessionStorage.setItem("fl_specialFare", specialFare); }, [specialFare]);
   useEffect(() => { sessionStorage.setItem("fl_gstInvoice", String(gstInvoice)); }, [gstInvoice]);
