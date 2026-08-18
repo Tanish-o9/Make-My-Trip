@@ -102,19 +102,37 @@ class FlightService:
             dep_h_str = f"{start_hour:02d}:{start_min:02d}"
             arr_h_str = f"{(start_hour + 2) % 24:02d}:{(start_min + 15) % 60:02d}"
 
-            dep_iso = f"{date_str}T{dep_h_str}:00"
-            arr_iso = f"{date_str}T{arr_h_str}:00"
+            INDIAN_AIRPORTS = {"DEL", "BOM", "BLR", "MAA", "HYD", "CCU", "GOI", "AMD", "PNQ", "JAI", "COK", "LKO", "PAT", "IXC", "ATQ", "TRV", "VNS", "IDR"}
+            is_domestic = from_airport.upper() in INDIAN_AIRPORTS and to_airport.upper() in INDIAN_AIRPORTS
+
+            INDIAN_CARRIERS = [
+                {"name": "IndiGo", "code": "6E", "fn": f"6E-{201 + idx * 145}"},
+                {"name": "Air India", "code": "AI", "fn": f"AI-{346 + idx * 112}"},
+                {"name": "Vistara", "code": "UK", "fn": f"UK-{491 + idx * 83}"},
+                {"name": "Akasa Air", "code": "QP", "fn": f"QP-{636 + idx * 54}"},
+                {"name": "SpiceJet", "code": "SG", "fn": f"SG-{781 + idx * 67}"},
+                {"name": "Air India Express", "code": "IX", "fn": f"IX-{926 + idx * 39}"}
+            ]
+
+            raw_airline = str(det.get("airline", ""))
+            if is_domestic or "american" in raw_airline.lower() or "british" in raw_airline.lower() or "duffel" in raw_airline.lower() or raw_airline in ["AA", "BA", "ZZ"]:
+                carrier_info = INDIAN_CARRIERS[idx % len(INDIAN_CARRIERS)]
+                airline_name = carrier_info["name"]
+                flight_num = carrier_info["fn"]
+            else:
+                airline_name = raw_airline or "Amadeus Airline"
+                flight_num = det.get("flight_number", f"FL-{101 + idx * 12}")
 
             results.append({
-                "airline": det.get("airline", "Amadeus Airline"),
-                "flightNumber": det.get("flight_number", f"FL-{101 + idx * 12}"),
+                "airline": airline_name,
+                "flightNumber": flight_num,
                 "departureAirport": from_airport.upper(),
                 "arrivalAirport": to_airport.upper(),
                 "departureTime": dep_iso,
                 "arrivalTime": arr_iso,
                 "flightStatus": "scheduled",
                 
-                "flight_number": det.get("flight_number", f"FL-{101 + idx * 12}"),
+                "flight_number": flight_num,
                 "origin": from_airport.upper(),
                 "destination": to_airport.upper(),
                 "dep": dep_h_str,
