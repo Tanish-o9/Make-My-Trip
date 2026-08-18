@@ -472,15 +472,15 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
               </div>
             ) : (
               <div className="bg-white border-4 border-black rounded-2xl p-5 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] text-left space-y-4">
-                <div className="flex justify-between items-center border-b-2 border-slate-100 pb-2 flex-wrap gap-2">
-                  <h3 className="font-black text-sm uppercase flex items-center gap-1.5 text-slate-800">👤 Traveler Information</h3>
+                <div className="flex justify-between items-center border-b-2 border-slate-200 pb-2 flex-wrap gap-2">
+                  <h3 className="font-black text-sm uppercase flex items-center gap-1.5 text-black">👤 Traveler Information</h3>
                   {travellers.length > 0 && (
                     <div className="flex items-center gap-1.5">
-                      <label className="text-[9px] font-bold text-slate-500 uppercase">Select Passenger:</label>
+                      <label className="text-[10px] font-extrabold text-black uppercase">Select Passenger:</label>
                       <select
                         value={selectedTravellerId}
                         onChange={(e) => setSelectedTravellerId(e.target.value)}
-                        className="bg-slate-50 border-2 border-black rounded px-2 py-0.5 text-[10px] font-black outline-none cursor-pointer"
+                        className="bg-slate-50 border-2 border-black rounded px-2 py-0.5 text-[10px] font-black text-black outline-none cursor-pointer"
                       >
                         <option value="self">Myself ({profile?.full_name})</option>
                         {travellers.map(t => (
@@ -492,43 +492,43 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                 </div>
 
                 {/* Prefilled Traveler Details display (Phase 5) */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-semibold">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-bold">
                   <div>
-                    <span className="text-[9px] text-slate-400 block uppercase">Name</span>
-                    <span className="text-slate-800">
+                    <span className="text-[10px] text-black font-extrabold block uppercase tracking-wider">Name</span>
+                    <span className="text-black font-black text-sm">
                       {selectedTravellerId === "self" ? profile?.full_name : travellers.find(t => t.id.toString() === selectedTravellerId)?.name}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[9px] text-slate-400 block uppercase">DOB / Age</span>
-                    <span className="text-slate-800 text-slate-700 font-mono">
+                    <span className="text-[10px] text-black font-extrabold block uppercase tracking-wider">DOB / Age</span>
+                    <span className="text-black font-mono font-black text-sm">
                       {selectedTravellerId === "self" ? (profile?.dob || "N/A") : `${travellers.find(t => t.id.toString() === selectedTravellerId)?.age} Years`}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[9px] text-slate-400 block uppercase">Nationality</span>
-                    <span className="text-slate-800">
+                    <span className="text-[10px] text-black font-extrabold block uppercase tracking-wider">Nationality</span>
+                    <span className="text-black font-black text-sm">
                       {selectedTravellerId === "self" ? (profile?.nationality || "N/A") : (travellers.find(t => t.id.toString() === selectedTravellerId)?.nationality || "N/A")}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[9px] text-slate-400 block uppercase">Passport No.</span>
-                    <span className="text-slate-850 font-mono text-slate-600">
+                    <span className="text-[10px] text-black font-extrabold block uppercase tracking-wider">Passport No.</span>
+                    <span className="text-black font-mono font-black text-sm">
                       {selectedTravellerId === "self" ? (profile?.passport_number || "N/A") : (travellers.find(t => t.id.toString() === selectedTravellerId)?.passport || "N/A")}
                     </span>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 text-xs font-semibold border-t border-slate-100 pt-3">
+                <div className="grid grid-cols-2 gap-4 text-xs font-bold border-t-2 border-slate-200 pt-3">
                   <div>
-                    <span className="text-[9px] text-slate-400 block uppercase">Meal Preference</span>
-                    <span className="text-slate-850">
+                    <span className="text-[10px] text-black font-extrabold block uppercase tracking-wider">Meal Preference</span>
+                    <span className="text-black font-bold">
                       {selectedTravellerId === "self" ? (profile?.meal_preference || "Standard Meal") : (travellers.find(t => t.id.toString() === selectedTravellerId)?.meal || "Standard Meal")}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[9px] text-slate-400 block uppercase">Seat Preference</span>
-                    <span className="text-slate-850">
+                    <span className="text-[10px] text-black font-extrabold block uppercase tracking-wider">Seat Preference</span>
+                    <span className="text-black font-bold">
                       {selectedTravellerId === "self" ? (profile?.seat_preference || "Standard Seat") : (travellers.find(t => t.id.toString() === selectedTravellerId)?.seat || "Standard Seat")}
                     </span>
                   </div>
@@ -547,10 +547,10 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                   className="w-5 h-5 accent-yellow-600 rounded cursor-pointer self-start mt-0.5"
                 />
                 <div>
-                  <label htmlFor="human-approval-check" className="font-black uppercase text-xs tracking-wider text-slate-800 cursor-pointer block flex items-center gap-1.5">
+                  <label htmlFor="human-approval-check" className="font-black uppercase text-xs tracking-wider text-black cursor-pointer block flex items-center gap-1.5">
                     🛡️ Checkpoint: Approve Payment Transaction
                   </label>
-                  <p className="text-[11px] text-slate-600 font-semibold mt-1">
+                  <p className="text-[11px] text-black font-bold mt-1 leading-normal">
                     I explicitly authorize Ghumne Chale to process payment charges for this booking itinerary. (Required to proceed with booking capture).
                   </p>
                 </div>
@@ -558,54 +558,54 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
             </div>
 
             {/* Payment Method Selector Tabs */}
-            <div className="bg-white border-4 border-black rounded-2xl p-4 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
-              <h3 className="font-bold text-sm tracking-wide mb-3">Select Payment Mode:</h3>
+            <div className="bg-white border-4 border-black rounded-2xl p-4 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] text-left">
+              <h3 className="font-black text-sm tracking-wide text-black mb-3">Select Payment Mode:</h3>
               <div className="grid grid-cols-4 gap-2">
                 <button
                   onClick={() => handleTabChange("card")}
-                  className={`flex flex-col items-center justify-center p-3 border-3 rounded-xl font-bold text-xs uppercase cursor-pointer transition-all ${
+                  className={`flex flex-col items-center justify-center p-3 border-3 rounded-xl font-black text-xs uppercase cursor-pointer transition-all ${
                     activeTab === "card"
-                      ? "bg-yellow-300 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
-                      : "bg-slate-50 border-slate-300 hover:border-black"
+                      ? "bg-yellow-300 border-black text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                      : "bg-slate-50 text-black border-slate-400 hover:border-black"
                   }`}
                 >
-                  <CreditCard className="mb-1" size={18} />
+                  <CreditCard className="mb-1 text-black" size={18} />
                   Cards
                 </button>
                 
                 <button
                   onClick={() => handleTabChange("upi")}
-                  className={`flex flex-col items-center justify-center p-3 border-3 rounded-xl font-bold text-xs uppercase cursor-pointer transition-all ${
+                  className={`flex flex-col items-center justify-center p-3 border-3 rounded-xl font-black text-xs uppercase cursor-pointer transition-all ${
                     activeTab === "upi"
-                      ? "bg-yellow-300 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
-                      : "bg-slate-50 border-slate-300 hover:border-black"
+                      ? "bg-yellow-300 border-black text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                      : "bg-slate-50 text-black border-slate-400 hover:border-black"
                   }`}
                 >
-                  <QrCode className="mb-1" size={18} />
+                  <QrCode className="mb-1 text-black" size={18} />
                   UPI (QR)
                 </button>
                 
                 <button
                   onClick={() => handleTabChange("netbanking")}
-                  className={`flex flex-col items-center justify-center p-3 border-3 rounded-xl font-bold text-xs uppercase cursor-pointer transition-all ${
+                  className={`flex flex-col items-center justify-center p-3 border-3 rounded-xl font-black text-xs uppercase cursor-pointer transition-all ${
                     activeTab === "netbanking"
-                      ? "bg-yellow-300 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
-                      : "bg-slate-50 border-slate-300 hover:border-black"
+                      ? "bg-yellow-300 border-black text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                      : "bg-slate-50 text-black border-slate-400 hover:border-black"
                   }`}
                 >
-                  <Globe className="mb-1" size={18} />
+                  <Globe className="mb-1 text-black" size={18} />
                   Netbanking
                 </button>
                 
                 <button
                   onClick={() => handleTabChange("wallet")}
-                  className={`flex flex-col items-center justify-center p-3 border-3 rounded-xl font-bold text-xs uppercase cursor-pointer transition-all ${
+                  className={`flex flex-col items-center justify-center p-3 border-3 rounded-xl font-black text-xs uppercase cursor-pointer transition-all ${
                     activeTab === "wallet"
-                      ? "bg-yellow-300 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
-                      : "bg-slate-50 border-slate-300 hover:border-black"
+                      ? "bg-yellow-300 border-black text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                      : "bg-slate-50 text-black border-slate-400 hover:border-black"
                   }`}
                 >
-                  <Wallet className="mb-1" size={18} />
+                  <Wallet className="mb-1 text-black" size={18} />
                   Wallets
                 </button>
               </div>
@@ -618,13 +618,13 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                 <div className="text-center space-y-4 my-auto">
                   {!qrCodeUrl ? (
                     <div className="space-y-4 py-8">
-                      <p className="text-slate-600 font-semibold max-w-sm mx-auto text-sm">
+                      <p className="text-black font-bold max-w-sm mx-auto text-sm">
                         Generate an embedded, dynamic UPI QR code to pay instantly via any UPI App (Google Pay, PhonePe, Paytm).
                       </p>
                       <button
                         onClick={initUpiQr}
                         disabled={paymentLoading || !humanApproved || profileIncomplete}
-                        className="bg-emerald-400 hover:bg-emerald-500 disabled:bg-emerald-200 border-3 border-black px-6 py-3 font-black text-sm uppercase rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer flex items-center justify-center gap-2 mx-auto"
+                        className="bg-emerald-400 hover:bg-emerald-500 disabled:bg-emerald-200 text-black border-3 border-black px-6 py-3 font-black text-sm uppercase rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer flex items-center justify-center gap-2 mx-auto"
                       >
                         {paymentLoading ? "Generating QR Code..." : "Generate UPI QR Code"}
                       </button>
@@ -635,7 +635,7 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                         <div className="py-6 space-y-4">
                           <ShieldAlert className="h-12 w-12 text-rose-500 mx-auto" />
                           <p className="font-bold text-rose-600">QR Code expired due to inactivity.</p>
-                          <button onClick={initUpiQr} className="bg-yellow-300 border-3 border-black px-5 py-2 font-bold rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] cursor-pointer text-xs uppercase">
+                          <button onClick={initUpiQr} className="bg-yellow-300 border-3 border-black px-5 py-2 font-bold text-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] cursor-pointer text-xs uppercase">
                             Generate New QR
                           </button>
                         </div>
@@ -649,10 +649,10 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                             <div className="font-black text-rose-600 animate-pulse">
                               ⏳ SCAN AND PAY WITHIN: {formatTime(qrTimeLeft)}
                             </div>
-                            <div className="font-semibold text-slate-500">
+                            <div className="font-bold text-black">
                               Scan this code using BHIM, Google Pay, Paytm, or PhonePe
                             </div>
-                            <div className="text-[10px] text-slate-400 font-mono mt-1">
+                            <div className="text-[10px] text-black font-mono font-bold mt-1">
                               QR ID: {qrCodeId}
                             </div>
                           </div>
@@ -669,13 +669,13 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
               ) : (
                 <div className="text-center space-y-4 my-auto py-6">
                   <div className="bg-[#eae5d9] border-3 border-black p-4 rounded-xl max-w-md mx-auto text-left space-y-2">
-                    <span className="text-[10px] uppercase font-black tracking-wide text-slate-600">Secure Payment Protocol</span>
-                    <h4 className="font-black text-sm uppercase">Razorpay Sandbox Gateway</h4>
-                    <div className="bg-yellow-100 border-2 border-black p-2.5 rounded-lg text-[11px] space-y-1 font-mono">
-                      <div className="font-bold text-slate-800">💳 Domestic Test Card:</div>
-                      <div>Card: <span className="font-black select-all bg-white px-1.5 py-0.5 rounded border border-black">4012 0000 3333 0026</span></div>
-                      <div className="text-[10px] text-slate-600">Expiry: <span className="font-bold">12/30</span> | CVV: <span className="font-bold">123</span> | OTP: <span className="font-bold">123456</span></div>
-                      <div className="text-[10px] text-slate-600">💡 Or select <strong>Netbanking / Wallet</strong> inside popup for 1-click Success.</div>
+                    <span className="text-[10px] uppercase font-black tracking-wide text-black">Secure Payment Protocol</span>
+                    <h4 className="font-black text-sm uppercase text-black">Razorpay Sandbox Gateway</h4>
+                    <div className="bg-yellow-100 border-2 border-black p-2.5 rounded-lg text-[11px] space-y-1 font-mono text-black">
+                      <div className="font-black text-black">💳 Domestic Test Card:</div>
+                      <div>Card: <span className="font-black select-all bg-white px-1.5 py-0.5 rounded border border-black text-black">4012 0000 3333 0026</span></div>
+                      <div className="text-[10px] text-black font-bold">Expiry: <span className="font-black">12/30</span> | CVV: <span className="font-black">123</span> | OTP: <span className="font-black">123456</span></div>
+                      <div className="text-[10px] text-black font-bold">💡 Or select <strong>Netbanking / Wallet</strong> inside popup for 1-click Success.</div>
                     </div>
                   </div>
                   
@@ -683,7 +683,7 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                     <button
                       onClick={payWithRazorpay}
                       disabled={paymentLoading || !humanApproved || profileIncomplete}
-                      className="w-full bg-emerald-400 hover:bg-emerald-500 disabled:bg-emerald-200 border-3 border-black px-6 py-3 font-black text-xs uppercase rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer flex items-center justify-center gap-2"
+                      className="w-full bg-emerald-400 hover:bg-emerald-500 disabled:bg-emerald-200 text-black border-3 border-black px-6 py-3 font-black text-xs uppercase rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer flex items-center justify-center gap-2"
                     >
                       {paymentLoading ? (
                         <>
@@ -705,7 +705,7 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
               )}
             </div>
             
-            <div className="flex items-center gap-2 justify-center py-2 text-[10px] font-black text-slate-500 bg-slate-100 border-3 border-black rounded-xl">
+            <div className="flex items-center gap-2 justify-center py-2 text-[10px] font-black text-black bg-slate-200 border-3 border-black rounded-xl">
               <span>🛡️ PCI-DSS Compliant • 256-Bit SSL Encrypted Connection • RBI Approved Gateway Integration</span>
             </div>
 
@@ -714,17 +714,17 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
           {/* Right Panel: Booking Summary */}
           <div className="md:col-span-4 space-y-6">
             <div className="bg-[#eae5d9] border-4 border-black p-4 rounded-2xl shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] space-y-4 text-left">
-              <h3 className="font-bold text-lg tracking-wide border-b-2 border-black pb-2">
+              <h3 className="font-black text-lg tracking-wide text-black border-b-2 border-black pb-2">
                 Booking Summary
               </h3>
               
               <div className="space-y-1">
-                <span className="text-[10px] uppercase font-bold text-slate-500">Vertical:</span>
+                <span className="text-[10px] uppercase font-black text-black">Vertical:</span>
                 <span className="bg-slate-900 text-white text-[10px] px-2 py-0.5 rounded uppercase font-black font-mono ml-2">
                   {booking.vertical}
                 </span>
-                <h4 className="font-black text-base mt-1">{booking.title}</h4>
-                <p className="text-xs text-slate-600 font-semibold">Ref PNR: {booking.booking_reference}</p>
+                <h4 className="font-black text-base text-black mt-1">{booking.title}</h4>
+                <p className="text-xs text-black font-black">Ref PNR: {booking.booking_reference}</p>
               </div>
               
               {(() => {
@@ -734,27 +734,27 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                 const discount = typeof snapshot.discount === "number" ? snapshot.discount : 0;
                 
                 return (
-                  <div className="border-t-2 border-dashed border-black/20 pt-3 space-y-2">
-                    <span className="text-[10px] uppercase font-black tracking-wide block">Cost Breakdown:</span>
-                    <div className="flex justify-between text-xs font-semibold">
+                  <div className="border-t-2 border-dashed border-black pt-3 space-y-2">
+                    <span className="text-[10px] uppercase font-black tracking-wide block text-black">Cost Breakdown:</span>
+                    <div className="flex justify-between text-xs font-black text-black">
                       <span>Fare Price:</span>
                       <span>₹{base.toFixed(2)}</span>
                     </div>
                     {discount > 0 && (
-                      <div className="flex justify-between text-xs font-semibold text-green-600">
+                      <div className="flex justify-between text-xs font-black text-green-700">
                         <span>Special Fare Discounts:</span>
                         <span>-₹{discount.toFixed(2)}</span>
                       </div>
                     )}
                     {tax > 0 && (
-                      <div className="flex justify-between text-xs font-semibold">
+                      <div className="flex justify-between text-xs font-black text-black">
                         <span>SGST & CGST Tax:</span>
                         <span>₹{tax.toFixed(2)}</span>
                       </div>
                     )}
-                    <div className="flex justify-between border-t-3 border-black pt-2 font-black text-sm">
+                    <div className="flex justify-between border-t-3 border-black pt-2 font-black text-sm text-black">
                       <span>Amount Payable:</span>
-                      <span className="text-rose-600">₹{parseFloat(booking.total_amount || "0").toLocaleString()}</span>
+                      <span className="text-rose-600 font-black">₹{parseFloat(booking.total_amount || "0").toLocaleString()}</span>
                     </div>
                   </div>
                 );
