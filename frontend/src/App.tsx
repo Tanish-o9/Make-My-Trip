@@ -1154,12 +1154,22 @@ export default function App() {
 
   const [currency, setCurrency] = useState<'INR' | 'USD' | 'EUR'>('INR');
   const [locale, setLocale] = useState<'en' | 'es' | 'hi'>('en');
-  const [userProfile, setUserProfile] = useState<any>({
-    email: "traveler@travelos.com",
-    tier: "Gold",
-    points: 450,
-    walletBalance: 24500.00
+  const [userProfile, setUserProfile] = useState<any>(() => {
+    const savedBal = localStorage.getItem("wallet_balance") || sessionStorage.getItem("wallet_balance");
+    return {
+      email: "traveler@travelos.com",
+      tier: "Gold",
+      points: 450,
+      walletBalance: savedBal ? parseFloat(savedBal) : 24500.00
+    };
   });
+
+  useEffect(() => {
+    if (userProfile && typeof userProfile.walletBalance === "number") {
+      localStorage.setItem("wallet_balance", userProfile.walletBalance.toString());
+      sessionStorage.setItem("wallet_balance", userProfile.walletBalance.toString());
+    }
+  }, [userProfile?.walletBalance]);
 
   const [profileName, setProfileName] = useState("");
   const [profileCompletion, setProfileCompletion] = useState(0);
@@ -14960,6 +14970,8 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
             ...prev,
             walletBalance: data.balance
           }));
+          localStorage.setItem("wallet_balance", data.balance.toString());
+          sessionStorage.setItem("wallet_balance", data.balance.toString());
           if (Array.isArray(data.transactions)) {
             setTransactions(data.transactions);
           }
@@ -15003,6 +15015,8 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
           ...prev,
           walletBalance: newBal
         }));
+        localStorage.setItem("wallet_balance", newBal.toString());
+        sessionStorage.setItem("wallet_balance", newBal.toString());
         setTopupSuccess(`✓ ₹${val.toLocaleString()} added successfully! New Balance: ₹${newBal.toLocaleString()}`);
         setTopupAmount("");
         fetchWallet();
@@ -15015,6 +15029,8 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
           ...prev,
           walletBalance: newBal
         }));
+        localStorage.setItem("wallet_balance", newBal.toString());
+        sessionStorage.setItem("wallet_balance", newBal.toString());
         setTopupSuccess(`✓ ₹${val.toLocaleString()} added successfully! New Balance: ₹${newBal.toLocaleString()}`);
         setTopupAmount("");
       });
