@@ -102,6 +102,9 @@ class FlightService:
             dep_h_str = f"{start_hour:02d}:{start_min:02d}"
             arr_h_str = f"{(start_hour + 2) % 24:02d}:{(start_min + 15) % 60:02d}"
 
+            dep_iso = f"{date_str}T{dep_h_str}:00"
+            arr_iso = f"{date_str}T{arr_h_str}:00"
+
             INDIAN_CARRIERS = [
                 {"name": "IndiGo", "code": "6E", "fn": f"6E-{201 + idx * 145}"},
                 {"name": "Air India", "code": "AI", "fn": f"AI-{346 + idx * 112}"},
