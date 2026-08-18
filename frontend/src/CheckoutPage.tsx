@@ -298,6 +298,42 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
       
       const orderData = await orderRes.json();
       console.log("LOG: create-order response data:", orderData);
+
+      const isMock = orderData.razorpay_order_id.startsWith("order_mock_");
+      if (isMock) {
+        console.log("LOG: Sandbox/Mock mode detected. Simulating transaction...");
+        setTimeout(async () => {
+          try {
+            console.log("LOG: Sending payment verification payload for mock order...");
+            const verifyRes = await fetch(`${API_URL}/payments/verify`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                razorpay_order_id: orderData.razorpay_order_id,
+                razorpay_payment_id: "pay_mock_" + Math.random().toString(36).substring(2, 14),
+                razorpay_signature: "mock_signature"
+              })
+            });
+            
+            console.log("LOG: Mock payment verification response status:", verifyRes.status);
+            if (!verifyRes.ok) {
+              const verifyErr = await verifyRes.json();
+              throw new Error(verifyErr.detail || "Payment verification failed.");
+            }
+            
+            console.log("LOG: Mock payment captured and verified successfully.");
+            setPaymentStatus("captured");
+            onNavigate(`/bookings/${bookingId}/confirmation`);
+          } catch (err: any) {
+            console.error("LOG: Mock payment verification failed:", err);
+            setError(err.message || "Payment verification failed.");
+            setPaymentStatus("failed");
+          } finally {
+            setPaymentLoading(false);
+          }
+        }, 2000);
+        return;
+      }
       
       const loadScript = () => {
         return new Promise((resolve) => {
