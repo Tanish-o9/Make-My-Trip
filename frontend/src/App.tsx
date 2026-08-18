@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Compass, MessageSquare, Wallet, ShieldAlert, Sparkles, Send, Mic, 
   MicOff, Search, Plane, Hotel, Calendar, Users, CheckCircle, RefreshCw,
@@ -4402,7 +4403,7 @@ function FlightsSearchForm({
       </div>
 
       {/* Flight Seat Selector Modal */}
-      {showFlightSeatModal && (
+      {showFlightSeatModal && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{background:'rgba(0,0,0,0.85)'}}>
           {/* Injected styles — ID specificity beats all class !important rules */}
           <style>{`
@@ -4549,11 +4550,12 @@ function FlightsSearchForm({
               </>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Price Drop Protection Modal */}
-      {showPayoutModal && (
+      {showPayoutModal && createPortal(
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-[#0b1021] border border-slate-800 rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl">
             <div className="flex justify-between items-center">
@@ -4573,7 +4575,8 @@ function FlightsSearchForm({
               Acknowledge & Close
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -6238,7 +6241,7 @@ function TrainsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
       )}
 
       {/* Train Seat Selector Modal */}
-      {showTrainSeatModal && (
+      {showTrainSeatModal && createPortal(
         <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-[#0b1021] border border-slate-800 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl text-slate-200">
             <div className="flex justify-between items-center border-b border-slate-800 pb-2">
@@ -6377,7 +6380,8 @@ function TrainsSearchForm({ onBook, onDetailClick }: { onBook: (data: any) => vo
               </>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
