@@ -387,6 +387,36 @@ class TripInvitation(Base):
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow, nullable=False)
     expires_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
 
+    # Added columns for member details, verification, and OTP
+    name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    phone_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    otp_code_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    otp_expires_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
+    otp_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    otp_last_sent_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
+    otp_send_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    trip = relationship("Trip")
+
+
+class TripPayment(Base):
+    __tablename__ = "trip_payments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    trip_id: Mapped[int] = mapped_column(Integer, ForeignKey("trips.id", ondelete="CASCADE"), index=True, nullable=False)
+    amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(10), default="INR", nullable=False)
+    provider: Mapped[str] = mapped_column(String(50), default="razorpay", nullable=False)
+    provider_order_id: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
+    provider_payment_id: Mapped[Optional[str]] = mapped_column(String(100), index=True, nullable=True)
+    status: Mapped[str] = mapped_column(String(50), default="PENDING", nullable=False)  # PENDING, PROCESSING, SUCCESS, FAILED, CANCELLED
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=False
+    )
+
     trip = relationship("Trip")
 
 

@@ -64,7 +64,7 @@ class FlightBooking(Base, BookingMixin):
     destination: Mapped[str] = mapped_column(String(10), nullable=False)
     departure_time: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
     arrival_time: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
-    airline_code: Mapped[str] = mapped_column(String(10), nullable=False)
+    airline_code: Mapped[str] = mapped_column(String(50), nullable=False)
     flight_number: Mapped[str] = mapped_column(String(20), nullable=False)
     cabin_class: Mapped[str] = mapped_column(String(50), default="ECONOMY") # ECONOMY, BUSINESS, FIRST
     passenger_details: Mapped[list] = mapped_column(JSON, nullable=False) # JSON list of names, passport, age

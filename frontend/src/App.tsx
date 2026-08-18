@@ -228,7 +228,7 @@ function GroupTripsList({ token, onSelectTrip }: { token: string; onSelectTrip: 
 
   // ── Wizard state ──────────────────────────────────────────────────────────
   const [showWizard, setShowWizard] = useState(false);
-  const [wizardStep, setWizardStep] = useState(1); // 1=Details 2=Members 3=Review
+  const [wizardStep, setWizardStep] = useState(1); // 1=Details 2=Members 3=Verify 4=Review 5=Success
 
   // Step 1 — Trip Details
   const [name, setName] = useState('');
@@ -243,9 +243,23 @@ function GroupTripsList({ token, onSelectTrip }: { token: string; onSelectTrip: 
   type MemberRow = { name: string; email: string; phone: string };
   const [members, setMembers] = useState<MemberRow[]>([{ name: '', email: '', phone: '' }]);
 
-  // Step 3 — Review
+  // Step 3 / 4 / 5 — Progress & Verification States
+  const [createdTripId, setCreatedTripId] = useState<number | null>(null);
+  const [invitations, setInvitations] = useState<any[]>([]);
   const [confirmCheck1, setConfirmCheck1] = useState(false);
   const [confirmCheck2, setConfirmCheck2] = useState(false);
+  const [confirmCheck3, setConfirmCheck3] = useState(false);
+
+  // OTP Modal / Inline OTP state
+  const [verifyingMemberId, setVerifyingMemberId] = useState<number | null>(null);
+  const [otpCode, setOtpCode] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpStatusMsg, setOtpStatusMsg] = useState('');
+  const [otpResendCooldown, setOtpResendCooldown] = useState(0);
+
+  // Payment states
+  const [paymentStatus, setPaymentStatus] = useState<'NOT_STARTED' | 'PROCESSING' | 'SUCCESS' | 'FAILED'>('NOT_STARTED');
+  const [razorpayOrderId, setRazorpayOrderId] = useState('');
 
   // Submission
   const [creating, setCreating] = useState(false);
@@ -289,16 +303,37 @@ function GroupTripsList({ token, onSelectTrip }: { token: string; onSelectTrip: 
 
   useEffect(() => { fetchTrips(); }, [token]);
 
+  // Count down OTP resend cooldown timer
+  useEffect(() => {
+    if (otpResendCooldown > 0) {
+      const t = setTimeout(() => setOtpResendCooldown(c => c - 1), 1000);
+      return () => clearTimeout(t);
+    }
+  }, [otpResendCooldown]);
+
+  // Dynamically load Razorpay checkout script
+  useEffect(() => {
+    if (wizardStep === 4 && !(window as any).Razorpay) {
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.async = true;
+      document.body.appendChild(script);
+    }
+  }, [wizardStep]);
+
   // ── Wizard helpers ────────────────────────────────────────────────────────
   const resetWizard = () => {
     setWizardStep(1); setName(''); setDestination(''); setStartDate(''); setEndDate('');
     setBudget(''); setTripType('Friends'); setTripDesc('');
     setMembers([{ name: '', email: '', phone: '' }]);
-    setConfirmCheck1(false); setConfirmCheck2(false); setStepError(null);
+    setCreatedTripId(null); setInvitations([]);
+    setConfirmCheck1(false); setConfirmCheck2(false); setConfirmCheck3(false);
+    setVerifyingMemberId(null); setOtpCode(''); setOtpSent(false); setOtpStatusMsg('');
+    setPaymentStatus('NOT_STARTED'); setRazorpayOrderId(''); setStepError(null);
   };
 
   const openWizard = () => { resetWizard(); setShowWizard(true); };
-  const closeWizard = () => { if (!creating) { setShowWizard(false); resetWizard(); } };
+  const closeWizard = () => { if (!creating && paymentStatus !== 'PROCESSING') { setShowWizard(false); resetWizard(); } };
 
   // Step validations
   const validateStep1 = (): string | null => {
@@ -310,13 +345,17 @@ function GroupTripsList({ token, onSelectTrip }: { token: string; onSelectTrip: 
 
   const validateStep2 = (): string | null => {
     const validMembers = members.filter(m => m.email.trim());
+    if (validMembers.length === 0) return 'Please add at least one travel companion.';
     for (const m of validMembers) {
-      if (!/\S+@\S+\.\S+/.test(m.email.trim())) return `Invalid email: ${m.email}`;
-      if (m.phone && !/^\+?[\d\s\-()]{7,15}$/.test(m.phone.trim())) return `Invalid phone for ${m.email}`;
+      if (!/\S+@\S+\.\S+/.test(m.email.trim())) return `Invalid email format: ${m.email}`;
+      if (!m.name.trim()) return `Please provide a name for ${m.email}`;
+      if (!m.phone || !/^\+?[\d\s\-()]{10,15}$/.test(m.phone.trim())) {
+        return `Please enter a valid phone number with country code for ${m.name || m.email} (e.g. +919999999999).`;
+      }
     }
     // Check duplicate emails
     const emails = validMembers.map(m => m.email.trim().toLowerCase());
-    if (new Set(emails).size !== emails.length) return 'Duplicate email addresses found.';
+    if (new Set(emails).size !== emails.length) return 'Duplicate email addresses are not allowed.';
     return null;
   };
 
@@ -326,15 +365,22 @@ function GroupTripsList({ token, onSelectTrip }: { token: string; onSelectTrip: 
     setStepError(null); setWizardStep(2);
   };
 
-  const goToStep3 = () => {
-    const err = validateStep2();
-    if (err) { setStepError(err); return; }
-    setStepError(null); setWizardStep(3);
+  const fetchInvitations = async (tripId: number) => {
+    try {
+      const res = await fetch(`${API_URL}/trips/${tripId}/invitations`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setInvitations(await res.json());
+      }
+    } catch (e) {
+      console.error("Failed to fetch invitations", e);
+    }
   };
 
-  // ── Create trip ───────────────────────────────────────────────────────────
-  const handleCreate = async () => {
-    if (!confirmCheck1 || !confirmCheck2) { setStepError('Please confirm both checkboxes.'); return; }
+  const handleCreateAndInvite = async () => {
+    const err = validateStep2();
+    if (err) { setStepError(err); return; }
     setStepError(null);
     setCreating(true);
     try {
@@ -354,41 +400,228 @@ function GroupTripsList({ token, onSelectTrip }: { token: string; onSelectTrip: 
       });
 
       if (!res.ok) {
-        let errMsg = 'Unable to create trip.';
-        try {
-          const errData = await res.json();
-          if (res.status === 401) errMsg = 'Your session has expired. Please log in again.';
-          else if (res.status === 422) errMsg = 'Please check your trip details and try again.';
-          else if (res.status >= 500) errMsg = 'Server error. Please try again in a moment.';
-          else errMsg = errData.detail || errData.message || errMsg;
-        } catch {}
-        setStepError(errMsg);
+        setStepError('Unable to create trip. Please try again.');
+        setCreating(false);
         return;
       }
 
       const newTrip = await res.json();
-      if (!newTrip?.id) { setStepError('Unexpected server response. Please try again.'); return; }
+      setCreatedTripId(newTrip.id);
 
-      // Fire-and-forget invites for valid emails
-      const validInvites = members.filter(m => m.email.trim() && /\S+@\S+\.\S+/.test(m.email.trim()));
-      for (const m of validInvites) {
-        fetch(`${GT_API}/${newTrip.id}/invite`, {
+      const inviteMembers = members.filter(m => m.email.trim());
+      if (inviteMembers.length > 0) {
+        const invRes = await fetch(`${API_URL}/trips/${newTrip.id}/invitations`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ email: m.email.trim() })
-        }).catch(() => {});
+          body: JSON.stringify({
+            members: inviteMembers.map(m => ({
+              name: m.name.trim(),
+              email: m.email.trim(),
+              phone: m.phone.trim()
+            }))
+          })
+        });
+
+        if (!invRes.ok) {
+          const errData = await invRes.json();
+          setStepError(errData.detail || 'Failed to send invitations.');
+          setCreating(false);
+          return;
+        }
       }
 
-      setShowWizard(false);
-      resetWizard();
-      showToast('🎉 Group trip workspace created!');
-      await fetchTrips();
-      onSelectTrip(newTrip.id);
-
-    } catch {
-      setStepError('Network error. Please check your connection and try again.');
+      await fetchInvitations(newTrip.id);
+      setWizardStep(3);
+    } catch (e) {
+      setStepError('Network connection error. Please try again.');
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleSendOTP = async (invId: number) => {
+    if (!createdTripId) return;
+    try {
+      setStepError(null);
+      setOtpStatusMsg('Sending verification code...');
+      const res = await fetch(`${API_URL}/trips/${createdTripId}/invitations/${invId}/send-otp`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setOtpSent(true);
+        setVerifyingMemberId(invId);
+        setOtpCode('');
+        
+        if (data.mock_code) {
+          setOtpStatusMsg(`[DEV MODE] OTP Code: ${data.mock_code}`);
+        } else {
+          setOtpStatusMsg('Verification code sent successfully.');
+        }
+        
+        setOtpResendCooldown(60);
+      } else {
+        const data = await res.json();
+        setStepError(data.detail || 'Failed to dispatch verification code.');
+      }
+    } catch {
+      setStepError('Network failure sending verification code.');
+    }
+  };
+
+  const handleVerifyOTP = async () => {
+    if (!otpCode || otpCode.length !== 6) {
+      setStepError('Please enter the 6-digit OTP code.');
+      return;
+    }
+    if (!createdTripId || !verifyingMemberId) return;
+    try {
+      setStepError(null);
+      setOtpStatusMsg('Verifying…');
+      const res = await fetch(`${API_URL}/trips/${createdTripId}/invitations/${verifyingMemberId}/verify-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ code: otpCode })
+      });
+      if (res.ok) {
+        setOtpSent(false);
+        setVerifyingMemberId(null);
+        setOtpStatusMsg('');
+        showToast('Phone number verified successfully!');
+        await fetchInvitations(createdTripId);
+      } else {
+        const data = await res.json();
+        setOtpStatusMsg('');
+        setStepError(data.detail || 'Invalid verification code.');
+      }
+    } catch {
+      setStepError('Network error verifying code.');
+    }
+  };
+
+  const handlePayNow = async () => {
+    if (!confirmCheck1 || !confirmCheck2 || !confirmCheck3) {
+      setStepError('Please confirm all checklist checkboxes.');
+      return;
+    }
+    if (!createdTripId) return;
+    setStepError(null);
+    setPaymentStatus('PROCESSING');
+    try {
+      const res = await fetch(`${API_URL}/trips/${createdTripId}/payment/create-order`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          amount: parseFloat(budget || '0'),
+          currency: 'INR'
+        })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        setStepError(errData.detail || 'Failed to create payment order.');
+        setPaymentStatus('FAILED');
+        return;
+      }
+
+      const orderData = await res.json();
+      const orderId = orderData.order_id;
+      setRazorpayOrderId(orderId);
+
+      const isMock = orderId.startsWith('order_mock_');
+      if (isMock) {
+        setTimeout(async () => {
+          try {
+            const verifyRes = await fetch(`${API_URL}/trips/${createdTripId}/payment/verify`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                razorpay_order_id: orderId,
+                razorpay_payment_id: 'pay_mock_' + Math.random().toString(36).substring(2, 14),
+                razorpay_signature: 'mock_signature'
+              })
+            });
+
+            if (verifyRes.ok) {
+              setPaymentStatus('SUCCESS');
+              showToast('🎉 Group Trip Confirmed!');
+              setWizardStep(5);
+            } else {
+              setStepError('Mock verification signature failed.');
+              setPaymentStatus('FAILED');
+            }
+          } catch {
+            setStepError('Network timeout verifying mock payment.');
+            setPaymentStatus('FAILED');
+          }
+        }, 1500);
+      } else {
+        const options = {
+          key: "rzp_test_TKNqtYMraXbefU",
+          amount: Math.round(orderData.amount * 100),
+          currency: orderData.currency,
+          name: "Ghumne Chale",
+          description: `Group Trip Checkout: ${name}`,
+          order_id: orderId,
+          handler: async function (response: any) {
+            setPaymentStatus('PROCESSING');
+            try {
+              const verifyRes = await fetch(`${API_URL}/trips/${createdTripId}/payment/verify`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_signature: response.razorpay_signature
+                })
+              });
+              if (verifyRes.ok) {
+                setPaymentStatus('SUCCESS');
+                showToast('🎉 Group Trip Confirmed!');
+                setWizardStep(5);
+              } else {
+                setStepError('Razorpay payment signature validation failed.');
+                setPaymentStatus('FAILED');
+              }
+            } catch {
+              setStepError('Failed to verify payment with server.');
+              setPaymentStatus('FAILED');
+            }
+          },
+          prefill: {
+            name: "Traveler",
+            email: ""
+          },
+          theme: {
+            color: "#7c3aed"
+          },
+          modal: {
+            ondismiss: function () {
+              setPaymentStatus('FAILED');
+              setStepError('Payment transaction cancelled.');
+            }
+          }
+        };
+        const rzp = new (window as any).Razorpay(options);
+        rzp.open();
+      }
+
+    } catch (e) {
+      setStepError('Checkout transaction failed.');
+      setPaymentStatus('FAILED');
     }
   };
 
@@ -493,8 +726,8 @@ function GroupTripsList({ token, onSelectTrip }: { token: string; onSelectTrip: 
                   <div className="flex items-start justify-between mb-3">
                     <span className="text-4xl">{emoji}</span>
                     <div className="flex flex-col items-end gap-1">
-                      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide border ${isPast ? 'text-slate-400 border-slate-700 bg-slate-900/50' : 'text-emerald-400 border-emerald-700/50 bg-emerald-900/30'}`}>
-                        {isPast ? 'Completed' : 'Active'}
+                      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide border ${t.status === 'Confirmed' ? 'text-emerald-400 border-emerald-700/50 bg-emerald-900/30' : 'text-yellow-400 border-yellow-700/50 bg-yellow-900/30'}`}>
+                        {t.status || 'Planning'}
                       </span>
                       {t.trip_type && <span className="text-[10px] text-purple-400 font-semibold">{t.trip_type}</span>}
                     </div>
@@ -550,21 +783,25 @@ function GroupTripsList({ token, onSelectTrip }: { token: string; onSelectTrip: 
                 <h2 className="text-lg font-black text-white">
                   {wizardStep === 1 && '✈️ Trip Details'}
                   {wizardStep === 2 && '👥 Add Members'}
-                  {wizardStep === 3 && '📋 Review & Confirm'}
+                  {wizardStep === 3 && '🔒 Verify Members'}
+                  {wizardStep === 4 && '💳 Review & Payment'}
+                  {wizardStep === 5 && '🎉 Trip Confirmed!'}
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">
                   {wizardStep === 1 && 'Tell us about your trip'}
                   {wizardStep === 2 && 'Who is coming with you?'}
-                  {wizardStep === 3 && 'Everything look right?'}
+                  {wizardStep === 3 && 'Verify travelers to continue'}
+                  {wizardStep === 4 && 'Confirm payment and details'}
+                  {wizardStep === 5 && 'Your adventure starts here'}
                 </p>
               </div>
-              <button onClick={closeWizard} disabled={creating}
+              <button onClick={closeWizard} disabled={creating || paymentStatus === 'PROCESSING'}
                 className="text-slate-500 hover:text-white transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 cursor-pointer">✕</button>
             </div>
 
             {/* ── Progress Bar ── */}
             <div className="flex gap-1 px-6 py-3 flex-shrink-0">
-              {['Trip Details', 'Members', 'Review'].map((label, i) => (
+              {['Trip Details', 'Members', 'Verify', 'Payment', 'Confirmed'].map((label, i) => (
                 <div key={label} className="flex-1 flex flex-col gap-1">
                   <div className={`h-1 rounded-full transition-all duration-300 ${i + 1 <= wizardStep ? 'bg-purple-500' : 'bg-slate-800'}`} />
                   <span className={`text-[9px] font-bold uppercase tracking-wider transition-colors ${i + 1 === wizardStep ? 'text-purple-400' : i + 1 < wizardStep ? 'text-emerald-500' : 'text-slate-600'}`}>
@@ -649,19 +886,19 @@ function GroupTripsList({ token, onSelectTrip }: { token: string; onSelectTrip: 
               {wizardStep === 2 && (
                 <>
                   <p className="text-xs text-slate-400 bg-slate-800/50 rounded-lg px-3 py-2 border border-slate-700/50">
-                    💡 Add friends you want to invite. They'll receive an invitation link via email. Name and phone are optional.
+                    💡 Add your squad to the trip. Every added member must verify their details to secure workspace access.
                   </p>
                   <div className="space-y-3">
                     {members.map((m, idx) => (
                       <div key={idx} className="rounded-xl border border-slate-700/60 p-4 space-y-2.5" style={{ background: 'rgba(255,255,255,0.03)' }}>
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-bold text-slate-300">👤 Friend {idx + 1}</span>
+                          <span className="text-xs font-bold text-slate-300">👤 Traveler {idx + 1}</span>
                           {members.length > 1 && (
                             <button type="button" onClick={() => setMembers(members.filter((_, i) => i !== idx))}
                               className="text-slate-500 hover:text-red-400 transition-colors text-xs cursor-pointer">✕ Remove</button>
                           )}
                         </div>
-                        <input type="text" placeholder="Full Name (optional)"
+                        <input type="text" placeholder="Full Name *"
                           value={m.name} onChange={e => { const u = [...members]; u[idx].name = e.target.value; setMembers(u); }}
                           className="w-full rounded-lg px-3 py-2 text-sm text-white border border-slate-700 focus:border-purple-500 outline-none transition-colors"
                           style={{ background: 'rgba(255,255,255,0.05)' }} />
@@ -671,7 +908,7 @@ function GroupTripsList({ token, onSelectTrip }: { token: string; onSelectTrip: 
                           style={{ background: 'rgba(255,255,255,0.05)' }} />
                         <div className="flex gap-2">
                           <span className="text-xs text-slate-400 self-center flex-shrink-0 bg-slate-800 px-2 py-2 rounded-lg border border-slate-700">+91</span>
-                          <input type="tel" placeholder="Phone (optional)"
+                          <input type="tel" placeholder="10-digit Phone *"
                             value={m.phone} onChange={e => { const u = [...members]; u[idx].phone = e.target.value; setMembers(u); }}
                             className="flex-1 rounded-lg px-3 py-2 text-sm text-white border border-slate-700 focus:border-purple-500 outline-none transition-colors"
                             style={{ background: 'rgba(255,255,255,0.05)' }} />
@@ -680,14 +917,65 @@ function GroupTripsList({ token, onSelectTrip }: { token: string; onSelectTrip: 
                     ))}
                     <button type="button" onClick={() => setMembers([...members, { name: '', email: '', phone: '' }])}
                       className="text-xs text-purple-400 hover:text-purple-300 font-semibold flex items-center gap-1 cursor-pointer transition-colors py-1">
-                      <span>+</span> Add Another Friend
+                      <span>+</span> Add Companion
                     </button>
                   </div>
                 </>
               )}
 
-              {/* ─────────────── STEP 3: REVIEW ─────────────── */}
+              {/* ─────────────── STEP 3: VERIFY MEMBERS ─────────────── */}
               {wizardStep === 3 && (
+                <>
+                  <div className="bg-slate-800/40 rounded-xl border border-slate-700/60 p-4">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Traveler Verification Checklist</h4>
+                    <div className="space-y-3">
+                      {invitations.map((inv) => (
+                        <div key={inv.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-slate-900/50 rounded-lg border border-slate-800/80">
+                          <div>
+                            <div className="text-sm font-semibold text-white">{inv.name}</div>
+                            <div className="text-[10px] text-slate-400">{inv.phone}</div>
+                          </div>
+                          <div>
+                            {inv.phone_verified ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-900/20 border border-emerald-800/50 px-2.5 py-1 rounded-full">
+                                ✓ Phone Verified
+                              </span>
+                            ) : verifyingMemberId === inv.id && otpSent ? (
+                              <div className="flex items-center gap-2">
+                                <input type="text" maxLength={6} placeholder="Enter 6-digit OTP"
+                                  value={otpCode} onChange={e => setOtpCode(e.target.value)}
+                                  className="w-28 rounded-lg px-2 py-1 text-xs text-white border border-slate-700 focus:border-purple-500 outline-none text-center"
+                                  style={{ background: 'rgba(0,0,0,0.3)' }} />
+                                <button type="button" onClick={handleVerifyOTP}
+                                  className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-bold rounded-lg transition-colors cursor-pointer">
+                                  Verify
+                                </button>
+                                <button type="button" onClick={() => handleSendOTP(inv.id)} disabled={otpResendCooldown > 0}
+                                  className="text-slate-400 hover:text-white text-[10px] disabled:opacity-40 cursor-pointer">
+                                  {otpResendCooldown > 0 ? `Resend (${otpResendCooldown}s)` : 'Resend'}
+                                </button>
+                              </div>
+                            ) : (
+                              <button type="button" onClick={() => handleSendOTP(inv.id)}
+                                className="px-4 py-1.5 bg-purple-900/30 hover:bg-purple-900/50 text-purple-300 border border-purple-700/40 text-[10px] font-bold rounded-lg transition-colors cursor-pointer">
+                                Send OTP Code
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {otpStatusMsg && (
+                    <div className="text-purple-400 text-xs bg-purple-950/20 border border-purple-900/30 rounded-lg px-3 py-2">
+                      ℹ️ {otpStatusMsg}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* ─────────────── STEP 4: REVIEW & PAYMENT ─────────────── */}
+              {wizardStep === 4 && (
                 <>
                   <div className="rounded-xl border border-slate-700/60 overflow-hidden" style={{ background: 'rgba(255,255,255,0.03)' }}>
                     <div className="px-4 py-3 border-b border-slate-800">
@@ -698,31 +986,34 @@ function GroupTripsList({ token, onSelectTrip }: { token: string; onSelectTrip: 
                       {startDate && <div>📅 Start<br /><span className="text-white font-bold">{new Date(startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>}
                       {endDate && <div>🏁 End<br /><span className="text-white font-bold">{new Date(endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>}
                       {duration && <div>🌙 Duration<br /><span className="text-purple-400 font-bold">{duration} Night{duration > 1 ? 's' : ''}</span></div>}
-                      {budget && <div>💰 Budget<br /><span className="text-emerald-400 font-bold">₹{Number(parseFloat(budget)).toLocaleString('en-IN')}</span></div>}
+                      {budget && <div>💰 Total Budget<br /><span className="text-emerald-400 font-bold">₹{Number(parseFloat(budget)).toLocaleString('en-IN')}</span></div>}
                     </div>
-                    {tripDesc && <div className="px-4 pb-3 text-xs text-slate-400">{tripDesc}</div>}
                   </div>
 
-                  {/* Members review */}
-                  {members.some(m => m.email.trim()) && (
-                    <div>
-                      <p className="text-xs font-bold text-slate-400 mb-2">👥 Invitations will be sent to:</p>
-                      <div className="space-y-1.5">
-                        {members.filter(m => m.email.trim()).map((m, i) => (
-                          <div key={i} className="flex items-center gap-2 text-xs text-slate-300 bg-slate-800/40 rounded-lg px-3 py-2">
-                            <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0" style={{ background: `hsl(${i * 60},60%,45%)` }}>{(m.name || m.email).charAt(0).toUpperCase()}</span>
-                            <span className="truncate">{m.name ? `${m.name} (${m.email})` : m.email}</span>
-                          </div>
-                        ))}
+                  <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl p-4 space-y-3">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Payment Breakdown</h4>
+                    <div className="space-y-2 text-xs text-slate-300">
+                      <div className="flex justify-between">
+                        <span>Total Trip Amount</span>
+                        <span>₹{Number(parseFloat(budget || '0')).toLocaleString('en-IN')}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Travelers Count</span>
+                        <span>{invitations.length + 1} (Owner + {invitations.length} companions)</span>
+                      </div>
+                      <div className="flex justify-between border-t border-slate-800 pt-2 font-bold text-white">
+                        <span>Share Per Traveler</span>
+                        <span>₹{Number(Math.round(parseFloat(budget || '0') / (invitations.length + 1))).toLocaleString('en-IN')}</span>
                       </div>
                     </div>
-                  )}
+                  </div>
 
                   {/* Checklist */}
-                  <div className="space-y-2 pt-1">
+                  <div className="space-y-2.5 pt-1">
                     {[
-                      { key: 'c1', val: confirmCheck1, set: setConfirmCheck1, text: 'I confirm the trip details are correct.' },
-                      { key: 'c2', val: confirmCheck2, set: setConfirmCheck2, text: 'I understand that invites will be sent to all added members.' },
+                      { key: 'c1', val: confirmCheck1, set: setConfirmCheck1, text: 'I confirm the trip name, destination, and dates are correct.' },
+                      { key: 'c2', val: confirmCheck2, set: setConfirmCheck2, text: 'I confirm all companions have been verified and added.' },
+                      { key: 'c3', val: confirmCheck3, set: setConfirmCheck3, text: 'I understand the checkout amount will be processed for the group.' },
                     ].map(c => (
                       <label key={c.key} className="flex items-start gap-3 cursor-pointer group">
                         <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border transition-all mt-0.5 ${c.val ? 'bg-purple-600 border-purple-600' : 'border-slate-600 group-hover:border-purple-500'}`}
@@ -736,6 +1027,26 @@ function GroupTripsList({ token, onSelectTrip }: { token: string; onSelectTrip: 
                 </>
               )}
 
+              {/* ─────────────── STEP 5: TRIP CONFIRMED SUCCESS ─────────────── */}
+              {wizardStep === 5 && (
+                <div className="text-center py-8 space-y-5">
+                  <div className="text-6xl animate-bounce">🎉</div>
+                  <div>
+                    <h3 className="text-2xl font-black text-white">Trip Confirmed!</h3>
+                    <p className="text-slate-400 text-sm mt-1">Your group trip workspace is fully launched and ready.</p>
+                  </div>
+                  <div className="bg-[#1e293b]/50 border border-slate-700/60 rounded-2xl p-5 max-w-sm mx-auto text-left space-y-3">
+                    <div className="text-sm font-bold text-white border-b border-slate-800 pb-2">{name}</div>
+                    <div className="text-xs text-slate-300 space-y-1">
+                      <div>📍 Destination: <span className="text-white font-bold">{destination}</span></div>
+                      <div>📅 Dates: <span className="text-white font-bold">{startDate} → {endDate}</span></div>
+                      <div>👥 Members: <span className="text-white font-bold">{invitations.length + 1} travelers</span></div>
+                      <div>💰 Total Budget: <span className="text-emerald-400 font-bold">₹{Number(parseFloat(budget || '0')).toLocaleString('en-IN')}</span></div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* ── Step Error ── */}
               {stepError && (
                 <div className="text-red-400 text-xs bg-red-900/20 border border-red-800/40 rounded-lg px-3 py-2.5 flex items-start gap-2">
@@ -747,17 +1058,17 @@ function GroupTripsList({ token, onSelectTrip }: { token: string; onSelectTrip: 
 
             {/* ── Sticky Footer ── */}
             <div className="flex-shrink-0 px-6 py-4 border-t border-slate-800 flex items-center justify-between gap-3">
-              {wizardStep > 1 ? (
-                <button type="button" disabled={creating} onClick={() => { setStepError(null); setWizardStep(s => s - 1); }}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-300 border border-slate-700 hover:border-slate-500 transition-all cursor-pointer disabled:opacity-40">
+              {wizardStep > 1 && wizardStep < 5 && paymentStatus !== 'PROCESSING' ? (
+                <button type="button" onClick={() => { setStepError(null); setWizardStep(s => s - 1); }}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-300 border border-slate-700 hover:border-slate-500 transition-all cursor-pointer">
                   ← Back
                 </button>
-              ) : (
-                <button type="button" onClick={closeWizard}
-                  className="px-4 py-2.5 rounded-xl text-sm font-bold text-slate-500 hover:text-slate-300 transition-colors cursor-pointer">
+              ) : wizardStep < 5 ? (
+                <button type="button" onClick={closeWizard} disabled={paymentStatus === 'PROCESSING'}
+                  className="px-4 py-2.5 rounded-xl text-sm font-bold text-slate-500 hover:text-slate-300 transition-colors cursor-pointer disabled:opacity-30">
                   Cancel
                 </button>
-              )}
+              ) : null}
 
               {wizardStep === 1 && (
                 <button type="button" onClick={goToStep2}
@@ -767,17 +1078,46 @@ function GroupTripsList({ token, onSelectTrip }: { token: string; onSelectTrip: 
                 </button>
               )}
               {wizardStep === 2 && (
-                <button type="button" onClick={goToStep3}
-                  className="flex-1 max-w-xs py-2.5 rounded-xl font-black text-sm text-white cursor-pointer transition-all duration-200 hover:scale-[1.02] active:scale-95"
+                <button type="button" onClick={handleCreateAndInvite} disabled={creating}
+                  className="flex-1 max-w-xs py-2.5 rounded-xl font-black text-sm text-white cursor-pointer transition-all duration-200 hover:scale-[1.02] active:scale-95 disabled:opacity-40"
                   style={{ background: 'linear-gradient(135deg,#7c3aed,#2563eb)' }}>
-                  Review Trip →
+                  {creating ? '⏳ Creating Workspace…' : 'Add Members & Verify →'}
                 </button>
               )}
               {wizardStep === 3 && (
-                <button type="button" disabled={creating || !confirmCheck1 || !confirmCheck2} onClick={handleCreate}
+                <button type="button" onClick={() => {
+                  const unverified = invitations.filter(i => !i.phone_verified);
+                  if (unverified.length > 0) {
+                    setStepError(`Please verify phone numbers for: ${unverified.map(u => u.name).join(', ')}.`);
+                    return;
+                  }
+                  setStepError(null);
+                  setWizardStep(4);
+                }}
+                  className="flex-1 max-w-xs py-2.5 rounded-xl font-black text-sm text-white cursor-pointer transition-all duration-200 hover:scale-[1.02] active:scale-95"
+                  style={{ background: 'linear-gradient(135deg,#7c3aed,#2563eb)' }}>
+                  Review & Checkout →
+                </button>
+              )}
+              {wizardStep === 4 && (
+                <button type="button" disabled={paymentStatus === 'PROCESSING' || !confirmCheck1 || !confirmCheck2 || !confirmCheck3} onClick={handlePayNow}
                   className="flex-1 max-w-xs py-2.5 rounded-xl font-black text-sm text-white cursor-pointer transition-all duration-200 hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{ background: 'linear-gradient(135deg,#7c3aed,#2563eb)', boxShadow: '0 0 20px rgba(124,58,237,0.3)' }}>
-                  {creating ? '⏳ Creating…' : '🚀 Launch Workspace'}
+                  {paymentStatus === 'PROCESSING' ? '⏳ Directing to Payment…' : `💳 Pay ₹${Number(parseFloat(budget || '0')).toLocaleString('en-IN')}`}
+                </button>
+              )}
+              {wizardStep === 5 && (
+                <button type="button" onClick={async () => {
+                  setShowWizard(false);
+                  resetWizard();
+                  await fetchTrips();
+                  if (createdTripId) {
+                    onSelectTrip(createdTripId);
+                  }
+                }}
+                  className="w-full py-3 rounded-xl font-black text-sm text-white cursor-pointer transition-all duration-200 hover:scale-[1.02]"
+                  style={{ background: 'linear-gradient(135deg,#7c3aed,#2563eb)' }}>
+                  Open Group Workspace ➔
                 </button>
               )}
             </div>
@@ -1043,6 +1383,19 @@ export default function App() {
     window.history.pushState(null, '', path);
     setCurrentPath(path);
   };
+
+  useEffect(() => {
+    const match = currentPath.match(/^\/group-trips\/(\d+)$/);
+    if (match) {
+      const id = parseInt(match[1], 10);
+      setActiveTab('group-trips');
+      setSelectedGroupTripId(id);
+    } else if (currentPath === '/group-trips') {
+      setActiveTab('group-trips');
+      setSelectedGroupTripId(null);
+    }
+  }, [currentPath]);
+
   useEffect(() => {
     const listener = (vals: Record<string, boolean>) => setLoadingVerticals(vals);
     globalTabLoadingListeners.push(listener);
@@ -1615,6 +1968,8 @@ export default function App() {
     currentPath.match(/^\/booking-confirmation\/([^/]+)$/) || 
     currentPath.match(/^\/payment-success\/([^/]+)$/);
   
+  const groupTripsMatch = currentPath.match(/^\/group-trips\/(\d+)$/);
+
   if (checkoutMatch) {
     const bookingId = checkoutMatch[1];
     const initialError = currentPath.startsWith("/payment-failed") ? "Payment attempt was unsuccessful. Please check credentials and try again." : "";
@@ -1686,7 +2041,7 @@ export default function App() {
   }
 
   // 404 Page (Phase 17)
-  const validPaths = ["/", "/profile", "/notifications", "/design-tokens", "/admin", "/privacy", "/terms", "/support", "/help", "/forgot-password", "/reset-password", "/dashboard", "/trips", "/documents"];
+  const validPaths = ["/", "/profile", "/notifications", "/design-tokens", "/admin", "/privacy", "/terms", "/support", "/help", "/forgot-password", "/reset-password", "/dashboard", "/trips", "/documents", "/group-trips"];
 
   const isMatch = 
     validPaths.includes(currentPath) || 
@@ -1694,7 +2049,8 @@ export default function App() {
     !!checkoutMatch || 
     !!confirmationMatch || 
     !!bookingDetailMatch || 
-    !!rentARideMatch;
+    !!rentARideMatch ||
+    !!groupTripsMatch;
 
   if (!isMatch) {
     return (
@@ -2178,12 +2534,12 @@ export default function App() {
                     return decoded?.id || 1;
                   })()}
                   token={token || ''}
-                  onBack={() => setSelectedGroupTripId(null)}
+                  onBack={() => navigate('/group-trips')}
                 />
               ) : (
                 <GroupTripsList
                   token={token || ''}
-                  onSelectTrip={(id) => setSelectedGroupTripId(id)}
+                  onSelectTrip={(id) => navigate(`/group-trips/${id}`)}
                 />
               )
             )}
@@ -4172,7 +4528,7 @@ function FlightsSearchForm({
                       details: {
                         origin: showFlightSeatModal.origin.split(" ")[0],
                         destination: showFlightSeatModal.destination.split(" ")[0],
-                        airline_code: showFlightSeatModal.res.airline,
+                        airline_code: showFlightSeatModal.flightNumber.split("-")[0] || "6E",
                         flight_number: showFlightSeatModal.flightNumber.split("-")[1] || showFlightSeatModal.flightNumber,
                         cabin_class: showFlightSeatModal.cabinClass.toUpperCase(),
                         specialFareType: showFlightSeatModal.specialFareType,
