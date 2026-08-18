@@ -11570,21 +11570,25 @@ function CheckoutModal({
 
         {step === 3 && (
           <div className="space-y-4 text-center">
-            <div className="w-12 h-12 bg-emerald-100 rounded-full border-2 border-emerald-600 flex items-center justify-center mx-auto text-emerald-600 font-black text-lg">
+            <div className="w-14 h-14 bg-emerald-100 rounded-full border-3 border-emerald-600 flex items-center justify-center mx-auto text-emerald-700 font-black text-2xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
               ✓
             </div>
-            <h4 className="font-black text-base text-emerald-600 uppercase tracking-wide">Reservation confirmed successfully!</h4>
+            <h4 className="font-black text-lg text-emerald-800 uppercase tracking-wide" style={{ color: '#065f46', opacity: 1 }}>
+              RESERVATION CONFIRMED SUCCESSFULLY!
+            </h4>
             
-            <div className="bg-[#eae5d9] p-4 border-3 border-black rounded-lg space-y-1 text-left">
-              <div className="flex justify-between items-center border-b border-black/10 pb-1.5 mb-1.5">
-                <span className="text-[10px] font-black uppercase text-slate-600">PNR Reference</span>
-                <span className="text-xs font-black bg-slate-900 text-white px-2 py-0.5 rounded font-mono">{bookingRef}</span>
+            <div className="bg-[#eae5d9] p-4 border-3 border-black rounded-xl space-y-1.5 text-left shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-black">
+              <div className="flex justify-between items-center border-b-2 border-black/20 pb-2 mb-2">
+                <span className="text-xs font-black uppercase text-black" style={{ color: '#000000', opacity: 1 }}>PNR REFERENCE</span>
+                <span className="text-xs font-black bg-black text-yellow-300 px-3 py-1 rounded-lg border-2 border-black font-mono shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                  {bookingRef}
+                </span>
               </div>
-              <h5 className="font-black text-sm">{data.title}</h5>
-              <p className="text-xs text-slate-600 font-semibold">{data.subtitle}</p>
+              <h5 className="font-black text-base text-black uppercase" style={{ color: '#000000', opacity: 1 }}>{data.title}</h5>
+              <p className="text-xs text-slate-900 font-bold" style={{ color: '#000000', opacity: 1 }}>{data.subtitle}</p>
             </div>
 
-            <div className="flex flex-col gap-2 pt-2">
+            <div className="flex flex-col gap-2.5 pt-2">
               {invoiceText && (
                 <button 
                   onClick={() => {
@@ -11595,22 +11599,22 @@ function CheckoutModal({
                     a.download = `Invoice_${bookingRef}.txt`;
                     a.click();
                   }}
-                  className="w-full bg-white hover:bg-slate-100 border-2 border-black font-black py-2 rounded-lg text-xs uppercase cursor-pointer"
+                  className="w-full bg-white hover:bg-slate-100 border-2 border-black font-black py-2.5 rounded-xl text-xs uppercase cursor-pointer text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
                 >
-                  Download Receipt Invoice
+                  📄 Download Receipt Invoice
                 </button>
               )}
               <button 
                 onClick={() => alert("Event added to Google Calendar!")}
-                className="w-full bg-blue-100 hover:bg-blue-200 border-2 border-black font-black py-2 rounded-lg text-xs uppercase cursor-pointer text-blue-900"
+                className="w-full bg-sky-200 hover:bg-sky-300 border-2 border-black font-black py-2.5 rounded-xl text-xs uppercase cursor-pointer text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
               >
                 📅 Add trip to Google Calendar
               </button>
               <button 
                 onClick={onClose}
-                className="w-full bg-yellow-300 hover:bg-yellow-400 border-3 border-black font-black py-2.5 rounded-lg text-xs uppercase cursor-pointer shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 transition-all"
+                className="w-full bg-yellow-300 hover:bg-yellow-400 border-3 border-black font-black py-3 rounded-xl text-xs uppercase cursor-pointer text-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 transition-all"
               >
-                Proceed to Dashboard
+                PROCEED TO DASHBOARD ➔
               </button>
             </div>
           </div>
