@@ -3848,19 +3848,16 @@ function FlightsSearchForm({
   };
 
   const handleSearch = (overrideSort = sortBy, overrideStops = stops, overrideCarrier = carrier) => {
-    if (!fromCity.trim()) {
-      alert("Please enter a origin city (From).");
-      return;
-    }
-    if (!toCity.trim()) {
-      alert("Please enter a destination city (To).");
-      return;
-    }
-    if (!depDate) {
-      alert("Please select a departure date.");
-      return;
-    }
-    if (fromCity.trim().toLowerCase() === toCity.trim().toLowerCase()) {
+    const effectiveFrom = (fromCity && fromCity.trim()) || "DEL";
+    const effectiveTo = (toCity && toCity.trim()) || "BOM";
+    const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    const effectiveDate = depDate || tomorrowStr;
+
+    if (!fromCity) setFromCity(effectiveFrom);
+    if (!toCity) setToCity(effectiveTo);
+    if (!depDate) setDepDate(effectiveDate);
+
+    if (effectiveFrom.trim().toLowerCase() === effectiveTo.trim().toLowerCase()) {
       alert("Source and Destination airports cannot be identical.");
       return;
     }
@@ -3869,8 +3866,8 @@ function FlightsSearchForm({
     setError(null);
     sessionStorage.removeItem("fl_results");
     
-    const fromCode = getIATACode(fromCity);
-    const toCode = getIATACode(toCity);
+    const fromCode = getIATACode(effectiveFrom);
+    const toCode = getIATACode(effectiveTo);
     
     let url = `${API_URL}/flights/search?from=${encodeURIComponent(fromCode)}&to=${encodeURIComponent(toCode)}&passengers=${passengers}&refresh=true&t=${Date.now()}`;
     if (overrideSort) url += `&sort_by=${overrideSort}`;
