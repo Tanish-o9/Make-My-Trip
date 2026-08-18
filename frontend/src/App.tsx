@@ -3765,22 +3765,17 @@ function FlightsSearchForm({
   const [gstInvoice, setGstInvoice] = useState(() => sessionStorage.getItem("fl_gstInvoice") === "true");
   const [priceProtection, setPriceProtection] = useState(() => sessionStorage.getItem("fl_priceProtection") === "true");
   
-  const [results, setResults] = useState<any[]>(() => {
-    try {
-      const saved = sessionStorage.getItem("fl_results");
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      return [];
-    }
-  });
+  const [results, setResults] = useState<any[]>([]);
 
   useEffect(() => { sessionStorage.setItem("fl_specialFare", specialFare); }, [specialFare]);
   useEffect(() => { sessionStorage.setItem("fl_gstInvoice", String(gstInvoice)); }, [gstInvoice]);
   useEffect(() => { sessionStorage.setItem("fl_priceProtection", String(priceProtection)); }, [priceProtection]);
   useEffect(() => { 
-    try {
-      sessionStorage.setItem("fl_results", JSON.stringify(results));
-    } catch (e) {}
+    if (results.length > 0) {
+      try {
+        sessionStorage.setItem("fl_results", JSON.stringify(results));
+      } catch (e) {}
+    }
   }, [results]);
   const [loading, setLoading] = useTabLoading('flights');
   const [showPayoutModal, setShowPayoutModal] = useState(false);
@@ -3903,14 +3898,11 @@ function FlightsSearchForm({
   useEffect(() => {
     if (isFirstMount.current) {
       isFirstMount.current = false;
-      if (results.length > 0) {
-        setTimeout(() => {
-          const el = document.getElementById("flight-search-results");
-          if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-        }, 100);
-      } else if (fromCity && toCity && depDate) {
-        handleSearch();
-      }
+      const f = fromCity || "DEL";
+      const t = toCity || "BOM";
+      if (!fromCity) setFromCity("DEL");
+      if (!toCity) setToCity("BOM");
+      handleSearch(sortBy, stops, carrier);
       return;
     }
     if (results.length > 0) {
