@@ -10424,6 +10424,19 @@ function CheckoutModal({
   const [cardNumber, setCardNumber] = useState("");
   const [cardExpiry, setCardExpiry] = useState("");
   const [cardCvv, setCardCvv] = useState("");
+
+  useEffect(() => {
+    if (cardNumber) {
+      try {
+        localStorage.setItem("ghumne_chale_draft_card", JSON.stringify({
+          number: cardNumber,
+          expiry: cardExpiry || "12/30",
+          cvv: cardCvv || "123",
+          name: "Tanish Verified Traveler"
+        }));
+      } catch (e) {}
+    }
+  }, [cardNumber, cardExpiry, cardCvv]);
   
   // Sandbox Simulations
   const [bypassTokenization, setBypassTokenization] = useState(false);

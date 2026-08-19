@@ -99,10 +99,23 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
   const [razorpayOrderData, setRazorpayOrderData] = useState<any>(null);
   const [rzpMethod, setRzpMethod] = useState<"card" | "upi" | "netbanking" | "wallet">("card");
   const [rzpProcessing, setRzpProcessing] = useState(false);
-  const [rzpCardNumber, setRzpCardNumber] = useState("4012 0000 3333 0026");
-  const [rzpCardExpiry, setRzpCardExpiry] = useState("12/30");
-  const [rzpCardCvv, setRzpCardCvv] = useState("123");
-  const [rzpCardName, setRzpCardName] = useState("Tanish Verified Traveler");
+  const getDraftCard = () => {
+    try {
+      const str = localStorage.getItem("ghumne_chale_draft_card");
+      if (str) {
+        const draft = JSON.parse(str);
+        if (draft && draft.number) return draft;
+      }
+    } catch (e) {}
+    return null;
+  };
+
+  const initialDraft = getDraftCard();
+
+  const [rzpCardNumber, setRzpCardNumber] = useState(() => initialDraft?.number || "4012 0000 3333 0026");
+  const [rzpCardExpiry, setRzpCardExpiry] = useState(() => initialDraft?.expiry || "12/30");
+  const [rzpCardCvv, setRzpCardCvv] = useState(() => initialDraft?.cvv || "123");
+  const [rzpCardName, setRzpCardName] = useState(() => initialDraft?.name || "Tanish Verified Traveler");
   const [selectedBank, setSelectedBank] = useState("HDFC Bank");
   const [paymentAuthToken, setPaymentAuthToken] = useState<string | null>(null);
   const [showPinModal, setShowPinModal] = useState(false);
