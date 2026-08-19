@@ -1,3 +1,4 @@
+import os
 import uuid
 import datetime
 from typing import Optional, Dict, Any
@@ -206,12 +207,18 @@ def validate_payment_authorization(
         return True
 
     if raw_pin and raw_pin.strip():
+        allow_raw = os.getenv("ALLOW_RAW_PAYMENT_PIN", "false").lower() in ["true", "1"]
+        if not allow_raw:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Raw payment PIN fallback is disabled for payment execution. Please verify your PIN via POST /wallet/security-pin/verify to obtain a Payment Authorization Token."
+            )
         verify_pin(db, user.id, raw_pin.strip(), purpose=expected_purpose, user_email=user.email)
         return True
 
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
-        detail="Payment security PIN or authorization token required."
+        detail="Payment authorization token required."
     )
 
 def change_pin(db: Session, user_id: int, old_pin: str, new_pin: str) -> bool:

@@ -10643,7 +10643,7 @@ function CheckoutModal({
     };
   };
 
-  const executeBooking = (bypassingPin: boolean = false, verifiedPin?: string) => {
+  const executeBooking = (bypassingPin: boolean = false, paymentAuthToken?: string) => {
     if (isPinSet() && bypassingPin !== true && !pinVerified) {
       setShowPinModal(true);
       return;
@@ -10711,8 +10711,7 @@ function CheckoutModal({
 
     const authHeaders: Record<string, string> = {
       "Content-Type": "application/json",
-      ...(localToken ? { "Authorization": `Bearer ${localToken}` } : {}),
-      ...(verifiedPin ? { "X-Payment-PIN": verifiedPin } : {})
+      ...(localToken ? { "Authorization": `Bearer ${localToken}` } : {})
     };
 
     // Step 1: Create Hold Reservation
@@ -10757,11 +10756,11 @@ function CheckoutModal({
           const confirmHeaders: Record<string, string> = {
             "Content-Type": "application/json",
             ...(localToken ? { "Authorization": `Bearer ${localToken}` } : {}),
-            ...(verifiedPin ? { "X-Payment-PIN": verifiedPin } : {})
+            ...(paymentAuthToken ? { "X-Payment-Authorization": paymentAuthToken } : {})
           };
 
           fetch(
-            `${API_URL}/bookings/confirm?booking_reference=${holdBookingRef}&vertical=${data.vertical}&payment_method=${confirmMethod}&payment_pin=${encodeURIComponent(verifiedPin || '')}`,
+            `${API_URL}/bookings/confirm?booking_reference=${holdBookingRef}&vertical=${data.vertical}&payment_method=${confirmMethod}`,
             { method: "POST", headers: confirmHeaders }
           )
             .then(res => res.json())
@@ -11817,11 +11816,12 @@ function CheckoutModal({
       {showPinModal && (
         <PinVerifyModal
           description={`Booking Payment: ${data.title}`}
+          purpose="booking_payment"
           amount={finalAmount}
-          onSuccess={(verifiedPin) => {
+          onSuccess={(authToken) => {
             setShowPinModal(false);
             setPinVerified(true);
-            executeBooking(true, verifiedPin);
+            executeBooking(true, authToken);
           }}
           onCancel={() => {
             setShowPinModal(false);
@@ -15064,11 +15064,12 @@ function ChatView({
 /* ---------------------------------------------------- */
 /* PIN VERIFY MODAL                                     */
 /* ---------------------------------------------------- */
-function PinVerifyModal({ onSuccess, onCancel, amount, description }: {
-  onSuccess: (verifiedPin?: string) => void;
+function PinVerifyModal({ onSuccess, onCancel, amount, description, purpose = "booking_payment" }: {
+  onSuccess: (authToken: string) => void;
   onCancel: () => void;
   amount?: number;
   description?: string;
+  purpose?: string;
 }) {
   const [digits, setDigits] = React.useState(['', '', '', '']);
   const [error, setError] = React.useState('');
@@ -15117,11 +15118,11 @@ function PinVerifyModal({ onSuccess, onCancel, amount, description }: {
           "Content-Type": "application/json",
           ...(token ? { "Authorization": `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({ pin, purpose: "booking_payment" })
+        body: JSON.stringify({ pin, purpose })
       });
       const data = await res.json();
       if (res.ok && data.verified) {
-        onSuccess(pin);
+        onSuccess(data.payment_authorization_token);
       } else {
         const msg = data.detail || 'Incorrect security PIN.';
         setError(msg);
@@ -15359,7 +15360,7 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
     syncPinStatusFromBackend().then(enabled => setPinHasSet(enabled));
   }, [searchQuery, txTypeFilter, startDate, endDate]);
 
-  const doTopup = (val: number, verifiedPin?: string) => {
+  const doTopup = (val: number, paymentAuthToken?: string) => {
     setLoadingTopup(true);
     setTopupSuccess(null);
     const token = localStorage.getItem("token");
@@ -15369,12 +15370,11 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
       headers: {
         "Content-Type": "application/json",
         ...(token ? { "Authorization": `Bearer ${token}` } : {}),
-        ...(verifiedPin ? { "X-Payment-PIN": verifiedPin } : {})
+        ...(paymentAuthToken ? { "X-Payment-Authorization": paymentAuthToken } : {})
       },
       body: JSON.stringify({
         amount: val,
-        description: "Dev/Test Wallet Recharge",
-        pin: verifiedPin || undefined
+        description: "Dev/Test Wallet Recharge"
       })
     })
       .then(res => {
@@ -15958,12 +15958,13 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
       {showPinModal && (
         <PinVerifyModal
           description="Wallet Top-Up"
+          purpose="wallet_topup"
           amount={parseFloat(topupAmount) || undefined}
-          onSuccess={(verifiedPin) => {
+          onSuccess={(authToken) => {
             setShowPinModal(false);
             const val = parseFloat(topupAmount);
             if (!isNaN(val) && val > 0) {
-              doTopup(val, verifiedPin);
+              doTopup(val, authToken);
             }
           }}
           onCancel={() => { setShowPinModal(false); }}

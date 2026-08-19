@@ -325,3 +325,58 @@ def test_15_topup_succeeds_with_valid_token(pin_test_user):
     )
     assert resp.status_code == 200
     assert resp.json()["success"] is True
+
+
+def test_16_raw_pin_rejected_in_production(pin_test_user, monkeypatch):
+    user, token = pin_test_user
+    headers = {"Authorization": f"Bearer {token}"}
+
+    client.post("/api/v1/wallet/security-pin", json={"pin": "1234"}, headers=headers)
+
+    # Ensure ALLOW_RAW_PAYMENT_PIN is false
+    monkeypatch.setenv("ALLOW_RAW_PAYMENT_PIN", "false")
+
+    raw_pin_headers = {**headers, "X-Payment-PIN": "1234"}
+    resp = client.post(
+        "/api/v1/wallet-loyalty/wallet/topup",
+        json={"amount": 100, "description": "Raw PIN attempt in prod"},
+        headers=raw_pin_headers
+    )
+    assert resp.status_code == 400
+    assert "raw payment pin fallback is disabled" in resp.json()["detail"].lower()
+
+
+def test_17_missing_authorization_rejected(pin_test_user):
+    user, token = pin_test_user
+    headers = {"Authorization": f"Bearer {token}"}
+
+    client.post("/api/v1/wallet/security-pin", json={"pin": "1234"}, headers=headers)
+
+    # Attempt topup without X-Payment-Authorization
+    resp = client.post(
+        "/api/v1/wallet-loyalty/wallet/topup",
+        json={"amount": 100, "description": "No auth token topup"},
+        headers=headers
+    )
+    assert resp.status_code == 400
+    assert "authorization token required" in resp.json()["detail"].lower()
+
+
+def test_18_raw_pin_allowed_when_dev_flag_set(pin_test_user, monkeypatch):
+    user, token = pin_test_user
+    headers = {"Authorization": f"Bearer {token}"}
+
+    client.post("/api/v1/wallet/security-pin", json={"pin": "1234"}, headers=headers)
+
+    # Enable ALLOW_RAW_PAYMENT_PIN for dev/test override
+    monkeypatch.setenv("ALLOW_RAW_PAYMENT_PIN", "true")
+
+    raw_pin_headers = {**headers, "X-Payment-PIN": "1234"}
+    resp = client.post(
+        "/api/v1/wallet-loyalty/wallet/topup",
+        json={"amount": 200, "description": "Dev mode raw PIN topup"},
+        headers=raw_pin_headers
+    )
+    assert resp.status_code == 200
+    assert resp.json()["success"] is True
+
