@@ -1225,8 +1225,8 @@ export default function App() {
     const savedPhone = localStorage.getItem("user_phone");
     const savedJoined = localStorage.getItem("user_joined_date");
     return {
-      fullName: savedName || (savedEmail ? savedEmail.split('@')[0] : "Rahul Sharma"),
-      email: savedEmail || "traveler@travelos.com",
+      fullName: savedName || (savedEmail ? savedEmail.split('@')[0] : ""),
+      email: savedEmail || "",
       phone: savedPhone || "",
       joinedDate: savedJoined || "Aug 2026",
       tier: "Gold",
@@ -17714,12 +17714,23 @@ function WishlistModal({ items, setItems, onBook, onClose }: { items: any[], set
 
 /* Account Profile Modal */
 function AccountProfileModal({ userProfile, setUserProfile, onClose, onLogout }: { userProfile: any, setUserProfile: any, onClose: () => void, onLogout: () => void }) {
-  const [fullName, setFullName] = useState<string>(() => userProfile.fullName || userProfile.name || "");
-  const [email, setEmail] = useState<string>(() => userProfile.email || "");
-  const [phone, setPhone] = useState<string>(() => userProfile.phone || "");
-  const [joinedDate, setJoinedDate] = useState<string>(() => userProfile.joinedDate || "Aug 2026");
+  const initialName = userProfile.fullName || userProfile.name || localStorage.getItem("user_full_name") || "";
+  const initialEmail = userProfile.email || localStorage.getItem("user_email") || "";
+  const initialPhone = userProfile.phone || localStorage.getItem("user_phone") || "";
+
+  const [fullName, setFullName] = useState<string>(initialName);
+  const [email, setEmail] = useState<string>(initialEmail);
+  const [phone, setPhone] = useState<string>(initialPhone);
+  const [joinedDate, setJoinedDate] = useState<string>(() => userProfile.joinedDate || localStorage.getItem("user_joined_date") || "Aug 2026");
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [errMessage, setErrMessage] = useState<string | null>(null);
+
+  const getInitials = (n: string) => {
+    if (!n) return "U";
+    const parts = n.trim().split(/\s+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return parts[0][0].toUpperCase();
+  };
 
   // Real backend metrics
   const [backendMetrics, setBackendMetrics] = useState<any>({
@@ -17731,7 +17742,7 @@ function AccountProfileModal({ userProfile, setUserProfile, onClose, onLogout }:
     total_bookings: 0,
     pin_enabled: isPinSet(),
     pin_status: isPinSet() ? "Payment PIN Protected" : "No Payment PIN Set",
-    avatar_initials: "U"
+    avatar_initials: getInitials(initialName)
   });
 
   // Real Saved Companions from backend
@@ -17749,10 +17760,19 @@ function AccountProfileModal({ userProfile, setUserProfile, onClose, onLogout }:
       });
       if (res.ok) {
         const data = await res.json();
-        setFullName(data.full_name || data.name || "");
-        setEmail(data.email || "");
-        setPhone(data.phone || "");
+        const resolvedName = data.full_name || data.name || localStorage.getItem("user_full_name") || (data.email ? data.email.split('@')[0] : "");
+        const resolvedPhone = data.phone || data.mobile_number || localStorage.getItem("user_phone") || "";
+        const resolvedEmail = data.email || localStorage.getItem("user_email") || "";
+
+        setFullName(resolvedName);
+        setEmail(resolvedEmail);
+        setPhone(resolvedPhone);
         if (data.joined_date) setJoinedDate(data.joined_date);
+
+        // Keep local storage strictly synced
+        if (resolvedName) localStorage.setItem("user_full_name", resolvedName);
+        if (resolvedEmail) localStorage.setItem("user_email", resolvedEmail);
+        if (resolvedPhone) localStorage.setItem("user_phone", resolvedPhone);
 
         setBackendMetrics({
           wallet_balance: data.wallet_balance ?? 0,
@@ -17763,17 +17783,17 @@ function AccountProfileModal({ userProfile, setUserProfile, onClose, onLogout }:
           total_bookings: data.total_bookings ?? 0,
           pin_enabled: data.pin_enabled ?? isPinSet(),
           pin_status: data.pin_status || (isPinSet() ? "Payment PIN Protected" : "No Payment PIN Set"),
-          avatar_initials: data.avatar_initials || (data.name ? data.name.charAt(0).toUpperCase() : "U")
+          avatar_initials: getInitials(resolvedName)
         });
 
         setUserProfile((prev: any) => ({
           ...prev,
-          fullName: data.full_name || data.name,
-          email: data.email,
-          phone: data.phone,
-          walletBalance: data.wallet_balance,
-          points: data.loyalty_points,
-          tier: data.loyalty_tier
+          fullName: resolvedName,
+          email: resolvedEmail,
+          phone: resolvedPhone,
+          walletBalance: data.wallet_balance ?? prev.walletBalance,
+          points: data.loyalty_points ?? prev.points,
+          tier: data.loyalty_tier || prev.tier
         }));
       }
 

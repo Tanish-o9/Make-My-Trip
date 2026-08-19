@@ -330,16 +330,24 @@ def get_current_user_profile(
 ):
     """Retrieve full backend-authoritative profile details for the authenticated user."""
     profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+    user_name = getattr(current_user, "full_name", None) or getattr(current_user, "name", None) or current_user.email.split("@")[0].capitalize()
     if not profile:
         profile = UserProfile(
             user_id=current_user.id,
-            full_name=current_user.email.split("@")[0].capitalize(),
+            full_name=user_name,
             email=current_user.email,
             mobile_number=current_user.phone,
         )
         db.add(profile)
         db.commit()
         db.refresh(profile)
+    else:
+        if not profile.full_name or profile.full_name == "User":
+            profile.full_name = user_name
+            db.commit()
+        if not profile.mobile_number and current_user.phone:
+            profile.mobile_number = current_user.phone
+            db.commit()
 
     completion = _calc_profile_completion(current_user, profile)
     dob_str = profile.dob.isoformat() if profile.dob else None
@@ -347,7 +355,8 @@ def get_current_user_profile(
     joined_str = current_user.created_at.strftime("%b %Y") if current_user.created_at else None
 
     metrics = calculate_user_metrics(db, current_user.id)
-    fn = profile.full_name or current_user.email.split("@")[0].capitalize()
+    fn = profile.full_name or user_name
+    phone_num = profile.mobile_number or current_user.phone or ""
 
     return UserProfileResponse(
         id=current_user.id,
@@ -355,7 +364,7 @@ def get_current_user_profile(
         full_name=fn,
         email=current_user.email,
         email_verified=current_user.email_verified,
-        phone=profile.mobile_number or current_user.phone,
+        phone=phone_num,
         phone_verified=getattr(current_user, "phone_verified", False),
         avatar_url=getattr(profile, "avatar_url", None),
         avatar_initials=_get_avatar_initials(fn),
