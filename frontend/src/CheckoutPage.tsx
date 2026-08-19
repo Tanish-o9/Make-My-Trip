@@ -104,6 +104,8 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
   const [rzpCardCvv, setRzpCardCvv] = useState("123");
   const [rzpCardName, setRzpCardName] = useState("Traveler Guest");
   const [selectedBank, setSelectedBank] = useState("HDFC Bank");
+  const [paymentAuthToken, setPaymentAuthToken] = useState<string | null>(null);
+  const [showPinModal, setShowPinModal] = useState(false);
 
   // Profile prefill and validation states (Phase 5 & 6)
   const [profile, setProfile] = useState<any>(null);
@@ -336,7 +338,7 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
   };
 
   // 4. Load & trigger Razorpay Checkout.js (Standard Cards/Netbanking/Wallets)
-  const payWithRazorpay = async () => {
+  const payWithRazorpay = async (authTokenParam?: string) => {
     console.log("LOG: payWithRazorpay clicked. humanApproved:", humanApproved, "activeTab:", activeTab);
     if (!humanApproved) {
       setError("Please check the 'Approve Payment Transaction' checkbox first to proceed.");
@@ -348,27 +350,40 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
     else if (activeTab === "wallet") setRzpMethod("wallet");
     setPaymentLoading(true);
     setError("");
+
+    const activeAuthToken = authTokenParam || paymentAuthToken;
+
     try {
       console.log("LOG: Sending create-order request for cards/other, PNR:", bookingId, "amount:", booking.total_amount);
       const orderRes = await fetch(`${API_URL}/payments/create-order`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          ...(token ? { "Authorization": `Bearer ${token}` } : {})
+          ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+          ...(activeAuthToken ? { "X-Payment-Authorization": activeAuthToken } : {})
         },
         body: JSON.stringify({
           booking_id: bookingId,
           amount: booking.total_amount,
           currency: "INR",
           method: activeTab,
-          human_approved: humanApproved
+          human_approved: humanApproved,
+          ...(activeAuthToken ? { payment_authorization_token: activeAuthToken } : {})
         })
       });
       
       console.log("LOG: create-order response status:", orderRes.status);
       if (!orderRes.ok) {
         const errData = await orderRes.json().catch(() => ({}));
-        throw new Error(errData.detail || errData.message || `Payment initialization failed with status ${orderRes.status}`);
+        const errMsg = errData.detail || errData.message || `Payment initialization failed with status ${orderRes.status}`;
+        
+        if (orderRes.status === 400 && (errMsg.includes("authorization token") || errMsg.includes("PIN"))) {
+          setShowPinModal(true);
+          setPaymentLoading(false);
+          return;
+        }
+
+        throw new Error(errMsg);
       }
       
       const orderData = await orderRes.json();
@@ -773,7 +788,7 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                   
                   <div className="flex justify-center items-center max-w-md mx-auto">
                     <button
-                      onClick={payWithRazorpay}
+                      onClick={() => payWithRazorpay()}
                       disabled={paymentLoading || !humanApproved || profileIncomplete}
                       className="w-full bg-emerald-400 hover:bg-emerald-500 disabled:bg-emerald-200 text-black border-3 border-black px-6 py-3 font-black text-xs uppercase rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer flex items-center justify-center gap-2"
                     >
@@ -884,23 +899,108 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
               )}
 
               {activeTab === "card" && (
-                <div className="text-center space-y-4 my-auto py-6">
-                  <div className="bg-[#eae5d9] border-3 border-black p-4 rounded-xl max-w-md mx-auto text-left space-y-2">
-                    <span className="text-[10px] uppercase font-black tracking-wide text-black">Secure Payment Protocol</span>
-                    <h4 className="font-black text-sm uppercase text-black">Razorpay Sandbox Gateway</h4>
-                    <div className="bg-yellow-100 border-2 border-black p-2.5 rounded-lg text-[11px] space-y-1 font-mono text-black">
-                      <div className="font-black text-black">💳 Domestic Test Card:</div>
-                      <div>Card: <span className="font-black select-all bg-white px-1.5 py-0.5 rounded border border-black text-black">4012 0000 3333 0026</span></div>
-                      <div className="text-[10px] text-black font-bold">Expiry: <span className="font-black">12/30</span> | CVV: <span className="font-black">123</span> | OTP: <span className="font-black">123456</span></div>
-                      <div className="text-[10px] text-black font-bold">💡 Or select <strong>Netbanking / Wallet</strong> inside popup for 1-click Success.</div>
+                <div className="space-y-4 my-auto py-2">
+                  <div className="bg-[#eae5d9] border-3 border-black p-4 rounded-xl max-w-md mx-auto text-left space-y-3 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                    <div className="flex justify-between items-center border-b border-black/10 pb-2">
+                      <span className="text-[10px] uppercase font-black tracking-wide text-black flex items-center gap-1">
+                        <CreditCard size={14} /> Custom Card Entry & Presets
+                      </span>
+                      <span className="bg-yellow-300 border border-black text-[9px] font-black px-2 py-0.5 rounded uppercase font-mono">
+                        PCI-DSS Encrypted
+                      </span>
+                    </div>
+
+                    {/* Card Type / Preset Selector Chips */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] uppercase font-black text-black block">Choose Card Preset or Enter Custom Card:</label>
+                      <div className="grid grid-cols-3 gap-1.5 text-[11px] font-black">
+                        {[
+                          { label: "💳 Visa", num: "4012 0000 3333 0026", exp: "12/30", cvv: "123", name: "Tanish Verified Traveler" },
+                          { label: "💳 Mastercard", num: "5123 4567 8901 2345", exp: "11/28", cvv: "456", name: "Primary Travel Card" },
+                          { label: "💳 RuPay", num: "6071 2345 6789 0123", exp: "09/29", cvv: "789", name: "Corporate RuPay Card" },
+                        ].map((preset) => (
+                          <button
+                            type="button"
+                            key={preset.label}
+                            onClick={() => {
+                              setRzpCardNumber(preset.num);
+                              setRzpCardExpiry(preset.exp);
+                              setRzpCardCvv(preset.cvv);
+                              setRzpCardName(preset.name);
+                            }}
+                            className={`p-2 rounded-lg border-2 border-black text-left cursor-pointer transition-all ${
+                              rzpCardNumber === preset.num
+                                ? "bg-yellow-300 font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] text-black"
+                                : "bg-white hover:bg-yellow-50 text-black"
+                            }`}
+                          >
+                            <div className="font-black text-[11px]">{preset.label}</div>
+                            <div className="text-[9px] font-mono text-slate-700 truncate">{preset.num.slice(-4)}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Manual Card Details Inputs */}
+                    <div className="space-y-2.5 pt-1">
+                      <div>
+                        <label className="text-[10px] uppercase font-black text-black block mb-1">Cardholder Name</label>
+                        <input
+                          type="text"
+                          value={rzpCardName}
+                          onChange={(e) => setRzpCardName(e.target.value)}
+                          placeholder="Name on Card"
+                          className="w-full bg-white border-2 border-black rounded-lg p-2 text-xs font-bold text-black outline-none focus:bg-yellow-50"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] uppercase font-black text-black block mb-1">Card Number (PAN)</label>
+                        <input
+                          type="text"
+                          value={rzpCardNumber}
+                          onChange={(e) => {
+                            const raw = e.target.value.replace(/\D/g, '').slice(0, 16);
+                            const formatted = raw.replace(/(.{4})/g, '$1 ').trim();
+                            setRzpCardNumber(formatted || e.target.value);
+                          }}
+                          placeholder="4012 0000 0000 0000"
+                          className="w-full bg-white border-2 border-black rounded-lg p-2 text-xs font-mono font-bold text-black outline-none focus:bg-yellow-50 tracking-wider"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] uppercase font-black text-black block mb-1">Expiry (MM/YY)</label>
+                          <input
+                            type="text"
+                            value={rzpCardExpiry}
+                            onChange={(e) => setRzpCardExpiry(e.target.value)}
+                            placeholder="MM/YY"
+                            maxLength={5}
+                            className="w-full bg-white border-2 border-black rounded-lg p-2 text-xs font-mono font-bold text-black outline-none focus:bg-yellow-50"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] uppercase font-black text-black block mb-1">CVV Security Code</label>
+                          <input
+                            type="password"
+                            value={rzpCardCvv}
+                            onChange={(e) => setRzpCardCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                            placeholder="•••"
+                            maxLength={4}
+                            className="w-full bg-white border-2 border-black rounded-lg p-2 text-xs font-mono font-bold text-black outline-none focus:bg-yellow-50"
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
                   
                   <div className="flex justify-center items-center max-w-md mx-auto">
                     <button
-                      onClick={payWithRazorpay}
+                      onClick={() => payWithRazorpay()}
                       disabled={paymentLoading || !humanApproved || profileIncomplete}
-                      className="w-full bg-emerald-400 hover:bg-emerald-500 disabled:bg-emerald-200 text-black border-3 border-black px-6 py-3 font-black text-xs uppercase rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer flex items-center justify-center gap-2"
+                      className="w-full bg-emerald-400 hover:bg-emerald-500 disabled:bg-emerald-200 text-black border-3 border-black px-6 py-3 font-black text-xs uppercase rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 transition-all cursor-pointer flex items-center justify-center gap-2"
                     >
                       {paymentLoading ? (
                         <>
@@ -1185,6 +1285,156 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
         document.body
       )}
 
+      {showPinModal && (
+        <PinVerifyModal
+          amount={booking.total_amount}
+          description={`Security PIN Verification for ${bookingId}`}
+          purpose="create_order"
+          onSuccess={(token) => {
+            setPaymentAuthToken(token);
+            setShowPinModal(false);
+            payWithRazorpay(token);
+          }}
+          onCancel={() => {
+            setShowPinModal(false);
+            setPaymentLoading(false);
+          }}
+        />
+      )}
+
+    </div>
+  );
+}
+
+function PinVerifyModal({ onSuccess, onCancel, amount, description, purpose = "create_order" }: {
+  onSuccess: (authToken: string) => void;
+  onCancel: () => void;
+  amount?: number;
+  description?: string;
+  purpose?: string;
+}) {
+  const [digits, setDigits] = useState(['', '', '', '']);
+  const [error, setError] = useState('');
+  const [shake, setShake] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const inputRefs = [
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+  ];
+
+  useEffect(() => {
+    inputRefs[0].current?.focus();
+  }, []);
+
+  const handleDigitChange = (idx: number, val: string) => {
+    if (!/^\d?$/.test(val)) return;
+    const next = [...digits];
+    next[idx] = val;
+    setDigits(next);
+    setError('');
+    if (val && idx < 3) {
+      inputRefs[idx + 1].current?.focus();
+    }
+  };
+
+  const handleKeyDown = (idx: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !digits[idx] && idx > 0) {
+      inputRefs[idx - 1].current?.focus();
+    }
+    if (e.key === 'Enter') handleVerify();
+  };
+
+  const handleVerify = async () => {
+    const pin = digits.join('');
+    if (pin.length < 4) { setError('Enter all 4 digits.'); return; }
+    setLoading(true);
+    setError('');
+
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(`${API_URL}/wallet/security-pin/verify`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ pin, purpose })
+      });
+      const data = await res.json();
+      if (res.ok && data.verified) {
+        onSuccess(data.payment_authorization_token);
+      } else {
+        const msg = data.detail || 'Incorrect security PIN.';
+        setError(msg);
+        setShake(true);
+        setDigits(['', '', '', '']);
+        setTimeout(() => { setShake(false); inputRefs[0].current?.focus(); }, 500);
+      }
+    } catch {
+      setError('Connection failure. Please try again.');
+      setShake(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      <div className={`bg-[#0d1425] border-3 border-yellow-400 p-6 rounded-2xl max-w-sm w-full shadow-[0_0_50px_rgba(234,179,8,0.3)] text-center space-y-5 text-white ${shake ? 'animate-bounce' : ''}`}>
+        <div className="flex justify-between items-center border-b border-slate-700 pb-3">
+          <div className="flex items-center gap-2">
+            <Lock className="text-yellow-400" size={18} />
+            <span className="font-black text-xs uppercase tracking-wide text-yellow-400">Payment PIN Verification</span>
+          </div>
+          <button onClick={onCancel} className="text-slate-400 hover:text-white text-xs font-black uppercase cursor-pointer">✕</button>
+        </div>
+
+        {description && <p className="text-xs text-slate-300 font-bold">{description}</p>}
+        {amount && (
+          <div className="bg-slate-900 border border-slate-700 p-3 rounded-xl">
+            <span className="text-[10px] text-slate-400 uppercase font-black block">Authorization Amount</span>
+            <span className="text-xl font-black text-yellow-400">₹{amount.toLocaleString()}</span>
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <p className="text-xs text-slate-400 font-bold">Enter 4-digit Security PIN to Authorize Payment:</p>
+          <div className="flex justify-center gap-3">
+            {digits.map((digit, idx) => (
+              <input
+                key={idx}
+                ref={inputRefs[idx]}
+                type="password"
+                inputMode="numeric"
+                maxLength={1}
+                value={digit}
+                onChange={(e) => handleDigitChange(idx, e.target.value)}
+                onKeyDown={(e) => handleKeyDown(idx, e)}
+                className="w-12 h-14 text-center text-2xl font-black bg-slate-900 border-2 border-slate-700 focus:border-yellow-400 rounded-xl text-yellow-400 outline-none transition-all"
+              />
+            ))}
+          </div>
+          {error && <p className="text-xs text-rose-400 font-bold mt-1">⚠️ {error}</p>}
+        </div>
+
+        <div className="flex gap-2 pt-2">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-600 font-bold text-xs rounded-xl uppercase transition-all cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleVerify}
+            disabled={loading || digits.join('').length < 4}
+            className="flex-1 py-2.5 bg-yellow-400 hover:bg-yellow-300 disabled:bg-slate-700 text-black font-black text-xs rounded-xl uppercase shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all flex items-center justify-center gap-1 cursor-pointer"
+          >
+            {loading ? <RefreshCw className="animate-spin" size={14} /> : "Verify PIN →"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
