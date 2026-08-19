@@ -319,12 +319,11 @@ async def create_booking_hold(
         has_special_fare = any(p.get("specialFareType", "regular") != "regular" for p in passengers)
         has_seat_selection = bool(details.get("seat_numbers"))
         if req.amount is not None and req.amount > 0:
-            if not has_special_fare and not has_seat_selection:
-                if abs(amount - float(req.amount)) > 1000.0:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Authoritative recalculated amount (INR {amount}) does not match requested amount (INR {req.amount})."
-                    )
+            if abs(amount - float(req.amount)) > 1.0:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Authoritative recalculated amount (INR {amount}) does not match requested amount (INR {req.amount})."
+                )
 
         pricing_snapshot = {
             "base_fare": total_base,
@@ -461,9 +460,6 @@ async def create_booking_hold(
         if route:
             base_price = float(route.price)
             b_type = route.bus_type or ""
-        bus_id = details.get("bus_id", 1)
-        route = db.query(BusRoute).filter(BusRoute.id == bus_id).first() if str(bus_id).isdigit() else None
-        base_price = float(route.price) if route else 750.0
 
         passengers = details.get("passengers", [])
         pax_count = len(passengers)
@@ -479,9 +475,8 @@ async def create_booking_hold(
         final_payable = round(total_base + total_seat_fare + tax + convenience_fee - promo_discount, 2)
         amount = max(100.0, final_payable)
 
-        # Tolerance check
-        has_seat_selection = bool(details.get("seat_numbers"))
-        if not has_seat_selection and abs(amount - req.amount) > 1000.0:  # Allow seat & add-on variances
+        # Anti-tampering check: verify requested amount matches authoritative recalculated amount
+        if abs(amount - req.amount) > 1.0:
             raise HTTPException(
                 status_code=400,
                 detail=f"Authoritative recalculated amount (INR {amount}) does not match requested amount (INR {req.amount})."
