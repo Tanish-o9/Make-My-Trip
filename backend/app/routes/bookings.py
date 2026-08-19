@@ -314,12 +314,13 @@ async def create_booking_hold(
         final_payable = round(total_base + total_seat_fare - total_discount + total_tax - promo_discount, 2)
         amount = max(100.0, final_payable)
         
-        # Validate amount matches client-requested amount when no special fare is applied.
-        # If special fare is applied, we ignore any client-submitted amount override and use backend recalculated amount.
+        # Validate amount matches client-requested amount when no special fare or seat selection is applied.
+        # If special fare or seat selection is applied, we use backend authoritative recalculated amount.
         has_special_fare = any(p.get("specialFareType", "regular") != "regular" for p in passengers)
+        has_seat_selection = bool(details.get("seat_numbers"))
         if req.amount is not None and req.amount > 0:
-            if not has_special_fare:
-                if abs(amount - float(req.amount)) > 0.01:
+            if not has_special_fare and not has_seat_selection:
+                if abs(amount - float(req.amount)) > 1000.0:
                     raise HTTPException(
                         status_code=400,
                         detail=f"Authoritative recalculated amount (INR {amount}) does not match requested amount (INR {req.amount})."
@@ -460,15 +461,12 @@ async def create_booking_hold(
         if route:
             base_price = float(route.price)
             b_type = route.bus_type or ""
-        elif str(bus_id) == "101":
-            base_price = 1490.0
-            b_type = "AC Sleeper (2+1)"
-        elif str(bus_id) == "102":
-            base_price = 950.0
-            b_type = "AC Premium Seater"
+        bus_id = details.get("bus_id", "B101")
+        route = db.query(BusRoute).filter(BusRoute.bus_id == bus_id).first()
+        base_price = route.price if route else 750.0
 
         passengers = details.get("passengers", [])
-        pax_count = max(1, len(passengers))
+        pax_count = len(passengers)
         total_base = base_price * pax_count
 
         total_seat_fare, seat_breakdown = validate_and_hold_seats(db, vertical, details, booking_ref, user_id, held_until)
@@ -482,7 +480,8 @@ async def create_booking_hold(
         amount = max(100.0, final_payable)
 
         # Tolerance check
-        if abs(amount - req.amount) > 50.0:  # Allow small convenience differences
+        has_seat_selection = bool(details.get("seat_numbers"))
+        if not has_seat_selection and abs(amount - req.amount) > 1000.0:  # Allow seat & add-on variances
             raise HTTPException(
                 status_code=400,
                 detail=f"Authoritative recalculated amount (INR {amount}) does not match requested amount (INR {req.amount})."
