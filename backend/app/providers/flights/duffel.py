@@ -285,7 +285,7 @@ class DuffelFlightProvider(BaseFlightProvider):
         return offers
 
     async def hold(self, offer_id: str, passenger_details: List[Dict[str, Any]]) -> Dict[str, Any]:
-        if not self.api_key or "test_j4VOF" in self.api_key:
+        if not self.api_key or "test" in self.api_key:
             # Under sandbox/test setup, if the offer_id is mock, return a mock success
             # to let E2E local tests run smoothly.
             if not offer_id.startswith("off_"):
