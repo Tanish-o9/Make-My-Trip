@@ -3948,9 +3948,12 @@ function FlightsSearchForm({
       alert("Source and Destination airports cannot be identical.");
       return;
     }
+    if (!depDate || !depDate.trim()) {
+      alert("Please select a valid Departure Date before searching flights.");
+      return;
+    }
 
-    const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0];
-    const effectiveDate = depDate || tomorrowStr;
+    const effectiveDate = depDate;
 
     setLoading(true);
     setResults([]);
