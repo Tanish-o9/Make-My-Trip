@@ -10424,19 +10424,6 @@ function CheckoutModal({
   const [cardNumber, setCardNumber] = useState("");
   const [cardExpiry, setCardExpiry] = useState("");
   const [cardCvv, setCardCvv] = useState("");
-
-  useEffect(() => {
-    if (cardNumber) {
-      try {
-        localStorage.setItem("ghumne_chale_draft_card", JSON.stringify({
-          number: cardNumber,
-          expiry: cardExpiry || "12/30",
-          cvv: cardCvv || "123",
-          name: "Tanish Verified Traveler"
-        }));
-      } catch (e) {}
-    }
-  }, [cardNumber, cardExpiry, cardCvv]);
   
   // Sandbox Simulations
   const [bypassTokenization, setBypassTokenization] = useState(false);
@@ -10849,16 +10836,6 @@ function CheckoutModal({
 
         } else {
           // Step 2b: Card / UPI / Split — navigate to dedicated CheckoutPage
-          if (cardNumber) {
-            try {
-              localStorage.setItem("ghumne_chale_draft_card", JSON.stringify({
-                number: cardNumber,
-                expiry: cardExpiry || "12/30",
-                cvv: cardCvv || "123",
-                name: "Tanish Verified Traveler"
-              }));
-            } catch (e) {}
-          }
           window.history.pushState(null, '', `/checkout/${holdBookingRef}`);
           window.dispatchEvent(new Event('popstate'));
           onClose();

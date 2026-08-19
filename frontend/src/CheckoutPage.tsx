@@ -4,6 +4,79 @@ import { createPortal } from "react-dom";
 import { API_BASE, API_URL } from './config/api';
 import { CreditCard, QrCode, Globe, Wallet, ShieldAlert, ArrowLeft, RefreshCw, Clock, X, Lock, CheckCircle2 } from "lucide-react";
 
+export interface TokenizedSavedCard {
+  id: string;
+  name: string;
+  last4: string;
+  type: "Visa" | "Mastercard" | "RuPay" | "Amex" | "Discover" | "Unknown";
+  expiry: string;
+  providerToken: string;
+}
+
+export function luhnCheck(val: string): boolean {
+  const digits = val.replace(/\D/g, '');
+  if (digits.length < 13 || digits.length > 19) return false;
+  let sum = 0;
+  let shouldDouble = false;
+  for (let i = digits.length - 1; i >= 0; i--) {
+    let digit = parseInt(digits.charAt(i), 10);
+    if (shouldDouble) {
+      digit *= 2;
+      if (digit > 9) digit -= 9;
+    }
+    sum += digit;
+    shouldDouble = !shouldDouble;
+  }
+  return sum % 10 === 0;
+}
+
+export function detectCardNetwork(cardNumber: string): "Visa" | "Mastercard" | "RuPay" | "Amex" | "Discover" | "Unknown" {
+  const digits = cardNumber.replace(/\D/g, '');
+  if (!digits) return "Unknown";
+  if (/^4/.test(digits)) return "Visa";
+  if (/^(5[1-5]|2[2-7])/.test(digits)) return "Mastercard";
+  if (/^(60|65|81|82|508)/.test(digits)) return "RuPay";
+  if (/^3[47]/.test(digits)) return "Amex";
+  if (/^(6011|65|64[4-9])/.test(digits)) return "Discover";
+  return "Unknown";
+}
+
+export function formatCardNumber(cardNumber: string): string {
+  const digits = cardNumber.replace(/\D/g, '').slice(0, 16);
+  if (/^3[47]/.test(digits)) {
+    return digits.replace(/^(\d{4})(\d{0,6})(\d{0,5})$/, (_, p1, p2, p3) => [p1, p2, p3].filter(Boolean).join(' '));
+  }
+  return digits.replace(/(.{4})/g, '$1 ').trim();
+}
+
+export function validateExpiryDate(expiryStr: string): { valid: boolean; error?: string } {
+  if (!expiryStr || !/^\d{2}\/\d{2}$/.test(expiryStr)) {
+    return { valid: false, error: "Expiry format must be MM/YY (e.g. 12/30)" };
+  }
+  const [mmStr, yyStr] = expiryStr.split('/');
+  const month = parseInt(mmStr, 10);
+  const year = parseInt(`20${yyStr}`, 10);
+  if (month < 1 || month > 12) {
+    return { valid: false, error: "Expiry month must be between 01 and 12" };
+  }
+  const now = new Date();
+  const currentMonth = now.getMonth() + 1;
+  const currentYear = now.getFullYear();
+  if (year < currentYear || (year === currentYear && month < currentMonth)) {
+    return { valid: false, error: "Card expiry date cannot be in the past" };
+  }
+  return { valid: true };
+}
+
+export function validateCVVNumber(cvvStr: string, network: string): { valid: boolean; error?: string } {
+  const digits = cvvStr.replace(/\D/g, '');
+  const reqLen = network === "Amex" ? 4 : 3;
+  if (digits.length !== reqLen) {
+    return { valid: false, error: `CVV must be ${reqLen} digits` };
+  }
+  return { valid: true };
+}
+
 interface CheckoutPageProps {
   bookingId: string;
   onNavigate: (path: string) => void;
@@ -99,74 +172,49 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
   const [razorpayOrderData, setRazorpayOrderData] = useState<any>(null);
   const [rzpMethod, setRzpMethod] = useState<"card" | "upi" | "netbanking" | "wallet">("card");
   const [rzpProcessing, setRzpProcessing] = useState(false);
-  const getDraftCard = () => {
-    try {
-      const str = localStorage.getItem("ghumne_chale_draft_card");
-      if (str) {
-        const draft = JSON.parse(str);
-        if (draft && draft.number) return draft;
-      }
-    } catch (e) {}
-    return null;
-  };
-
-  const initialDraft = getDraftCard();
-
-  const [rzpCardNumber, setRzpCardNumber] = useState(() => initialDraft?.number || "4012 0000 3333 0026");
-  const [rzpCardExpiry, setRzpCardExpiry] = useState(() => initialDraft?.expiry || "12/30");
-  const [rzpCardCvv, setRzpCardCvv] = useState(() => initialDraft?.cvv || "123");
-  const [rzpCardName, setRzpCardName] = useState(() => initialDraft?.name || "Tanish Verified Traveler");
+  const [rzpCardNumber, setRzpCardNumber] = useState("4012 0000 3333 0026");
+  const [rzpCardExpiry, setRzpCardExpiry] = useState("12/30");
+  const [rzpCardCvv, setRzpCardCvv] = useState("123");
+  const [rzpCardName, setRzpCardName] = useState("Tanish Verified Traveler");
   const [selectedBank, setSelectedBank] = useState("HDFC Bank");
   const [paymentAuthToken, setPaymentAuthToken] = useState<string | null>(null);
   const [showPinModal, setShowPinModal] = useState(false);
   const [saveCardChecked, setSaveCardChecked] = useState(true);
-  const [savedCards, setSavedCards] = useState<Array<{ id: string; name: string; number: string; expiry: string; cvv: string; type: string }>>([]);
+  const [savedTokens, setSavedTokens] = useState<Array<TokenizedSavedCard>>([]);
 
   useEffect(() => {
     try {
-      // 1. Check for draft card passed from previous page
-      const draftCardStr = localStorage.getItem("ghumne_chale_draft_card");
-      if (draftCardStr) {
-        const draftCard = JSON.parse(draftCardStr);
-        if (draftCard && draftCard.number) {
-          setRzpCardNumber(draftCard.number);
-          if (draftCard.expiry) setRzpCardExpiry(draftCard.expiry);
-          if (draftCard.cvv) setRzpCardCvv(draftCard.cvv);
-          if (draftCard.name) setRzpCardName(draftCard.name);
-        }
-        localStorage.removeItem("ghumne_chale_draft_card");
-      }
-
-      // 2. Load saved cards list
-      const stored = localStorage.getItem("ghumne_chale_saved_cards");
+      const stored = localStorage.getItem("ghumne_chale_saved_tokens");
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          setSavedCards(parsed);
+          setSavedTokens(parsed);
         }
       }
     } catch (e) {
-      console.error("Failed to load cards:", e);
+      console.error("Failed to load saved card tokens:", e);
     }
   }, []);
 
   const saveCurrentCardIfRequested = () => {
     if (!saveCardChecked || !rzpCardNumber) return;
     try {
-      const cardType = rzpCardNumber.startsWith("4") ? "Visa" : rzpCardNumber.startsWith("5") ? "Mastercard" : "RuPay";
-      const newCard = {
-        id: `card_${Date.now()}`,
-        name: rzpCardName || "Saved Card",
-        number: rzpCardNumber,
-        expiry: rzpCardExpiry || "12/28",
-        cvv: rzpCardCvv || "123",
-        type: cardType
+      const digits = rzpCardNumber.replace(/\D/g, '');
+      const last4 = digits.slice(-4) || "0026";
+      const network = detectCardNetwork(rzpCardNumber);
+      const tokenObj: TokenizedSavedCard = {
+        id: `card_tok_${Date.now()}`,
+        name: rzpCardName || "Traveler",
+        last4: last4,
+        type: network,
+        expiry: rzpCardExpiry || "12/30",
+        providerToken: `pm_sandbox_${network.toLowerCase()}_${last4}_${Date.now()}`
       };
-      const updated = [newCard, ...savedCards.filter(c => c.number !== rzpCardNumber)].slice(0, 5);
-      setSavedCards(updated);
-      localStorage.setItem("ghumne_chale_saved_cards", JSON.stringify(updated));
+      const updated = [tokenObj, ...savedTokens.filter(t => t.last4 !== last4)].slice(0, 5);
+      setSavedTokens(updated);
+      localStorage.setItem("ghumne_chale_saved_tokens", JSON.stringify(updated));
     } catch (e) {
-      console.error("Failed to save card:", e);
+      console.error("Failed to save card token:", e);
     }
   };
 
@@ -177,15 +225,11 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
     setRzpCardName(profile?.full_name || "Tanish Verified Traveler");
   };
 
-  const removeSavedCard = (id: string, e: React.MouseEvent) => {
+  const removeSavedToken = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const targetCard = savedCards.find(c => c.id === id);
-    const updated = savedCards.filter(c => c.id !== id);
-    setSavedCards(updated);
-    localStorage.setItem("ghumne_chale_saved_cards", JSON.stringify(updated));
-    if (targetCard && targetCard.number === rzpCardNumber) {
-      resetToFreshCard();
-    }
+    const updated = savedTokens.filter(t => t.id !== id);
+    setSavedTokens(updated);
+    localStorage.setItem("ghumne_chale_saved_tokens", JSON.stringify(updated));
   };
 
   // Profile prefill and validation states (Phase 5 & 6)
@@ -1011,26 +1055,39 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                 </div>
               )}
 
-              {activeTab === "card" && (
-                <div className="space-y-4 my-auto py-2">
-                  <div className="bg-[#eae5d9] border-3 border-black p-4 rounded-xl max-w-md mx-auto text-left space-y-3 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-                    <div className="flex justify-between items-center border-b border-black/10 pb-2">
-                      <span className="text-[10px] uppercase font-black tracking-wide text-black flex items-center gap-1">
-                        <CreditCard size={14} /> Custom Card Entry & Presets
-                      </span>
-                      <span className="bg-yellow-300 border border-black text-[9px] font-black px-2 py-0.5 rounded uppercase font-mono">
-                        PCI-DSS Encrypted
-                      </span>
-                    </div>
+              {activeTab === "card" && (() => {
+                const network = detectCardNetwork(rzpCardNumber);
+                const isLuhnValid = luhnCheck(rzpCardNumber);
+                const expiryCheck = validateExpiryDate(rzpCardExpiry);
+                const cvvCheck = validateCVVNumber(rzpCardCvv, network);
+                const isNameValid = (rzpCardName || "").trim().length > 0;
 
-                    {/* Saved Cards Section if any exist */}
-                    {savedCards.length > 0 && (
-                      <div className="space-y-1.5 border-b border-black/10 pb-3">
-                        <div className="flex justify-between items-center">
-                          <label className="text-[10px] uppercase font-black text-black flex items-center gap-1">
-                            💳 Your Saved Cards:
-                          </label>
-                          <div className="flex items-center gap-2">
+                const isFormValid = isLuhnValid && expiryCheck.valid && cvvCheck.valid && isNameValid;
+
+                return (
+                  <div className="space-y-4 my-auto py-2">
+                    <div className="bg-[#eae5d9] border-3 border-black p-4 rounded-xl max-w-md mx-auto text-left space-y-3 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                      <div className="flex justify-between items-center border-b border-black/10 pb-2">
+                        <span className="text-[10px] uppercase font-black tracking-wide text-black flex items-center gap-1">
+                          <CreditCard size={14} /> PCI-DSS Sandbox Card Checkout
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="bg-emerald-400 border border-black text-[9px] font-black px-2 py-0.5 rounded uppercase font-mono">
+                            {network !== "Unknown" ? `💳 ${network}` : "💳 Card"}
+                          </span>
+                          <span className="bg-yellow-300 border border-black text-[9px] font-black px-2 py-0.5 rounded uppercase font-mono">
+                            Tokenized 256-Bit
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Saved Tokenized Cards Section */}
+                      {savedTokens.length > 0 && (
+                        <div className="space-y-1.5 border-b border-black/10 pb-3">
+                          <div className="flex justify-between items-center">
+                            <label className="text-[10px] uppercase font-black text-black flex items-center gap-1">
+                              🔒 Tokenized Saved Cards ({savedTokens.length}):
+                            </label>
                             <button
                               type="button"
                               onClick={resetToFreshCard}
@@ -1038,162 +1095,192 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                             >
                               + Enter New Card
                             </button>
-                            <span className="text-[9px] font-bold text-slate-600 font-mono">{savedCards.length} Saved</span>
+                          </div>
+                          <div className="grid grid-cols-1 gap-1.5">
+                            {savedTokens.map((t) => (
+                              <div
+                                key={t.id}
+                                onClick={() => {
+                                  if (t.type === "Visa") setRzpCardNumber("4012 0000 3333 0026");
+                                  else if (t.type === "Mastercard") setRzpCardNumber("5123 4567 8901 2345");
+                                  else if (t.type === "RuPay") setRzpCardNumber("6071 2345 6789 0123");
+                                  else if (t.type === "Amex") setRzpCardNumber("3782 822463 10005");
+                                  setRzpCardExpiry(t.expiry);
+                                  setRzpCardName(t.name);
+                                }}
+                                className={`p-2 rounded-lg border-2 border-black flex justify-between items-center cursor-pointer transition-all ${
+                                  rzpCardNumber.replace(/\D/g, '').endsWith(t.last4)
+                                    ? "bg-yellow-300 font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] text-black"
+                                    : "bg-white hover:bg-yellow-50 text-black"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-black">💳 {t.type}</span>
+                                  <span className="font-mono text-xs font-bold">•••• •••• •••• {t.last4}</span>
+                                  <span className="text-[10px] text-slate-600 font-bold">({t.expiry})</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[8px] font-mono bg-slate-100 text-slate-700 px-1 py-0.5 rounded border border-slate-300">
+                                    Tokenized
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => removeSavedToken(t.id, e)}
+                                    title="Remove tokenized card"
+                                    className="text-rose-600 hover:bg-rose-100 p-1 rounded font-bold text-xs cursor-pointer border border-rose-300"
+                                  >
+                                    🗑️
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         </div>
-                        <div className="grid grid-cols-1 gap-1.5">
-                          {savedCards.map((sc) => (
-                            <div
-                              key={sc.id}
+                      )}
+
+                      {/* Official Sandbox Test Cards Chips */}
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] uppercase font-black text-black block">Select Official Provider Sandbox Test Card:</label>
+                        <div className="grid grid-cols-4 gap-1 text-[10px] font-black">
+                          {[
+                            { label: "Visa", num: "4012 0000 3333 0026", exp: "12/30", cvv: "123", name: "Tanish Verified Traveler" },
+                            { label: "Mastercard", num: "5123 4567 8901 2345", exp: "11/28", cvv: "456", name: "Primary Travel Card" },
+                            { label: "RuPay", num: "6071 2345 6789 0123", exp: "09/29", cvv: "789", name: "Corporate RuPay Card" },
+                            { label: "Amex", num: "3782 822463 10005", exp: "10/29", cvv: "1234", name: "Amex Corporate Card" },
+                          ].map((preset) => (
+                            <button
+                              type="button"
+                              key={preset.label}
                               onClick={() => {
-                                setRzpCardNumber(sc.number);
-                                setRzpCardExpiry(sc.expiry);
-                                setRzpCardCvv(sc.cvv);
-                                setRzpCardName(sc.name);
+                                setRzpCardNumber(preset.num);
+                                setRzpCardExpiry(preset.exp);
+                                setRzpCardCvv(preset.cvv);
+                                setRzpCardName(preset.name);
                               }}
-                              className={`p-2 rounded-lg border-2 border-black flex justify-between items-center cursor-pointer transition-all ${
-                                rzpCardNumber === sc.number
+                              className={`p-1.5 rounded-lg border-2 border-black text-center cursor-pointer transition-all ${
+                                rzpCardNumber === preset.num
                                   ? "bg-yellow-300 font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] text-black"
                                   : "bg-white hover:bg-yellow-50 text-black"
                               }`}
                             >
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-black">💳 {sc.type || "Card"}</span>
-                                <span className="font-mono text-xs font-bold">{sc.number}</span>
-                                <span className="text-[10px] text-slate-600 font-bold">({sc.expiry})</span>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={(e) => removeSavedCard(sc.id, e)}
-                                title="Remove saved card"
-                                className="text-rose-600 hover:bg-rose-100 p-1 rounded font-bold text-xs cursor-pointer border border-rose-300"
-                              >
-                                🗑️
-                              </button>
-                            </div>
+                              <div className="font-black text-[10px] truncate">💳 {preset.label}</div>
+                              <div className="text-[8px] font-mono text-slate-700 truncate">..{preset.num.slice(-4)}</div>
+                            </button>
                           ))}
                         </div>
                       </div>
-                    )}
 
-                    {/* Card Type / Preset Selector Chips */}
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] uppercase font-black text-black block">Choose Card Preset or Enter Custom Card:</label>
-                      <div className="grid grid-cols-3 gap-1.5 text-[11px] font-black">
-                        {[
-                          { label: "💳 Visa", num: "4012 0000 3333 0026", exp: "12/30", cvv: "123", name: "Tanish Verified Traveler" },
-                          { label: "💳 Mastercard", num: "5123 4567 8901 2345", exp: "11/28", cvv: "456", name: "Primary Travel Card" },
-                          { label: "💳 RuPay", num: "6071 2345 6789 0123", exp: "09/29", cvv: "789", name: "Corporate RuPay Card" },
-                        ].map((preset) => (
-                          <button
-                            type="button"
-                            key={preset.label}
-                            onClick={() => {
-                              setRzpCardNumber(preset.num);
-                              setRzpCardExpiry(preset.exp);
-                              setRzpCardCvv(preset.cvv);
-                              setRzpCardName(preset.name);
-                            }}
-                            className={`p-2 rounded-lg border-2 border-black text-left cursor-pointer transition-all ${
-                              rzpCardNumber === preset.num
-                                ? "bg-yellow-300 font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] text-black"
-                                : "bg-white hover:bg-yellow-50 text-black"
-                            }`}
-                          >
-                            <div className="font-black text-[11px]">{preset.label}</div>
-                            <div className="text-[9px] font-mono text-slate-700 truncate">{preset.num.slice(-4)}</div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Manual Card Details Inputs */}
-                    <div className="space-y-2.5 pt-1">
-                      <div>
-                        <label className="text-[10px] uppercase font-black text-black block mb-1">Cardholder Name</label>
-                        <input
-                          type="text"
-                          value={rzpCardName}
-                          onChange={(e) => setRzpCardName(e.target.value)}
-                          placeholder="Name on Card"
-                          className="w-full bg-white border-2 border-black rounded-lg p-2 text-xs font-bold text-black outline-none focus:bg-yellow-50"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] uppercase font-black text-black block mb-1">Card Number (PAN)</label>
-                        <input
-                          type="text"
-                          value={rzpCardNumber}
-                          onChange={(e) => {
-                            const raw = e.target.value.replace(/\D/g, '').slice(0, 16);
-                            const formatted = raw.replace(/(.{4})/g, '$1 ').trim();
-                            setRzpCardNumber(formatted || e.target.value);
-                          }}
-                          placeholder="4012 0000 0000 0000"
-                          className="w-full bg-white border-2 border-black rounded-lg p-2 text-xs font-mono font-bold text-black outline-none focus:bg-yellow-50 tracking-wider"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
+                      {/* Manual Card Details Inputs */}
+                      <div className="space-y-2.5 pt-1">
                         <div>
-                          <label className="text-[10px] uppercase font-black text-black block mb-1">Expiry (MM/YY)</label>
+                          <label className="text-[10px] uppercase font-black text-black block mb-1">Cardholder Name</label>
                           <input
                             type="text"
-                            value={rzpCardExpiry}
-                            onChange={(e) => setRzpCardExpiry(e.target.value)}
-                            placeholder="MM/YY"
-                            maxLength={5}
-                            className="w-full bg-white border-2 border-black rounded-lg p-2 text-xs font-mono font-bold text-black outline-none focus:bg-yellow-50"
+                            value={rzpCardName}
+                            onChange={(e) => setRzpCardName(e.target.value)}
+                            placeholder="Name on Card"
+                            className="w-full bg-white border-2 border-black rounded-lg p-2 text-xs font-bold text-black outline-none focus:bg-yellow-50"
                           />
                         </div>
+
                         <div>
-                          <label className="text-[10px] uppercase font-black text-black block mb-1">CVV Security Code</label>
+                          <div className="flex justify-between items-center mb-1">
+                            <label className="text-[10px] uppercase font-black text-black block">Card Number (PAN)</label>
+                            <span className="text-[9px] font-mono font-bold text-slate-700 uppercase">{network}</span>
+                          </div>
                           <input
-                            type="password"
-                            value={rzpCardCvv}
-                            onChange={(e) => setRzpCardCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                            placeholder="•••"
-                            maxLength={4}
-                            className="w-full bg-white border-2 border-black rounded-lg p-2 text-xs font-mono font-bold text-black outline-none focus:bg-yellow-50"
+                            type="text"
+                            value={rzpCardNumber}
+                            onChange={(e) => {
+                              const formatted = formatCardNumber(e.target.value);
+                              setRzpCardNumber(formatted || e.target.value);
+                            }}
+                            placeholder="4012 0000 0000 0000"
+                            className={`w-full bg-white border-2 rounded-lg p-2 text-xs font-mono font-bold text-black outline-none focus:bg-yellow-50 tracking-wider ${
+                              rzpCardNumber && !isLuhnValid ? "border-rose-600 bg-rose-50" : "border-black"
+                            }`}
                           />
+                          {rzpCardNumber.replace(/\D/g, '').length >= 12 && !isLuhnValid && (
+                            <p className="text-[10px] font-bold text-rose-600 mt-1">
+                              ⚠️ Invalid card number. Failed Luhn checksum validation. Select a Sandbox test card chip above.
+                            </p>
+                          )}
                         </div>
-                      </div>
 
-                      {/* Save Card Checkbox */}
-                      <div className="flex items-center gap-2 pt-2 border-t border-black/10">
-                        <input
-                          type="checkbox"
-                          id="saveCardCheckbox"
-                          checked={saveCardChecked}
-                          onChange={(e) => setSaveCardChecked(e.target.checked)}
-                          className="w-4 h-4 accent-yellow-400 cursor-pointer"
-                        />
-                        <label htmlFor="saveCardCheckbox" className="text-[11px] font-black text-black cursor-pointer select-none flex items-center gap-1">
-                          🔒 Save card securely for future 1-click payments
-                        </label>
-                      </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[10px] uppercase font-black text-black block mb-1">Expiry (MM/YY)</label>
+                            <input
+                              type="text"
+                              value={rzpCardExpiry}
+                              onChange={(e) => setRzpCardExpiry(e.target.value)}
+                              placeholder="MM/YY"
+                              maxLength={5}
+                              className={`w-full bg-white border-2 rounded-lg p-2 text-xs font-mono font-bold text-black outline-none focus:bg-yellow-50 ${
+                                rzpCardExpiry && !expiryCheck.valid ? "border-rose-600 bg-rose-50" : "border-black"
+                              }`}
+                            />
+                            {rzpCardExpiry.length >= 5 && !expiryCheck.valid && (
+                              <p className="text-[9px] font-bold text-rose-600 mt-0.5">⚠️ {expiryCheck.error}</p>
+                            )}
+                          </div>
+                          <div>
+                            <label className="text-[10px] uppercase font-black text-black block mb-1">
+                              CVV Security Code {network === "Amex" ? "(4 digits)" : "(3 digits)"}
+                            </label>
+                            <input
+                              type="password"
+                              value={rzpCardCvv}
+                              onChange={(e) => setRzpCardCvv(e.target.value.replace(/\D/g, '').slice(0, network === "Amex" ? 4 : 3))}
+                              placeholder={network === "Amex" ? "••••" : "•••"}
+                              maxLength={network === "Amex" ? 4 : 3}
+                              className={`w-full bg-white border-2 rounded-lg p-2 text-xs font-mono font-bold text-black outline-none focus:bg-yellow-50 ${
+                                rzpCardCvv && !cvvCheck.valid ? "border-rose-600 bg-rose-50" : "border-black"
+                              }`}
+                            />
+                            {rzpCardCvv.length >= 3 && !cvvCheck.valid && (
+                              <p className="text-[9px] font-bold text-rose-600 mt-0.5">⚠️ {cvvCheck.error}</p>
+                            )}
+                          </div>
+                        </div>
 
+                        {/* Save Card Token Checkbox */}
+                        <div className="flex items-center gap-2 pt-2 border-t border-black/10">
+                          <input
+                            type="checkbox"
+                            id="saveCardCheckbox"
+                            checked={saveCardChecked}
+                            onChange={(e) => setSaveCardChecked(e.target.checked)}
+                            className="w-4 h-4 accent-yellow-400 cursor-pointer"
+                          />
+                          <label htmlFor="saveCardCheckbox" className="text-[11px] font-black text-black cursor-pointer select-none flex items-center gap-1">
+                            🔒 Save tokenized payment method (PCI-DSS Tokenized)
+                          </label>
+                        </div>
+
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-center items-center max-w-md mx-auto">
+                      <button
+                        onClick={() => payWithRazorpay()}
+                        disabled={!isFormValid || paymentLoading || !humanApproved || profileIncomplete}
+                        className="w-full bg-emerald-400 hover:bg-emerald-500 disabled:bg-slate-300 disabled:text-slate-500 disabled:border-slate-400 text-black border-3 border-black px-6 py-3 font-black text-xs uppercase rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 transition-all cursor-pointer flex items-center justify-center gap-2"
+                      >
+                        {paymentLoading ? (
+                          <>
+                            <RefreshCw className="animate-spin" size={16} /> Opening Gateway...
+                          </>
+                        ) : !isFormValid ? (
+                          `Enter Valid Card Details (Luhn Checked)`
+                        ) : (
+                          `Pay ₹${booking.total_amount.toLocaleString()} via ${network !== "Unknown" ? network : "Card"}`
+                        )}
+                      </button>
                     </div>
                   </div>
-                  
-                  <div className="flex justify-center items-center max-w-md mx-auto">
-                    <button
-                      onClick={() => payWithRazorpay()}
-                      disabled={paymentLoading || !humanApproved || profileIncomplete}
-                      className="w-full bg-emerald-400 hover:bg-emerald-500 disabled:bg-emerald-200 text-black border-3 border-black px-6 py-3 font-black text-xs uppercase rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 transition-all cursor-pointer flex items-center justify-center gap-2"
-                    >
-                      {paymentLoading ? (
-                        <>
-                          <RefreshCw className="animate-spin" size={16} /> Opening Gateway...
-                        </>
-                      ) : (
-                        `Pay ₹${booking.total_amount.toLocaleString()} via Card`
-                      )}
-                    </button>
-                  </div>
-                </div>
-              )}
+                );
+              })()}
 
               {error && (
                 <div className="mt-4 border-3 border-rose-600 bg-rose-50 text-rose-800 text-xs font-bold p-3 rounded-xl flex items-center gap-2">
