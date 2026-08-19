@@ -3546,7 +3546,12 @@ function DateRangeField({
         <input 
           type="date" 
           value={startDate} 
-          onChange={(e) => onStartChange(e.target.value)}
+          min={new Date().toISOString().split('T')[0]}
+          onChange={(e) => {
+            const val = e.target.value;
+            const todayStr = new Date().toISOString().split('T')[0];
+            onStartChange(val && val < todayStr ? todayStr : val);
+          }}
           className="w-full bg-white border-3 border-black text-slate-900 font-black text-xs px-2 py-2.5 outline-none focus:bg-yellow-50/50"
         />
       </div>
@@ -3555,9 +3560,14 @@ function DateRangeField({
         <input 
           type="date" 
           value={endDate} 
+          min={startDate || new Date().toISOString().split('T')[0]}
           disabled={disabledEnd}
           placeholder={placeholderEnd}
-          onChange={(e) => onEndChange(e.target.value)}
+          onChange={(e) => {
+            const val = e.target.value;
+            const minDate = startDate || new Date().toISOString().split('T')[0];
+            onEndChange(val && val < minDate ? minDate : val);
+          }}
           className="w-full bg-white disabled:bg-slate-200 disabled:text-slate-500 border-3 border-black text-slate-900 font-black text-xs px-2 py-2.5 outline-none focus:bg-yellow-50/50"
         />
       </div>
@@ -4015,7 +4025,12 @@ function FlightsSearchForm({
           <input 
             type="date" 
             value={depDate} 
-            onChange={(e) => setDepDate(e.target.value)}
+            min={new Date().toISOString().split('T')[0]}
+            onChange={(e) => {
+              const val = e.target.value;
+              const todayStr = new Date().toISOString().split('T')[0];
+              setDepDate(val && val < todayStr ? todayStr : val);
+            }}
             className="w-full bg-white border-3 border-black text-slate-900 font-black text-xs px-2 py-2.5 outline-none focus:bg-yellow-50/50"
           />
         </div>
@@ -5685,7 +5700,17 @@ function TripPlannerForm({ onBook, onDetailClick, setPrefilledMessage, setActive
         </div>
         <div className="space-y-1.5 md:col-span-1">
           <span className="text-[10px] text-slate-400 font-extrabold uppercase block">Departure Date</span>
-          <input type="date" value={departureDate} onChange={(e) => setDepartureDate(e.target.value)} className="w-full bg-white border-3 border-black text-slate-900 font-black text-sm px-3 py-2 outline-none focus:bg-yellow-50/50" />
+          <input 
+            type="date" 
+            value={departureDate} 
+            min={new Date().toISOString().split('T')[0]}
+            onChange={(e) => {
+              const val = e.target.value;
+              const todayStr = new Date().toISOString().split('T')[0];
+              setDepartureDate(val && val < todayStr ? todayStr : val);
+            }} 
+            className="w-full bg-white border-3 border-black text-slate-900 font-black text-sm px-3 py-2 outline-none focus:bg-yellow-50/50" 
+          />
         </div>
         <div className="space-y-1.5 md:col-span-1">
           <span className="text-[10px] text-slate-400 font-extrabold uppercase block">Duration (Days)</span>
