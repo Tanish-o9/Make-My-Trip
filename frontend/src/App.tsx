@@ -15345,10 +15345,10 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
                       }`}>
                         {isCredit ? 'CREDIT' : 'DEBIT'}
                       </span>
-                      <span className="text-[10px] text-slate-400 font-mono">#{tx.reference || tx.id}</span>
+                      <span className="text-[10px] text-slate-400 font-mono" style={{ color: '#94a3b8' }}>#{tx.reference || tx.id}</span>
                     </div>
-                    <span className="text-xs text-white font-bold block">{tx.description || (isCredit ? 'Wallet Credit' : 'Wallet Payment')}</span>
-                    <span className="text-[10px] text-slate-400 block font-mono">
+                    <span className="text-xs text-white font-bold block" style={{ color: '#ffffff' }}>{tx.description || (isCredit ? 'Wallet Credit' : 'Wallet Payment')}</span>
+                    <span className="text-[10px] text-slate-400 block font-mono" style={{ color: '#94a3b8' }}>
                       Bal: ₹{tx.balance_before.toLocaleString()} ➔ ₹{tx.balance_after.toLocaleString()}
                     </span>
                   </div>
@@ -15356,7 +15356,7 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
                     <span className={`text-sm font-black ${isCredit ? 'text-emerald-400' : 'text-rose-400'}`}>
                       {isCredit ? '+' : '-'}₹{tx.amount.toLocaleString()}
                     </span>
-                    <span className="text-[9px] text-slate-500 block mt-0.5">
+                    <span className="text-[9px] text-slate-500 block mt-0.5" style={{ color: '#64748b' }}>
                       {new Date(tx.timestamp).toLocaleDateString()} {new Date(tx.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
@@ -15390,25 +15390,27 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
             {/* Filters UI */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-[#0d1425]/60 p-4 rounded-xl border border-slate-800 text-xs">
               <div>
-                <label className="text-[10px] font-bold text-slate-400 block mb-1">Search Description/Ref</label>
+                <label className="text-[10px] font-bold text-slate-400 block mb-1" style={{ color: '#94a3b8' }}>Search Description/Ref</label>
                 <input 
                   type="text" 
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="e.g. Flight, Refund, CASHBACK"
-                  className="w-full pl-3 pr-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-white font-bold"
+                  className="w-full pl-3 pr-3 py-1.5 rounded-lg border text-white font-bold"
+                  style={{ backgroundColor: '#111827', color: '#ffffff', borderColor: '#374151' }}
                 />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-400 block mb-1">Transaction Type</label>
+                <label className="text-[10px] font-bold text-slate-400 block mb-1" style={{ color: '#94a3b8' }}>Transaction Type</label>
                 <select
                   value={txTypeFilter}
                   onChange={(e) => setTxTypeFilter(e.target.value)}
-                  className="w-full pl-2 pr-2 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-white font-bold"
+                  className="w-full pl-2 pr-2 py-1.5 rounded-lg border text-white font-bold"
+                  style={{ backgroundColor: '#111827', color: '#ffffff', borderColor: '#374151' }}
                 >
-                  <option value="">All Types</option>
-                  <option value="credit">Credit / Refund</option>
-                  <option value="debit">Debit / Payment</option>
+                  <option value="" style={{ backgroundColor: '#111827', color: '#ffffff' }}>All Types</option>
+                  <option value="credit" style={{ backgroundColor: '#111827', color: '#ffffff' }}>Credit / Refund</option>
+                  <option value="debit" style={{ backgroundColor: '#111827', color: '#ffffff' }}>Debit / Payment</option>
                 </select>
               </div>
             </div>
@@ -15429,10 +15431,10 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
                           }`}>
                             {isCredit ? 'CREDIT' : 'DEBIT'}
                           </span>
-                          <span className="text-[9px] text-slate-400 font-mono">#{tx.reference || tx.id}</span>
+                          <span className="text-[9px] text-slate-400 font-mono" style={{ color: '#94a3b8' }}>#{tx.reference || tx.id}</span>
                         </div>
-                        <span className="text-xs text-white font-bold block">{tx.description || (isCredit ? 'Wallet Credit' : 'Wallet Payment')}</span>
-                        <span className="text-[9px] text-slate-400 block font-mono">
+                        <span className="text-xs text-white font-bold block" style={{ color: '#ffffff' }}>{tx.description || (isCredit ? 'Wallet Credit' : 'Wallet Payment')}</span>
+                        <span className="text-[9px] text-slate-400 block font-mono" style={{ color: '#94a3b8' }}>
                           Bal: ₹{tx.balance_before.toLocaleString()} ➔ ₹{tx.balance_after.toLocaleString()}
                         </span>
                       </div>
@@ -15440,7 +15442,7 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
                         <span className={`text-sm font-black ${isCredit ? 'text-emerald-400' : 'text-rose-400'}`}>
                           {isCredit ? '+' : '-'}₹{tx.amount.toLocaleString()}
                         </span>
-                        <span className="text-[9px] text-slate-500 block mt-0.5 font-mono">
+                        <span className="text-[9px] text-slate-500 block mt-0.5 font-mono" style={{ color: '#64748b' }}>
                           {new Date(tx.timestamp).toLocaleDateString()} {new Date(tx.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
