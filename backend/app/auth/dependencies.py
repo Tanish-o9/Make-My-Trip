@@ -49,19 +49,25 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM])
         logger.debug(f"Decoded JWT Payload - sub: '{payload.get('sub')}', role: '{payload.get('role')}', type: '{payload.get('type')}', exp: {payload.get('exp')}")
         
+    except jwt.ExpiredSignatureError:
+        logger.warning("AUDIT get_current_user: Token signature has expired")
+        raise HTTPException(
+            status_code=401,
+            detail="Session expired. Please log in again to complete your request."
+        )
     except JWTError as e:
         exception_name = type(e).__name__
         logger.error(f"Exception inside get_current_user: {exception_name} - {str(e)}")
         raise HTTPException(
             status_code=401,
-            detail=f"JWT Decode Error ({exception_name}): {str(e)} (Secret prefix: {secret_prefix}, Token len: {len(token)})"
+            detail="Invalid authentication token. Please log in again."
         )
     except Exception as e:
         exception_name = type(e).__name__
         logger.error(f"Exception inside get_current_user: {exception_name} - {str(e)}")
         raise HTTPException(
             status_code=401,
-            detail=f"JWT Decode Unhandled Exception ({exception_name}): {str(e)}"
+            detail="Authentication failed. Please log in again."
         )
         
     if not payload.get("type") == "access":

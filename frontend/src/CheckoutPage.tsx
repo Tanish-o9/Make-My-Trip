@@ -106,6 +106,46 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
   const [selectedBank, setSelectedBank] = useState("HDFC Bank");
   const [paymentAuthToken, setPaymentAuthToken] = useState<string | null>(null);
   const [showPinModal, setShowPinModal] = useState(false);
+  const [saveCardChecked, setSaveCardChecked] = useState(true);
+  const [savedCards, setSavedCards] = useState<Array<{ id: string; name: string; number: string; expiry: string; cvv: string; type: string }>>([]);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("ghumne_chale_saved_cards");
+      if (stored) {
+        setSavedCards(JSON.parse(stored));
+      }
+    } catch (e) {
+      console.error("Failed to load saved cards:", e);
+    }
+  }, []);
+
+  const saveCurrentCardIfRequested = () => {
+    if (!saveCardChecked || !rzpCardNumber) return;
+    try {
+      const cardType = rzpCardNumber.startsWith("4") ? "Visa" : rzpCardNumber.startsWith("5") ? "Mastercard" : "RuPay";
+      const newCard = {
+        id: `card_${Date.now()}`,
+        name: rzpCardName || "Saved Card",
+        number: rzpCardNumber,
+        expiry: rzpCardExpiry || "12/28",
+        cvv: rzpCardCvv || "123",
+        type: cardType
+      };
+      const updated = [newCard, ...savedCards.filter(c => c.number !== rzpCardNumber)].slice(0, 5);
+      setSavedCards(updated);
+      localStorage.setItem("ghumne_chale_saved_cards", JSON.stringify(updated));
+    } catch (e) {
+      console.error("Failed to save card:", e);
+    }
+  };
+
+  const removeSavedCard = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = savedCards.filter(c => c.id !== id);
+    setSavedCards(updated);
+    localStorage.setItem("ghumne_chale_saved_cards", JSON.stringify(updated));
+  };
 
   // Profile prefill and validation states (Phase 5 & 6)
   const [profile, setProfile] = useState<any>(null);
@@ -377,6 +417,11 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
         const errData = await orderRes.json().catch(() => ({}));
         const errMsg = errData.detail || errData.message || `Payment initialization failed with status ${orderRes.status}`;
         
+        if (orderRes.status === 401 || errMsg.includes("ExpiredSignatureError") || errMsg.includes("Session expired") || errMsg.includes("Signature has expired")) {
+          localStorage.removeItem("token");
+          throw new Error("Your login session has expired. Please log in again to complete your payment.");
+        }
+
         if (orderRes.status === 400 && (errMsg.includes("authorization token") || errMsg.includes("PIN"))) {
           setShowPinModal(true);
           setPaymentLoading(false);
@@ -389,6 +434,10 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
       const orderData = await orderRes.json();
       console.log("LOG: create-order response data:", orderData);
       setRazorpayOrderData(orderData);
+
+      if (activeTab === "card") {
+        saveCurrentCardIfRequested();
+      }
 
       // ALWAYS launch the Razorpay Gateway Modal Popup
       setShowRazorpayModal(true);
@@ -910,6 +959,50 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                       </span>
                     </div>
 
+                    {/* Saved Cards Section if any exist */}
+                    {savedCards.length > 0 && (
+                      <div className="space-y-1.5 border-b border-black/10 pb-3">
+                        <div className="flex justify-between items-center">
+                          <label className="text-[10px] uppercase font-black text-black flex items-center gap-1">
+                            💳 Your Saved Cards:
+                          </label>
+                          <span className="text-[9px] font-bold text-slate-600 font-mono">{savedCards.length} Saved</span>
+                        </div>
+                        <div className="grid grid-cols-1 gap-1.5">
+                          {savedCards.map((sc) => (
+                            <div
+                              key={sc.id}
+                              onClick={() => {
+                                setRzpCardNumber(sc.number);
+                                setRzpCardExpiry(sc.expiry);
+                                setRzpCardCvv(sc.cvv);
+                                setRzpCardName(sc.name);
+                              }}
+                              className={`p-2 rounded-lg border-2 border-black flex justify-between items-center cursor-pointer transition-all ${
+                                rzpCardNumber === sc.number
+                                  ? "bg-yellow-300 font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] text-black"
+                                  : "bg-white hover:bg-yellow-50 text-black"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-black">💳 {sc.type || "Card"}</span>
+                                <span className="font-mono text-xs font-bold">{sc.number}</span>
+                                <span className="text-[10px] text-slate-600 font-bold">({sc.expiry})</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => removeSavedCard(sc.id, e)}
+                                title="Remove saved card"
+                                className="text-rose-600 hover:bg-rose-100 p-1 rounded font-bold text-xs cursor-pointer border border-rose-300"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Card Type / Preset Selector Chips */}
                     <div className="space-y-1.5">
                       <label className="text-[10px] uppercase font-black text-black block">Choose Card Preset or Enter Custom Card:</label>
@@ -993,6 +1086,21 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                           />
                         </div>
                       </div>
+
+                      {/* Save Card Checkbox */}
+                      <div className="flex items-center gap-2 pt-2 border-t border-black/10">
+                        <input
+                          type="checkbox"
+                          id="saveCardCheckbox"
+                          checked={saveCardChecked}
+                          onChange={(e) => setSaveCardChecked(e.target.checked)}
+                          className="w-4 h-4 accent-yellow-400 cursor-pointer"
+                        />
+                        <label htmlFor="saveCardCheckbox" className="text-[11px] font-black text-black cursor-pointer select-none flex items-center gap-1">
+                          🔒 Save card securely for future 1-click payments
+                        </label>
+                      </div>
+
                     </div>
                   </div>
                   
