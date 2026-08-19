@@ -103,6 +103,7 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
   const [rzpCardExpiry, setRzpCardExpiry] = useState("12/28");
   const [rzpCardCvv, setRzpCardCvv] = useState("123");
   const [rzpCardName, setRzpCardName] = useState("Traveler Guest");
+  const [selectedBank, setSelectedBank] = useState("HDFC Bank");
 
   // Profile prefill and validation states (Phase 5 & 6)
   const [profile, setProfile] = useState<any>(null);
@@ -341,6 +342,10 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
       setError("Please check the 'Approve Payment Transaction' checkbox first to proceed.");
       return;
     }
+    if (activeTab === "netbanking") setRzpMethod("netbanking");
+    else if (activeTab === "card") setRzpMethod("card");
+    else if (activeTab === "upi") setRzpMethod("upi");
+    else if (activeTab === "wallet") setRzpMethod("wallet");
     setPaymentLoading(true);
     setError("");
     try {
@@ -450,6 +455,10 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
 
   const handleTabChange = (tab: any) => {
     setActiveTab(tab);
+    if (tab === "netbanking") setRzpMethod("netbanking");
+    else if (tab === "card") setRzpMethod("card");
+    else if (tab === "upi") setRzpMethod("upi");
+    else if (tab === "wallet") setRzpMethod("wallet");
     setQrCodeUrl(null);
     setQrCodeId(null);
     setError("");
@@ -739,24 +748,26 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                     </h4>
                     
                     <div className="grid grid-cols-2 gap-2 text-xs font-black">
-                      <div className="p-2.5 bg-white border-2 border-black rounded-lg hover:bg-yellow-100 cursor-pointer flex items-center gap-2 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                        🏦 HDFC Bank
-                      </div>
-                      <div className="p-2.5 bg-white border-2 border-black rounded-lg hover:bg-yellow-100 cursor-pointer flex items-center gap-2 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                        🏦 ICICI Bank
-                      </div>
-                      <div className="p-2.5 bg-white border-2 border-black rounded-lg hover:bg-yellow-100 cursor-pointer flex items-center gap-2 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                        🏦 State Bank of India
-                      </div>
-                      <div className="p-2.5 bg-white border-2 border-black rounded-lg hover:bg-yellow-100 cursor-pointer flex items-center gap-2 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                        🏦 Axis Bank
-                      </div>
-                      <div className="p-2.5 bg-white border-2 border-black rounded-lg hover:bg-yellow-100 cursor-pointer flex items-center gap-2 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                        🏦 Kotak Mahindra
-                      </div>
-                      <div className="p-2.5 bg-white border-2 border-black rounded-lg hover:bg-yellow-100 cursor-pointer flex items-center gap-2 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                        🏦 Punjab National
-                      </div>
+                      {[
+                        { name: "HDFC Bank", icon: "🏦" },
+                        { name: "ICICI Bank", icon: "🏦" },
+                        { name: "State Bank of India", icon: "🏦" },
+                        { name: "Axis Bank", icon: "🏦" },
+                        { name: "Kotak Mahindra", icon: "🏦" },
+                        { name: "Punjab National", icon: "🏦" },
+                      ].map((b) => (
+                        <div
+                          key={b.name}
+                          onClick={() => setSelectedBank(b.name)}
+                          className={`p-2.5 rounded-lg cursor-pointer flex items-center gap-2 transition-all ${
+                            selectedBank === b.name
+                              ? "bg-yellow-300 border-3 border-black text-black font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] scale-[1.02]"
+                              : "bg-white border-2 border-black hover:bg-yellow-100 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                          }`}
+                        >
+                          {b.icon} {b.name}
+                        </div>
+                      ))}
                     </div>
                   </div>
                   
@@ -1110,12 +1121,26 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
 
               {rzpMethod === "netbanking" && (
                 <div className="bg-slate-900 border-2 border-slate-700 p-4 rounded-xl space-y-2">
-                  <span className="text-xs font-bold text-slate-300 block mb-2">Select Popular Bank</span>
+                  <div className="flex justify-between items-center text-xs font-bold text-slate-300 mb-2">
+                    <span>Select Netbanking Portal</span>
+                    <span className="text-[10px] bg-yellow-400 text-black font-black px-2 py-0.5 rounded font-mono">
+                      Selected: {selectedBank}
+                    </span>
+                  </div>
                   <div className="grid grid-cols-2 gap-2 text-xs font-bold">
-                    <div className="p-2.5 bg-slate-800 border border-slate-600 rounded-lg hover:border-yellow-400 cursor-pointer flex items-center gap-2">🏦 HDFC Bank</div>
-                    <div className="p-2.5 bg-slate-800 border border-slate-600 rounded-lg hover:border-yellow-400 cursor-pointer flex items-center gap-2">🏦 ICICI Bank</div>
-                    <div className="p-2.5 bg-slate-800 border border-slate-600 rounded-lg hover:border-yellow-400 cursor-pointer flex items-center gap-2">🏦 State Bank of India</div>
-                    <div className="p-2.5 bg-slate-800 border border-slate-600 rounded-lg hover:border-yellow-400 cursor-pointer flex items-center gap-2">🏦 Axis Bank</div>
+                    {["HDFC Bank", "ICICI Bank", "State Bank of India", "Axis Bank", "Kotak Mahindra", "Punjab National"].map((bName) => (
+                      <div
+                        key={bName}
+                        onClick={() => setSelectedBank(bName)}
+                        className={`p-2.5 rounded-lg cursor-pointer flex items-center gap-2 border transition-all ${
+                          selectedBank === bName
+                            ? "bg-yellow-400 border-yellow-300 text-black font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                            : "bg-slate-800 border-slate-600 text-slate-200 hover:border-yellow-400"
+                        }`}
+                      >
+                        🏦 {bName}
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
