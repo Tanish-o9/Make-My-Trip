@@ -67,6 +67,17 @@ class SavedCompanion(Base):
     user = relationship("User", back_populates="saved_companions")
 
 
+class UsedPaymentAuthToken(Base):
+    __tablename__ = "used_payment_auth_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    jti: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    purpose: Mapped[str] = mapped_column(String(100), nullable=False)
+    used_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
+
+
+
 
 class SavedTraveler(Base):
     __tablename__ = "saved_travelers"

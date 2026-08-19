@@ -34,6 +34,7 @@ class WalletTopupRequest(BaseModel):
     payment_token: Optional[str] = "test_token_dev"  # Simulated stripe/test card token
     description: Optional[str] = "Wallet Recharge"
     pin: Optional[str] = Field(None, description="4-digit payment security PIN")
+    payment_authorization_token: Optional[str] = Field(None, description="Short-lived payment authorization token")
 
 class CouponApplyRequest(BaseModel):
     code: str
@@ -121,21 +122,21 @@ def top_up_wallet(
     req: WalletTopupRequest,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    x_payment_authorization: Optional[str] = Header(None, alias="X-Payment-Authorization"),
     x_payment_pin: Optional[str] = Header(None, alias="X-Payment-PIN")
 ):
     import os
     from app.payments.config import settings
     from app.services import security_pin_service
 
-    # Enforce backend PIN check if user has PIN set in DB
-    if security_pin_service.is_pin_enabled(db, user.id):
-        provided_pin = req.pin or x_payment_pin
-        if not provided_pin:
-            raise HTTPException(
-                status_code=400,
-                detail="Payment security PIN required."
-            )
-        security_pin_service.verify_pin(db, user.id, provided_pin, purpose="wallet_topup")
+    # Enforce backend PIN / Authorization token check if user has PIN set in DB
+    security_pin_service.validate_payment_authorization(
+        db=db,
+        user=user,
+        expected_purpose="wallet_topup",
+        auth_token=x_payment_authorization or req.payment_authorization_token,
+        raw_pin=x_payment_pin or req.pin
+    )
     
     # Safety check: prevent test recharge in production environment
     mode = os.getenv("PAYMENT_MODE", settings.PAYMENT_MODE).lower()
