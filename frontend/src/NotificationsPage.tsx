@@ -213,14 +213,27 @@ export default function NotificationsPage({ onNavigate, token }: NotificationsPa
                 </div>
 
                 <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
-                  {notif.booking_reference && (
+                  {notif.action_url ? (
                     <button
-                      onClick={() => onNavigate(`/profile`)}
+                      onClick={() => {
+                        handleMarkAsRead(notif.id);
+                        onNavigate(notif.action_url!);
+                      }}
                       className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer transition-colors"
                     >
                       View <ExternalLink size={10} />
                     </button>
-                  )}
+                  ) : notif.booking_reference ? (
+                    <button
+                      onClick={() => {
+                        handleMarkAsRead(notif.id);
+                        onNavigate(`/booking/${notif.booking_reference}`);
+                      }}
+                      className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer transition-colors"
+                    >
+                      View <ExternalLink size={10} />
+                    </button>
+                  ) : null}
                   {!notif.is_read && (
                     <button
                       onClick={() => handleMarkAsRead(notif.id)}

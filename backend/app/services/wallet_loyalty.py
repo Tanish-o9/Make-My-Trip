@@ -86,7 +86,7 @@ class WalletService:
         bal_before = float(wallet.balance or 0.0)
         
         if bal_before < amt_float:
-            raise InsufficientWalletBalance("Insufficient wallet balance")
+            raise InsufficientWalletBalance("Insufficient balance")
 
         # Idempotency check for duplicate debit
         if booking_ref:
@@ -269,7 +269,6 @@ class LoyaltyService:
     def recalculate_tier(cls, db: Session, user_id: int) -> str:
         # Sum of all credit loyalty transactions represent historical spend proxy or we can check total wallet recharges
         loyalty = cls.get_or_create_loyalty(db, user_id)
-        # Fetch positive points sum (points earned)
         total_points_earned = db.query(
             sa_sum := sa_sum_func(LoyaltyTransaction.points_delta)
         ).filter(
@@ -277,15 +276,17 @@ class LoyaltyService:
             LoyaltyTransaction.points_delta > 0
         ).scalar() or 0
 
+        effective_points = max(total_points_earned, loyalty.points_balance or 0)
+
         # Tier bands based on lifetime earned points
-        if total_points_earned >= 10000:
-            tier = "Platinum"
-        elif total_points_earned >= 5000:
-            tier = "Gold"
-        elif total_points_earned >= 1500:
-            tier = "Silver"
+        if effective_points >= 5000:
+            tier = "Elite"
+        elif effective_points >= 3000:
+            tier = "Adventurer"
+        elif effective_points >= 1000:
+            tier = "Traveler"
         else:
-            tier = "Bronze"
+            tier = "Explorer"
 
         if loyalty.tier != tier:
             loyalty.tier = tier

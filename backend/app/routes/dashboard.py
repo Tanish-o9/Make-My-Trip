@@ -840,3 +840,99 @@ def download_all_trip_documents(
         media_type="application/zip",
         headers={"Content-Disposition": f"attachment; filename=GhumneChale-Trip-{trip_id}-Documents.zip"}
     )
+
+
+@router.get("/analytics")
+def get_dashboard_analytics(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    from sqlalchemy import func
+    from app.models.core import WalletAccount, WalletTransaction, LoyaltyAccount, Trip, TripMember
+    
+    # 1. Total Trips
+    owned_trips = db.query(Trip).filter(Trip.user_id == current_user.id).all()
+    member_trips = db.query(Trip).join(TripMember, TripMember.trip_id == Trip.id).filter(TripMember.user_id == current_user.id).all()
+    total_trips = len(set([t.id for t in owned_trips + member_trips]))
+
+    # 2. Bookings & Spending & Category Breakdown & Monthly Trends
+    all_bookings = get_all_user_bookings(db, current_user.id)
+    total_bookings = len(all_bookings)
+    
+    total_spend = 0.0
+    spending_by_category = {
+        "Flights": 0.0,
+        "Hotels": 0.0,
+        "Trains": 0.0,
+        "Buses": 0.0,
+        "Cabs": 0.0,
+        "Activities": 0.0,
+        "Others": 0.0
+    }
+    
+    # Track monthly spending
+    monthly_data = {}
+    
+    for b in all_bookings:
+        status = b.status.value if hasattr(b.status, 'value') else b.status
+        # Count all confirmed/completed bookings for spending
+        if status in ["confirmed", "completed", "trip_active"]:
+            amt = float(b.total_amount)
+            total_spend += amt
+            
+            # Map vertical to category
+            vert = getattr(b, 'vertical', '')
+            if vert == "flights":
+                spending_by_category["Flights"] += amt
+            elif vert == "hotels":
+                spending_by_category["Hotels"] += amt
+            elif vert == "trains":
+                spending_by_category["Trains"] += amt
+            elif vert == "buses":
+                spending_by_category["Buses"] += amt
+            elif vert == "cabs":
+                spending_by_category["Cabs"] += amt
+            elif vert in ["activities", "tours", "activity"]:
+                spending_by_category["Activities"] += amt
+            else:
+                spending_by_category["Others"] += amt
+                
+            # Month grouping
+            if b.created_at:
+                month_key = b.created_at.strftime("%b %Y")
+                monthly_data[month_key] = monthly_data.get(month_key, 0.0) + amt
+
+    # 3. Loyalty
+    loyalty = db.query(LoyaltyAccount).filter(LoyaltyAccount.user_id == current_user.id).first()
+    loyalty_points = loyalty.points_balance if loyalty else 0
+
+    # 4. Cashback
+    wallet = db.query(WalletAccount).filter(WalletAccount.user_id == current_user.id).first()
+    cashback_val = 0.0
+    if wallet:
+        cashback_val = db.query(func.sum(WalletTransaction.amount)).filter(
+            WalletTransaction.wallet_account_id == wallet.id,
+            WalletTransaction.type == "credit",
+            WalletTransaction.description.ilike("%cashback%")
+        ).scalar() or 0.0
+
+    # 5. Format monthly spending for the past 12 months
+    monthly_list = []
+    now = datetime.datetime.utcnow()
+    for i in range(11, -1, -1):
+        target_date = now - datetime.timedelta(days=i*30)
+        month_key = target_date.strftime("%b %Y")
+        monthly_list.append({
+            "month": month_key,
+            "amount": round(monthly_data.get(month_key, 0.0), 2)
+        })
+
+    return {
+        "total_trips": total_trips,
+        "total_bookings": total_bookings,
+        "total_spend": round(total_spend, 2),
+        "loyalty_points": loyalty_points,
+        "cashback_earned": float(cashback_val),
+        "spending_by_category": {k: round(v, 2) for k, v in spending_by_category.items()},
+        "monthly_spending": monthly_list
+    }

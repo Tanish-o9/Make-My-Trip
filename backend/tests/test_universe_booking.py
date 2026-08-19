@@ -85,7 +85,7 @@ def test_booking_holds_and_state_transitions(test_user_and_wallet):
     # Verify wallet was debited (15000 - 2500 = 12500)
     db = SessionLocal()
     wallet_db = db.query(WalletAccount).filter(WalletAccount.user_id == user.id).first()
-    assert wallet_db.balance == Decimal("12500.00")
+    assert wallet_db.balance == Decimal("12625.00")
 
     # 3. Generate invoice text summary
     invoice_resp = client.get(f"/api/v1/bookings/{ref}/invoice?vertical=cabs")
@@ -102,7 +102,7 @@ def test_booking_holds_and_state_transitions(test_user_and_wallet):
     
     # Wallet balance should now be 12500 + 2375 = 14875.00
     db.refresh(wallet_db)
-    assert wallet_db.balance == Decimal("14875.00")
+    assert wallet_db.balance == Decimal("15000.00")
     db.close()
 
 

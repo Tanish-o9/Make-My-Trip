@@ -14,7 +14,8 @@ ALLOWED_CATEGORIES = ["Transport", "Hotel", "Food", "Activities", "Shopping", "O
 
 class ExpenseSplitPayload(BaseModel):
     user_id: int
-    amount: float
+    amount: Optional[float] = None
+    percentage: Optional[float] = None
 
 class ExpenseCreate(BaseModel):
     amount: float
@@ -100,6 +101,70 @@ def list_trip_expenses(
             "created_at": e.created_at.isoformat() if e.created_at else None
         })
         
+    # 1. Fetch all trip members (users) to map user IDs to names
+    members = db.query(TripMember).filter(TripMember.trip_id == trip_id).all()
+    user_names = {trip.user_id: db.query(User).filter(User.id == trip.user_id).first().email.split("@")[0].capitalize()}
+    for m in members:
+        usr = db.query(User).filter(User.id == m.user_id).first()
+        if usr:
+            user_names[m.user_id] = usr.email.split("@")[0].capitalize()
+
+    # 2. Calculate net balances for each user in the trip
+    balances = {uid: 0.0 for uid in user_names.keys()}
+    
+    for e in expenses:
+        # Payer gets credit for the amount paid
+        payer_id = e.payer_id or trip.user_id
+        if payer_id in balances:
+            balances[payer_id] += float(e.amount)
+            
+        # Split targets get debited for their share
+        splits_for_exp = db.query(TripExpenseSplit).filter(TripExpenseSplit.expense_id == e.id).all()
+        for s in splits_for_exp:
+            if s.user_id in balances:
+                balances[s.user_id] -= float(s.amount)
+
+    # 3. Dynamic settlement greedy algorithm to simplify debts
+    debtors = []
+    creditors = []
+    for uid, bal in balances.items():
+        val = round(bal, 2)
+        if val < -0.01:
+            debtors.append({"user_id": uid, "balance": val})
+        elif val > 0.01:
+            creditors.append({"user_id": uid, "balance": val})
+
+    settlements = []
+    
+    while debtors and creditors:
+        debtors.sort(key=lambda x: x["balance"])  # most negative first
+        creditors.sort(key=lambda x: x["balance"], reverse=True)  # largest positive first
+        
+        debtor = debtors[0]
+        creditor = creditors[0]
+        
+        debt_amount = -debtor["balance"]
+        credit_amount = creditor["balance"]
+        
+        settle_amount = round(min(debt_amount, credit_amount), 2)
+        
+        if settle_amount > 0:
+            settlements.append({
+                "from_user_id": debtor["user_id"],
+                "from_user_name": user_names.get(debtor["user_id"], f"User {debtor['user_id']}"),
+                "to_user_id": creditor["user_id"],
+                "to_user_name": user_names.get(creditor["user_id"], f"User {creditor['user_id']}"),
+                "amount": settle_amount
+            })
+            
+        debtor["balance"] += settle_amount
+        creditor["balance"] -= settle_amount
+        
+        if abs(debtor["balance"]) < 0.01:
+            debtors.pop(0)
+        if abs(creditor["balance"]) < 0.01:
+            creditors.pop(0)
+            
     return {
         "trip_id": trip_id,
         "trip_name": trip.name,
@@ -108,7 +173,8 @@ def list_trip_expenses(
         "remaining_budget": remaining,
         "user_owes": user_owes,
         "user_is_owed": user_is_owed,
-        "expenses": expense_list
+        "expenses": expense_list,
+        "settlements": settlements
     }
 
 
@@ -209,6 +275,23 @@ def add_trip_expense(
                 expense_id=expense.id,
                 user_id=s.user_id,
                 amount=s.amount
+            )
+            db.add(split_record)
+        db.commit()
+
+    elif split_type == "percentage":
+        if not payload.splits:
+            raise HTTPException(status_code=400, detail="Percentage splits require splits payload.")
+        total_pct = sum(s.percentage or 0.0 for s in payload.splits)
+        if abs(total_pct - 100.0) > 0.01:
+            raise HTTPException(status_code=400, detail="Sum of percentages must equal 100%.")
+            
+        for s in payload.splits:
+            split_amount = round(payload.amount * (s.percentage or 0.0) / 100.0, 2)
+            split_record = TripExpenseSplit(
+                expense_id=expense.id,
+                user_id=s.user_id,
+                amount=split_amount
             )
             db.add(split_record)
         db.commit()
@@ -315,6 +398,24 @@ def update_trip_expense(
                 )
                 db.add(split_record)
             db.commit()
+
+        elif split_type == "percentage":
+            splits_data = payload.splits if payload.splits is not None else []
+            if not splits_data:
+                raise HTTPException(status_code=400, detail="Percentage splits require splits payload.")
+            total_pct = sum(s.percentage or 0.0 for s in splits_data)
+            if abs(total_pct - 100.0) > 0.01:
+                raise HTTPException(status_code=400, detail="Sum of percentages must equal 100%.")
+                
+            for s in splits_data:
+                split_amount = round(float(expense.amount) * (s.percentage or 0.0) / 100.0, 2)
+                split_record = TripExpenseSplit(
+                    expense_id=expense.id,
+                    user_id=s.user_id,
+                    amount=split_amount
+                )
+                db.add(split_record)
+            db.commit()
             
     return {"message": "Expense updated successfully."}
 
@@ -372,3 +473,61 @@ def set_trip_budget(
     trip.budget = payload.budget
     db.commit()
     return {"message": "Trip budget updated successfully.", "budget": payload.budget}
+
+
+class SettlementRequest(BaseModel):
+    debtor_id: int
+    creditor_id: int
+    amount: float
+
+@router.post("/trips/{trip_id}/settle")
+def settle_debt(
+    trip_id: int,
+    payload: SettlementRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    trip = db.query(Trip).filter(Trip.id == trip_id).first()
+    if not trip:
+        raise HTTPException(status_code=404, detail="Trip not found.")
+        
+    is_owner = (trip.user_id == current_user.id)
+    is_member = db.query(TripMember).filter(
+        TripMember.trip_id == trip_id,
+        TripMember.user_id == current_user.id
+    ).first() is not None
+    
+    if not (is_owner or is_member):
+        raise HTTPException(status_code=403, detail="Access denied: You do not belong to this trip group.")
+        
+    debtor_user = db.query(User).filter(User.id == payload.debtor_id).first()
+    creditor_user = db.query(User).filter(User.id == payload.creditor_id).first()
+    if not debtor_user or not creditor_user:
+        raise HTTPException(status_code=400, detail="Invalid debtor or creditor user ID.")
+        
+    debtor_name = debtor_user.email.split("@")[0].capitalize()
+    creditor_name = creditor_user.email.split("@")[0].capitalize()
+
+    expense = TripExpense(
+        trip_id=trip_id,
+        amount=payload.amount,
+        currency="INR",
+        category="Other",
+        description=f"Settlement: {debtor_name} paid {creditor_name}",
+        expense_date=datetime.date.today(),
+        payer_id=payload.debtor_id,
+        split_type="custom"
+    )
+    db.add(expense)
+    db.commit()
+    db.refresh(expense)
+    
+    split_record = TripExpenseSplit(
+        expense_id=expense.id,
+        user_id=payload.creditor_id,
+        amount=payload.amount
+    )
+    db.add(split_record)
+    db.commit()
+    
+    return {"message": "Settlement recorded successfully.", "expense_id": expense.id}

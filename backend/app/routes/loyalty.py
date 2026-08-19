@@ -17,21 +17,31 @@ async def get_loyalty_dashboard(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # Fetch user's loyalty account details using LoyaltyService
-    loyalty = LoyaltyService.get_or_create_loyalty(db, current_user.id)
+    from sqlalchemy import func
+    from app.models.core import WalletAccount, WalletTransaction
     
-    # Map tier to user points
-    tier = "Silver"
-    if loyalty.points_balance > 1000:
-        tier = "Gold"
-    if loyalty.points_balance > 5000:
-        tier = "Platinum"
+    # Recalculate user's loyalty account details using LoyaltyService
+    loyalty = LoyaltyService.get_or_create_loyalty(db, current_user.id)
+    LoyaltyService.recalculate_tier(db, current_user.id)
+    db.refresh(loyalty)
+    
+    tier = loyalty.tier
+    
+    # Calculate actual cashback balance from ledger
+    wallet = db.query(WalletAccount).filter(WalletAccount.user_id == current_user.id).first()
+    cashback_val = 0.0
+    if wallet:
+        cashback_val = db.query(func.sum(WalletTransaction.amount)).filter(
+            WalletTransaction.wallet_account_id == wallet.id,
+            WalletTransaction.type == "credit",
+            WalletTransaction.description.ilike("%cashback%")
+        ).scalar() or 0.0
         
     return {
         "user_id": current_user.id,
         "membership_tier": tier,
         "reward_points": loyalty.points_balance,
-        "cashback_balance_inr": 250.0,
+        "cashback_balance_inr": float(cashback_val),
         "referral_code": f"REF-{current_user.id:04d}-{tier[:2].upper()}",
         "coupons": [
             {"code": "FLYGOLD", "discount": "10% Off on Flights", "terms": "For Gold members and above"},

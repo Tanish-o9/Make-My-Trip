@@ -351,6 +351,87 @@ class BookingStateMachine:
                     )
                 except Exception as rewards_err:
                     logger.error(f"Failed to award loyalty points for booking {booking.booking_reference}: {rewards_err}")
+
+                # Dispatch in-app booking confirmation notification!
+                try:
+                    from app.ai_agents.notification_agent import NotificationAgent
+                    NotificationAgent.dispatch_in_app(
+                        db=session,
+                        user_id=booking.user_id,
+                        title=f"Booking Confirmed: {booking.booking_reference}",
+                        message=f"Hello! Your {vertical} booking ({booking.booking_reference}) has been successfully confirmed.",
+                        notification_type="BOOKING_CONFIRMED",
+                        booking_ref=booking.booking_reference,
+                        vertical=vertical,
+                        action_url=f"/booking/{booking.booking_reference}"
+                    )
+                except Exception as notif_err:
+                    logger.error(f"Failed to dispatch booking confirmation notification: {notif_err}")
+
+                # Deduct redeemed loyalty points!
+                pricing_snapshot = getattr(booking, "pricing_snapshot", {}) or {}
+                if isinstance(pricing_snapshot, dict) and pricing_snapshot.get("points_redeemed", 0) > 0:
+                    try:
+                        points_to_redeem = int(pricing_snapshot["points_redeemed"])
+                        from app.services.wallet_loyalty import LoyaltyService
+                        from app.models.core import LoyaltyTransaction
+                        loyalty_acc = LoyaltyService.get_or_create_loyalty(session, booking.user_id)
+                        existing_deduction = session.query(LoyaltyTransaction).filter(
+                            LoyaltyTransaction.loyalty_account_id == loyalty_acc.id,
+                            LoyaltyTransaction.booking_ref == booking.booking_reference,
+                            LoyaltyTransaction.points_delta < 0
+                        ).first()
+                        if not existing_deduction:
+                            LoyaltyService.redeem_points(
+                                session,
+                                booking.user_id,
+                                points_to_redeem,
+                                booking.booking_reference
+                            )
+                    except Exception as redeem_err:
+                        logger.error(f"Failed to redeem points for booking {booking.booking_reference}: {redeem_err}")
+                        raise redeem_err
+
+                # Credit promotional 5% cashback!
+                try:
+                    from app.services.wallet_loyalty import WalletService
+                    from app.models.core import WalletTransaction
+                    from decimal import Decimal
+                    wallet_acc = WalletService.get_or_create_wallet(session, booking.user_id)
+                    cashback_ref = f"CASHBACK-{booking.booking_reference}"
+                    existing_cashback = session.query(WalletTransaction).filter(
+                        WalletTransaction.wallet_account_id == wallet_acc.id,
+                        WalletTransaction.reference == cashback_ref
+                    ).first()
+                    if not existing_cashback:
+                        # 5% promotional cashback
+                        booking_amount = float(booking.total_amount)
+                        cashback_amount = round(booking_amount * 0.05, 2)
+                        if cashback_amount > 0:
+                            WalletService.top_up(
+                                session,
+                                user_id=booking.user_id,
+                                amount=Decimal(str(cashback_amount)),
+                                reference=cashback_ref,
+                                description=f"5% Promotional Cashback for booking {booking.booking_reference}"
+                            )
+                            # Dispatch in-app cashback notification!
+                            try:
+                                from app.ai_agents.notification_agent import NotificationAgent
+                                NotificationAgent.dispatch_in_app(
+                                    db=session,
+                                    user_id=booking.user_id,
+                                    title="Cashback Credited!",
+                                    message=f"Congratulations! You earned ₹{cashback_amount:,.2f} cashback on booking {booking.booking_reference}.",
+                                    notification_type="CASHBACK",
+                                    booking_ref=booking.booking_reference,
+                                    vertical=vertical,
+                                    action_url="/wallet"
+                                )
+                            except Exception as notif_err:
+                                logger.error(f"Failed to dispatch cashback notification: {notif_err}")
+                except Exception as cashback_err:
+                    logger.error(f"Failed to credit cashback for booking {booking.booking_reference}: {cashback_err}")
             
         booking.status = target_status
 

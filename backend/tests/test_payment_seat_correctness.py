@@ -342,7 +342,7 @@ def test_wallet_only_successful_payment(mock_email, setup_db_and_auth):
         
         # Verify wallet deduction
         wallet = db.query(WalletAccount).filter(WalletAccount.user_id == setup_db_and_auth.id).first()
-        assert wallet.balance == Decimal("8500.00")
+        assert wallet.balance == Decimal("8575.00")
         
         # Verify LedgerRow wallet_debit entry
         ledger = db.query(LedgerRow).filter(LedgerRow.booking_reference == booking.booking_reference).first()

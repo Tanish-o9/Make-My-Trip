@@ -314,9 +314,16 @@ async def create_booking_hold(
         final_payable = round(total_base + total_seat_fare - total_discount + total_tax - promo_discount, 2)
         amount = max(100.0, final_payable)
         
-        # Audit: Accept client requested total amount when valid to avoid promo coupon mismatch
-        if req.amount and req.amount > 0:
-            amount = round(float(req.amount), 2)
+        # Validate amount matches client-requested amount when no special fare is applied.
+        # If special fare is applied, we ignore any client-submitted amount override and use backend recalculated amount.
+        has_special_fare = any(p.get("specialFareType", "regular") != "regular" for p in passengers)
+        if req.amount is not None and req.amount > 0:
+            if not has_special_fare:
+                if abs(amount - float(req.amount)) > 0.01:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Authoritative recalculated amount (INR {amount}) does not match requested amount (INR {req.amount})."
+                    )
 
         pricing_snapshot = {
             "base_fare": total_base,
@@ -854,26 +861,15 @@ def confirm_booking(
     try:
         if payment_method == "wallet":
             try:
+                from app.services.wallet_loyalty import InsufficientWalletBalance
                 WalletService.debit_for_booking(
                     db, 
                     user_id=booking.user_id, 
                     amount=amount_dec, 
                     booking_ref=booking.booking_reference
                 )
-            except InsufficientWalletBalance:
-                # Auto-sync wallet balance for seamless dev/test checkout
-                WalletService.top_up(
-                    db, 
-                    user_id=booking.user_id, 
-                    amount=amount_dec + Decimal("50000.00"), 
-                    reference=f"AUTO_SYNC_{booking.booking_reference}"
-                )
-                WalletService.debit_for_booking(
-                    db, 
-                    user_id=booking.user_id, 
-                    amount=amount_dec, 
-                    booking_ref=booking.booking_reference
-                )
+            except InsufficientWalletBalance as e:
+                raise e
             
             # Create the correct ledger transaction for wallet payment
             from app.models.payments import LedgerRow, Payment, PaymentStatus, PaymentMethod
@@ -933,6 +929,8 @@ def confirm_booking(
         })
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         db.rollback()
         pay_log = PaymentAttempt(
             user_id=booking.user_id,
@@ -1317,10 +1315,29 @@ def get_booking_details(
         raise HTTPException(status_code=404, detail="Booking reference not found.")
         
     if booking.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied: Booking does not belong to the requesting user."
-        )
+        from app.models.core import Trip, TripMember
+        owned_trips = db.query(Trip).filter(Trip.user_id == current_user.id).all()
+        member_trips = db.query(Trip).join(TripMember, TripMember.trip_id == Trip.id).filter(TripMember.user_id == current_user.id).all()
+        all_user_trips = owned_trips + member_trips
+        
+        is_authorized_via_group_trip = False
+        for t in all_user_trips:
+            refs = t.booking_references or []
+            if isinstance(refs, str):
+                import json
+                try:
+                    refs = json.loads(refs)
+                except:
+                    refs = []
+            if isinstance(refs, list) and booking_reference in refs:
+                is_authorized_via_group_trip = True
+                break
+                
+        if not is_authorized_via_group_trip:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: Booking does not belong to the requesting user."
+            )
         
     booking_dict = {c.name: getattr(booking, c.name) for c in booking.__table__.columns}
     for k, v in booking_dict.items():
@@ -2332,5 +2349,83 @@ async def bookings_status_api(
     return {
         "booking_reference": booking.booking_reference,
         "status": booking.status
+    }
+
+
+class ApplyRewardsRequest(BaseModel):
+    points_to_redeem: Optional[int] = 0
+    coupon_code: Optional[str] = None
+
+@router.post("/bookings/{booking_ref}/apply-rewards")
+def apply_rewards_to_booking(
+    booking_ref: str,
+    req: ApplyRewardsRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # Locate booking across all tables
+    booking = find_booking_by_reference(db, booking_ref)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found.")
+
+    if booking.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied: Booking ownership check failed.")
+
+    if booking.status != BookingStatus.HOLD:
+        raise HTTPException(status_code=400, detail="Rewards can only be applied to reservations on HOLD.")
+
+    pricing_snapshot = getattr(booking, "pricing_snapshot", {}) or {}
+    if not isinstance(pricing_snapshot, dict):
+        pricing_snapshot = {}
+
+    original_amount = float(booking.total_amount)
+    
+    # 1. Coupon validation and discount calculation
+    coupon_discount = 0.0
+    if req.coupon_code:
+        from app.services.wallet_loyalty import CouponService, CouponValidationError
+        try:
+            coupon = CouponService.validate_coupon(db, req.coupon_code, current_user.id, Decimal(str(original_amount)))
+            discount_dec = CouponService.apply_coupon(db, req.coupon_code, current_user.id, Decimal(str(original_amount)))
+            coupon_discount = float(discount_dec)
+        except CouponValidationError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    # 2. Points validation and discount calculation
+    points_discount = 0.0
+    points_to_redeem = req.points_to_redeem or 0
+    if points_to_redeem > 0:
+        from app.services.wallet_loyalty import LoyaltyService
+        loyalty = LoyaltyService.get_or_create_loyalty(db, current_user.id)
+        if loyalty.points_balance < points_to_redeem:
+            raise HTTPException(status_code=400, detail="Insufficient loyalty points balance.")
+        
+        # 10 points = 1 Rupee discount
+        points_discount = float(points_to_redeem) / 10.0
+        
+    total_discount = coupon_discount + points_discount
+    if total_discount > original_amount:
+        total_discount = original_amount
+        
+    final_payable = original_amount - total_discount
+
+    # Update booking pricing snapshot
+    pricing_snapshot["original_amount"] = original_amount
+    pricing_snapshot["coupon_code"] = req.coupon_code
+    pricing_snapshot["coupon_discount"] = coupon_discount
+    pricing_snapshot["points_redeemed"] = points_to_redeem
+    pricing_snapshot["points_discount"] = points_discount
+    pricing_snapshot["total_discount"] = total_discount
+    pricing_snapshot["final_payable"] = round(final_payable, 2)
+    
+    # Mark it on the booking object
+    booking.pricing_snapshot = pricing_snapshot
+    db.commit()
+    db.refresh(booking)
+
+    return {
+        "success": True,
+        "booking_reference": booking_ref,
+        "pricing_snapshot": pricing_snapshot
     }
 

@@ -14957,10 +14957,23 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
   const [loadingTopup, setLoadingTopup] = useState(false);
   const [transactions, setTransactions] = useState<any[]>([]);
 
+  // Filter states
+  const [searchQuery, setSearchQuery] = useState("");
+  const [txTypeFilter, setTxTypeFilter] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
   const fetchWallet = () => {
     const token = localStorage.getItem("token");
     if (!token) return;
-    fetch(`${API_URL}/wallet-loyalty/wallet`, {
+
+    const params = new URLSearchParams();
+    if (searchQuery) params.append("search", searchQuery);
+    if (txTypeFilter) params.append("tx_type", txTypeFilter);
+    if (startDate) params.append("start_date", startDate);
+    if (endDate) params.append("end_date", endDate);
+
+    fetch(`${API_URL}/wallet-loyalty/wallet?${params.toString()}`, {
       headers: { "Authorization": `Bearer ${token}` }
     })
       .then(res => res.json())
@@ -14982,7 +14995,7 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
 
   useEffect(() => {
     fetchWallet();
-  }, []);
+  }, [searchQuery, txTypeFilter, startDate, endDate]);
 
   const handleTopup = (e: React.FormEvent) => {
     e.preventDefault();
@@ -15187,6 +15200,51 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
       {/* Real Backend Ledger & Transaction History Section */}
       <div className="glass-card p-6 rounded-2xl border border-slate-800 space-y-4 text-left">
         <h4 className="font-bold text-slate-200 flex items-center gap-2">📑 TRANSACTION HISTORY & WALLET LEDGER</h4>
+        
+        {/* Filters UI */}
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-[#0d1425]/60 p-4 rounded-xl border border-slate-800">
+          <div>
+            <label className="text-[10px] font-bold text-slate-400 block mb-1">Search Description/Ref</label>
+            <input 
+              type="text" 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="e.g. Flight, Refund, CASHBACK"
+              className="w-full pl-3 pr-3 py-1.5 rounded-lg text-xs bg-slate-900 border border-slate-800 text-white font-bold"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold text-slate-400 block mb-1">Transaction Type</label>
+            <select
+              value={txTypeFilter}
+              onChange={(e) => setTxTypeFilter(e.target.value)}
+              className="w-full pl-2 pr-2 py-1.5 rounded-lg text-xs bg-slate-900 border border-slate-800 text-white font-bold"
+            >
+              <option value="">All Types</option>
+              <option value="credit">Credit / Refund</option>
+              <option value="debit">Debit / Payment</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] font-bold text-slate-400 block mb-1">From Date</label>
+            <input 
+              type="date" 
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="w-full pl-2 pr-2 py-1.5 rounded-lg text-xs bg-slate-900 border border-slate-800 text-white font-bold"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold text-slate-400 block mb-1">To Date</label>
+            <input 
+              type="date" 
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="w-full pl-2 pr-2 py-1.5 rounded-lg text-xs bg-slate-900 border border-slate-800 text-white font-bold"
+            />
+          </div>
+        </div>
+
         <div className="space-y-3">
           {transactions.length > 0 ? (
             transactions.map((tx: any) => {

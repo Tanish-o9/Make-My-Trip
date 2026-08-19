@@ -607,6 +607,124 @@ class SupervisorAgent:
             if 'db_exp' in locals():
                 db_exp.close()
 
+        # Load specific trip details if trip_id is in context
+        trip_id = trip_context.get("trip_id")
+        if trip_id:
+            try:
+                db_trip = SessionLocal()
+                from app.models.core import Trip, TripExpense, TripMember, TripExpenseSplit, TripItinerary, TripTask, User
+                trip_obj = db_trip.query(Trip).filter(Trip.id == trip_id).first()
+                if trip_obj:
+                    trip_context["trip_name"] = trip_obj.name
+                    trip_context["destination"] = trip_obj.destination
+                    trip_context["start_date"] = trip_obj.start_date.isoformat() if trip_obj.start_date else None
+                    trip_context["end_date"] = trip_obj.end_date.isoformat() if trip_obj.end_date else None
+                    trip_context["budget"] = float(trip_obj.budget) if trip_obj.budget else 0.0
+                    
+                    # 1. Load Itinerary
+                    itinerary_items = db_trip.query(TripItinerary).filter(TripItinerary.trip_id == trip_id).order_by(TripItinerary.day_number, TripItinerary.time_slot).all()
+                    trip_context["itinerary"] = [{
+                        "id": item.id,
+                        "day_number": item.day_number,
+                        "time_slot": item.time_slot,
+                        "activity_title": item.activity_title,
+                        "description": item.description,
+                        "location": item.location
+                    } for item in itinerary_items]
+                    
+                    # 2. Load Tasks
+                    tasks = db_trip.query(TripTask).filter(TripTask.trip_id == trip_id).all()
+                    trip_context["tasks"] = [{
+                        "id": task.id,
+                        "title": task.title,
+                        "assigned_to": task.assigned_to_id,
+                        "status": task.status,
+                        "priority": task.priority,
+                        "due_date": task.due_date.isoformat() if task.due_date else None
+                    } for task in tasks]
+                    
+                    # 3. Load Expenses & Splits
+                    expenses = db_trip.query(TripExpense).filter(TripExpense.trip_id == trip_id).all()
+                    expenses_list = []
+                    for e in expenses:
+                        splits = db_trip.query(TripExpenseSplit).filter(TripExpenseSplit.expense_id == e.id).all()
+                        expenses_list.append({
+                            "id": e.id,
+                            "amount": float(e.amount),
+                            "category": e.category,
+                            "description": e.description,
+                            "date": e.expense_date.isoformat() if e.expense_date else None,
+                            "payer_id": e.payer_id,
+                            "splits": [{"user_id": s.user_id, "amount": float(s.amount)} for s in splits]
+                        })
+                    trip_context["expenses"] = expenses_list
+                    
+                    # Calculate dynamic debt simplification settlements
+                    members = db_trip.query(TripMember).filter(TripMember.trip_id == trip_id).all()
+                    user_names = {trip_obj.user_id: db_trip.query(User).filter(User.id == trip_obj.user_id).first().email.split("@")[0].capitalize()}
+                    for m in members:
+                        usr = db_trip.query(User).filter(User.id == m.user_id).first()
+                        if usr:
+                            user_names[m.user_id] = usr.email.split("@")[0].capitalize()
+                            
+                    balances = {uid: 0.0 for uid in user_names.keys()}
+                    for e in expenses:
+                        payer_id = e.payer_id or trip_obj.user_id
+                        if payer_id in balances:
+                            balances[payer_id] += float(e.amount)
+                        splits = db_trip.query(TripExpenseSplit).filter(TripExpenseSplit.expense_id == e.id).all()
+                        for s in splits:
+                            if s.user_id in balances:
+                                balances[s.user_id] -= float(s.amount)
+                                
+                    debtors = []
+                    creditors = []
+                    for uid, bal in balances.items():
+                        val = round(bal, 2)
+                        if val < -0.01:
+                            debtors.append({"user_id": uid, "balance": val})
+                        elif val > 0.01:
+                            creditors.append({"user_id": uid, "balance": val})
+                            
+                    settlements = []
+                    while debtors and creditors:
+                        debtors.sort(key=lambda x: x["balance"])
+                        creditors.sort(key=lambda x: x["balance"], reverse=True)
+                        debtor = debtors[0]
+                        creditor = creditors[0]
+                        debt_amount = -debtor["balance"]
+                        credit_amount = creditor["balance"]
+                        settle_amount = round(min(debt_amount, credit_amount), 2)
+                        if settle_amount > 0:
+                            settlements.append({
+                                "from": user_names.get(debtor["user_id"], f"User {debtor['user_id']}"),
+                                "to": user_names.get(creditor["user_id"], f"User {creditor['user_id']}"),
+                                "amount": settle_amount
+                            })
+                        debtor["balance"] += settle_amount
+                        creditor["balance"] -= settle_amount
+                        if abs(debtor["balance"]) < 0.01:
+                            debtors.pop(0)
+                        if abs(creditor["balance"]) < 0.01:
+                            creditors.pop(0)
+                            
+                    trip_context["settlements"] = settlements
+
+                    # 4. Load associated bookings
+                    booking_refs = trip_obj.booking_references or []
+                    if isinstance(booking_refs, str):
+                        import json
+                        try:
+                            booking_refs = json.loads(booking_refs)
+                        except:
+                            booking_refs = []
+                    trip_context["booking_references"] = booking_refs
+            except Exception as e:
+                logger.error(f"Error loading trip detail context in supervisor: {e}")
+            finally:
+                if 'db_trip' in locals():
+                    db_trip.close()
+
         # === Phase 9: Dynamic Preference Learning ===
         # Only run if the message contains preference-indicating keywords (saves 1 LLM call for normal requests)
         PREF_KEYWORDS = ["hate", "love", "prefer", "always", "never", "dislike", "avoid",

@@ -58,9 +58,42 @@ class WishlistRequest(BaseModel):
 
 # Endpoints
 @router.get("/wallet", response_model=WalletResponse)
-def get_wallet(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_wallet(
+    search: Optional[str] = None,
+    tx_type: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     wallet = WalletService.get_or_create_wallet(db, user.id)
-    txs = db.query(WalletTransaction).filter(WalletTransaction.wallet_account_id == wallet.id).order_by(WalletTransaction.timestamp.desc()).all()
+    query = db.query(WalletTransaction).filter(WalletTransaction.wallet_account_id == wallet.id)
+    
+    if search:
+        search_term = f"%{search}%"
+        query = query.filter(
+            (WalletTransaction.description.ilike(search_term)) |
+            (WalletTransaction.reference.ilike(search_term))
+        )
+        
+    if tx_type:
+        query = query.filter(WalletTransaction.type.ilike(tx_type))
+        
+    if start_date:
+        try:
+            start_dt = datetime.datetime.strptime(start_date, "%Y-%m-%d")
+            query = query.filter(WalletTransaction.timestamp >= start_dt)
+        except ValueError:
+            pass
+            
+    if end_date:
+        try:
+            end_dt = datetime.datetime.strptime(end_date, "%Y-%m-%d") + datetime.timedelta(days=1)
+            query = query.filter(WalletTransaction.timestamp < end_dt)
+        except ValueError:
+            pass
+
+    txs = query.order_by(WalletTransaction.timestamp.desc()).all()
     
     tx_list = []
     for tx in txs:
@@ -88,6 +121,17 @@ def top_up_wallet(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    import os
+    from app.payments.config import settings
+    
+    # Safety check: prevent test recharge in production environment
+    mode = os.getenv("PAYMENT_MODE", settings.PAYMENT_MODE).lower()
+    if mode == "live":
+        raise HTTPException(
+            status_code=400,
+            detail="Direct recharges are not permitted in production. Please complete payment via Razorpay."
+        )
+        
     payment_ref = f"RECHARGE-{datetime.datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
     
     wallet = WalletService.top_up(

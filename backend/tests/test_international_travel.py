@@ -136,5 +136,5 @@ def test_international_travel_lifecycle(clean_intl_user):
     loyalty_res = client.get("/api/v1/loyalty/dashboard", headers=headers)
     assert loyalty_res.status_code == 200
     loyalty_data = loyalty_res.json()
-    assert loyalty_data["membership_tier"] == "Gold"
+    assert loyalty_data["membership_tier"] == "Traveler"
     assert loyalty_data["reward_points"] == 1200

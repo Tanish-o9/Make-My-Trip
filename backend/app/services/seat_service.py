@@ -203,6 +203,35 @@ class SeatInventoryService:
 
         # Process each seat
         for seat in seat_numbers:
+            # Check if occupied by demo simulated pattern when not is_live
+            if not is_live:
+                demo_occupied = False
+                if vertical == "flights":
+                    try:
+                        row = int(seat[:-1])
+                        col = seat[-1]
+                        demo_occupied = (row % 3 == 0 and col == "C") or (col == "D" and row > 4) or seat == "1B" or seat == "4F"
+                    except Exception:
+                        pass
+                elif vertical == "trains":
+                    try:
+                        seat_val = int(seat.split("-")[0])
+                        demo_occupied = (seat_val % 5 == 0) or seat == "3-UB" or seat == "17-SL"
+                    except Exception:
+                        pass
+                elif vertical == "buses":
+                    try:
+                        seat_val = sum(ord(c) for c in seat)
+                        demo_occupied = (seat_val % 4 == 0) or (seat == "L1") or (seat == "U4")
+                    except Exception:
+                        pass
+                
+                if demo_occupied:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f"Seat/Berth {seat} is already held or booked. Please select another seat."
+                    )
+
             # Check real active database holds below to prevent double booking
 
             # Query for existing active holds using FOR UPDATE if PostgreSQL is used

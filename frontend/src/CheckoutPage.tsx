@@ -25,6 +25,65 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(initialError || "");
   const [activeTab, setActiveTab] = useState<"card" | "upi" | "netbanking" | "wallet">("card");
+
+  // Ghumne Chale Wallet payment states
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [loadingWallet, setLoadingWallet] = useState(false);
+
+  const fetchWalletBalance = async () => {
+    if (!token) return;
+    setLoadingWallet(true);
+    try {
+      const res = await fetch(`${API_URL}/wallet-loyalty/wallet`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setWalletBalance(data.balance);
+      }
+    } catch (err) {
+      console.error("Error fetching wallet balance:", err);
+    } finally {
+      setLoadingWallet(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "wallet") {
+      fetchWalletBalance();
+    }
+  }, [activeTab, token]);
+
+  const payWithWallet = async () => {
+    if (!humanApproved) {
+      setError("Please check the 'Approve Payment Transaction' checkbox first to proceed.");
+      return;
+    }
+    setPaymentLoading(true);
+    setError("");
+    try {
+      console.log("LOG: Initiating Ghumne Chale Wallet checkout for booking reference:", bookingId);
+      const res = await fetch(`${API_URL}/bookings/confirm?booking_reference=${bookingId}&vertical=${booking.vertical}&payment_method=wallet`, {
+        method: "POST",
+        headers: token ? { "Authorization": `Bearer ${token}` } : {}
+      });
+      
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || errData.message || "Wallet payment failed.");
+      }
+      
+      const data = await res.json();
+      console.log("LOG: Wallet payment successful:", data);
+      setPaymentStatus("captured");
+      onNavigate(`/bookings/${bookingId}/confirmation`);
+    } catch (err: any) {
+      console.error("LOG: Wallet payment failed:", err);
+      setError(err.message || "Wallet checkout failed. Please ensure you have sufficient balance.");
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
   
   // Payment states
   const [paymentLoading, setPaymentLoading] = useState(false);
@@ -721,52 +780,95 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
 
               {activeTab === "wallet" && (
                 <div className="text-center space-y-4 my-auto py-4">
-                  <div className="bg-[#eae5d9] border-3 border-black p-4 rounded-xl max-w-md mx-auto text-left space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] uppercase font-black tracking-wide text-black">Digital Wallet Protocol</span>
-                      <span className="bg-yellow-300 border border-black text-[9px] font-black px-2 py-0.5 rounded uppercase font-mono">Instant Auth</span>
+                  {loadingWallet || walletBalance === null ? (
+                    <div className="bg-[#eae5d9] border-3 border-black p-6 rounded-xl max-w-md mx-auto text-center space-y-2">
+                      <RefreshCw className="animate-spin text-black mx-auto" size={24} />
+                      <p className="text-xs font-black text-black uppercase">Retrieving Wallet Account Balance...</p>
                     </div>
-                    <h4 className="font-black text-sm uppercase text-black flex items-center gap-1.5">
-                      <Wallet size={16} /> Select Wallet Partner
-                    </h4>
-                    
-                    <div className="grid grid-cols-2 gap-2 text-xs font-black">
-                      <div className="p-2.5 bg-white border-2 border-black rounded-lg hover:bg-yellow-100 cursor-pointer flex items-center gap-2 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                        👛 Paytm Wallet
+                  ) : walletBalance >= booking.total_amount ? (
+                    <div className="bg-[#eae5d9] border-3 border-black p-5 rounded-xl max-w-md mx-auto text-left space-y-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                      <div className="flex justify-between items-center border-b border-black/10 pb-2">
+                        <span className="text-[10px] uppercase font-black tracking-wide text-black flex items-center gap-1">
+                          <Wallet size={12} /> Travel Wallet Ledger
+                        </span>
+                        <span className="bg-emerald-300 border border-black text-[9px] font-black px-2 py-0.5 rounded uppercase font-mono">Sufficient Funds</span>
                       </div>
-                      <div className="p-2.5 bg-white border-2 border-black rounded-lg hover:bg-yellow-100 cursor-pointer flex items-center gap-2 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                        👛 PhonePe Wallet
+                      
+                      <div className="space-y-2 text-xs font-bold text-black font-sans">
+                        <div className="flex justify-between">
+                          <span>Wallet Balance:</span>
+                          <span className="font-black text-slate-800">₹{walletBalance.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between text-rose-700">
+                          <span>Amount to Deduct:</span>
+                          <span className="font-black">₹{booking.total_amount.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between border-t border-black/15 pt-2 text-emerald-800 text-sm font-black">
+                          <span>Remaining Balance:</span>
+                          <span>₹{(walletBalance - booking.total_amount).toLocaleString()}</span>
+                        </div>
                       </div>
-                      <div className="p-2.5 bg-white border-2 border-black rounded-lg hover:bg-yellow-100 cursor-pointer flex items-center gap-2 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                        👛 Amazon Pay
-                      </div>
-                      <div className="p-2.5 bg-white border-2 border-black rounded-lg hover:bg-yellow-100 cursor-pointer flex items-center gap-2 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                        👛 Mobikwik
-                      </div>
-                      <div className="p-2.5 bg-white border-2 border-black rounded-lg hover:bg-yellow-100 cursor-pointer flex items-center gap-2 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                        👛 Airtel Money
-                      </div>
-                      <div className="p-2.5 bg-white border-2 border-black rounded-lg hover:bg-yellow-100 cursor-pointer flex items-center gap-2 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                        👛 Freecharge
+
+                      <div className="pt-2">
+                        <button
+                          onClick={payWithWallet}
+                          disabled={paymentLoading || !humanApproved || profileIncomplete}
+                          className="w-full bg-emerald-400 hover:bg-emerald-500 disabled:bg-emerald-200 text-black border-3 border-black px-6 py-3 font-black text-xs uppercase rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer flex items-center justify-center gap-2"
+                        >
+                          {paymentLoading ? (
+                            <>
+                              <RefreshCw className="animate-spin" size={16} /> Confirming Booking...
+                            </>
+                          ) : (
+                            `Pay ₹${booking.total_amount.toLocaleString()} via Travel Wallet`
+                          )}
+                        </button>
                       </div>
                     </div>
-                  </div>
-                  
-                  <div className="flex justify-center items-center max-w-md mx-auto">
-                    <button
-                      onClick={payWithRazorpay}
-                      disabled={paymentLoading || !humanApproved || profileIncomplete}
-                      className="w-full bg-emerald-400 hover:bg-emerald-500 disabled:bg-emerald-200 text-black border-3 border-black px-6 py-3 font-black text-xs uppercase rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer flex items-center justify-center gap-2"
-                    >
-                      {paymentLoading ? (
-                        <>
-                          <RefreshCw className="animate-spin" size={16} /> Launching Wallet Gateway...
-                        </>
-                      ) : (
-                        `Pay ₹${booking.total_amount.toLocaleString()} via Wallet`
-                      )}
-                    </button>
-                  </div>
+                  ) : (
+                    <div className="bg-rose-100 border-3 border-rose-600 p-5 rounded-xl max-w-md mx-auto text-left space-y-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                      <div className="flex justify-between items-center border-b border-rose-200 pb-2">
+                        <span className="text-[10px] uppercase font-black tracking-wide text-rose-800 flex items-center gap-1">
+                          ⚠️ Insufficient Balance
+                        </span>
+                        <span className="bg-rose-500 text-white border border-rose-700 text-[9px] font-black px-2 py-0.5 rounded uppercase font-mono">Deduction Blocked</span>
+                      </div>
+                      
+                      <div className="space-y-1.5 text-xs font-bold text-rose-950 font-sans">
+                        <p className="font-extrabold text-sm text-rose-900 mb-2">Insufficient wallet balance.</p>
+                        <div className="flex justify-between">
+                          <span>Current balance:</span>
+                          <span>₹{walletBalance.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Required:</span>
+                          <span className="font-black">₹{booking.total_amount.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between border-t border-rose-200 pt-2 text-rose-900 font-extrabold">
+                          <span>Shortfall:</span>
+                          <span>₹{(booking.total_amount - walletBalance).toLocaleString()}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-2 pt-2 text-xs">
+                        <button
+                          onClick={() => {
+                            // Close checkout page or navigate to wallet tab
+                            onNavigate("/wallet");
+                          }}
+                          className="w-full bg-yellow-300 hover:bg-yellow-400 text-black border-2 border-black font-black py-2.5 rounded-xl transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] uppercase active:translate-y-0.5 cursor-pointer text-center"
+                        >
+                          [ Add ₹{(booking.total_amount - walletBalance).toLocaleString()} ]
+                        </button>
+                        <button
+                          onClick={() => setActiveTab("card")}
+                          className="w-full bg-white hover:bg-slate-50 text-slate-700 border-2 border-slate-800 font-black py-2.5 rounded-xl transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] uppercase active:translate-y-0.5 cursor-pointer text-center"
+                        >
+                          [ Use Another Payment Method ]
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
