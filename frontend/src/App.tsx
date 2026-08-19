@@ -14984,6 +14984,7 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
   const [topupSuccess, setTopupSuccess] = useState<string | null>(null);
   const [loadingTopup, setLoadingTopup] = useState(false);
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState("");
@@ -15036,7 +15037,10 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
     fetch(`${API_URL}/wallet-loyalty/wallet?${params.toString()}`, {
       headers: { "Authorization": `Bearer ${token}` }
     })
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
       .then(data => {
         if (data && typeof data.balance === "number") {
           setUserProfile((prev: any) => ({
@@ -15158,9 +15162,15 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
           <h3 className="text-3xl font-black text-white mt-1">₹{userProfile.walletBalance.toLocaleString()}</h3>
           <p className="text-xs text-slate-400 mt-2">Ghumne Chale Wallet is backed by real-time backend ledger. Instant travel refunds & 1-click checkout.</p>
         </div>
-        <div className="text-right">
+        <div className="text-right flex flex-col items-end">
           <span className="text-[10px] bg-blue-500/20 text-blue-300 px-2.5 py-1 rounded-full font-bold">{userProfile.tier} Member</span>
           <div className="text-xs text-slate-300 mt-3 font-semibold">Loyalty points: {userProfile.points}</div>
+          <button
+            onClick={() => setShowHistoryModal(true)}
+            className="mt-3 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-[10px] rounded-xl transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] border border-black flex items-center gap-1.5 cursor-pointer uppercase tracking-wider"
+          >
+            <Clock size={12} /> View History
+          </button>
         </div>
       </div>
 
@@ -15358,6 +15368,103 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
           )}
         </div>
       </div>
+
+      {/* Transaction History Modal Overlay */}
+      {showHistoryModal && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[999] flex items-center justify-center p-4 overflow-y-auto font-sans">
+          <div className="bg-[#0b1329] border-3 border-black shadow-[8px_8px_0px_0px_#000000] w-full max-w-2xl rounded-3xl p-6 relative text-left space-y-4">
+            
+            {/* Modal Header */}
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <h3 className="text-lg font-black text-white flex items-center gap-2">
+                📑 WALLET TRANSACTION HISTORY & LEDGER
+              </h3>
+              <button 
+                onClick={() => setShowHistoryModal(false)}
+                className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded-full transition-all cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Filters UI */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-[#0d1425]/60 p-4 rounded-xl border border-slate-800 text-xs">
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 block mb-1">Search Description/Ref</label>
+                <input 
+                  type="text" 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="e.g. Flight, Refund, CASHBACK"
+                  className="w-full pl-3 pr-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-white font-bold"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 block mb-1">Transaction Type</label>
+                <select
+                  value={txTypeFilter}
+                  onChange={(e) => setTxTypeFilter(e.target.value)}
+                  className="w-full pl-2 pr-2 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-white font-bold"
+                >
+                  <option value="">All Types</option>
+                  <option value="credit">Credit / Refund</option>
+                  <option value="debit">Debit / Payment</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Transactions List */}
+            <div className="max-h-[350px] overflow-y-auto space-y-2.5 pr-1 scrollbar-thin">
+              {transactions.length > 0 ? (
+                transactions.map((tx: any) => {
+                  const isCredit = tx.type === 'credit';
+                  return (
+                    <div key={tx.id} className="flex justify-between items-center bg-slate-900/80 p-3.5 rounded-xl border border-slate-800 shadow-sm text-xs">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[8px] font-black px-1.5 py-0.5 rounded border uppercase tracking-wider ${
+                            isCredit 
+                              ? 'bg-emerald-950 text-emerald-400 border-emerald-500/30' 
+                              : 'bg-rose-950 text-rose-400 border-rose-500/30'
+                          }`}>
+                            {isCredit ? 'CREDIT' : 'DEBIT'}
+                          </span>
+                          <span className="text-[9px] text-slate-400 font-mono">#{tx.reference || tx.id}</span>
+                        </div>
+                        <span className="text-xs text-white font-bold block">{tx.description || (isCredit ? 'Wallet Credit' : 'Wallet Payment')}</span>
+                        <span className="text-[9px] text-slate-400 block font-mono">
+                          Bal: ₹{tx.balance_before.toLocaleString()} ➔ ₹{tx.balance_after.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className={`text-sm font-black ${isCredit ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {isCredit ? '+' : '-'}₹{tx.amount.toLocaleString()}
+                        </span>
+                        <span className="text-[9px] text-slate-500 block mt-0.5 font-mono">
+                          {new Date(tx.timestamp).toLocaleDateString()} {new Date(tx.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-slate-400 text-xs text-center py-6 font-bold">No wallet transactions recorded yet.</div>
+              )}
+            </div>
+
+            {/* Footer Close Button */}
+            <div className="flex justify-end pt-2 border-t border-slate-800">
+              <button
+                onClick={() => setShowHistoryModal(false)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs transition-all cursor-pointer uppercase"
+              >
+                Close
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 }
