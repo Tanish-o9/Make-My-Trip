@@ -1211,8 +1211,15 @@ export default function App() {
   const [locale, setLocale] = useState<'en' | 'es' | 'hi'>('en');
   const [userProfile, setUserProfile] = useState<any>(() => {
     const savedBal = localStorage.getItem("wallet_balance") || sessionStorage.getItem("wallet_balance");
+    const savedEmail = localStorage.getItem("user_email");
+    const savedName = localStorage.getItem("user_full_name");
+    const savedPhone = localStorage.getItem("user_phone");
+    const savedJoined = localStorage.getItem("user_joined_date");
     return {
-      email: "traveler@travelos.com",
+      fullName: savedName || (savedEmail ? savedEmail.split('@')[0] : "Rahul Sharma"),
+      email: savedEmail || "traveler@travelos.com",
+      phone: savedPhone || "",
+      joinedDate: savedJoined || "Aug 2026",
       tier: "Gold",
       points: 450,
       walletBalance: savedBal ? parseFloat(savedBal) : 24500.00
@@ -1792,11 +1799,15 @@ export default function App() {
     localStorage.setItem('token', accessToken);
     localStorage.setItem('refresh_token', refreshToken);
     localStorage.setItem('user_role', role);
+    localStorage.setItem('user_email', email);
     setToken(accessToken);
     setUserRole(role);
     setUserProfile((prev: any) => ({
       ...prev,
-      email: email
+      email: email,
+      fullName: localStorage.getItem('user_full_name') || prev.fullName || email.split('@')[0],
+      phone: localStorage.getItem('user_phone') || prev.phone || "",
+      joinedDate: localStorage.getItem('user_joined_date') || prev.joinedDate || "Aug 2026"
     }));
 
     if (role === 'admin' || role === 'super_admin' || role === 'finance_admin' || role === 'booking_approver') {
@@ -17554,129 +17565,324 @@ function WishlistModal({ items, setItems, onBook, onClose }: { items: any[], set
 
 /* Account Profile Modal */
 function AccountProfileModal({ userProfile, setUserProfile, onClose, onLogout }: { userProfile: any, setUserProfile: any, onClose: () => void, onLogout: () => void }) {
-  const [email, setEmail] = useState(userProfile.email);
-  const [savedTravelers, setSavedTravelers] = useState<string[]>(["Vikram Singh (32)", "Ananya Sen (29)"]);
+  const [fullName, setFullName] = useState<string>(() => userProfile.fullName || localStorage.getItem("user_full_name") || "");
+  const [email, setEmail] = useState<string>(() => userProfile.email || localStorage.getItem("user_email") || "traveler@travelos.com");
+  const [phone, setPhone] = useState<string>(() => userProfile.phone || localStorage.getItem("user_phone") || "");
+  const [savedMessage, setSavedMessage] = useState<string | null>(null);
+
+  // Real Saved Companions stored in localStorage
+  const [savedTravelers, setSavedTravelers] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem("user_saved_companions");
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
   const [newTraveler, setNewTraveler] = useState("");
 
+  // Real Local Wallet Transactions to compute real stats
+  const localTxs = React.useMemo(() => {
+    try {
+      const saved = localStorage.getItem("local_wallet_transactions");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  }, []);
+
+  // Compute real metrics
+  const realBookingsCount = localTxs.filter((tx: any) => tx.type === 'debit').length;
+  const realTotalSpent = localTxs.filter((tx: any) => tx.type === 'debit').reduce((acc: number, tx: any) => acc + (tx.amount || 0), 0);
+  const pinActive = isPinSet();
+  const joinedDate = userProfile.joinedDate || localStorage.getItem("user_joined_date") || "Aug 2026";
+  const userInitials = (fullName || email || "U").trim().charAt(0).toUpperCase();
+
+  // Compute real monthly spend data from actual debits
+  const spendByMonth = React.useMemo(() => {
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const map: Record<string, number> = {};
+    months.forEach(m => { map[m] = 0; });
+    localTxs.filter((tx: any) => tx.type === 'debit').forEach((tx: any) => {
+      if (tx.timestamp) {
+        const d = new Date(tx.timestamp);
+        const monthName = months[d.getMonth()];
+        map[monthName] = (map[monthName] || 0) + (tx.amount || 0);
+      }
+    });
+    // Return last 6 months up to current
+    const currIdx = new Date().getMonth();
+    const last6: { month: string; amt: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const idx = (currIdx - i + 12) % 12;
+      const mName = months[idx];
+      last6.push({ month: mName, amt: map[mName] || 0 });
+    }
+    return last6;
+  }, [localTxs]);
+
+  const maxMonthSpend = Math.max(1, ...spendByMonth.map(d => d.amt));
+
   const handleSave = () => {
-    setUserProfile((prev: any) => ({ ...prev, email }));
-    alert("Profile saved successfully!");
+    localStorage.setItem("user_full_name", fullName);
+    localStorage.setItem("user_email", email);
+    localStorage.setItem("user_phone", phone);
+    setUserProfile((prev: any) => ({
+      ...prev,
+      fullName,
+      email,
+      phone
+    }));
+    setSavedMessage("Profile updated successfully!");
+    setTimeout(() => setSavedMessage(null), 3000);
   };
 
   const handleAddTraveler = () => {
-    if (newTraveler.trim() !== "") {
-      setSavedTravelers(prev => [...prev, newTraveler]);
-      setNewTraveler("");
-    }
+    if (!newTraveler.trim()) return;
+    const updated = [...savedTravelers, newTraveler.trim()];
+    setSavedTravelers(updated);
+    localStorage.setItem("user_saved_companions", JSON.stringify(updated));
+    setNewTraveler("");
   };
 
   const handleRemoveTraveler = (idx: number) => {
-    setSavedTravelers(prev => prev.filter((_, i) => i !== idx));
+    const updated = savedTravelers.filter((_, i) => i !== idx);
+    setSavedTravelers(updated);
+    localStorage.setItem("user_saved_companions", JSON.stringify(updated));
   };
 
-  // Spending data for chart
-  const spendData = [
-    { month: "Jan", amt: 12000 },
-    { month: "Feb", amt: 18000 },
-    { month: "Mar", amt: 8000 },
-    { month: "Apr", amt: 25000 },
-    { month: "May", amt: 15000 },
-    { month: "Jun", amt: 32000 },
-  ];
-  const maxAmt = Math.max(...spendData.map(d => d.amt));
-
   return (
-    <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-[#0f172a] border-4 border-black p-6 max-w-xl w-full space-y-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] text-white rounded-2xl text-left">
-        <div className="flex justify-between items-center border-b-2 border-slate-800 pb-2">
-          <h3 className="font-black text-base uppercase tracking-wider flex items-center gap-1.5 text-yellow-400">👤 User Travel Profile</h3>
-          <button onClick={onClose} className="font-extrabold text-sm hover:text-red-500 font-bold cursor-pointer bg-transparent border-none text-white">✕</button>
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[1100] flex items-center justify-center p-4 overflow-y-auto font-sans">
+      <div className="bg-[#0b1120] border-4 border-black p-6 sm:p-8 max-w-2xl w-full space-y-6 shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] text-white rounded-3xl text-left my-8 relative">
+        
+        {/* Header Bar */}
+        <div className="flex justify-between items-center border-b-2 border-slate-800 pb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-[#f3c623] border-3 border-black shadow-[3px_3px_0px_0px_#000] flex items-center justify-center text-black font-black text-xl">
+              {userInitials}
+            </div>
+            <div>
+              <h3 className="font-black text-lg text-white uppercase tracking-wide">
+                {fullName || "User Profile"}
+              </h3>
+              <p className="text-xs text-slate-400 font-mono">
+                Member since {joinedDate}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-9 h-9 rounded-full bg-slate-800 hover:bg-slate-700 border-2 border-slate-700 text-slate-300 hover:text-white font-bold flex items-center justify-center cursor-pointer transition-all"
+          >
+            ✕
+          </button>
         </div>
 
-        {/* Dynamic Stats Grid */}
+        {/* Security & Loyalty Status Badges */}
+        <div className="flex flex-wrap gap-2 text-xs font-bold">
+          <span className="bg-amber-400/20 text-amber-300 border border-amber-500/40 px-3 py-1 rounded-xl flex items-center gap-1.5 font-black uppercase text-[10px]">
+            👑 {userProfile.tier || "Gold"} Tier Member
+          </span>
+          <span className={`border px-3 py-1 rounded-xl flex items-center gap-1.5 font-black uppercase text-[10px] ${
+            pinActive 
+              ? 'bg-emerald-950 text-emerald-400 border-emerald-500/40' 
+              : 'bg-red-950 text-red-400 border-red-500/40'
+          }`}>
+            {pinActive ? '🔐 Payment PIN Protected' : '⚠️ No Payment PIN Set'}
+          </span>
+          <span className="bg-blue-950 text-blue-300 border border-blue-500/30 px-3 py-1 rounded-xl font-mono text-[10px]">
+            Points: {userProfile.points || 450} pts
+          </span>
+        </div>
+
+        {/* Real Dynamic Stats Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-left">
-          <div className="bg-[#1e293b] border border-slate-700 p-3 rounded-xl">
-            <span className="text-[8px] text-slate-400 uppercase block font-black">Trips Booked</span>
-            <span className="text-base font-black text-white mt-1 block">14 Trips</span>
+          <div className="bg-[#FAF6EE] border-3 border-black p-3.5 rounded-2xl shadow-[3px_3px_0px_0px_#000] text-black">
+            <span className="text-[9px] text-slate-600 uppercase block font-black">Bookings Made</span>
+            <span className="text-lg font-black text-black mt-1 block">
+              {realBookingsCount} {realBookingsCount === 1 ? 'Trip' : 'Trips'}
+            </span>
           </div>
-          <div className="bg-[#1e293b] border border-slate-700 p-3 rounded-xl">
-            <span className="text-[8px] text-slate-400 uppercase block font-black">AI Money Saved</span>
-            <span className="text-base font-black text-emerald-400 mt-1 block">₹18,450</span>
+
+          <div className="bg-[#FAF6EE] border-3 border-black p-3.5 rounded-2xl shadow-[3px_3px_0px_0px_#000] text-black">
+            <span className="text-[9px] text-slate-600 uppercase block font-black">Wallet Balance</span>
+            <span className="text-lg font-black text-emerald-700 mt-1 block">
+              ₹{(userProfile.walletBalance || 0).toLocaleString()}
+            </span>
           </div>
-          <div className="bg-[#1e293b] border border-slate-700 p-3 rounded-xl">
-            <span className="text-[8px] text-slate-400 uppercase block font-black">Carbon Footprint</span>
-            <span className="text-base font-black text-teal-400 mt-1 block">1.2t CO2e</span>
+
+          <div className="bg-[#FAF6EE] border-3 border-black p-3.5 rounded-2xl shadow-[3px_3px_0px_0px_#000] text-black">
+            <span className="text-[9px] text-slate-600 uppercase block font-black">Total Wallet Spend</span>
+            <span className="text-lg font-black text-indigo-900 mt-1 block">
+              ₹{realTotalSpent.toLocaleString()}
+            </span>
           </div>
-          <div className="bg-[#1e293b] border border-slate-700 p-3 rounded-xl">
-            <span className="text-[8px] text-slate-400 uppercase block font-black">Loyalty Rating</span>
-            <span className="text-base font-black text-yellow-400 mt-1 block">Gold Tier</span>
+
+          <div className="bg-[#FAF6EE] border-3 border-black p-3.5 rounded-2xl shadow-[3px_3px_0px_0px_#000] text-black">
+            <span className="text-[9px] text-slate-600 uppercase block font-black">PIN Security</span>
+            <span className={`text-sm font-black mt-1 block uppercase ${pinActive ? 'text-emerald-700' : 'text-red-600'}`}>
+              {pinActive ? 'ACTIVE ✓' : 'UNSECURED'}
+            </span>
           </div>
         </div>
 
-        {/* Spending Analytics Chart (SVG) */}
-        <div className="bg-[#1e293b] border border-slate-700 p-4 rounded-xl space-y-3">
-          <span className="text-[9px] uppercase font-black text-slate-400 block">Monthly Spend Analytics (INR)</span>
-          <div className="h-28 w-full flex items-end justify-between gap-2 pt-4">
-            {spendData.map((d, i) => {
-              const heightPct = (d.amt / maxAmt) * 100;
-              return (
-                <div key={i} className="flex-1 flex flex-col items-center gap-1 group cursor-pointer">
-                  <div className="relative w-full flex justify-center">
-                    <span className="absolute -top-6 text-[8px] font-bold text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 px-1 py-0.5 rounded border border-slate-700">₹{d.amt / 1000}k</span>
-                    <div 
-                      style={{ height: `${heightPct}%` }} 
-                      className="w-full sm:w-6 bg-gradient-to-t from-indigo-600 to-purple-400 hover:from-indigo-500 hover:to-purple-300 rounded-t-md transition-all border border-indigo-400/20"
-                    />
+        {/* Spending Analytics Chart (Real calculated from localTxs) */}
+        <div className="bg-[#111827] border-2 border-slate-800 p-4 rounded-2xl space-y-3">
+          <div className="flex justify-between items-center">
+            <span className="text-[10px] uppercase font-black tracking-wider text-slate-300">
+              📊 Real Monthly Spend Breakdown (INR)
+            </span>
+            <span className="text-[9px] font-mono text-slate-400">Live Ledger Data</span>
+          </div>
+
+          {realTotalSpent > 0 ? (
+            <div className="h-28 w-full flex items-end justify-between gap-2 pt-4">
+              {spendByMonth.map((d, i) => {
+                const heightPct = d.amt > 0 ? Math.max(12, (d.amt / maxMonthSpend) * 100) : 6;
+                return (
+                  <div key={i} className="flex-1 flex flex-col items-center gap-1 group cursor-pointer">
+                    <div className="relative w-full flex justify-center">
+                      {d.amt > 0 && (
+                        <span className="absolute -top-6 text-[8px] font-mono font-bold text-yellow-300 bg-slate-900 px-1 py-0.5 rounded border border-slate-700">
+                          ₹{d.amt >= 1000 ? `${(d.amt / 1000).toFixed(1)}k` : d.amt}
+                        </span>
+                      )}
+                      <div 
+                        style={{ height: `${heightPct}%` }} 
+                        className={`w-full sm:w-7 rounded-t-md transition-all border ${
+                          d.amt > 0
+                            ? 'bg-gradient-to-t from-yellow-500 to-yellow-300 border-yellow-400 shadow-[0_0_10px_rgba(243,198,35,0.3)]'
+                            : 'bg-slate-800 border-slate-700 opacity-40'
+                        }`}
+                      />
+                    </div>
+                    <span className="text-[9px] text-slate-400 font-bold uppercase">{d.month}</span>
                   </div>
-                  <span className="text-[9px] text-slate-400 font-bold uppercase">{d.month}</span>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-6 text-slate-500 text-xs font-semibold">
+              No completed bookings or spend recorded yet. Make your first booking to view monthly analytics!
+            </div>
+          )}
         </div>
 
-        {/* Account Info Form */}
-        <div className="space-y-3">
-          <div>
-            <label className="text-[10px] uppercase font-black text-slate-400 block mb-1">Email Address</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-[#1e293b] border-2 border-black rounded px-3 py-2 text-xs font-bold text-white outline-none focus:border-yellow-400" />
+        {/* Real User Profile Information Form */}
+        <div className="space-y-4 bg-[#111827] border-2 border-slate-800 p-4.5 rounded-2xl">
+          <h4 className="text-xs uppercase font-black tracking-wider text-yellow-400 flex items-center gap-1.5">
+            📝 Personal Registration Details
+          </h4>
+
+          {savedMessage && (
+            <div className="bg-emerald-950 border border-emerald-500/40 text-emerald-300 text-xs font-bold p-2.5 rounded-xl text-center">
+              ✓ {savedMessage}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div>
+              <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Full Name</label>
+              <input
+                type="text"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="e.g. Rahul Sharma"
+                className="w-full bg-[#1e293b] border-2 border-slate-700 focus:border-yellow-400 rounded-xl px-3 py-2 font-bold text-white outline-none"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Email Address</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                className="w-full bg-[#1e293b] border-2 border-slate-700 focus:border-yellow-400 rounded-xl px-3 py-2 font-bold text-white outline-none"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Phone Number</label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+91 98765 43210"
+                className="w-full bg-[#1e293b] border-2 border-slate-700 focus:border-yellow-400 rounded-xl px-3 py-2 font-bold text-white outline-none"
+              />
+            </div>
           </div>
-          <div className="flex gap-2 flex-wrap sm:flex-nowrap">
-            <button onClick={handleSave} className="bg-slate-800 text-white hover:bg-slate-700 text-[10px] font-black border-2 border-black px-4 py-2.5 rounded-lg cursor-pointer uppercase transition-all">Save Profile</button>
-            <button 
-              onClick={() => {
-                onClose();
-                window.history.pushState(null, '', '/profile');
-                window.dispatchEvent(new PopStateEvent('popstate'));
-              }} 
-              className="bg-blue-600 text-white hover:bg-blue-500 text-[10px] font-black border-2 border-black px-4 py-2.5 rounded-lg cursor-pointer uppercase transition-all"
+
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={handleSave}
+              className="bg-[#f3c623] hover:bg-yellow-400 text-black font-black text-xs border-2 border-black px-5 py-2.5 rounded-xl cursor-pointer uppercase shadow-[3px_3px_0px_0px_#000] transition-transform active:translate-y-0.5"
             >
-              Manage Full Profile ➔
+              Save Profile Changes
             </button>
-            <button onClick={onLogout} className="bg-red-600 text-white hover:bg-red-700 text-[10px] font-black border-2 border-black px-4 py-2.5 rounded-lg cursor-pointer uppercase sm:ml-auto transition-all">Log Out</button>
+            <button
+              onClick={onLogout}
+              className="bg-red-600 hover:bg-red-700 text-white font-black text-xs border-2 border-black px-4 py-2.5 rounded-xl cursor-pointer uppercase ml-auto shadow-[3px_3px_0px_0px_#000]"
+            >
+              Log Out
+            </button>
           </div>
         </div>
 
-        {/* Saved Travelers */}
-        <div className="border-t border-slate-800 pt-3 space-y-2">
-          <span className="text-[10px] uppercase font-black text-slate-400 block">Manage Saved Companions:</span>
+        {/* Real Saved Companions Section */}
+        <div className="border-t border-slate-800 pt-4 space-y-3">
+          <div className="flex justify-between items-center">
+            <span className="text-xs uppercase font-black text-slate-300">
+              👥 Saved Travel Companions
+            </span>
+            <span className="text-[10px] font-mono text-slate-500">{savedTravelers.length} Saved</span>
+          </div>
+
           <div className="flex gap-2">
-            <input type="text" placeholder="Name (Age)" value={newTraveler} onChange={(e) => setNewTraveler(e.target.value)} className="bg-[#1e293b] border-2 border-black rounded px-3 py-1.5 text-xs font-bold text-white outline-none" />
-            <button onClick={handleAddTraveler} className="bg-yellow-400 text-black hover:bg-yellow-300 text-[10px] font-black border-2 border-black px-3 py-1.5 rounded cursor-pointer uppercase transition-all">Add</button>
+            <input
+              type="text"
+              placeholder="Companion Name & Age (e.g. Ananya Sharma, 28)"
+              value={newTraveler}
+              onChange={(e) => setNewTraveler(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleAddTraveler(); }}
+              className="flex-1 bg-[#111827] border-2 border-slate-700 focus:border-yellow-400 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none"
+            />
+            <button
+              onClick={handleAddTraveler}
+              className="bg-emerald-400 hover:bg-emerald-500 text-black font-black text-xs border-2 border-black px-4 py-2 rounded-xl cursor-pointer uppercase shadow-[2px_2px_0px_0px_#000]"
+            >
+              + Add
+            </button>
           </div>
-          <div className="space-y-1 mt-2">
-            {savedTravelers.map((name, idx) => (
-              <div key={idx} className="flex justify-between items-center bg-[#1e293b]/60 border border-slate-700 p-2 rounded text-xs font-bold text-slate-200">
-                <span>{name}</span>
-                <button onClick={() => handleRemoveTraveler(idx)} className="text-red-400 hover:text-red-300 font-bold text-[10px] uppercase cursor-pointer bg-transparent border-none">Remove</button>
-              </div>
-            ))}
-          </div>
+
+          {savedTravelers.length > 0 ? (
+            <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+              {savedTravelers.map((name, idx) => (
+                <div key={idx} className="flex justify-between items-center bg-[#111827] border border-slate-800 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 shadow-sm">
+                  <span className="flex items-center gap-2">
+                    <span className="text-slate-500">👤</span> {name}
+                  </span>
+                  <button
+                    onClick={() => handleRemoveTraveler(idx)}
+                    className="text-red-400 hover:text-red-300 font-bold text-[10px] uppercase cursor-pointer bg-transparent border-none"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-slate-500 text-xs font-semibold text-center py-2">
+              No saved companions added yet. Add family or friends for 1-click booking!
+            </p>
+          )}
         </div>
+
       </div>
     </div>
   );
 }
+
 
 /* myBiz Organational portal dashboard */
 function MyBizDashboardModal({ onClose }: { onClose: () => void }) {
@@ -18957,6 +19163,12 @@ function LoginScreen({ onLogin, onNavigate }: {
           }
           return;
         }
+
+        // Store registration details locally
+        localStorage.setItem("user_full_name", fullName.trim().replace(/\s+/g, " "));
+        localStorage.setItem("user_email", email.trim().toLowerCase());
+        if (phone) localStorage.setItem("user_phone", phone.trim());
+        localStorage.setItem("user_joined_date", new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }));
 
         // Store payment PIN locally if user entered one during signup
         if (paymentPin && /^\d{4}$/.test(paymentPin)) {
