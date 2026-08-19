@@ -5,7 +5,7 @@ import logging
 logger = logging.getLogger(__name__)
 from typing import Dict, Any, List, Optional
 from decimal import Decimal
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Header, Request, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -702,10 +702,23 @@ def confirm_booking(
     vertical: str,
     payment_method: str = "wallet",
     card_number: str = None,
+    payment_pin: Optional[str] = None,
+    x_payment_pin: Optional[str] = Header(None, alias="X-Payment-PIN"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Captures payment and transitions booking from HOLD to CONFIRMED"""
+    from app.services import security_pin_service
+
+    if security_pin_service.is_pin_enabled(db, current_user.id):
+        provided_pin = payment_pin or x_payment_pin
+        if not provided_pin:
+            raise HTTPException(
+                status_code=400,
+                detail="Payment security PIN required."
+            )
+        security_pin_service.verify_pin(db, current_user.id, provided_pin, purpose="booking_payment")
+
     models_mapping = {
         "flights": FlightBooking, "hotels": HotelBooking, "trains": TrainBooking,
         "cabs": CabBooking, "visa": VisaApplication, "holidays": HolidayPackageBooking,

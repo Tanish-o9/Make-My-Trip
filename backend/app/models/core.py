@@ -34,6 +34,23 @@ class User(Base):
     wishlist_items = relationship("Wishlist", back_populates="user", cascade="all, delete-orphan")
     loyalty_account = relationship("LoyaltyAccount", uselist=False, back_populates="user", cascade="all, delete-orphan")
     wallet_account = relationship("WalletAccount", uselist=False, back_populates="user", cascade="all, delete-orphan")
+    payment_pin_security = relationship("UserPaymentPin", uselist=False, back_populates="user", cascade="all, delete-orphan")
+
+
+class UserPaymentPin(Base):
+    __tablename__ = "user_payment_pins"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True, nullable=False)
+    pin_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    failed_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    locked_until: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow
+    )
+
+    user = relationship("User", back_populates="payment_pin_security")
 
 
 class SavedTraveler(Base):

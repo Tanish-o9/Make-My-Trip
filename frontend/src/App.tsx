@@ -102,36 +102,45 @@ const addLocalWalletTransaction = (type: 'credit' | 'debit', amount: number, ref
   }
 };
 
-// ── Payment PIN helpers ───────────────────────────────────────────────────────
-// Simple deterministic hash — good enough for a local UX security PIN
-const _hashPin = (pin: string): string => {
-  const salt = "GhumneChale_v1_";
-  const str = salt + pin;
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const chr = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + chr;
-    hash |= 0; // Convert to 32-bit int
+// ── Server-Authoritative Payment Security PIN helpers ──────────────────────────
+const PIN_ENABLED_KEY = "payment_pin_enabled";
+
+const isPinSet = (): boolean => {
+  try {
+    return localStorage.getItem(PIN_ENABLED_KEY) === "true";
+  } catch {
+    return false;
   }
-  // Make it always positive and pad to fixed length
-  return "ph_" + (hash >>> 0).toString(16).padStart(8, "0");
 };
-const PIN_KEY = "payment_pin_hash";
-const getPinHash = (): string | null => {
-  try { return localStorage.getItem(PIN_KEY); } catch { return null; }
+
+const setPinEnabledState = (enabled: boolean): void => {
+  try {
+    if (enabled) {
+      localStorage.setItem(PIN_ENABLED_KEY, "true");
+    } else {
+      localStorage.removeItem(PIN_ENABLED_KEY);
+    }
+  } catch {}
 };
-const setPinHash = (pin: string): void => {
-  try { localStorage.setItem(PIN_KEY, _hashPin(pin)); } catch {}
+
+const syncPinStatusFromBackend = async (): Promise<boolean> => {
+  const token = localStorage.getItem("token");
+  if (!token) return false;
+  try {
+    const res = await fetch(`${API_URL}/wallet/security-pin`, {
+      headers: { "Authorization": `Bearer ${token}` }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const enabled = !!data.pin_enabled;
+      setPinEnabledState(enabled);
+      return enabled;
+    }
+  } catch (e) {
+    console.error("Error syncing PIN status:", e);
+  }
+  return isPinSet();
 };
-const removePinHash = (): void => {
-  try { localStorage.removeItem(PIN_KEY); } catch {}
-};
-const verifyPin = (pin: string): boolean => {
-  const stored = getPinHash();
-  if (!stored) return true; // no PIN set = always pass
-  return stored === _hashPin(pin);
-};
-const isPinSet = (): boolean => !!getPinHash();
 // ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -10625,7 +10634,7 @@ function CheckoutModal({
     };
   };
 
-  const executeBooking = (bypassingPin: boolean = false) => {
+  const executeBooking = (bypassingPin: boolean = false, verifiedPin?: string) => {
     if (isPinSet() && bypassingPin !== true && !pinVerified) {
       setShowPinModal(true);
       return;
@@ -10693,7 +10702,8 @@ function CheckoutModal({
 
     const authHeaders: Record<string, string> = {
       "Content-Type": "application/json",
-      ...(localToken ? { "Authorization": `Bearer ${localToken}` } : {})
+      ...(localToken ? { "Authorization": `Bearer ${localToken}` } : {}),
+      ...(verifiedPin ? { "X-Payment-PIN": verifiedPin } : {})
     };
 
     // Step 1: Create Hold Reservation
@@ -10735,12 +10745,14 @@ function CheckoutModal({
         // Step 2a: Wallet & Corporate Billing — complete inline, no redirect
         if (payMethod === 'wallet' || payMethod === 'corporate_billing') {
           const confirmMethod = payMethod === 'corporate_billing' ? 'corporate_billing' : 'wallet';
-          const confirmHeaders: Record<string, string> = localToken
-            ? { "Authorization": `Bearer ${localToken}` }
-            : {};
+          const confirmHeaders: Record<string, string> = {
+            "Content-Type": "application/json",
+            ...(localToken ? { "Authorization": `Bearer ${localToken}` } : {}),
+            ...(verifiedPin ? { "X-Payment-PIN": verifiedPin } : {})
+          };
 
           fetch(
-            `${API_URL}/bookings/confirm?booking_reference=${holdBookingRef}&vertical=${data.vertical}&payment_method=${confirmMethod}`,
+            `${API_URL}/bookings/confirm?booking_reference=${holdBookingRef}&vertical=${data.vertical}&payment_method=${confirmMethod}&payment_pin=${encodeURIComponent(verifiedPin || '')}`,
             { method: "POST", headers: confirmHeaders }
           )
             .then(res => res.json())
@@ -11797,10 +11809,10 @@ function CheckoutModal({
         <PinVerifyModal
           description={`Booking Payment: ${data.title}`}
           amount={finalAmount}
-          onSuccess={() => {
+          onSuccess={(verifiedPin) => {
             setShowPinModal(false);
             setPinVerified(true);
-            executeBooking(true);
+            executeBooking(true, verifiedPin);
           }}
           onCancel={() => {
             setShowPinModal(false);
@@ -15044,7 +15056,7 @@ function ChatView({
 /* PIN VERIFY MODAL                                     */
 /* ---------------------------------------------------- */
 function PinVerifyModal({ onSuccess, onCancel, amount, description }: {
-  onSuccess: () => void;
+  onSuccess: (verifiedPin?: string) => void;
   onCancel: () => void;
   amount?: number;
   description?: string;
@@ -15052,6 +15064,7 @@ function PinVerifyModal({ onSuccess, onCancel, amount, description }: {
   const [digits, setDigits] = React.useState(['', '', '', '']);
   const [error, setError] = React.useState('');
   const [shake, setShake] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
   const inputRefs = [
     React.useRef<HTMLInputElement>(null),
     React.useRef<HTMLInputElement>(null),
@@ -15081,16 +15094,37 @@ function PinVerifyModal({ onSuccess, onCancel, amount, description }: {
     if (e.key === 'Enter') handleVerify();
   };
 
-  const handleVerify = () => {
+  const handleVerify = async () => {
     const pin = digits.join('');
     if (pin.length < 4) { setError('Enter all 4 digits.'); return; }
-    if (verifyPin(pin)) {
-      onSuccess();
-    } else {
-      setError('Incorrect PIN. Try again.');
+    setLoading(true);
+    setError('');
+
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(`${API_URL}/wallet/security-pin/verify`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ pin, purpose: "booking_payment" })
+      });
+      const data = await res.json();
+      if (res.ok && data.verified) {
+        onSuccess(pin);
+      } else {
+        const msg = data.detail || 'Incorrect security PIN.';
+        setError(msg);
+        setShake(true);
+        setDigits(['', '', '', '']);
+        setTimeout(() => { setShake(false); inputRefs[0].current?.focus(); }, 500);
+      }
+    } catch {
+      setError('Connection failure. Please try again.');
       setShake(true);
-      setDigits(['', '', '', '']);
-      setTimeout(() => { setShake(false); inputRefs[0].current?.focus(); }, 500);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -15313,9 +15347,10 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
 
   useEffect(() => {
     fetchWallet();
+    syncPinStatusFromBackend().then(enabled => setPinHasSet(enabled));
   }, [searchQuery, txTypeFilter, startDate, endDate]);
 
-  const doTopup = (val: number) => {
+  const doTopup = (val: number, verifiedPin?: string) => {
     setLoadingTopup(true);
     setTopupSuccess(null);
     const token = localStorage.getItem("token");
@@ -15324,11 +15359,13 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(token ? { "Authorization": `Bearer ${token}` } : {})
+        ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+        ...(verifiedPin ? { "X-Payment-PIN": verifiedPin } : {})
       },
       body: JSON.stringify({
         amount: val,
-        description: "Dev/Test Wallet Recharge"
+        description: "Dev/Test Wallet Recharge",
+        pin: verifiedPin || undefined
       })
     })
       .then(res => {
@@ -15368,14 +15405,83 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
   const handleTopup = (e: React.FormEvent) => {
     e.preventDefault();
     const val = parseFloat(topupAmount);
-    if (!val || val <= 0) return;
-
+    if (isNaN(val) || val <= 0) return;
     if (isPinSet()) {
-      // Show PIN verify modal; store the actual topup as a pending action
-      setPendingTopupFn(() => () => doTopup(val));
       setShowPinModal(true);
     } else {
       doTopup(val);
+    }
+  };
+
+  const executeSetPin = async (pin: string) => {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_URL}/wallet/security-pin`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ pin })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setPinEnabledState(true);
+        setPinHasSet(true);
+        setPinMgmtSuccess('Payment PIN set successfully! 🎉');
+      } else {
+        setPinMgmtErr(data.detail || "Failed to set payment PIN.");
+      }
+    } catch {
+      setPinMgmtErr("Connection error. Please try again.");
+    }
+  };
+
+  const executeChangePin = async (oldPin: string, newPin: string) => {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_URL}/wallet/security-pin/change`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ old_pin: oldPin, new_pin: newPin })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setPinEnabledState(true);
+        setPinHasSet(true);
+        setPinMgmtSuccess('Payment PIN changed successfully! 🎉');
+      } else {
+        setPinMgmtErr(data.detail || "Failed to change payment PIN.");
+      }
+    } catch {
+      setPinMgmtErr("Connection error. Please try again.");
+    }
+  };
+
+  const executeRemovePin = async (pin: string) => {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_URL}/wallet/security-pin/remove`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ pin })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setPinEnabledState(false);
+        setPinHasSet(false);
+        setPinMgmtSuccess('Payment PIN removed successfully.');
+      } else {
+        setPinMgmtErr(data.detail || "Failed to remove payment PIN.");
+      }
+    } catch {
+      setPinMgmtErr("Connection error. Please try again.");
     }
   };
 
@@ -15809,19 +15915,21 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
                       const cur = pinMgmtStep === 'verify_old' ? pinMgmtOld : pinMgmtStep === 'enter' ? pinMgmtVal : pinMgmtConfirm;
                       if (cur.length < 4) { setPinMgmtErr('Enter all 4 digits.'); return; }
                       if (pinMgmtMode === 'remove' && pinMgmtStep === 'verify_old') {
-                        if (!verifyPin(cur)) { setPinMgmtErr('Incorrect PIN. Try again.'); setPinMgmtOld(''); return; }
-                        removePinHash(); setPinHasSet(false); setPinMgmtSuccess('Payment PIN removed successfully.');
+                        executeRemovePin(cur);
                         return;
                       }
                       if (pinMgmtMode === 'change' && pinMgmtStep === 'verify_old') {
-                        if (!verifyPin(cur)) { setPinMgmtErr('Incorrect current PIN. Try again.'); setPinMgmtOld(''); return; }
-                        setPinMgmtStep('enter'); return;
+                        setPinMgmtStep('enter');
+                        return;
                       }
                       if (pinMgmtStep === 'enter') { setPinMgmtStep('confirm'); return; }
                       if (pinMgmtStep === 'confirm') {
                         if (pinMgmtConfirm !== pinMgmtVal) { setPinMgmtErr('PINs do not match. Start over.'); setPinMgmtVal(''); setPinMgmtConfirm(''); setPinMgmtStep('enter'); return; }
-                        setPinHash(pinMgmtVal); setPinHasSet(true);
-                        setPinMgmtSuccess(pinMgmtMode === 'set' ? 'Payment PIN set successfully! 🎉' : 'Payment PIN changed successfully! 🎉');
+                        if (pinMgmtMode === 'set') {
+                          executeSetPin(pinMgmtVal);
+                        } else if (pinMgmtMode === 'change') {
+                          executeChangePin(pinMgmtOld, pinMgmtVal);
+                        }
                         return;
                       }
                     }}
@@ -15842,11 +15950,14 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
         <PinVerifyModal
           description="Wallet Top-Up"
           amount={parseFloat(topupAmount) || undefined}
-          onSuccess={() => {
+          onSuccess={(verifiedPin) => {
             setShowPinModal(false);
-            if (pendingTopupFn) { pendingTopupFn(); setPendingTopupFn(null); }
+            const val = parseFloat(topupAmount);
+            if (!isNaN(val) && val > 0) {
+              doTopup(val, verifiedPin);
+            }
           }}
-          onCancel={() => { setShowPinModal(false); setPendingTopupFn(null); }}
+          onCancel={() => { setShowPinModal(false); }}
         />
       )}
     </div>
@@ -19170,9 +19281,20 @@ function LoginScreen({ onLogin, onNavigate }: {
         if (phone) localStorage.setItem("user_phone", phone.trim());
         localStorage.setItem("user_joined_date", new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }));
 
-        // Store payment PIN locally if user entered one during signup
+        // Store payment PIN status if user entered one during signup
         if (paymentPin && /^\d{4}$/.test(paymentPin)) {
-          setPinHash(paymentPin);
+          setPinEnabledState(true);
+          const curToken = localStorage.getItem("token");
+          if (curToken) {
+            fetch(`${API_URL}/wallet/security-pin`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${curToken}`
+              },
+              body: JSON.stringify({ pin: paymentPin })
+            }).catch(e => console.error("Error setting PIN on signup:", e));
+          }
         }
 
         // Success — navigate to verify-email

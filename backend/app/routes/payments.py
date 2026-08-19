@@ -172,19 +172,32 @@ class CreateOrderRequest(BaseModel):
     currency: str = Field("INR", description="Currency code")
     method: Optional[str] = Field("card", description="Payment method: card, upi, etc.")
     human_approved: Optional[bool] = False
+    pin: Optional[str] = Field(None, description="4-digit payment security PIN")
 
 
 @router.post("/create-order")
 def create_payment_order(
     req: CreateOrderRequest,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_payment_pin: Optional[str] = Header(None, alias="X-Payment-PIN")
 ):
     """
     Creates a Razorpay order, updates booking status, registers a payment record,
     and logs the transaction.
     """
     from app.payments.config import validate_live_safety_gates
+    from app.services import security_pin_service
+
+    if security_pin_service.is_pin_enabled(db, current_user.id):
+        provided_pin = req.pin or x_payment_pin
+        if not provided_pin:
+            raise HTTPException(
+                status_code=400,
+                detail="Payment security PIN required."
+            )
+        security_pin_service.verify_pin(db, current_user.id, provided_pin, purpose="create_order")
+
     validate_live_safety_gates()
 
     # 1. Rate limiting check

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Header, status
 from sqlalchemy.orm import Session
 from decimal import Decimal
 from typing import List, Optional
@@ -33,6 +33,7 @@ class WalletTopupRequest(BaseModel):
     amount: float = Field(..., gt=0)
     payment_token: Optional[str] = "test_token_dev"  # Simulated stripe/test card token
     description: Optional[str] = "Wallet Recharge"
+    pin: Optional[str] = Field(None, description="4-digit payment security PIN")
 
 class CouponApplyRequest(BaseModel):
     code: str
@@ -119,10 +120,22 @@ def get_wallet(
 def top_up_wallet(
     req: WalletTopupRequest,
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_payment_pin: Optional[str] = Header(None, alias="X-Payment-PIN")
 ):
     import os
     from app.payments.config import settings
+    from app.services import security_pin_service
+
+    # Enforce backend PIN check if user has PIN set in DB
+    if security_pin_service.is_pin_enabled(db, user.id):
+        provided_pin = req.pin or x_payment_pin
+        if not provided_pin:
+            raise HTTPException(
+                status_code=400,
+                detail="Payment security PIN required."
+            )
+        security_pin_service.verify_pin(db, user.id, provided_pin, purpose="wallet_topup")
     
     # Safety check: prevent test recharge in production environment
     mode = os.getenv("PAYMENT_MODE", settings.PAYMENT_MODE).lower()
