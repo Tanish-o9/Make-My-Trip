@@ -102,6 +102,39 @@ const addLocalWalletTransaction = (type: 'credit' | 'debit', amount: number, ref
   }
 };
 
+// ── Payment PIN helpers ───────────────────────────────────────────────────────
+// Simple deterministic hash — good enough for a local UX security PIN
+const _hashPin = (pin: string): string => {
+  const salt = "GhumneChale_v1_";
+  const str = salt + pin;
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const chr = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + chr;
+    hash |= 0; // Convert to 32-bit int
+  }
+  // Make it always positive and pad to fixed length
+  return "ph_" + (hash >>> 0).toString(16).padStart(8, "0");
+};
+const PIN_KEY = "payment_pin_hash";
+const getPinHash = (): string | null => {
+  try { return localStorage.getItem(PIN_KEY); } catch { return null; }
+};
+const setPinHash = (pin: string): void => {
+  try { localStorage.setItem(PIN_KEY, _hashPin(pin)); } catch {}
+};
+const removePinHash = (): void => {
+  try { localStorage.removeItem(PIN_KEY); } catch {}
+};
+const verifyPin = (pin: string): boolean => {
+  const stored = getPinHash();
+  if (!stored) return true; // no PIN set = always pass
+  return stored === _hashPin(pin);
+};
+const isPinSet = (): boolean => !!getPinHash();
+// ─────────────────────────────────────────────────────────────────────────────
+
+
 const TRIP_GRADIENTS = [
   'from-violet-900/80 via-purple-900/60 to-slate-900',
   'from-blue-900/80 via-cyan-900/60 to-slate-900',
@@ -10373,6 +10406,8 @@ function CheckoutModal({
   const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
   const [showDccConfirm, setShowDccConfirm] = useState(false);
   const [dccData, setDccData] = useState<any>(null);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinVerified, setPinVerified] = useState(false);
   
   const [loading, setLoading] = useTabLoading('insurance');
   const [error, setError] = useState("");
@@ -10579,7 +10614,11 @@ function CheckoutModal({
     };
   };
 
-  const executeBooking = () => {
+  const executeBooking = (bypassingPin: boolean = false) => {
+    if (isPinSet() && bypassingPin !== true && !pinVerified) {
+      setShowPinModal(true);
+      return;
+    }
     setLoading(true);
     setError("");
 
@@ -11520,7 +11559,7 @@ function CheckoutModal({
                   Razorpay primarily processes charges in <strong>INR</strong>. Your checkout amount of ₹{dccData.amount} will be billed to your local source.
                 </p>
                 <button 
-                  onClick={() => { setShowDccConfirm(false); executeBooking(); }}
+                  onClick={() => { setShowDccConfirm(false); executeBooking(true); }}
                   className="w-full bg-yellow-400 border-2 border-black font-black py-2 rounded-lg text-[10px] uppercase cursor-pointer"
                 >
                   Accept DCC & Pay
@@ -11681,7 +11720,7 @@ function CheckoutModal({
               <button onClick={() => setStep(1)} className="bg-white border-2 border-black font-black text-xs px-4 py-2.5 rounded-lg cursor-pointer uppercase">Back</button>
               <button 
                 disabled={loading}
-                onClick={executeBooking}
+                onClick={() => executeBooking()}
                 className="flex-1 bg-emerald-400 hover:bg-emerald-500 border-3 border-black font-black text-xs py-2.5 rounded-lg shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] cursor-pointer transition-all uppercase flex items-center justify-center gap-2"
               >
                 {loading ? "Authorizing transaction..." : "Confirm & Pay Now"}
@@ -11742,6 +11781,22 @@ function CheckoutModal({
           </div>
         )}
       </div>
+
+      {showPinModal && (
+        <PinVerifyModal
+          description={`Booking Payment: ${data.title}`}
+          amount={finalAmount}
+          onSuccess={() => {
+            setShowPinModal(false);
+            setPinVerified(true);
+            executeBooking(true);
+          }}
+          onCancel={() => {
+            setShowPinModal(false);
+            setLoading(false);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -14975,6 +15030,167 @@ function ChatView({
 }
 
 /* ---------------------------------------------------- */
+/* PIN VERIFY MODAL                                     */
+/* ---------------------------------------------------- */
+function PinVerifyModal({ onSuccess, onCancel, amount, description }: {
+  onSuccess: () => void;
+  onCancel: () => void;
+  amount?: number;
+  description?: string;
+}) {
+  const [digits, setDigits] = React.useState(['', '', '', '']);
+  const [error, setError] = React.useState('');
+  const [shake, setShake] = React.useState(false);
+  const inputRefs = [
+    React.useRef<HTMLInputElement>(null),
+    React.useRef<HTMLInputElement>(null),
+    React.useRef<HTMLInputElement>(null),
+    React.useRef<HTMLInputElement>(null),
+  ];
+
+  React.useEffect(() => {
+    inputRefs[0].current?.focus();
+  }, []);
+
+  const handleDigitChange = (idx: number, val: string) => {
+    if (!/^\d?$/.test(val)) return;
+    const next = [...digits];
+    next[idx] = val;
+    setDigits(next);
+    setError('');
+    if (val && idx < 3) {
+      inputRefs[idx + 1].current?.focus();
+    }
+  };
+
+  const handleKeyDown = (idx: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !digits[idx] && idx > 0) {
+      inputRefs[idx - 1].current?.focus();
+    }
+    if (e.key === 'Enter') handleVerify();
+  };
+
+  const handleVerify = () => {
+    const pin = digits.join('');
+    if (pin.length < 4) { setError('Enter all 4 digits.'); return; }
+    if (verifyPin(pin)) {
+      onSuccess();
+    } else {
+      setError('Incorrect PIN. Try again.');
+      setShake(true);
+      setDigits(['', '', '', '']);
+      setTimeout(() => { setShake(false); inputRefs[0].current?.focus(); }, 500);
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const text = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 4);
+    if (text.length === 4) {
+      setDigits(text.split(''));
+      inputRefs[3].current?.focus();
+    }
+    e.preventDefault();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[1200] flex items-center justify-center p-4">
+      <div
+        className="pin-modal-inner bg-[#FAF6EE] border-4 border-black shadow-[8px_8px_0px_0px_#000000] rounded-3xl p-7 w-full max-w-sm text-left"
+        style={{ color: '#0f172a' }}
+      >
+        {/* Header */}
+        <div className="text-center mb-5">
+          <div className="text-4xl mb-2">🔐</div>
+          <h3 className="text-lg font-black uppercase tracking-wide" style={{ color: '#0f172a' }}>
+            Payment PIN Required
+          </h3>
+          {(amount || description) && (
+            <div className="mt-2 bg-white border-2 border-black rounded-xl px-3 py-2 shadow-[2px_2px_0px_0px_#000]">
+              {description && <p className="text-xs font-bold" style={{ color: '#374151' }}>{description}</p>}
+              {amount !== undefined && (
+                <p className="text-base font-black mt-0.5" style={{ color: '#0f172a' }}>
+                  ₹{amount.toLocaleString()}
+                </p>
+              )}
+            </div>
+          )}
+          <p className="text-xs font-semibold mt-3" style={{ color: '#64748b' }}>
+            Enter your 4-digit security PIN to authorize this payment
+          </p>
+        </div>
+
+        {/* OTP Digit Boxes */}
+        <div
+          className="flex justify-center gap-3 mb-4"
+          style={{ animation: shake ? 'pin-shake 0.4s ease' : 'none' }}
+        >
+          {digits.map((d, i) => (
+            <input
+              key={i}
+              ref={inputRefs[i]}
+              type="password"
+              inputMode="numeric"
+              maxLength={1}
+              value={d}
+              onChange={e => handleDigitChange(i, e.target.value)}
+              onKeyDown={e => handleKeyDown(i, e)}
+              onPaste={handlePaste}
+              className="pin-digit-input"
+              style={{
+                width: '52px',
+                height: '60px',
+                textAlign: 'center',
+                fontSize: '24px',
+                fontWeight: '900',
+                background: '#ffffff',
+                border: d ? '3px solid #000000' : '2.5px solid #94a3b8',
+                borderRadius: '12px',
+                boxShadow: d ? '3px 3px 0px 0px #000000' : '2px 2px 0px 0px #d1d5db',
+                color: '#0f172a',
+                outline: 'none',
+                transition: 'border 0.15s, box-shadow 0.15s',
+              }}
+            />
+          ))}
+        </div>
+
+        {/* Error */}
+        {error && (
+          <p className="text-center text-xs font-bold mb-3" style={{ color: '#dc2626' }}>
+            ⚠️ {error}
+          </p>
+        )}
+
+        {/* Buttons */}
+        <div className="flex gap-2 mt-2">
+          <button
+            onClick={onCancel}
+            className="flex-1 bg-white border-2 border-black font-black text-xs py-2.5 rounded-xl cursor-pointer uppercase"
+            style={{ color: '#374151', boxShadow: '2px 2px 0px 0px #000' }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleVerify}
+            className="flex-2 border-3 border-black font-black text-sm py-2.5 px-6 rounded-xl cursor-pointer uppercase transition-transform"
+            style={{
+              background: '#f3c623',
+              color: '#000',
+              boxShadow: '3px 3px 0px 0px #000',
+              flexGrow: 2,
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translate(-1px,-1px)'; (e.currentTarget as HTMLElement).style.boxShadow = '4px 4px 0px 0px #000'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = ''; (e.currentTarget as HTMLElement).style.boxShadow = '3px 3px 0px 0px #000'; }}
+          >
+            🔓 Verify PIN
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------- */
 /* WALLET VIEW                                          */
 /* ---------------------------------------------------- */
 function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUserProfile: any }) {
@@ -14991,6 +15207,20 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
   const [txTypeFilter, setTxTypeFilter] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+
+  // PIN states
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pendingTopupFn, setPendingTopupFn] = useState<(() => void) | null>(null);
+  const [pinHasSet, setPinHasSet] = useState(isPinSet);
+  // PIN management panel
+  const [showPinMgmt, setShowPinMgmt] = useState(false);
+  const [pinMgmtMode, setPinMgmtMode] = useState<'set' | 'change' | 'remove'>('set');
+  const [pinMgmtStep, setPinMgmtStep] = useState<'enter' | 'confirm' | 'verify_old'>('enter');
+  const [pinMgmtVal, setPinMgmtVal] = useState('');
+  const [pinMgmtConfirm, setPinMgmtConfirm] = useState('');
+  const [pinMgmtOld, setPinMgmtOld] = useState('');
+  const [pinMgmtErr, setPinMgmtErr] = useState('');
+  const [pinMgmtSuccess, setPinMgmtSuccess] = useState('');
 
   const fetchWallet = () => {
     const token = localStorage.getItem("token");
@@ -15074,11 +15304,7 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
     fetchWallet();
   }, [searchQuery, txTypeFilter, startDate, endDate]);
 
-  const handleTopup = (e: React.FormEvent) => {
-    e.preventDefault();
-    const val = parseFloat(topupAmount);
-    if (!val || val <= 0) return;
-
+  const doTopup = (val: number) => {
     setLoadingTopup(true);
     setTopupSuccess(null);
     const token = localStorage.getItem("token");
@@ -15127,6 +15353,21 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
         fetchWallet();
       });
   };
+
+  const handleTopup = (e: React.FormEvent) => {
+    e.preventDefault();
+    const val = parseFloat(topupAmount);
+    if (!val || val <= 0) return;
+
+    if (isPinSet()) {
+      // Show PIN verify modal; store the actual topup as a pending action
+      setPendingTopupFn(() => () => doTopup(val));
+      setShowPinModal(true);
+    } else {
+      doTopup(val);
+    }
+  };
+
 
   const handleApplyCoupon = () => {
     if (!couponCode.trim()) return;
@@ -15465,6 +15706,137 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
 
           </div>
         </div>
+      )}
+
+      {/* ── PIN Management Card ── */}
+      <div className="glass-card p-6 rounded-2xl border border-slate-800 space-y-4 text-left">
+        <div className="flex justify-between items-center">
+          <h4 className="font-bold text-slate-200 flex items-center gap-2">
+            🔐 Payment Security PIN
+          </h4>
+          <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase border ${pinHasSet ? 'bg-emerald-950 text-emerald-400 border-emerald-500/40' : 'bg-red-950 text-red-400 border-red-500/40'}`}>
+            {pinHasSet ? '✓ PIN Active' : '✗ No PIN Set'}
+          </span>
+        </div>
+        <p className="text-xs text-slate-400 font-semibold">
+          {pinHasSet
+            ? 'A 4-digit PIN is active. You will be asked to verify it before every payment.'
+            : "Set a 4-digit PIN to secure all your payments. You'll be prompted to verify it at every checkout."}
+        </p>
+
+        {!showPinMgmt && (
+          <div className="flex flex-wrap gap-2">
+            {!pinHasSet && (
+              <button
+                onClick={() => { setShowPinMgmt(true); setPinMgmtMode('set'); setPinMgmtStep('enter'); setPinMgmtVal(''); setPinMgmtConfirm(''); setPinMgmtErr(''); setPinMgmtSuccess(''); }}
+                className="px-4 py-2 bg-yellow-300 hover:bg-yellow-400 text-black border-2 border-black font-black text-xs rounded-xl shadow-[2px_2px_0px_0px_#000] cursor-pointer uppercase transition-all"
+              >
+                + Set Payment PIN
+              </button>
+            )}
+            {pinHasSet && (
+              <>
+                <button
+                  onClick={() => { setShowPinMgmt(true); setPinMgmtMode('change'); setPinMgmtStep('verify_old'); setPinMgmtVal(''); setPinMgmtConfirm(''); setPinMgmtOld(''); setPinMgmtErr(''); setPinMgmtSuccess(''); }}
+                  className="px-4 py-2 bg-white border-2 border-black font-black text-xs rounded-xl shadow-[2px_2px_0px_0px_#000] cursor-pointer uppercase transition-all text-slate-800"
+                >
+                  ✏️ Change PIN
+                </button>
+                <button
+                  onClick={() => { setShowPinMgmt(true); setPinMgmtMode('remove'); setPinMgmtStep('verify_old'); setPinMgmtVal(''); setPinMgmtOld(''); setPinMgmtErr(''); setPinMgmtSuccess(''); }}
+                  className="px-4 py-2 bg-red-100 border-2 border-red-600 font-black text-xs rounded-xl shadow-[2px_2px_0px_0px_#dc2626] cursor-pointer uppercase transition-all text-red-700"
+                >
+                  🗑 Remove PIN
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {showPinMgmt && (
+          <div className="bg-[#0d1425] border-2 border-slate-700 rounded-xl p-4 space-y-3">
+            {pinMgmtSuccess ? (
+              <div className="text-center space-y-3">
+                <div className="text-3xl">✅</div>
+                <p className="text-sm font-black text-emerald-400">{pinMgmtSuccess}</p>
+                <button
+                  onClick={() => setShowPinMgmt(false)}
+                  className="px-4 py-2 bg-yellow-300 text-black border-2 border-black font-black text-xs rounded-xl shadow-[2px_2px_0px_0px_#000] cursor-pointer uppercase"
+                >Done</button>
+              </div>
+            ) : (
+              <>
+                <p className="text-xs font-black text-slate-300 uppercase tracking-wide">
+                  {pinMgmtMode === 'set' && '🔐 Set a new 4-digit PIN'}
+                  {pinMgmtMode === 'change' && (pinMgmtStep === 'verify_old' ? '🔑 Enter your current PIN' : pinMgmtStep === 'enter' ? '🔐 Enter new PIN' : '🔁 Confirm new PIN')}
+                  {pinMgmtMode === 'remove' && '🗑 Enter current PIN to remove'}
+                </p>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={4}
+                  value={pinMgmtStep === 'verify_old' ? pinMgmtOld : pinMgmtStep === 'enter' ? pinMgmtVal : pinMgmtConfirm}
+                  onChange={e => {
+                    const v = e.target.value.replace(/\D/g, '').slice(0, 4);
+                    if (pinMgmtStep === 'verify_old') setPinMgmtOld(v);
+                    else if (pinMgmtStep === 'enter') setPinMgmtVal(v);
+                    else setPinMgmtConfirm(v);
+                    setPinMgmtErr('');
+                  }}
+                  placeholder="••••"
+                  className="w-full text-center text-2xl font-black py-3 rounded-xl border-2 border-slate-600 bg-slate-800 text-white outline-none focus:border-yellow-400"
+                  style={{ letterSpacing: '0.5em' }}
+                />
+                {pinMgmtErr && <p className="text-xs font-bold text-red-400">⚠️ {pinMgmtErr}</p>}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowPinMgmt(false)}
+                    className="flex-1 py-2 bg-slate-700 text-slate-300 border border-slate-600 font-bold text-xs rounded-lg cursor-pointer uppercase"
+                  >Cancel</button>
+                  <button
+                    onClick={() => {
+                      const cur = pinMgmtStep === 'verify_old' ? pinMgmtOld : pinMgmtStep === 'enter' ? pinMgmtVal : pinMgmtConfirm;
+                      if (cur.length < 4) { setPinMgmtErr('Enter all 4 digits.'); return; }
+                      if (pinMgmtMode === 'remove' && pinMgmtStep === 'verify_old') {
+                        if (!verifyPin(cur)) { setPinMgmtErr('Incorrect PIN. Try again.'); setPinMgmtOld(''); return; }
+                        removePinHash(); setPinHasSet(false); setPinMgmtSuccess('Payment PIN removed successfully.');
+                        return;
+                      }
+                      if (pinMgmtMode === 'change' && pinMgmtStep === 'verify_old') {
+                        if (!verifyPin(cur)) { setPinMgmtErr('Incorrect current PIN. Try again.'); setPinMgmtOld(''); return; }
+                        setPinMgmtStep('enter'); return;
+                      }
+                      if (pinMgmtStep === 'enter') { setPinMgmtStep('confirm'); return; }
+                      if (pinMgmtStep === 'confirm') {
+                        if (pinMgmtConfirm !== pinMgmtVal) { setPinMgmtErr('PINs do not match. Start over.'); setPinMgmtVal(''); setPinMgmtConfirm(''); setPinMgmtStep('enter'); return; }
+                        setPinHash(pinMgmtVal); setPinHasSet(true);
+                        setPinMgmtSuccess(pinMgmtMode === 'set' ? 'Payment PIN set successfully! 🎉' : 'Payment PIN changed successfully! 🎉');
+                        return;
+                      }
+                    }}
+                    className="py-2 px-4 bg-yellow-300 text-black border-2 border-black font-black text-xs rounded-lg cursor-pointer uppercase shadow-[2px_2px_0px_0px_#000]"
+                    style={{ flexGrow: 2 }}
+                  >
+                    {pinMgmtStep === 'verify_old' ? (pinMgmtMode === 'remove' ? 'Remove PIN' : 'Verify') : pinMgmtStep === 'enter' ? 'Next →' : 'Confirm PIN'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* PIN Verify Modal — shown before topup if PIN is set */}
+      {showPinModal && (
+        <PinVerifyModal
+          description="Wallet Top-Up"
+          amount={parseFloat(topupAmount) || undefined}
+          onSuccess={() => {
+            setShowPinModal(false);
+            if (pendingTopupFn) { pendingTopupFn(); setPendingTopupFn(null); }
+          }}
+          onCancel={() => { setShowPinModal(false); setPendingTopupFn(null); }}
+        />
       )}
     </div>
   );
@@ -18476,6 +18848,8 @@ function LoginScreen({ onLogin, onNavigate }: {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [paymentPin, setPaymentPin] = useState("");
+  const [confirmPaymentPin, setConfirmPaymentPin] = useState("");
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -18510,6 +18884,14 @@ function LoginScreen({ onLogin, onNavigate }: {
       if (!trimmedName) errs.fullName = "Please enter your full name.";
       else if (trimmedName.length < 2) errs.fullName = "Name must be at least 2 characters.";
       else if (!/[a-zA-Z]/.test(trimmedName)) errs.fullName = "Name must contain at least one letter.";
+
+      if (paymentPin) {
+        if (!/^\d{4}$/.test(paymentPin)) {
+          errs.paymentPin = "Payment PIN must be exactly 4 digits.";
+        } else if (confirmPaymentPin !== paymentPin) {
+          errs.confirmPaymentPin = "Payment PINs do not match.";
+        }
+      }
     }
     if (!email.trim()) errs.email = "Please enter your email address.";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) errs.email = "Please enter a valid email address.";
@@ -18575,6 +18957,12 @@ function LoginScreen({ onLogin, onNavigate }: {
           }
           return;
         }
+
+        // Store payment PIN locally if user entered one during signup
+        if (paymentPin && /^\d{4}$/.test(paymentPin)) {
+          setPinHash(paymentPin);
+        }
+
         // Success — navigate to verify-email
         if (onNavigate) {
           onNavigate(`/verify-email?email=${encodeURIComponent(email.trim().toLowerCase())}`);
@@ -18648,27 +19036,25 @@ function LoginScreen({ onLogin, onNavigate }: {
 
         {errorMsg && (
           <div className="bg-red-50 border-2 border-red-500 p-3 rounded-lg mb-4">
-            <p className="text-red-600 font-bold text-xs">⚠️ {errorMsg}</p>
+            <p className="text-xs text-red-600 font-bold text-center">{errorMsg}</p>
             {unverifiedEmail && (
-              <div className="mt-3 flex flex-col gap-2">
+              <div className="mt-2 text-center">
                 <button
                   type="button"
-                  onClick={() => onNavigate && onNavigate(`/verify-email?email=${encodeURIComponent(unverifiedEmail)}`)}
-                  className="w-full bg-blue-600 text-white text-[10px] font-black uppercase py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Enter Verification Code →
-                </button>
-                <button
-                  type="button"
-                  disabled={resendLoading}
                   onClick={handleResendCode}
-                  className="w-full bg-slate-100 text-slate-700 text-[10px] font-bold uppercase py-2 rounded-lg hover:bg-slate-200 transition-colors"
+                  disabled={resendLoading}
+                  className="text-xs bg-red-500 hover:bg-red-600 text-white font-bold px-3 py-1 rounded cursor-pointer transition-colors"
                 >
                   {resendLoading ? "Sending..." : "Resend Verification Code"}
                 </button>
-                {resendMsg && <p className="text-[10px] text-blue-600 font-semibold text-center">{resendMsg}</p>}
               </div>
             )}
+          </div>
+        )}
+
+        {resendMsg && (
+          <div className="bg-blue-50 border-2 border-blue-500 p-3 rounded-lg mb-4">
+            <p className="text-xs text-blue-700 font-bold text-center">{resendMsg}</p>
           </div>
         )}
 
@@ -18680,7 +19066,7 @@ function LoginScreen({ onLogin, onNavigate }: {
                 type="text"
                 value={fullName}
                 onChange={e => { setFullName(e.target.value); setFieldErrors(p => ({ ...p, fullName: "" })); }}
-                placeholder="e.g. Priya Sharma"
+                placeholder="e.g. Rahul Sharma"
                 className={`${inputCls} ${fieldErrors.fullName ? "border-red-500" : ""}`}
                 autoComplete="name"
               />
@@ -18693,7 +19079,7 @@ function LoginScreen({ onLogin, onNavigate }: {
             <input
               type="email"
               value={email}
-              onChange={e => { setEmail(e.target.value); setFieldErrors(p => ({ ...p, email: "" })); setUnverifiedEmail(null); }}
+              onChange={e => { setEmail(e.target.value); setFieldErrors(p => ({ ...p, email: "" })); }}
               placeholder="you@example.com"
               className={`${inputCls} ${fieldErrors.email ? "border-red-500" : ""}`}
               autoComplete={isSignUp ? "email" : "username"}
@@ -18773,6 +19159,45 @@ function LoginScreen({ onLogin, onNavigate }: {
                 className={inputCls}
                 autoComplete="tel"
               />
+            </div>
+          )}
+
+          {isSignUp && (
+            <div className="bg-[#FAF6EE] p-3 rounded-xl border-2 border-black space-y-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+              <div className="flex justify-between items-center">
+                <label className="text-[11px] uppercase font-black text-black flex items-center gap-1.5">
+                  🔐 Payment Security PIN <span className="text-[9px] font-normal text-slate-500">(4 digits)</span>
+                </label>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={4}
+                    value={paymentPin}
+                    onChange={e => { setPaymentPin(e.target.value.replace(/\D/g, '').slice(0, 4)); setFieldErrors(p => ({ ...p, paymentPin: "" })); }}
+                    placeholder="Set PIN (e.g. 1234)"
+                    className={`${inputCls} text-center tracking-[0.2em] font-black`}
+                  />
+                  {fieldErrors.paymentPin && <p className={errorCls}>{fieldErrors.paymentPin}</p>}
+                </div>
+                <div>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={4}
+                    value={confirmPaymentPin}
+                    onChange={e => { setConfirmPaymentPin(e.target.value.replace(/\D/g, '').slice(0, 4)); setFieldErrors(p => ({ ...p, confirmPaymentPin: "" })); }}
+                    placeholder="Confirm PIN"
+                    className={`${inputCls} text-center tracking-[0.2em] font-black`}
+                  />
+                  {fieldErrors.confirmPaymentPin && <p className={errorCls}>{fieldErrors.confirmPaymentPin}</p>}
+                </div>
+              </div>
+              <p className="text-[9px] font-semibold text-slate-600 leading-tight">
+                This PIN will secure all your wallet & booking transactions.
+              </p>
             </div>
           )}
 
