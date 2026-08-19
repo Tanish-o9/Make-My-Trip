@@ -47,6 +47,7 @@ jobs:
       JWT_SECRET_KEY: ci-test-secret-key-not-for-production
       SENTRY_DSN: ""
       DUFFEL_ACCESS_TOKEN: ""
+      DUFFEL_API_KEY: "duffel_test_key"
       STORAGE_BACKEND: local
       PYTHONPATH: .
 
