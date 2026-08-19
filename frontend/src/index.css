@@ -1291,3 +1291,136 @@ body.light-mode .chat-followup-chip:hover,
 }
 
 
+/* ================================================================
+   WALLET HISTORY MODAL — dark theme overrides
+   Must come LAST to beat the neobrutalist global !important resets
+   ================================================================ */
+
+/* Reset bg-slate-900 card style inside modal */
+.wallet-modal .wallet-modal-inner,
+.wallet-modal .wallet-modal-inner * {
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  background-color: transparent !important;
+  color: inherit !important;
+}
+
+/* Restore modal container itself */
+.wallet-modal .wallet-modal-inner {
+  background-color: #0b1329 !important;
+  border: 3px solid #000000 !important;
+  box-shadow: 8px 8px 0px 0px #000000 !important;
+  border-radius: 1.5rem !important;
+  color: #ffffff !important;
+}
+
+/* All text inside modal = white by default */
+.wallet-modal .wallet-modal-inner h3,
+.wallet-modal .wallet-modal-inner h4,
+.wallet-modal .wallet-modal-inner span,
+.wallet-modal .wallet-modal-inner p,
+.wallet-modal .wallet-modal-inner div,
+.wallet-modal .wallet-modal-inner label {
+  color: inherit !important;
+}
+
+/* Input and select — dark background, white text */
+.wallet-modal .wallet-modal-inner input[type="text"],
+.wallet-modal .wallet-modal-inner select {
+  background-color: #111827 !important;
+  color: #ffffff !important;
+  border: 1.5px solid #374151 !important;
+  box-shadow: none !important;
+  border-radius: 0.5rem !important;
+  padding: 6px 12px !important;
+}
+
+.wallet-modal .wallet-modal-inner input[type="text"]::placeholder {
+  color: #6b7280 !important;
+  opacity: 1 !important;
+}
+
+/* Transaction rows — dark card */
+.wallet-modal .wallet-modal-inner .tx-row {
+  background-color: rgba(15, 23, 42, 0.9) !important;
+  border: 1px solid #1e293b !important;
+  border-radius: 0.75rem !important;
+  box-shadow: none !important;
+}
+
+/* Description text — white */
+.wallet-modal .wallet-modal-inner .tx-desc {
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+
+/* Reference / balance text — muted gray */
+.wallet-modal .wallet-modal-inner .tx-ref,
+.wallet-modal .wallet-modal-inner .tx-bal {
+  color: #94a3b8 !important;
+}
+
+/* Timestamp text */
+.wallet-modal .wallet-modal-inner .tx-time {
+  color: #64748b !important;
+}
+
+/* Credit amount — green */
+.wallet-modal .wallet-modal-inner .tx-credit {
+  color: #34d399 !important;
+  font-weight: 900 !important;
+}
+
+/* Debit amount — red */
+.wallet-modal .wallet-modal-inner .tx-debit {
+  color: #f87171 !important;
+  font-weight: 900 !important;
+}
+
+/* Filter section background */
+.wallet-modal .wallet-modal-inner .filter-row {
+  background-color: rgba(13, 20, 37, 0.6) !important;
+  border: 1px solid #1e293b !important;
+  border-radius: 0.75rem !important;
+  box-shadow: none !important;
+}
+
+/* Close / footer button */
+.wallet-modal .wallet-modal-inner button.modal-close-btn {
+  background-color: #1e293b !important;
+  color: #cbd5e1 !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0.75rem !important;
+}
+
+.wallet-modal .wallet-modal-inner button.modal-close-btn:hover {
+  background-color: #334155 !important;
+  color: #ffffff !important;
+}
+
+/* X icon button */
+.wallet-modal .wallet-modal-inner button.modal-x-btn {
+  background-color: transparent !important;
+  color: #64748b !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 9999px !important;
+}
+
+.wallet-modal .wallet-modal-inner button.modal-x-btn:hover {
+  background-color: #1e293b !important;
+  color: #ffffff !important;
+}
+
+/* Dividers */
+.wallet-modal .wallet-modal-inner .modal-divider {
+  border-color: #1e293b !important;
+}
+
+/* Empty state text */
+.wallet-modal .wallet-modal-inner .tx-empty {
+  color: #64748b !important;
+}
+

@@ -15371,78 +15371,76 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
 
       {/* Transaction History Modal Overlay */}
       {showHistoryModal && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[999] flex items-center justify-center p-4 overflow-y-auto font-sans">
-          <div className="bg-[#0b1329] border-3 border-black shadow-[8px_8px_0px_0px_#000000] w-full max-w-2xl rounded-3xl p-6 relative text-left space-y-4">
+        <div className="wallet-modal fixed inset-0 bg-black/85 backdrop-blur-sm z-[999] flex items-center justify-center p-4 overflow-y-auto font-sans">
+          <div className="wallet-modal-inner bg-[#0b1329] border-3 border-black shadow-[8px_8px_0px_0px_#000000] w-full max-w-2xl rounded-3xl p-6 relative text-left space-y-4">
             
             {/* Modal Header */}
-            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-              <h3 className="text-lg font-black text-white flex items-center gap-2">
+            <div className="modal-divider flex justify-between items-center border-b pb-3">
+              <h3 className="text-lg font-black flex items-center gap-2">
                 📑 WALLET TRANSACTION HISTORY & LEDGER
               </h3>
-              <button 
+              <button
                 onClick={() => setShowHistoryModal(false)}
-                className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded-full transition-all cursor-pointer"
+                className="modal-x-btn p-1 transition-all cursor-pointer rounded-full"
               >
                 <X size={18} />
               </button>
             </div>
 
             {/* Filters UI */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-[#0d1425]/60 p-4 rounded-xl border border-slate-800 text-xs">
+            <div className="filter-row grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 text-xs">
               <div>
-                <label className="text-[10px] font-bold text-slate-400 block mb-1" style={{ color: '#94a3b8' }}>Search Description/Ref</label>
-                <input 
-                  type="text" 
+                <label className="text-[10px] font-bold block mb-1">Search Description/Ref</label>
+                <input
+                  type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="e.g. Flight, Refund, CASHBACK"
-                  className="w-full pl-3 pr-3 py-1.5 rounded-lg border text-white font-bold"
-                  style={{ backgroundColor: '#111827', color: '#ffffff', borderColor: '#374151' }}
+                  className="w-full font-bold"
                 />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-400 block mb-1" style={{ color: '#94a3b8' }}>Transaction Type</label>
+                <label className="text-[10px] font-bold block mb-1">Transaction Type</label>
                 <select
                   value={txTypeFilter}
                   onChange={(e) => setTxTypeFilter(e.target.value)}
-                  className="w-full pl-2 pr-2 py-1.5 rounded-lg border text-white font-bold"
-                  style={{ backgroundColor: '#111827', color: '#ffffff', borderColor: '#374151' }}
+                  className="w-full font-bold"
                 >
-                  <option value="" style={{ backgroundColor: '#111827', color: '#ffffff' }}>All Types</option>
-                  <option value="credit" style={{ backgroundColor: '#111827', color: '#ffffff' }}>Credit / Refund</option>
-                  <option value="debit" style={{ backgroundColor: '#111827', color: '#ffffff' }}>Debit / Payment</option>
+                  <option value="">All Types</option>
+                  <option value="credit">Credit / Refund</option>
+                  <option value="debit">Debit / Payment</option>
                 </select>
               </div>
             </div>
 
             {/* Transactions List */}
-            <div className="max-h-[350px] overflow-y-auto space-y-2.5 pr-1 scrollbar-thin">
+            <div className="max-h-[350px] overflow-y-auto space-y-2 pr-1">
               {transactions.length > 0 ? (
                 transactions.map((tx: any) => {
                   const isCredit = tx.type === 'credit';
                   return (
-                    <div key={tx.id} className="flex justify-between items-center bg-slate-900/80 p-3.5 rounded-xl border border-slate-800 shadow-sm text-xs">
+                    <div key={tx.id} className="tx-row flex justify-between items-center p-3.5 text-xs">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          <span className={`text-[8px] font-black px-1.5 py-0.5 rounded border uppercase tracking-wider ${
-                            isCredit 
-                              ? 'bg-emerald-950 text-emerald-400 border-emerald-500/30' 
-                              : 'bg-rose-950 text-rose-400 border-rose-500/30'
+                          <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                            isCredit
+                              ? 'bg-emerald-950 text-emerald-400'
+                              : 'bg-rose-950 text-rose-400'
                           }`}>
                             {isCredit ? 'CREDIT' : 'DEBIT'}
                           </span>
-                          <span className="text-[9px] text-slate-400 font-mono" style={{ color: '#94a3b8' }}>#{tx.reference || tx.id}</span>
+                          <span className="tx-ref text-[9px] font-mono">#{tx.reference || tx.id}</span>
                         </div>
-                        <span className="text-xs text-white font-bold block" style={{ color: '#ffffff' }}>{tx.description || (isCredit ? 'Wallet Credit' : 'Wallet Payment')}</span>
-                        <span className="text-[9px] text-slate-400 block font-mono" style={{ color: '#94a3b8' }}>
+                        <span className="tx-desc text-xs block">{tx.description || (isCredit ? 'Wallet Credit' : 'Wallet Payment')}</span>
+                        <span className="tx-bal text-[9px] block font-mono">
                           Bal: ₹{tx.balance_before.toLocaleString()} ➔ ₹{tx.balance_after.toLocaleString()}
                         </span>
                       </div>
                       <div className="text-right">
-                        <span className={`text-sm font-black ${isCredit ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        <span className={`text-sm font-black block ${isCredit ? 'tx-credit' : 'tx-debit'}`}>
                           {isCredit ? '+' : '-'}₹{tx.amount.toLocaleString()}
                         </span>
-                        <span className="text-[9px] text-slate-500 block mt-0.5 font-mono" style={{ color: '#64748b' }}>
+                        <span className="tx-time text-[9px] block mt-0.5 font-mono">
                           {new Date(tx.timestamp).toLocaleDateString()} {new Date(tx.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
@@ -15450,19 +15448,20 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
                   );
                 })
               ) : (
-                <div className="text-slate-400 text-xs text-center py-6 font-bold">No wallet transactions recorded yet.</div>
+                <div className="tx-empty text-xs text-center py-6 font-bold">No wallet transactions recorded yet.</div>
               )}
             </div>
 
             {/* Footer Close Button */}
-            <div className="flex justify-end pt-2 border-t border-slate-800">
+            <div className="modal-divider flex justify-end pt-2 border-t">
               <button
                 onClick={() => setShowHistoryModal(false)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs transition-all cursor-pointer uppercase"
+                className="modal-close-btn px-4 py-2 font-bold text-xs transition-all cursor-pointer uppercase"
               >
                 Close
               </button>
             </div>
+
 
           </div>
         </div>
