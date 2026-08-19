@@ -111,6 +111,20 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
 
   useEffect(() => {
     try {
+      // 1. Check for draft card passed from previous page
+      const draftCardStr = localStorage.getItem("ghumne_chale_draft_card");
+      if (draftCardStr) {
+        const draftCard = JSON.parse(draftCardStr);
+        if (draftCard && draftCard.number) {
+          setRzpCardNumber(draftCard.number);
+          if (draftCard.expiry) setRzpCardExpiry(draftCard.expiry);
+          if (draftCard.cvv) setRzpCardCvv(draftCard.cvv);
+          if (draftCard.name) setRzpCardName(draftCard.name);
+        }
+        localStorage.removeItem("ghumne_chale_draft_card");
+      }
+
+      // 2. Load saved cards list
       const stored = localStorage.getItem("ghumne_chale_saved_cards");
       if (stored) {
         const parsed = JSON.parse(stored);
@@ -119,7 +133,7 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
         }
       }
     } catch (e) {
-      console.error("Failed to load saved cards:", e);
+      console.error("Failed to load cards:", e);
     }
   }, []);
 
