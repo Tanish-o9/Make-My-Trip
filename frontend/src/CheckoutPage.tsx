@@ -116,10 +116,6 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed) && parsed.length > 0) {
           setSavedCards(parsed);
-          setRzpCardNumber(parsed[0].number);
-          setRzpCardExpiry(parsed[0].expiry);
-          setRzpCardCvv(parsed[0].cvv);
-          setRzpCardName(parsed[0].name);
         }
       }
     } catch (e) {
@@ -147,11 +143,22 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
     }
   };
 
+  const resetToFreshCard = () => {
+    setRzpCardNumber("4012 0000 3333 0026");
+    setRzpCardExpiry("12/30");
+    setRzpCardCvv("123");
+    setRzpCardName(profile?.full_name || "Tanish Verified Traveler");
+  };
+
   const removeSavedCard = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    const targetCard = savedCards.find(c => c.id === id);
     const updated = savedCards.filter(c => c.id !== id);
     setSavedCards(updated);
     localStorage.setItem("ghumne_chale_saved_cards", JSON.stringify(updated));
+    if (targetCard && targetCard.number === rzpCardNumber) {
+      resetToFreshCard();
+    }
   };
 
   // Profile prefill and validation states (Phase 5 & 6)
@@ -996,7 +1003,16 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                           <label className="text-[10px] uppercase font-black text-black flex items-center gap-1">
                             💳 Your Saved Cards:
                           </label>
-                          <span className="text-[9px] font-bold text-slate-600 font-mono">{savedCards.length} Saved</span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={resetToFreshCard}
+                              className="text-[9px] font-black bg-white hover:bg-yellow-200 border border-black px-2 py-0.5 rounded cursor-pointer transition-all uppercase"
+                            >
+                              + Enter New Card
+                            </button>
+                            <span className="text-[9px] font-bold text-slate-600 font-mono">{savedCards.length} Saved</span>
+                          </div>
                         </div>
                         <div className="grid grid-cols-1 gap-1.5">
                           {savedCards.map((sc) => (
