@@ -11,68 +11,86 @@ client = TestClient(app)
 @pytest.fixture
 def profile_test_user():
     db = SessionLocal()
-    email = f"profile_sync_{datetime.datetime.utcnow().timestamp()}@travelos.com"
-    user = User(
-        email=email,
-        password_hash=hash_password("ProfilePass123!"),
-        role="user",
-        email_verified=True,
-        phone="+91 9876543210"
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
+    user = None
+    try:
+        email = f"profile_sync_{datetime.datetime.utcnow().timestamp()}@travelos.com"
+        user = User(
+            email=email,
+            password_hash=hash_password("ProfilePass123!"),
+            role="user",
+            email_verified=True,
+            phone="+91 9876543210"
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
 
-    profile = UserProfile(
-        user_id=user.id,
-        full_name="Original Name",
-        email=email,
-        mobile_number="+91 9876543210"
-    )
-    db.add(profile)
+        profile = UserProfile(
+            user_id=user.id,
+            full_name="Original Name",
+            email=email,
+            mobile_number="+91 9876543210"
+        )
+        db.add(profile)
 
-    wallet = WalletAccount(
-        user_id=user.id,
-        balance=25000.0,
-        currency="INR"
-    )
-    db.add(wallet)
-    db.commit()
+        existing_w = db.query(WalletAccount).filter(WalletAccount.user_id == user.id).first()
+        if existing_w:
+            existing_w.balance = 25000.0
+        else:
+            wallet = WalletAccount(
+                user_id=user.id,
+                balance=25000.0,
+                currency="INR"
+            )
+            db.add(wallet)
+        db.commit()
 
-    token = create_access_token({"sub": user.email, "email": user.email, "role": user.role})
-    
-    yield user, token
-
-    # Cleanup
-    db.query(SavedCompanion).filter(SavedCompanion.user_id == user.id).delete()
-    db.query(UserPaymentPin).filter(UserPaymentPin.user_id == user.id).delete()
-    db.query(UserProfile).filter(UserProfile.user_id == user.id).delete()
-    db.query(WalletAccount).filter(WalletAccount.user_id == user.id).delete()
-    db.query(User).filter(User.id == user.id).delete()
-    db.commit()
-    db.close()
+        token = create_access_token({"sub": user.email, "email": user.email, "role": user.role})
+        
+        yield user, token
+    finally:
+        if user:
+            try:
+                db.query(SavedCompanion).filter(SavedCompanion.user_id == user.id).delete()
+                db.query(UserPaymentPin).filter(UserPaymentPin.user_id == user.id).delete()
+                db.query(UserProfile).filter(UserProfile.user_id == user.id).delete()
+                db.query(WalletAccount).filter(WalletAccount.user_id == user.id).delete()
+                db.query(User).filter(User.id == user.id).delete()
+                db.commit()
+            except Exception:
+                db.rollback()
+            finally:
+                db.close()
 
 
 @pytest.fixture
 def second_test_user():
     db = SessionLocal()
-    email = f"user_b_{datetime.datetime.utcnow().timestamp()}@travelos.com"
-    user = User(
-        email=email,
-        password_hash=hash_password("OtherPass123!"),
-        role="user",
-        email_verified=True
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
+    user = None
+    try:
+        email = f"user_b_{datetime.datetime.utcnow().timestamp()}@travelos.com"
+        user = User(
+            email=email,
+            password_hash=hash_password("OtherPass123!"),
+            role="user",
+            email_verified=True
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
 
-    token = create_access_token({"sub": user.email, "email": user.email, "role": user.role})
-    yield user, token
-
-    db.query(SavedCompanion).filter(SavedCompanion.user_id == user.id).delete()
-    db.query(User).filter(User.id == user.id).delete()
-    db.commit()
+        token = create_access_token({"sub": user.email, "email": user.email, "role": user.role})
+        yield user, token
+    finally:
+        if user:
+            try:
+                db.query(SavedCompanion).filter(SavedCompanion.user_id == user.id).delete()
+                db.query(User).filter(User.id == user.id).delete()
+                db.commit()
+            except Exception:
+                db.rollback()
+            finally:
+                db.close()
     db.close()
 
 

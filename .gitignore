@@ -33,3 +33,7 @@ backend/static/tickets/*.pdf
 backend/static/qrcodes/*.png
 backend/static/uploads/*
 !backend/static/uploads/.gitkeep
+backend/app/static/uploads/*
+backend/scratch/
+backend/backups/
+
