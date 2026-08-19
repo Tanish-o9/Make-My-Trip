@@ -99,10 +99,10 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
   const [razorpayOrderData, setRazorpayOrderData] = useState<any>(null);
   const [rzpMethod, setRzpMethod] = useState<"card" | "upi" | "netbanking" | "wallet">("card");
   const [rzpProcessing, setRzpProcessing] = useState(false);
-  const [rzpCardNumber, setRzpCardNumber] = useState("4111 1111 1111 1111");
-  const [rzpCardExpiry, setRzpCardExpiry] = useState("12/28");
+  const [rzpCardNumber, setRzpCardNumber] = useState("4012 0000 3333 0026");
+  const [rzpCardExpiry, setRzpCardExpiry] = useState("12/30");
   const [rzpCardCvv, setRzpCardCvv] = useState("123");
-  const [rzpCardName, setRzpCardName] = useState("Traveler Guest");
+  const [rzpCardName, setRzpCardName] = useState("Tanish Verified Traveler");
   const [selectedBank, setSelectedBank] = useState("HDFC Bank");
   const [paymentAuthToken, setPaymentAuthToken] = useState<string | null>(null);
   const [showPinModal, setShowPinModal] = useState(false);
@@ -113,7 +113,14 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
     try {
       const stored = localStorage.getItem("ghumne_chale_saved_cards");
       if (stored) {
-        setSavedCards(JSON.parse(stored));
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setSavedCards(parsed);
+          setRzpCardNumber(parsed[0].number);
+          setRzpCardExpiry(parsed[0].expiry);
+          setRzpCardCvv(parsed[0].cvv);
+          setRzpCardName(parsed[0].name);
+        }
       }
     } catch (e) {
       console.error("Failed to load saved cards:", e);
@@ -455,6 +462,12 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
         };
         const loaded = await loadScript();
         if (loaded && (window as any).Razorpay && !orderData.razorpay_order_id.startsWith("order_mock_")) {
+          const cleanCardNum = (rzpCardNumber || "").replace(/\s/g, "");
+          const validCardNum = cleanCardNum.length >= 12 ? cleanCardNum : "4012000033330026";
+          const expParts = (rzpCardExpiry || "12/30").split('/');
+          const expiryMonth = expParts[0] || "12";
+          const expiryYear = expParts[1] ? (expParts[1].length === 2 ? `20${expParts[1]}` : expParts[1]) : "2030";
+
           const options: any = {
             key: orderData.razorpay_key_id,
             amount: orderData.amount * 100,
@@ -462,8 +475,25 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
             name: "Ghumne Chale",
             description: `Payment for booking ${bookingId}`,
             order_id: orderData.razorpay_order_id,
+            prefill: {
+              name: rzpCardName || profile?.full_name || "Tanish Verified Traveler",
+              email: profile?.email || "traveler@ghumnechale.com",
+              contact: profile?.phone || "9999999999",
+              method: activeTab === "card" ? "card" : activeTab === "netbanking" ? "netbanking" : activeTab === "upi" ? "upi" : "wallet",
+              "card[number]": validCardNum,
+              "card[name]": rzpCardName || "Tanish Verified Traveler",
+              "card[expiry_month]": expiryMonth,
+              "card[expiry_year]": expiryYear,
+              "card[cvv]": rzpCardCvv || "123"
+            },
             handler: function (response: any) {
               handleRazorpaySuccess(response.razorpay_payment_id, response.razorpay_signature);
+            },
+            modal: {
+              ondismiss: function() {
+                setShowRazorpayModal(false);
+                setPaymentLoading(false);
+              }
             }
           };
           const rzp = new (window as any).Razorpay(options);
