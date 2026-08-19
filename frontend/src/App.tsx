@@ -80,6 +80,28 @@ const decodeJwt = (t: string) => {
   }
 };
 
+const addLocalWalletTransaction = (type: 'credit' | 'debit', amount: number, reference: string, description: string, balanceBefore: number) => {
+  try {
+    const saved = localStorage.getItem("local_wallet_transactions");
+    const list = saved ? JSON.parse(saved) : [];
+    const newTx = {
+      id: "local_" + Math.random().toString(36).substr(2, 9),
+      amount: amount,
+      type: type,
+      balance_before: balanceBefore,
+      balance_after: type === 'credit' ? balanceBefore + amount : balanceBefore - amount,
+      reference: reference || `REF-${Math.floor(100000 + Math.random() * 900000)}`,
+      description: description,
+      status: "COMPLETED",
+      timestamp: new Date().toISOString()
+    };
+    list.unshift(newTx);
+    localStorage.setItem("local_wallet_transactions", JSON.stringify(list));
+  } catch (e) {
+    console.error("Error writing local transaction:", e);
+  }
+};
+
 const TRIP_GRADIENTS = [
   'from-violet-900/80 via-purple-900/60 to-slate-900',
   'from-blue-900/80 via-cyan-900/60 to-slate-900',
@@ -1906,6 +1928,7 @@ export default function App() {
               alert(confirmRes.message || "Booking processed successfully!");
               
               if (payMethod === 'wallet') {
+                addLocalWalletTransaction('debit', checkoutData.amount, confirmRes.booking_reference, `Booking Payment: ${checkoutData.vertical.toUpperCase()}`, userProfile.walletBalance);
                 setUserProfile((prev: any) => ({
                   ...prev,
                   walletBalance: Math.max(0, prev.walletBalance - checkoutData.amount)
@@ -10680,6 +10703,7 @@ function CheckoutModal({
                   const updatedBal = Math.max(0, realWalletBalance - finalPayVal);
                   setRealWalletBalance(updatedBal);
                   if (setUserProfile) {
+                    addLocalWalletTransaction('debit', finalPayVal, confirmRes.booking_reference || holdBookingRef, `Booking Payment`, userProfile?.walletBalance || realWalletBalance);
                     setUserProfile((prev: any) => ({
                       ...prev,
                       walletBalance: updatedBal
@@ -10699,6 +10723,7 @@ function CheckoutModal({
                 const updatedBal = Math.max(0, realWalletBalance - finalPayVal);
                 setRealWalletBalance(updatedBal);
                 if (setUserProfile) {
+                  addLocalWalletTransaction('debit', finalPayVal, holdBookingRef, `Booking Payment`, userProfile?.walletBalance || realWalletBalance);
                   setUserProfile((prev: any) => ({
                     ...prev,
                     walletBalance: updatedBal
@@ -10726,6 +10751,7 @@ function CheckoutModal({
                 const updatedBal = Math.max(0, realWalletBalance - finalPayVal);
                 setRealWalletBalance(updatedBal);
                 if (setUserProfile) {
+                  addLocalWalletTransaction('debit', finalPayVal, holdBookingRef, `Booking Payment (Network Recovery)`, userProfile?.walletBalance || realWalletBalance);
                   setUserProfile((prev: any) => ({
                     ...prev,
                     walletBalance: updatedBal
@@ -13949,6 +13975,7 @@ function ChatView({
 
   const handleBook = (id: string, name: string, price: number) => {
     if (userProfile.walletBalance >= price) {
+      addLocalWalletTransaction('debit', price, `BOOK-${id}`, `Booking Payment: ${name}`, userProfile.walletBalance);
       setUserProfile((prev: any) => ({
         ...prev,
         walletBalance: prev.walletBalance - price,
@@ -13963,6 +13990,7 @@ function ChatView({
 
   const handleCancel = (id: string, name: string, price: number) => {
     const refund = price * 0.9;
+    addLocalWalletTransaction('credit', refund, `REFUND-${id}`, `Refund for cancelled booking: ${name}`, userProfile.walletBalance);
     setUserProfile((prev: any) => ({
       ...prev,
       walletBalance: prev.walletBalance + refund
@@ -14965,7 +14993,39 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
 
   const fetchWallet = () => {
     const token = localStorage.getItem("token");
-    if (!token) return;
+    
+    // Load local transactions
+    let localTxs: any[] = [];
+    try {
+      const saved = localStorage.getItem("local_wallet_transactions");
+      localTxs = saved ? JSON.parse(saved) : [];
+    } catch(e) {}
+
+    // Filter local transactions based on inputs
+    let filteredLocal = [...localTxs];
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filteredLocal = filteredLocal.filter(tx => 
+        (tx.description && tx.description.toLowerCase().includes(query)) ||
+        (tx.reference && tx.reference.toLowerCase().includes(query))
+      );
+    }
+    if (txTypeFilter) {
+      filteredLocal = filteredLocal.filter(tx => tx.type === txTypeFilter);
+    }
+    if (startDate) {
+      const start = new Date(startDate).getTime();
+      filteredLocal = filteredLocal.filter(tx => new Date(tx.timestamp).getTime() >= start);
+    }
+    if (endDate) {
+      const end = new Date(endDate).getTime() + 86400000;
+      filteredLocal = filteredLocal.filter(tx => new Date(tx.timestamp).getTime() < end);
+    }
+
+    if (!token) {
+      setTransactions(filteredLocal);
+      return;
+    }
 
     const params = new URLSearchParams();
     if (searchQuery) params.append("search", searchQuery);
@@ -14986,11 +15046,24 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
           localStorage.setItem("wallet_balance", data.balance.toString());
           sessionStorage.setItem("wallet_balance", data.balance.toString());
           if (Array.isArray(data.transactions)) {
-            setTransactions(data.transactions);
+            const merged = [...data.transactions];
+            filteredLocal.forEach((localTx: any) => {
+              const duplicate = merged.some(bTx => 
+                bTx.reference === localTx.reference || bTx.id === localTx.id || (bTx.amount === localTx.amount && Math.abs(new Date(bTx.timestamp).getTime() - new Date(localTx.timestamp).getTime()) < 5000)
+              );
+              if (!duplicate) {
+                merged.push(localTx);
+              }
+            });
+            merged.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+            setTransactions(merged);
           }
         }
       })
-      .catch(e => console.error("Error loading wallet balance:", e));
+      .catch(e => {
+        console.error("Error loading wallet balance:", e);
+        setTransactions(filteredLocal);
+      });
   };
 
   useEffect(() => {
@@ -15024,6 +15097,7 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
       .then(data => {
         setLoadingTopup(false);
         const newBal = (data && typeof data.balance === "number") ? data.balance : (userProfile.walletBalance + val);
+        addLocalWalletTransaction('credit', val, (data && data.reference) || `RECHARGE-${Date.now()}`, "Dev/Test Wallet Recharge", userProfile.walletBalance);
         setUserProfile((prev: any) => ({
           ...prev,
           walletBalance: newBal
@@ -15035,9 +15109,9 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
         fetchWallet();
       })
       .catch(() => {
-        // Robust fallback so dev/test recharge ALWAYS updates balance without browser alert popup
         setLoadingTopup(false);
         const newBal = userProfile.walletBalance + val;
+        addLocalWalletTransaction('credit', val, `RECHARGE-${Date.now()}`, "Dev/Test Wallet Recharge (Offline)", userProfile.walletBalance);
         setUserProfile((prev: any) => ({
           ...prev,
           walletBalance: newBal
@@ -15046,6 +15120,7 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
         sessionStorage.setItem("wallet_balance", newBal.toString());
         setTopupSuccess(`✓ ₹${val.toLocaleString()} added successfully! New Balance: ₹${newBal.toLocaleString()}`);
         setTopupAmount("");
+        fetchWallet();
       });
   };
 
@@ -15075,7 +15150,7 @@ function WalletView({ userProfile, setUserProfile }: { userProfile: any, setUser
   };
 
   return (
-    <div className="p-4 md:p-8 pb-28 md:pb-16 h-full overflow-y-auto overflow-x-hidden max-w-4xl mx-auto space-y-6">
+    <div className="p-4 md:p-8 pb-28 md:pb-16 min-h-full overflow-x-hidden max-w-4xl mx-auto space-y-6">
       {/* Active Balance Banner */}
       <div className="bg-gradient-to-r from-blue-900/60 to-indigo-900/60 rounded-2xl p-6 border border-blue-500/20 shadow-xl flex justify-between items-center text-left">
         <div>
