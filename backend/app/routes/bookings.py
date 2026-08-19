@@ -461,9 +461,9 @@ async def create_booking_hold(
         if route:
             base_price = float(route.price)
             b_type = route.bus_type or ""
-        bus_id = details.get("bus_id", "B101")
-        route = db.query(BusRoute).filter(BusRoute.bus_id == bus_id).first()
-        base_price = route.price if route else 750.0
+        bus_id = details.get("bus_id", 1)
+        route = db.query(BusRoute).filter(BusRoute.id == bus_id).first() if str(bus_id).isdigit() else None
+        base_price = float(route.price) if route else 750.0
 
         passengers = details.get("passengers", [])
         pax_count = len(passengers)
