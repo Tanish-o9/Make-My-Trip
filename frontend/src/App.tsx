@@ -17884,8 +17884,8 @@ function AccountProfileModal({ userProfile, setUserProfile, onClose, onLogout }:
   const userInitials = backendMetrics.avatar_initials;
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[1100] flex items-center justify-center p-4 overflow-y-auto font-sans">
-      <div className="bg-[#0b1120] border-4 border-black p-6 sm:p-8 max-w-2xl w-full space-y-6 shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] text-white rounded-3xl text-left my-8 relative">
+    <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-[2500] flex items-center justify-center p-3 sm:p-6 overflow-y-auto font-sans">
+      <div className="bg-[#0b1120] border-4 border-black p-5 sm:p-8 max-w-4xl w-full max-h-[92vh] overflow-y-auto space-y-6 shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] text-white rounded-3xl text-left my-auto relative custom-scrollbar">
         
         {/* Header Bar */}
         <div className="flex justify-between items-center border-b-2 border-slate-800 pb-3">
