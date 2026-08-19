@@ -1345,17 +1345,26 @@ export default function App() {
       setProfileData(null);
       return;
     }
-    fetch(`${API_URL}/profile`, {
+    fetch(`${API_URL}/users/me`, {
       headers: { "Authorization": `Bearer ${token}` }
     })
       .then(res => res.json())
       .then(data => {
-        if (data && data.full_name) {
-          setProfileName(data.full_name);
+        if (data && (data.full_name || data.name)) {
+          const fn = data.full_name || data.name;
+          setProfileName(fn);
           setProfileData(data);
+          setUserProfile((prev: any) => ({
+            ...prev,
+            fullName: fn,
+            email: data.email,
+            phone: data.phone,
+            walletBalance: data.wallet_balance ?? prev.walletBalance,
+            points: data.loyalty_points ?? prev.points,
+            tier: data.loyalty_tier || prev.tier
+          }));
           const fields = [
-            data.full_name, data.dob, data.gender, data.nationality, data.mobile_number, data.email, 
-            data.country, data.city, data.emergency_name, data.emergency_phone
+            fn, data.dob, data.gender, data.nationality, data.phone, data.email
           ];
           const completed = fields.filter(f => !!f).length;
           setProfileCompletion(Math.round((completed / fields.length) * 100));
@@ -17676,91 +17685,174 @@ function WishlistModal({ items, setItems, onBook, onClose }: { items: any[], set
 
 /* Account Profile Modal */
 function AccountProfileModal({ userProfile, setUserProfile, onClose, onLogout }: { userProfile: any, setUserProfile: any, onClose: () => void, onLogout: () => void }) {
-  const [fullName, setFullName] = useState<string>(() => userProfile.fullName || localStorage.getItem("user_full_name") || "");
-  const [email, setEmail] = useState<string>(() => userProfile.email || localStorage.getItem("user_email") || "traveler@travelos.com");
-  const [phone, setPhone] = useState<string>(() => userProfile.phone || localStorage.getItem("user_phone") || "");
+  const [fullName, setFullName] = useState<string>(() => userProfile.fullName || userProfile.name || "");
+  const [email, setEmail] = useState<string>(() => userProfile.email || "");
+  const [phone, setPhone] = useState<string>(() => userProfile.phone || "");
+  const [joinedDate, setJoinedDate] = useState<string>(() => userProfile.joinedDate || "Aug 2026");
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [errMessage, setErrMessage] = useState<string | null>(null);
 
-  // Real Saved Companions stored in localStorage
-  const [savedTravelers, setSavedTravelers] = useState<string[]>(() => {
-    try {
-      const stored = localStorage.getItem("user_saved_companions");
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
+  // Real backend metrics
+  const [backendMetrics, setBackendMetrics] = useState<any>({
+    wallet_balance: userProfile.walletBalance || 0,
+    loyalty_points: userProfile.points || 0,
+    loyalty_tier: userProfile.tier || "BRONZE",
+    total_spend: 0,
+    monthly_spend: 0,
+    total_bookings: 0,
+    pin_enabled: isPinSet(),
+    pin_status: isPinSet() ? "Payment PIN Protected" : "No Payment PIN Set",
+    avatar_initials: "U"
   });
+
+  // Real Saved Companions from backend
+  const [savedCompanions, setSavedCompanions] = useState<any[]>([]);
   const [newTraveler, setNewTraveler] = useState("");
 
-  // Real Local Wallet Transactions to compute real stats
-  const localTxs = React.useMemo(() => {
+  const fetchProfileData = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
     try {
-      const saved = localStorage.getItem("local_wallet_transactions");
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  }, []);
+      // 1. Fetch Backend Authoritative User Profile & Metrics
+      const res = await fetch(`${API_URL}/users/me`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setFullName(data.full_name || data.name || "");
+        setEmail(data.email || "");
+        setPhone(data.phone || "");
+        if (data.joined_date) setJoinedDate(data.joined_date);
 
-  // Compute real metrics
-  const realBookingsCount = localTxs.filter((tx: any) => tx.type === 'debit').length;
-  const realTotalSpent = localTxs.filter((tx: any) => tx.type === 'debit').reduce((acc: number, tx: any) => acc + (tx.amount || 0), 0);
-  const pinActive = isPinSet();
-  const joinedDate = userProfile.joinedDate || localStorage.getItem("user_joined_date") || "Aug 2026";
-  const userInitials = (fullName || email || "U").trim().charAt(0).toUpperCase();
+        setBackendMetrics({
+          wallet_balance: data.wallet_balance ?? 0,
+          loyalty_points: data.loyalty_points ?? 0,
+          loyalty_tier: data.loyalty_tier || "BRONZE",
+          total_spend: data.total_spend ?? 0,
+          monthly_spend: data.monthly_spend ?? 0,
+          total_bookings: data.total_bookings ?? 0,
+          pin_enabled: data.pin_enabled ?? isPinSet(),
+          pin_status: data.pin_status || (isPinSet() ? "Payment PIN Protected" : "No Payment PIN Set"),
+          avatar_initials: data.avatar_initials || (data.name ? data.name.charAt(0).toUpperCase() : "U")
+        });
 
-  // Compute real monthly spend data from actual debits
-  const spendByMonth = React.useMemo(() => {
-    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    const map: Record<string, number> = {};
-    months.forEach(m => { map[m] = 0; });
-    localTxs.filter((tx: any) => tx.type === 'debit').forEach((tx: any) => {
-      if (tx.timestamp) {
-        const d = new Date(tx.timestamp);
-        const monthName = months[d.getMonth()];
-        map[monthName] = (map[monthName] || 0) + (tx.amount || 0);
+        setUserProfile((prev: any) => ({
+          ...prev,
+          fullName: data.full_name || data.name,
+          email: data.email,
+          phone: data.phone,
+          walletBalance: data.wallet_balance,
+          points: data.loyalty_points,
+          tier: data.loyalty_tier
+        }));
       }
-    });
-    // Return last 6 months up to current
-    const currIdx = new Date().getMonth();
-    const last6: { month: string; amt: number }[] = [];
-    for (let i = 5; i >= 0; i--) {
-      const idx = (currIdx - i + 12) % 12;
-      const mName = months[idx];
-      last6.push({ month: mName, amt: map[mName] || 0 });
+
+      // 2. Fetch Companions from Backend
+      const compRes = await fetch(`${API_URL}/users/me/companions`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (compRes.ok) {
+        const compData = await compRes.json();
+        setSavedCompanions(compData);
+      }
+    } catch (e) {
+      console.error("Error fetching user profile:", e);
     }
-    return last6;
-  }, [localTxs]);
-
-  const maxMonthSpend = Math.max(1, ...spendByMonth.map(d => d.amt));
-
-  const handleSave = () => {
-    localStorage.setItem("user_full_name", fullName);
-    localStorage.setItem("user_email", email);
-    localStorage.setItem("user_phone", phone);
-    setUserProfile((prev: any) => ({
-      ...prev,
-      fullName,
-      email,
-      phone
-    }));
-    setSavedMessage("Profile updated successfully!");
-    setTimeout(() => setSavedMessage(null), 3000);
   };
 
-  const handleAddTraveler = () => {
+  useEffect(() => {
+    fetchProfileData();
+  }, []);
+
+  const handleSave = async () => {
+    setSavedMessage(null);
+    setErrMessage(null);
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    try {
+      const res = await fetch(`${API_URL}/users/me`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          full_name: fullName,
+          phone: phone
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSavedMessage("Profile updated successfully in backend!");
+        fetchProfileData();
+        setTimeout(() => setSavedMessage(null), 3000);
+      } else {
+        setErrMessage(data.detail || "Failed to update profile.");
+      }
+    } catch {
+      setErrMessage("Connection error while updating profile.");
+    }
+  };
+
+  const handleAddTraveler = async () => {
     if (!newTraveler.trim()) return;
-    const updated = [...savedTravelers, newTraveler.trim()];
-    setSavedTravelers(updated);
-    localStorage.setItem("user_saved_companions", JSON.stringify(updated));
+    const token = localStorage.getItem("token");
+
+    let compName = newTraveler.trim();
+    let compAge = 25;
+    if (newTraveler.includes(",")) {
+      const parts = newTraveler.split(",");
+      compName = parts[0].trim();
+      const parsedAge = parseInt(parts[1].trim(), 10);
+      if (!isNaN(parsedAge)) compAge = parsedAge;
+    }
+
+    try {
+      if (token) {
+        const res = await fetch(`${API_URL}/users/me/companions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            name: compName,
+            age: compAge,
+            relationship_label: "Traveler"
+          })
+        });
+        if (res.ok) {
+          const comp = await res.json();
+          setSavedCompanions((prev) => [...prev, comp]);
+          setNewTraveler("");
+          return;
+        }
+      }
+    } catch {}
+
+    setSavedCompanions((prev) => [...prev, { id: Date.now(), name: compName, age: compAge, relationship_label: "Traveler" }]);
     setNewTraveler("");
   };
 
-  const handleRemoveTraveler = (idx: number) => {
-    const updated = savedTravelers.filter((_, i) => i !== idx);
-    setSavedTravelers(updated);
-    localStorage.setItem("user_saved_companions", JSON.stringify(updated));
+  const handleRemoveTraveler = async (companionId: number) => {
+    const token = localStorage.getItem("token");
+    try {
+      if (token) {
+        await fetch(`${API_URL}/users/me/companions/${companionId}`, {
+          method: "DELETE",
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+      }
+    } catch {}
+    setSavedCompanions((prev) => prev.filter((c: any) => c.id !== companionId));
   };
+
+  const realBookingsCount = backendMetrics.total_bookings;
+  const realTotalSpent = backendMetrics.total_spend;
+  const pinActive = backendMetrics.pin_enabled;
+  const userInitials = backendMetrics.avatar_initials;
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[1100] flex items-center justify-center p-4 overflow-y-auto font-sans">
@@ -17792,17 +17884,17 @@ function AccountProfileModal({ userProfile, setUserProfile, onClose, onLogout }:
         {/* Security & Loyalty Status Badges */}
         <div className="flex flex-wrap gap-2 text-xs font-bold">
           <span className="bg-amber-400/20 text-amber-300 border border-amber-500/40 px-3 py-1 rounded-xl flex items-center gap-1.5 font-black uppercase text-[10px]">
-            👑 {userProfile.tier || "Gold"} Tier Member
+            👑 {backendMetrics.loyalty_tier} Tier Member
           </span>
           <span className={`border px-3 py-1 rounded-xl flex items-center gap-1.5 font-black uppercase text-[10px] ${
             pinActive 
               ? 'bg-emerald-950 text-emerald-400 border-emerald-500/40' 
               : 'bg-red-950 text-red-400 border-red-500/40'
           }`}>
-            {pinActive ? '🔐 Payment PIN Protected' : '⚠️ No Payment PIN Set'}
+            {backendMetrics.pin_status}
           </span>
           <span className="bg-blue-950 text-blue-300 border border-blue-500/30 px-3 py-1 rounded-xl font-mono text-[10px]">
-            Points: {userProfile.points || 450} pts
+            Points: {backendMetrics.loyalty_points} pts
           </span>
         </div>
 
@@ -17818,12 +17910,12 @@ function AccountProfileModal({ userProfile, setUserProfile, onClose, onLogout }:
           <div className="bg-[#FAF6EE] border-3 border-black p-3.5 rounded-2xl shadow-[3px_3px_0px_0px_#000] text-black">
             <span className="text-[9px] text-slate-600 uppercase block font-black">Wallet Balance</span>
             <span className="text-lg font-black text-emerald-700 mt-1 block">
-              ₹{(userProfile.walletBalance || 0).toLocaleString()}
+              ₹{backendMetrics.wallet_balance.toLocaleString()}
             </span>
           </div>
 
           <div className="bg-[#FAF6EE] border-3 border-black p-3.5 rounded-2xl shadow-[3px_3px_0px_0px_#000] text-black">
-            <span className="text-[9px] text-slate-600 uppercase block font-black">Total Wallet Spend</span>
+            <span className="text-[9px] text-slate-600 uppercase block font-black">Total Spend</span>
             <span className="text-lg font-black text-indigo-900 mt-1 block">
               ₹{realTotalSpent.toLocaleString()}
             </span>
@@ -17837,46 +17929,25 @@ function AccountProfileModal({ userProfile, setUserProfile, onClose, onLogout }:
           </div>
         </div>
 
-        {/* Spending Analytics Chart (Real calculated from localTxs) */}
+        {/* Spending Analytics Chart (Backend Monthly Spend) */}
         <div className="bg-[#111827] border-2 border-slate-800 p-4 rounded-2xl space-y-3">
           <div className="flex justify-between items-center">
             <span className="text-[10px] uppercase font-black tracking-wider text-slate-300">
-              📊 Real Monthly Spend Breakdown (INR)
+              📊 Backend Monthly Spend Analytics (INR)
             </span>
-            <span className="text-[9px] font-mono text-slate-400">Live Ledger Data</span>
+            <span className="text-[9px] font-mono text-slate-400">Live Backend Database Ledger</span>
           </div>
 
-          {realTotalSpent > 0 ? (
-            <div className="h-28 w-full flex items-end justify-between gap-2 pt-4">
-              {spendByMonth.map((d, i) => {
-                const heightPct = d.amt > 0 ? Math.max(12, (d.amt / maxMonthSpend) * 100) : 6;
-                return (
-                  <div key={i} className="flex-1 flex flex-col items-center gap-1 group cursor-pointer">
-                    <div className="relative w-full flex justify-center">
-                      {d.amt > 0 && (
-                        <span className="absolute -top-6 text-[8px] font-mono font-bold text-yellow-300 bg-slate-900 px-1 py-0.5 rounded border border-slate-700">
-                          ₹{d.amt >= 1000 ? `${(d.amt / 1000).toFixed(1)}k` : d.amt}
-                        </span>
-                      )}
-                      <div 
-                        style={{ height: `${heightPct}%` }} 
-                        className={`w-full sm:w-7 rounded-t-md transition-all border ${
-                          d.amt > 0
-                            ? 'bg-gradient-to-t from-yellow-500 to-yellow-300 border-yellow-400 shadow-[0_0_10px_rgba(243,198,35,0.3)]'
-                            : 'bg-slate-800 border-slate-700 opacity-40'
-                        }`}
-                      />
-                    </div>
-                    <span className="text-[9px] text-slate-400 font-bold uppercase">{d.month}</span>
-                  </div>
-                );
-              })}
+          <div className="flex items-center justify-between bg-[#1e293b] p-3 rounded-xl border border-slate-700 text-xs">
+            <div>
+              <span className="text-slate-400 block font-bold text-[10px] uppercase">Current Month Spend</span>
+              <span className="text-amber-400 font-black text-base">₹{backendMetrics.monthly_spend.toLocaleString()}</span>
             </div>
-          ) : (
-            <div className="text-center py-6 text-slate-500 text-xs font-semibold">
-              No completed bookings or spend recorded yet. Make your first booking to view monthly analytics!
+            <div>
+              <span className="text-slate-400 block font-bold text-[10px] uppercase">Lifetime Total Spend</span>
+              <span className="text-emerald-400 font-black text-base">₹{backendMetrics.total_spend.toLocaleString()}</span>
             </div>
-          )}
+          </div>
         </div>
 
         {/* Real User Profile Information Form */}
@@ -17888,6 +17959,11 @@ function AccountProfileModal({ userProfile, setUserProfile, onClose, onLogout }:
           {savedMessage && (
             <div className="bg-emerald-950 border border-emerald-500/40 text-emerald-300 text-xs font-bold p-2.5 rounded-xl text-center">
               ✓ {savedMessage}
+            </div>
+          )}
+          {errMessage && (
+            <div className="bg-red-950 border border-red-500/40 text-red-300 text-xs font-bold p-2.5 rounded-xl text-center">
+              ⚠ {errMessage}
             </div>
           )}
 
@@ -17907,9 +17983,9 @@ function AccountProfileModal({ userProfile, setUserProfile, onClose, onLogout }:
               <input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                className="w-full bg-[#1e293b] border-2 border-slate-700 focus:border-yellow-400 rounded-xl px-3 py-2 font-bold text-white outline-none"
+                disabled
+                title="Email address is secured by backend authentication"
+                className="w-full bg-[#1e293b]/60 border-2 border-slate-800 text-slate-400 rounded-xl px-3 py-2 font-bold outline-none cursor-not-allowed"
               />
             </div>
             <div className="sm:col-span-2">
@@ -17946,7 +18022,7 @@ function AccountProfileModal({ userProfile, setUserProfile, onClose, onLogout }:
             <span className="text-xs uppercase font-black text-slate-300">
               👥 Saved Travel Companions
             </span>
-            <span className="text-[10px] font-mono text-slate-500">{savedTravelers.length} Saved</span>
+            <span className="text-[10px] font-mono text-slate-500">{savedCompanions.length} Saved</span>
           </div>
 
           <div className="flex gap-2">
@@ -17966,15 +18042,15 @@ function AccountProfileModal({ userProfile, setUserProfile, onClose, onLogout }:
             </button>
           </div>
 
-          {savedTravelers.length > 0 ? (
+          {savedCompanions.length > 0 ? (
             <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-              {savedTravelers.map((name, idx) => (
-                <div key={idx} className="flex justify-between items-center bg-[#111827] border border-slate-800 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 shadow-sm">
+              {savedCompanions.map((comp: any) => (
+                <div key={comp.id} className="flex justify-between items-center bg-[#111827] border border-slate-800 px-3 py-2 rounded-xl text-xs font-bold text-slate-200 shadow-sm">
                   <span className="flex items-center gap-2">
-                    <span className="text-slate-500">👤</span> {name}
+                    <span className="text-slate-500">👤</span> {comp.name} {comp.age ? `(${comp.age} yrs)` : ''}
                   </span>
                   <button
-                    onClick={() => handleRemoveTraveler(idx)}
+                    onClick={() => handleRemoveTraveler(comp.id)}
                     className="text-red-400 hover:text-red-300 font-bold text-[10px] uppercase cursor-pointer bg-transparent border-none"
                   >
                     Remove

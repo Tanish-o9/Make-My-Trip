@@ -35,6 +35,7 @@ class User(Base):
     loyalty_account = relationship("LoyaltyAccount", uselist=False, back_populates="user", cascade="all, delete-orphan")
     wallet_account = relationship("WalletAccount", uselist=False, back_populates="user", cascade="all, delete-orphan")
     payment_pin_security = relationship("UserPaymentPin", uselist=False, back_populates="user", cascade="all, delete-orphan")
+    saved_companions = relationship("SavedCompanion", back_populates="user", cascade="all, delete-orphan")
 
 
 class UserPaymentPin(Base):
@@ -51,6 +52,20 @@ class UserPaymentPin(Base):
     )
 
     user = relationship("User", back_populates="payment_pin_security")
+
+
+class SavedCompanion(Base):
+    __tablename__ = "saved_companions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    age: Mapped[int] = mapped_column(Integer, nullable=False)
+    relationship_label: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
+
+    user = relationship("User", back_populates="saved_companions")
+
 
 
 class SavedTraveler(Base):
