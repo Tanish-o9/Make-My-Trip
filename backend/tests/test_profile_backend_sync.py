@@ -229,3 +229,112 @@ def test_09_multi_device_persistence(profile_test_user):
     comp_resp = client.get("/users/me/companions", headers=device_b_headers)
     assert comp_resp.status_code == 200
     assert any(c["name"] == "Companion Device A" for c in comp_resp.json())
+
+
+def test_10_financial_metrics_prevent_double_counting_and_refunds(profile_test_user):
+    user, token = profile_test_user
+    headers = {"Authorization": f"Bearer {token}"}
+    db = SessionLocal()
+
+    # 1. Create a confirmed Flight Booking of ₹5,000
+    from app.models.bookings import FlightBooking, BookingStatus
+    from app.models.core import WalletTransaction
+    from app.services.wallet_loyalty import WalletService
+
+    flight_b = FlightBooking(
+        user_id=user.id,
+        booking_reference="FL-AUDIT-5000",
+        origin="DEL",
+        destination="BOM",
+        airline_code="6E",
+        flight_number="6E-101",
+        departure_time=datetime.datetime.utcnow(),
+        arrival_time=datetime.datetime.utcnow() + datetime.timedelta(hours=2),
+        total_amount=5000.0,
+        pricing_snapshot={"base": 4500, "tax": 500},
+        passenger_details=[{"name": "Test User"}],
+        status=BookingStatus.CONFIRMED
+    )
+    db.add(flight_b)
+    db.commit()
+
+    # Create associated Wallet Debit transaction of ₹5,000 (simulating wallet payment for the booking)
+    WalletService.debit_for_booking(
+        db,
+        user_id=user.id,
+        amount=5000.0,
+        booking_ref="FL-AUDIT-5000",
+        description="Flight Booking Payment FL-AUDIT-5000"
+    )
+
+    # Fetch profile -> Total Spend should be ₹5,000 (NOT ₹10,000 double counted!)
+    resp1 = client.get("/users/me", headers=headers)
+    assert resp1.status_code == 200
+    data1 = resp1.json()
+    assert data1["total_spend"] == 5000.0
+    assert data1["total_bookings"] == 1
+
+    # 2. Process a Refund of ₹2,000 -> Net Spend should become ₹3,000
+    WalletService.refund_to_wallet(
+        db,
+        user_id=user.id,
+        amount=2000.0,
+        booking_ref="FL-AUDIT-5000",
+        description="Refund for booking FL-AUDIT-5000"
+    )
+
+    resp2 = client.get("/users/me", headers=headers)
+    assert resp2.status_code == 200
+    data2 = resp2.json()
+    assert data2["total_spend"] == 3000.0
+    assert data2["monthly_spend"] == 3000.0
+
+    # 3. Add a Failed booking -> Total Spend unchanged
+    failed_b = FlightBooking(
+        user_id=user.id,
+        booking_reference="FL-FAILED-999",
+        origin="DEL",
+        destination="GOI",
+        airline_code="AI",
+        flight_number="AI-505",
+        departure_time=datetime.datetime.utcnow(),
+        arrival_time=datetime.datetime.utcnow() + datetime.timedelta(hours=2),
+        total_amount=7000.0,
+        pricing_snapshot={"base": 6500, "tax": 500},
+        passenger_details=[{"name": "Test User"}],
+        status=BookingStatus.PAYMENT_FAILED
+    )
+    db.add(failed_b)
+    db.commit()
+
+    resp3 = client.get("/users/me", headers=headers)
+    assert resp3.json()["total_spend"] == 3000.0  # Total spend unchanged!
+
+    # 4. Add a Cancelled booking -> Total Bookings unchanged / Total Spend unchanged
+    cancelled_b = FlightBooking(
+        user_id=user.id,
+        booking_reference="FL-CANCELLED-888",
+        origin="BOM",
+        destination="DEL",
+        airline_code="UK",
+        flight_number="UK-707",
+        departure_time=datetime.datetime.utcnow(),
+        arrival_time=datetime.datetime.utcnow() + datetime.timedelta(hours=2),
+        total_amount=4000.0,
+        pricing_snapshot={"base": 3500, "tax": 500},
+        passenger_details=[{"name": "Test User"}],
+        status=BookingStatus.CANCELLED
+    )
+    db.add(cancelled_b)
+    db.commit()
+
+    resp4 = client.get("/users/me", headers=headers)
+    assert resp4.json()["total_spend"] == 3000.0  # Total spend unchanged!
+    assert resp4.json()["total_bookings"] == 1  # Total valid bookings unchanged!
+
+    # Cleanup test bookings
+    db.query(FlightBooking).filter(FlightBooking.user_id == user.id).delete()
+    db.query(WalletTransaction).filter(WalletTransaction.wallet_account_id == user.id).delete()
+    db.commit()
+    db.close()
+

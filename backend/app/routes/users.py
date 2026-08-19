@@ -136,27 +136,30 @@ def _calc_profile_completion(user: User, profile: Optional[UserProfile]) -> int:
 
 def calculate_user_metrics(db: Session, user_id: int) -> dict:
     from app.models.core import WalletAccount, LoyaltyAccount, UserPaymentPin, WalletTransaction
+    from app.models.payments import Payment, Refund, RefundStatus
     from app.models.bookings import (
         FlightBooking, HotelBooking, TrainBooking, BusBooking, CabBooking,
         HolidayPackageBooking, ActivityBooking, VisaApplication, CruiseBooking,
         InsurancePolicy, VillaBooking, ForexOrder
     )
-    
-    # 1. Wallet Balance
+    from sqlalchemy import func, or_
+    from enum import Enum as PyEnum
+
+    # 1. Wallet Balance (authoritative from WalletAccount table)
     wallet = db.query(WalletAccount).filter(WalletAccount.user_id == user_id).first()
     wallet_balance = float(wallet.balance) if wallet else 0.0
 
-    # 2. Loyalty
+    # 2. Loyalty (authoritative from LoyaltyAccount table)
     loyalty = db.query(LoyaltyAccount).filter(LoyaltyAccount.user_id == user_id).first()
     loyalty_points = int(loyalty.points) if loyalty else 0
     loyalty_tier = loyalty.tier if loyalty else "BRONZE"
 
-    # 3. PIN status
+    # 3. Security PIN status
     pin_rec = db.query(UserPaymentPin).filter(UserPaymentPin.user_id == user_id).first()
     pin_enabled = pin_rec is not None
     pin_status = "Payment PIN Protected" if pin_enabled else "No Payment PIN Set"
 
-    # 4. Bookings count & Total Spend
+    # 4. Bookings & Gross Spend Calculation (Authoritative source for booking spend)
     booking_tables = [
         FlightBooking, HotelBooking, TrainBooking, BusBooking, CabBooking,
         HolidayPackageBooking, ActivityBooking, VisaApplication, CruiseBooking,
@@ -164,26 +167,98 @@ def calculate_user_metrics(db: Session, user_id: int) -> dict:
     ]
 
     now = datetime.datetime.utcnow()
+    INVALID_KEYWORDS = ["fail", "cancel", "pending", "reject", "expire", "hold", "draft"]
+
     total_bookings = 0
-    total_spend = 0.0
-    monthly_spend = 0.0
+    gross_spend = 0.0
+    monthly_gross_spend = 0.0
 
     for model in booking_tables:
         try:
             records = db.query(model).filter(model.user_id == user_id).all()
             for r in records:
                 st = r.status.value if isinstance(r.status, PyEnum) else str(r.status)
-                if st.lower() not in ["cancelled", "rejected", "refunded", "expired", "hold"]:
-                    total_bookings += 1
-                    amt = float(r.total_amount or 0.0)
-                    total_spend += amt
-                    dt = r.created_at
-                    if dt and dt.year == now.year and dt.month == now.month:
-                        monthly_spend += amt
+                st_lower = st.lower()
+                
+                # Exclude invalid / failed / cancelled / pending / draft / hold bookings
+                if any(kw in st_lower for kw in INVALID_KEYWORDS):
+                    continue
+
+                total_bookings += 1
+                amt = float(r.total_amount or 0.0)
+                gross_spend += amt
+
+                dt = r.created_at
+                if dt and dt.year == now.year and dt.month == now.month:
+                    monthly_gross_spend += amt
         except Exception:
             pass
 
-    # Also sum debit wallet transactions if any exist outside direct bookings
+    # 5. Refunds Calculation (Subtract refunds to yield Net Spend)
+    total_refunds = 0.0
+    monthly_refunds = 0.0
+    refunded_refs = set()
+
+    # A. WalletTransaction credits marked as refund
+    if wallet:
+        try:
+            refund_txs = db.query(WalletTransaction).filter(
+                WalletTransaction.wallet_account_id == wallet.id,
+                WalletTransaction.type.ilike("%credit%"),
+                or_(
+                    WalletTransaction.description.ilike("%refund%"),
+                    WalletTransaction.reference.ilike("%refund%")
+                )
+            ).all()
+            for rtx in refund_txs:
+                amt = float(rtx.amount or 0.0)
+                total_refunds += amt
+                if rtx.reference:
+                    refunded_refs.add(rtx.reference.lower())
+                dt = rtx.timestamp
+                if dt and dt.year == now.year and dt.month == now.month:
+                    monthly_refunds += amt
+        except Exception:
+            pass
+
+    # B. Refund table records for gateway refunds not already in wallet_txs
+    try:
+        payment_refunds = db.query(Refund).join(Payment).filter(
+            Payment.user_id == user_id,
+            Refund.status != RefundStatus.FAILED
+        ).all()
+        for pr in payment_refunds:
+            amt = float(pr.amount or 0.0)
+            ref_key = f"ref_{pr.id}".lower()
+            if ref_key not in refunded_refs:
+                total_refunds += amt
+                dt = pr.created_at
+                if dt and dt.year == now.year and dt.month == now.month:
+                    monthly_refunds += amt
+    except Exception:
+        pass
+
+    # C. Inline booking refund_amount attribute if set on model
+    for model in booking_tables:
+        try:
+            records = db.query(model).filter(model.user_id == user_id).all()
+            for r in records:
+                st = r.status.value if isinstance(r.status, PyEnum) else str(r.status)
+                if not any(kw in st.lower() for kw in INVALID_KEYWORDS):
+                    ref_amt = float(getattr(r, "refund_amount", 0.0) or 0.0)
+                    if ref_amt > 0 and getattr(r, "booking_reference", None) not in refunded_refs:
+                        total_refunds += ref_amt
+                        dt = r.created_at
+                        if dt and dt.year == now.year and dt.month == now.month:
+                            monthly_refunds += ref_amt
+        except Exception:
+            pass
+
+    # 6. Standalone Non-Booking Wallet Debits
+    # Exclude any transaction related to bookings, orders, payments, topups, or recharges to prevent double counting
+    standalone_debit_spend = 0.0
+    monthly_standalone_debit_spend = 0.0
+
     if wallet:
         try:
             debits = db.query(WalletTransaction).filter(
@@ -191,15 +266,24 @@ def calculate_user_metrics(db: Session, user_id: int) -> dict:
                 WalletTransaction.type.ilike("%debit%")
             ).all()
             for d in debits:
-                amt = float(d.amount or 0.0)
-                if d.reference and any(ref_prefix in d.reference for ref_prefix in ["BK", "FL", "HT", "TR", "CB"]):
+                desc = (d.description or "").lower()
+                ref = (d.reference or "").lower()
+                if any(kw in desc or kw in ref for kw in [
+                    "booking", "flight", "hotel", "train", "bus", "cab", "holiday",
+                    "activity", "visa", "cruise", "forex", "insurance", "villa",
+                    "trip", "order", "pay", "recharge", "topup", "bk-", "fl-", "ht-", "tr-", "cb-"
+                ]):
                     continue
-                total_spend += amt
+                amt = float(d.amount or 0.0)
+                standalone_debit_spend += amt
                 dt = d.timestamp
                 if dt and dt.year == now.year and dt.month == now.month:
-                    monthly_spend += amt
+                    monthly_standalone_debit_spend += amt
         except Exception:
             pass
+
+    net_total_spend = max(0.0, gross_spend + standalone_debit_spend - total_refunds)
+    net_monthly_spend = max(0.0, monthly_gross_spend + monthly_standalone_debit_spend - monthly_refunds)
 
     return {
         "wallet_balance": wallet_balance,
@@ -208,8 +292,8 @@ def calculate_user_metrics(db: Session, user_id: int) -> dict:
         "pin_enabled": pin_enabled,
         "pin_status": pin_status,
         "total_bookings": total_bookings,
-        "total_spend": round(total_spend, 2),
-        "monthly_spend": round(monthly_spend, 2)
+        "total_spend": round(net_total_spend, 2),
+        "monthly_spend": round(net_monthly_spend, 2)
     }
 
 
