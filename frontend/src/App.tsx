@@ -19365,18 +19365,26 @@ function LoginScreen({ onLogin, onNavigate }: {
     setLoading(true);
     try {
       if (isSignUp) {
+        const cleanFullName = fullName.trim().replace(/\s+/g, " ");
+        const cleanEmail = email.trim().toLowerCase();
         const signupResp = await fetch(`${API_URL}/auth/signup`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            full_name: fullName.trim().replace(/\s+/g, " "),
-            email: email.trim().toLowerCase(),
+            full_name: cleanFullName,
+            email: cleanEmail,
             password,
             phone: phone || undefined,
           }),
         });
         const signupData = await signupResp.json();
-        // If account created or already exists, clear signup mode and proceed to auto-login
+        
+        // Store submitted user registration details in localStorage
+        localStorage.setItem("user_full_name", cleanFullName);
+        localStorage.setItem("user_email", cleanEmail);
+        if (phone) localStorage.setItem("user_phone", phone.trim());
+        localStorage.setItem("user_joined_date", new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }));
+
         setErrorMsg("");
         setIsSignUp(false);
       }

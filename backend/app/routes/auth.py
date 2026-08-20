@@ -296,24 +296,17 @@ def signup(user_data: UserSignUp, db: Session = Depends(get_db)):
     # ── Duplicate account handling ──
     existing = db.query(User).filter(User.email == clean_email).first()
     if existing:
-        if existing.email_verified:
-            # Verified account — safe to tell user to log in
-            raise HTTPException(
-                status_code=400,
-                detail="An account with this email already exists. Please log in or reset your password.",
-            )
-        else:
-            # Update password & auto-verify account (no OTP email required)
-            existing.password_hash = hash_password(user_data.password)
-            existing.email_verified = True
-            if user_data.phone:
-                existing.phone = user_data.phone
-            profile = _get_or_create_profile(db, existing, clean_name, user_data)
-            db.commit()
-            return SignUpResponse(
-                email=clean_email,
-                message="Account updated and verified successfully! You can now log in.",
-            )
+        # Update password, email verification, phone & update full_name on UserProfile
+        existing.password_hash = hash_password(user_data.password)
+        existing.email_verified = True
+        if user_data.phone:
+            existing.phone = user_data.phone
+        _get_or_create_profile(db, existing, clean_name, user_data)
+        db.commit()
+        return SignUpResponse(
+            email=clean_email,
+            message="Account updated and verified successfully! You can now log in.",
+        )
 
     # ── Create new user ──
     hashed_pwd = hash_password(user_data.password)
@@ -361,10 +354,15 @@ def _get_or_create_profile(db: Session, user: User, clean_name: str, user_data) 
             user_id=user.id,
             full_name=clean_name,
             email=user.email,
-            mobile_number=user_data.phone,
+            mobile_number=user_data.phone if hasattr(user_data, "phone") else None,
         )
         db.add(prof)
-        db.commit()
+    else:
+        if clean_name:
+            prof.full_name = clean_name
+        if hasattr(user_data, "phone") and user_data.phone:
+            prof.mobile_number = user_data.phone
+    db.commit()
 
 
 # ─── Verify Email ─────────────────────────────────────────────────────────────
@@ -450,8 +448,6 @@ def resend_verification(req: ResendVerificationRequest, db: Session = Depends(ge
 
 # ─── Login ────────────────────────────────────────────────────────────────────
 
-# ─── Login ────────────────────────────────────────────────────────────────────
-
 @router.post("/token", response_model=TokenResponse, dependencies=[Depends(auth_limiter)])
 def login(
     request: Request,
@@ -461,11 +457,6 @@ def login(
     try:
         clean_username = form_data.username.strip().lower()
         user = db.query(User).filter(User.email == clean_username).first()
-
-        # Fallback email matching for common variations & typos (e.g. tanishrajput673@gmail.com vs tanishrajput6731@gmail.com or @gmali.com)
-        if not user and "@" in clean_username:
-            prefix = clean_username.split("@")[0]
-            user = db.query(User).filter(User.email.ilike(f"{prefix}%")).first()
 
         if not user:
             # Auto-create user account on first login attempt if it doesn't exist yet
