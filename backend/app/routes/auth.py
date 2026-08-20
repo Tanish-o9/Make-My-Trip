@@ -477,8 +477,7 @@ def login(
         from app.models.core import UserProfile
         prof = db.query(UserProfile).filter(UserProfile.user_id == user.id).first()
         if not prof:
-            clean_name = user.email.split("@")[0].replace(".", " ").title()
-            db.add(UserProfile(user_id=user.id, full_name=clean_name, email=user.email))
+            db.add(UserProfile(user_id=user.id, full_name=getattr(user, "full_name", None) or "Traveler", email=user.email))
 
         wallet = db.query(WalletAccount).filter(WalletAccount.user_id == user.id).first()
         if not wallet:

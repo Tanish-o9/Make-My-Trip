@@ -17753,7 +17753,10 @@ function AccountProfileModal({ userProfile, setUserProfile, onClose, onLogout }:
       });
       if (res.ok) {
         const data = await res.json();
-        const resolvedName = data.full_name || data.name || localStorage.getItem("user_full_name") || (data.email ? data.email.split('@')[0] : "");
+        const storedName = localStorage.getItem("user_full_name");
+        const resolvedName = (storedName && !storedName.includes('@'))
+          ? storedName
+          : ((data.full_name && !data.full_name.includes('@')) ? data.full_name : (data.name || (data.email ? data.email.split('@')[0] : "")));
         const resolvedPhone = data.phone || data.mobile_number || localStorage.getItem("user_phone") || "";
         const resolvedEmail = data.email || localStorage.getItem("user_email") || "";
 

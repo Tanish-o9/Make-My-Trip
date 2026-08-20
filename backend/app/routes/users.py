@@ -330,7 +330,7 @@ def get_current_user_profile(
 ):
     """Retrieve full backend-authoritative profile details for the authenticated user."""
     profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
-    user_name = getattr(current_user, "full_name", None) or getattr(current_user, "name", None) or current_user.email.split("@")[0].capitalize()
+    user_name = (profile.full_name if profile and profile.full_name else None) or getattr(current_user, "full_name", None) or getattr(current_user, "name", None) or "Traveler"
     if not profile:
         profile = UserProfile(
             user_id=current_user.id,

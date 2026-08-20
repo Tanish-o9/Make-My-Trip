@@ -203,7 +203,9 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
   const { user_summary, upcoming_trip, recent_bookings, wallet_summary, reward_points, active_price_alerts_count, unread_notification_count } = data;
 
   const storedFullName = typeof window !== 'undefined' ? localStorage.getItem("user_full_name") : null;
-  const rawDisplayName = user_summary?.full_name || storedFullName || user_summary?.first_name || 'Traveler';
+  const rawDisplayName = (storedFullName && !storedFullName.includes('@'))
+    ? storedFullName
+    : (user_summary?.full_name && !user_summary.full_name.includes('@') ? user_summary.full_name : (user_summary?.first_name || 'Traveler'));
   const displayName = rawDisplayName.includes('@') ? rawDisplayName.split('@')[0] : rawDisplayName.split(' ')[0];
 
   return (
