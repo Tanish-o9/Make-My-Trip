@@ -19422,13 +19422,10 @@ function LoginScreen({ onLogin, onNavigate }: {
           }
         }
 
-        // Success — navigate to verify-email
-        if (onNavigate) {
-          onNavigate(`/verify-email?email=${encodeURIComponent(email.trim().toLowerCase())}`);
-        } else {
-          setErrorMsg("Account created! Please check your email for a verification code, then log in.");
-          setIsSignUp(false);
-        }
+        // Success — switch to Sign In mode
+        setErrorMsg("");
+        setIsSignUp(false);
+        setSuccessMsg && setSuccessMsg("Account created successfully! Please sign in with your credentials.");
         return;
       }
 
@@ -19451,11 +19448,6 @@ function LoginScreen({ onLogin, onNavigate }: {
       }
 
       if (!loginResp.ok) {
-        if (loginResp.status === 403 && loginData.detail === "EMAIL_NOT_VERIFIED") {
-          setUnverifiedEmail(email.trim());
-          setErrorMsg("Please verify your email before logging in.");
-          return;
-        }
         if (loginResp.status === 401) throw new Error("Incorrect email or password. If you haven't created an account yet, please click 'Create Account' below.");
         if (loginResp.status === 429) throw new Error("Too many requests. Please wait a moment and try again.");
         throw new Error(loginData.detail || `Login failed (HTTP ${loginResp.status}).`);

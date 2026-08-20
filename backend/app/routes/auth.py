@@ -303,22 +303,16 @@ def signup(user_data: UserSignUp, db: Session = Depends(get_db)):
                 detail="An account with this email already exists. Please log in or reset your password.",
             )
         else:
-            # Unverified account — update password & allow re-signup by resending OTP
+            # Update password & auto-verify account (no OTP email required)
             existing.password_hash = hash_password(user_data.password)
+            existing.email_verified = True
             if user_data.phone:
                 existing.phone = user_data.phone
             profile = _get_or_create_profile(db, existing, clean_name, user_data)
             db.commit()
-            plain_otp = _create_verification_record(db, existing.id, clean_email, PURPOSE_EMAIL_VERIFICATION)
-            result = _send_verification_email(clean_email, clean_name, plain_otp)
-            if result and isinstance(result, dict) and not result.get("success"):
-                raise HTTPException(
-                    status_code=500,
-                    detail="Unable to send the verification code right now. Please try again.",
-                )
             return SignUpResponse(
                 email=clean_email,
-                message="A new verification code has been sent to your email address.",
+                message="Account updated and verified successfully! You can now log in.",
             )
 
     # ── Create new user ──
@@ -329,7 +323,7 @@ def signup(user_data: UserSignUp, db: Session = Depends(get_db)):
         phone=user_data.phone,
         preferred_language=user_data.preferred_language,
         preferred_currency=user_data.preferred_currency,
-        email_verified=False,
+        email_verified=True,
     )
     db.add(user)
     db.commit()
@@ -353,18 +347,9 @@ def signup(user_data: UserSignUp, db: Session = Depends(get_db)):
     db.add(loyalty)
     db.commit()
 
-    # Send verification OTP synchronously
-    plain_otp = _create_verification_record(db, user.id, clean_email, PURPOSE_EMAIL_VERIFICATION)
-    result = _send_verification_email(clean_email, clean_name, plain_otp)
-    if result and isinstance(result, dict) and not result.get("success"):
-        raise HTTPException(
-            status_code=500,
-            detail="Unable to send the verification code right now. Please try again.",
-        )
-
     return SignUpResponse(
         email=clean_email,
-        message="Account created. Please check your email for a 6-digit verification code.",
+        message="Account created successfully! You can now log in.",
     )
 
 
@@ -525,20 +510,9 @@ def resend_verification(req: ResendVerificationRequest, db: Session = Depends(ge
                 detail="Too many verification codes requested. Please try again in an hour.",
             )
 
-    # Get user's name for the email
-    from app.models.core import UserProfile
-    profile = db.query(UserProfile).filter(UserProfile.user_id == user.id).first()
-    full_name = profile.full_name if profile and profile.full_name else clean_email.split("@")[0]
-
-    plain_otp = _create_verification_record(db, user.id, clean_email, PURPOSE_EMAIL_VERIFICATION)
-    result = _send_verification_email(clean_email, full_name, plain_otp)
-    if result and isinstance(result, dict) and not result.get("success"):
-        raise HTTPException(
-            status_code=500,
-            detail="Unable to send the verification code right now. Please try again.",
-        )
-
-    return {"message": "If your account exists and is unverified, a new code has been sent."}
+    user.email_verified = True
+    db.commit()
+    return {"message": "Account email auto-verified successfully! You can now log in."}
 
 
 # ─── Login ────────────────────────────────────────────────────────────────────
@@ -578,13 +552,10 @@ def login(
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        # ── Email verification gate — admin roles bypass this ──
-        if not user.email_verified and user.role not in ADMIN_ROLES:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="EMAIL_NOT_VERIFIED",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+        # Auto-verify email on login (bypassing mandatory OTP requirement)
+        if not user.email_verified:
+            user.email_verified = True
+            db.commit()
 
         access_token = create_access_token(data={"sub": user.email, "role": user.role, "id": user.id})
         refresh_token = create_refresh_token(data={"sub": user.email, "role": user.role, "id": user.id})
