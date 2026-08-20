@@ -1814,6 +1814,13 @@ export default function App() {
   }, [currentPath, token, userRole, userProfile.email]);
 
   const handleLogin = (accessToken: string, refreshToken: string, role: string, email: string) => {
+    const storedEmail = localStorage.getItem('user_email');
+    if (storedEmail && storedEmail.toLowerCase() !== email.toLowerCase()) {
+      localStorage.removeItem('user_full_name');
+      localStorage.removeItem('user_phone');
+      localStorage.removeItem('user_joined_date');
+    }
+
     localStorage.setItem('token', accessToken);
     localStorage.setItem('refresh_token', refreshToken);
     localStorage.setItem('user_role', role);
@@ -1823,9 +1830,9 @@ export default function App() {
     setUserProfile((prev: any) => ({
       ...prev,
       email: email,
-      fullName: localStorage.getItem('user_full_name') || prev.fullName || email.split('@')[0],
-      phone: localStorage.getItem('user_phone') || prev.phone || "",
-      joinedDate: localStorage.getItem('user_joined_date') || prev.joinedDate || "Aug 2026"
+      fullName: localStorage.getItem('user_full_name') || email.split('@')[0],
+      phone: localStorage.getItem('user_phone') || "",
+      joinedDate: localStorage.getItem('user_joined_date') || "Aug 2026"
     }));
 
     if (role === 'admin' || role === 'super_admin' || role === 'finance_admin' || role === 'booking_approver') {
@@ -1860,13 +1867,17 @@ export default function App() {
     localStorage.removeItem('token');
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user_role');
+    localStorage.removeItem('user_email');
+    localStorage.removeItem('user_full_name');
+    localStorage.removeItem('user_phone');
+    localStorage.removeItem('user_joined_date');
     setToken(null);
     setUserRole(null);
     setUserProfile({
-      email: "traveler@travelos.com",
-      tier: "Gold",
-      points: 450,
-      walletBalance: 24500.00
+      email: "",
+      tier: "Bronze",
+      points: 0,
+      walletBalance: 0.00
     });
 
     navigate('/');

