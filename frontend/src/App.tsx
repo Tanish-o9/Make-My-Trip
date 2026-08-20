@@ -2236,10 +2236,8 @@ export default function App() {
         <div>
           <div className="flex items-center justify-between mb-8 px-2 py-1">
             <div className="flex items-center gap-2">
-              <span className="font-serif italic font-bold text-2xl text-[var(--color-gold)]">T</span>
               <span className="font-serif italic font-black text-sm tracking-wider text-[var(--color-ivory)] flex items-center gap-1">
                 GHUMNE CHALE
-                <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-gold)] animate-pulse-gold inline-block" />
               </span>
             </div>
             <button 
@@ -2336,10 +2334,8 @@ export default function App() {
             >
               <Menu size={24} />
             </button>
-            <span className="font-serif italic font-bold text-2xl text-[var(--color-gold)]">T</span>
             <span className="font-serif italic font-black text-sm tracking-wider text-[var(--color-ivory)] flex items-center gap-1">
               GHUMNE CHALE
-              <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-gold)] animate-pulse-gold inline-block" />
             </span>
           </div>
 
