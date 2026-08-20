@@ -296,16 +296,9 @@ def signup(user_data: UserSignUp, db: Session = Depends(get_db)):
     # ── Duplicate account handling ──
     existing = db.query(User).filter(User.email == clean_email).first()
     if existing:
-        # Update password, email verification, phone & update full_name on UserProfile
-        existing.password_hash = hash_password(user_data.password)
-        existing.email_verified = True
-        if user_data.phone:
-            existing.phone = user_data.phone
-        _get_or_create_profile(db, existing, clean_name, user_data)
-        db.commit()
-        return SignUpResponse(
-            email=clean_email,
-            message="Account updated and verified successfully! You can now log in.",
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="An account with this email address already exists. Please sign in instead."
         )
 
     # ── Create new user ──

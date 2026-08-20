@@ -19381,6 +19381,14 @@ function LoginScreen({ onLogin, onNavigate }: {
     setLoading(true);
     try {
       if (isSignUp) {
+        // Clear any old session tokens before registering a new account
+        localStorage.removeItem("token");
+        localStorage.removeItem("refresh_token");
+        localStorage.removeItem("user_role");
+        localStorage.removeItem("user_email");
+        localStorage.removeItem("user_full_name");
+        localStorage.removeItem("user_phone");
+
         const cleanFullName = fullName.trim().replace(/\s+/g, " ");
         const cleanEmail = email.trim().toLowerCase();
         const signupResp = await fetch(`${API_URL}/auth/signup`, {
@@ -19394,11 +19402,15 @@ function LoginScreen({ onLogin, onNavigate }: {
           }),
         });
         const signupData = await signupResp.json();
+        if (!signupResp.ok) {
+          throw new Error(signupData.detail || "Account creation failed. Please try a different email address.");
+        }
         
         // Store submitted user registration details in localStorage
         localStorage.setItem("user_full_name", cleanFullName);
         localStorage.setItem("user_email", cleanEmail);
         if (phone) localStorage.setItem("user_phone", phone.trim());
+        if (paymentPin) localStorage.setItem("user_payment_pin", paymentPin);
         localStorage.setItem("user_joined_date", new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }));
 
         setErrorMsg("");
