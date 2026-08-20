@@ -19320,6 +19320,13 @@ function LoginScreen({ onLogin, onNavigate }: {
           errs.confirmPaymentPin = "Payment PINs do not match.";
         }
       }
+
+      const trimmedPhone = phone.trim();
+      if (!trimmedPhone) {
+        errs.phone = "Please enter your phone number.";
+      } else if (trimmedPhone.length < 10) {
+        errs.phone = "Please enter a valid phone number (at least 10 digits).";
+      }
     }
     if (!email.trim()) errs.email = "Please enter your email address.";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) errs.email = "Please enter a valid email address.";
@@ -19550,15 +19557,16 @@ function LoginScreen({ onLogin, onNavigate }: {
 
           {isSignUp && (
             <div>
-              <label className="text-[10px] uppercase font-black text-slate-600 block mb-1">Phone <span className="font-normal text-slate-400">(optional)</span></label>
+              <label className="text-[10px] uppercase font-black text-slate-600 block mb-1">Phone Number *</label>
               <input
                 type="tel"
                 value={phone}
-                onChange={e => setPhone(e.target.value)}
+                onChange={e => { setPhone(e.target.value); setFieldErrors(p => ({ ...p, phone: "" })); }}
                 placeholder="+91 98765 43210"
-                className={inputCls}
+                className={`${inputCls} ${fieldErrors.phone ? "border-red-500" : ""}`}
                 autoComplete="tel"
               />
+              {fieldErrors.phone && <p className={errorCls}>{fieldErrors.phone}</p>}
             </div>
           )}
 
