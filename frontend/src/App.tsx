@@ -19436,183 +19436,210 @@ function LoginScreen({ onLogin, onNavigate }: {
   const errorCls = "text-red-500 text-[10px] mt-1 font-semibold";
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-[var(--color-obsidian)] p-4 z-50 overflow-y-auto">
+    <div className="fixed inset-0 flex items-center justify-center bg-[var(--color-obsidian)] p-3 sm:p-4 z-50 overflow-y-auto">
       <div className="absolute inset-0 bg-[radial-gradient(#d4af37_1px,transparent_1px)] [background-size:24px_24px] opacity-10" />
 
-      <div className="bg-white text-black border-4 border-black p-8 max-w-md w-full relative z-10 shadow-[8px_8px_0px_0px_#000000] rounded-[24px] my-8">
-        <div className="text-center mb-6">
-          <span className="font-serif italic font-black text-2xl text-[var(--color-gold)] bg-black px-4 py-1.5 inline-block text-white shadow-[4px_4px_0px_0px_rgba(212,175,55,1)]">
+      <div className={`bg-white text-black border-4 border-black p-5 sm:p-6 ${isSignUp ? 'max-w-xl' : 'max-w-md'} w-full relative z-10 shadow-[8px_8px_0px_0px_#000000] rounded-[24px] my-auto max-h-[95vh] overflow-y-auto`}>
+        <div className="text-center mb-4">
+          <span className="font-serif italic font-black text-xl text-[var(--color-gold)] bg-black px-3.5 py-1 inline-block text-white shadow-[3px_3px_0px_0px_rgba(212,175,55,1)]">
             GHUMNE CHALE
           </span>
-          <h2 className="text-xl font-extrabold uppercase mt-6 tracking-wide">
+          <h2 className="text-lg font-extrabold uppercase mt-4 tracking-wide">
             {isSignUp ? "Create Account" : "Welcome Back"}
           </h2>
-          <p className="text-xs text-slate-500 font-bold uppercase mt-1">
+          <p className="text-[10px] text-slate-500 font-bold uppercase mt-0.5">
             {isSignUp ? "Join the premium travel network" : "Sign in to your account"}
           </p>
         </div>
 
-        {/* OTP Resend system commented out as domain/OTP service is disabled
         {errorMsg && (
-          <div className="bg-red-50 border-2 border-red-500 p-3 rounded-lg mb-4">
-            <p className="text-xs text-red-600 font-bold text-center">{errorMsg}</p>
-          </div>
-        )}
-        */}
-        {errorMsg && (
-          <div className="bg-red-50 border-2 border-red-500 p-3 rounded-lg mb-4">
+          <div className="bg-red-50 border-2 border-red-500 p-2.5 rounded-lg mb-3">
             <p className="text-xs text-red-600 font-bold text-center">{errorMsg}</p>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4 text-left" noValidate>
-          {isSignUp && (
-            <div>
-              <label className="text-[10px] uppercase font-black text-slate-600 block mb-1">Full Name *</label>
-              <input
-                type="text"
-                value={fullName}
-                onChange={e => { setFullName(e.target.value); setFieldErrors(p => ({ ...p, fullName: "" })); }}
-                placeholder="e.g. Tanish"
-                className={`${inputCls} ${fieldErrors.fullName ? "border-red-500" : ""}`}
-                autoComplete="name"
-              />
-              {fieldErrors.fullName && <p className={errorCls}>{fieldErrors.fullName}</p>}
-            </div>
-          )}
-
-          <div>
-            <label className="text-[10px] uppercase font-black text-slate-600 block mb-1">Email Address *</label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => { setEmail(e.target.value); setFieldErrors(p => ({ ...p, email: "" })); }}
-              placeholder="you@example.com"
-              className={`${inputCls} ${fieldErrors.email ? "border-red-500" : ""}`}
-              autoComplete={isSignUp ? "email" : "username"}
-            />
-            {fieldErrors.email && <p className={errorCls}>{fieldErrors.email}</p>}
-          </div>
-
-          <div>
-            <label className="text-[10px] uppercase font-black text-slate-600 block mb-1">Password *</label>
-            <div className="relative">
-              <input
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={e => { setPassword(e.target.value); setFieldErrors(p => ({ ...p, password: "" })); }}
-                placeholder="••••••••"
-                className={`${inputCls} pr-10 ${fieldErrors.password ? "border-red-500" : ""}`}
-                autoComplete={isSignUp ? "new-password" : "current-password"}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(v => !v)}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-[11px] font-bold"
-                tabIndex={-1}
-              >
-                {showPassword ? "HIDE" : "SHOW"}
-              </button>
-            </div>
-            {fieldErrors.password && <p className={errorCls}>{fieldErrors.password}</p>}
-            {isSignUp && password && (
-              <div className="mt-1.5">
-                <div className="flex gap-1 mb-1">
-                  {[1,2,3,4,5,6].map(i => (
-                    <div key={i} className="h-1 flex-1 rounded-full transition-all" style={{ background: i <= strength.score ? strength.color : "#e2e8f0" }} />
-                  ))}
-                </div>
-                {strength.label && <p className="text-[10px] font-bold" style={{ color: strength.color }}>{strength.label} password</p>}
-              </div>
-            )}
-          </div>
-
-          {isSignUp && (
-            <div>
-              <label className="text-[10px] uppercase font-black text-slate-600 block mb-1">Confirm Password *</label>
-              <div className="relative">
+        <form onSubmit={handleSubmit} className="space-y-3 text-left" noValidate>
+          {isSignUp ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] uppercase font-black text-slate-600 block mb-1">Full Name *</label>
                 <input
-                  type={showConfirm ? "text" : "password"}
-                  value={confirmPassword}
-                  onChange={e => { setConfirmPassword(e.target.value); setFieldErrors(p => ({ ...p, confirmPassword: "" })); }}
-                  placeholder="••••••••"
-                  className={`${inputCls} pr-10 ${fieldErrors.confirmPassword ? "border-red-500" : confirmPassword && confirmPassword === password ? "border-green-500" : ""}`}
-                  autoComplete="new-password"
+                  type="text"
+                  value={fullName}
+                  onChange={e => { setFullName(e.target.value); setFieldErrors(p => ({ ...p, fullName: "" })); }}
+                  placeholder="e.g. Tanish"
+                  className={`${inputCls} ${fieldErrors.fullName ? "border-red-500" : ""}`}
+                  autoComplete="name"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirm(v => !v)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-[11px] font-bold"
-                  tabIndex={-1}
-                >
-                  {showConfirm ? "HIDE" : "SHOW"}
-                </button>
+                {fieldErrors.fullName && <p className={errorCls}>{fieldErrors.fullName}</p>}
               </div>
-              {fieldErrors.confirmPassword && <p className={errorCls}>{fieldErrors.confirmPassword}</p>}
-              {!fieldErrors.confirmPassword && confirmPassword && confirmPassword === password && (
-                <p className="text-green-600 text-[10px] mt-1 font-semibold">✓ Passwords match</p>
-              )}
-            </div>
-          )}
 
-          {isSignUp && (
-            <div>
-              <label className="text-[10px] uppercase font-black text-slate-600 block mb-1">Phone Number *</label>
-              <input
-                type="tel"
-                value={phone}
-                onChange={e => { setPhone(e.target.value); setFieldErrors(p => ({ ...p, phone: "" })); }}
-                placeholder="+91 98765 43210"
-                className={`${inputCls} ${fieldErrors.phone ? "border-red-500" : ""}`}
-                autoComplete="tel"
-              />
-              {fieldErrors.phone && <p className={errorCls}>{fieldErrors.phone}</p>}
-            </div>
-          )}
+              <div>
+                <label className="text-[10px] uppercase font-black text-slate-600 block mb-1">Phone Number *</label>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={e => { setPhone(e.target.value); setFieldErrors(p => ({ ...p, phone: "" })); }}
+                  placeholder="+91 98765 43210"
+                  className={`${inputCls} ${fieldErrors.phone ? "border-red-500" : ""}`}
+                  autoComplete="tel"
+                />
+                {fieldErrors.phone && <p className={errorCls}>{fieldErrors.phone}</p>}
+              </div>
 
-          {isSignUp && (
-            <div className="bg-[#FAF6EE] p-3 rounded-xl border-2 border-black space-y-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-              <div className="flex justify-between items-center">
-                <label className="text-[11px] uppercase font-black text-black flex items-center gap-1.5">
-                  🔐 Payment Security PIN <span className="text-[9px] font-normal text-slate-500">(4 digits)</span>
-                </label>
+              <div className="sm:col-span-2">
+                <label className="text-[10px] uppercase font-black text-slate-600 block mb-1">Email Address *</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => { setEmail(e.target.value); setFieldErrors(p => ({ ...p, email: "" })); }}
+                  placeholder="you@example.com"
+                  className={`${inputCls} ${fieldErrors.email ? "border-red-500" : ""}`}
+                  autoComplete="email"
+                />
+                {fieldErrors.email && <p className={errorCls}>{fieldErrors.email}</p>}
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
+
+              <div>
+                <label className="text-[10px] uppercase font-black text-slate-600 block mb-1">Password *</label>
+                <div className="relative">
                   <input
-                    type="password"
-                    inputMode="numeric"
-                    maxLength={4}
-                    value={paymentPin}
-                    onChange={e => { setPaymentPin(e.target.value.replace(/\D/g, '').slice(0, 4)); setFieldErrors(p => ({ ...p, paymentPin: "" })); }}
-                    placeholder="Set PIN (e.g. 1234)"
-                    className={`${inputCls} text-center tracking-[0.2em] font-black`}
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={e => { setPassword(e.target.value); setFieldErrors(p => ({ ...p, password: "" })); }}
+                    placeholder="••••••••"
+                    className={`${inputCls} pr-10 ${fieldErrors.password ? "border-red-500" : ""}`}
+                    autoComplete="new-password"
                   />
-                  {fieldErrors.paymentPin && <p className={errorCls}>{fieldErrors.paymentPin}</p>}
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(v => !v)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-[10px] font-bold"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? "HIDE" : "SHOW"}
+                  </button>
                 </div>
-                <div>
-                  <input
-                    type="password"
-                    inputMode="numeric"
-                    maxLength={4}
-                    value={confirmPaymentPin}
-                    onChange={e => { setConfirmPaymentPin(e.target.value.replace(/\D/g, '').slice(0, 4)); setFieldErrors(p => ({ ...p, confirmPaymentPin: "" })); }}
-                    placeholder="Confirm PIN"
-                    className={`${inputCls} text-center tracking-[0.2em] font-black`}
-                  />
-                  {fieldErrors.confirmPaymentPin && <p className={errorCls}>{fieldErrors.confirmPaymentPin}</p>}
-                </div>
+                {fieldErrors.password && <p className={errorCls}>{fieldErrors.password}</p>}
+                {password && (
+                  <div className="mt-1">
+                    <div className="flex gap-1 mb-0.5">
+                      {[1,2,3,4,5,6].map(i => (
+                        <div key={i} className="h-1 flex-1 rounded-full transition-all" style={{ background: i <= strength.score ? strength.color : "#e2e8f0" }} />
+                      ))}
+                    </div>
+                    {strength.label && <p className="text-[9px] font-bold" style={{ color: strength.color }}>{strength.label} password</p>}
+                  </div>
+                )}
               </div>
-              <p className="text-[9px] font-semibold text-slate-600 leading-tight">
-                This PIN will secure all your wallet & booking transactions.
-              </p>
+
+              <div>
+                <label className="text-[10px] uppercase font-black text-slate-600 block mb-1">Confirm Password *</label>
+                <div className="relative">
+                  <input
+                    type={showConfirm ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={e => { setConfirmPassword(e.target.value); setFieldErrors(p => ({ ...p, confirmPassword: "" })); }}
+                    placeholder="••••••••"
+                    className={`${inputCls} pr-10 ${fieldErrors.confirmPassword ? "border-red-500" : confirmPassword && confirmPassword === password ? "border-green-500" : ""}`}
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirm(v => !v)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-[10px] font-bold"
+                    tabIndex={-1}
+                  >
+                    {showConfirm ? "HIDE" : "SHOW"}
+                  </button>
+                </div>
+                {fieldErrors.confirmPassword && <p className={errorCls}>{fieldErrors.confirmPassword}</p>}
+                {!fieldErrors.confirmPassword && confirmPassword && confirmPassword === password && (
+                  <p className="text-green-600 text-[9px] mt-0.5 font-semibold">✓ Passwords match</p>
+                )}
+              </div>
+
+              <div className="sm:col-span-2 bg-[#FAF6EE] p-2.5 rounded-xl border-2 border-black space-y-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                <div className="flex justify-between items-center">
+                  <label className="text-[10px] uppercase font-black text-black flex items-center gap-1.5">
+                    🔐 Payment Security PIN <span className="text-[9px] font-normal text-slate-500">(4 digits)</span>
+                  </label>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <input
+                      type="password"
+                      inputMode="numeric"
+                      maxLength={4}
+                      value={paymentPin}
+                      onChange={e => { setPaymentPin(e.target.value.replace(/\D/g, '').slice(0, 4)); setFieldErrors(p => ({ ...p, paymentPin: "" })); }}
+                      placeholder="Set PIN (e.g. 1234)"
+                      className={`${inputCls} text-center tracking-[0.2em] font-black`}
+                    />
+                    {fieldErrors.paymentPin && <p className={errorCls}>{fieldErrors.paymentPin}</p>}
+                  </div>
+                  <div>
+                    <input
+                      type="password"
+                      inputMode="numeric"
+                      maxLength={4}
+                      value={confirmPaymentPin}
+                      onChange={e => { setConfirmPaymentPin(e.target.value.replace(/\D/g, '').slice(0, 4)); setFieldErrors(p => ({ ...p, confirmPaymentPin: "" })); }}
+                      placeholder="Confirm PIN"
+                      className={`${inputCls} text-center tracking-[0.2em] font-black`}
+                    />
+                    {fieldErrors.confirmPaymentPin && <p className={errorCls}>{fieldErrors.confirmPaymentPin}</p>}
+                  </div>
+                </div>
+                <p className="text-[8px] font-semibold text-slate-600 leading-tight">
+                  This PIN secures all your wallet & booking transactions.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div>
+                <label className="text-[10px] uppercase font-black text-slate-600 block mb-1">Email Address *</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => { setEmail(e.target.value); setFieldErrors(p => ({ ...p, email: "" })); }}
+                  placeholder="you@example.com"
+                  className={`${inputCls} ${fieldErrors.email ? "border-red-500" : ""}`}
+                  autoComplete="username"
+                />
+                {fieldErrors.email && <p className={errorCls}>{fieldErrors.email}</p>}
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-black text-slate-600 block mb-1">Password *</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={e => { setPassword(e.target.value); setFieldErrors(p => ({ ...p, password: "" })); }}
+                    placeholder="••••••••"
+                    className={`${inputCls} pr-10 ${fieldErrors.password ? "border-red-500" : ""}`}
+                    autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(v => !v)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-[10px] font-bold"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? "HIDE" : "SHOW"}
+                  </button>
+                </div>
+                {fieldErrors.password && <p className={errorCls}>{fieldErrors.password}</p>}
+              </div>
             </div>
           )}
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-yellow-300 hover:bg-yellow-400 disabled:opacity-60 disabled:cursor-not-allowed text-black font-black uppercase text-xs p-3.5 border-3 border-black rounded-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all flex items-center justify-center gap-2 cursor-pointer mt-4"
+            className="w-full bg-yellow-300 hover:bg-yellow-400 disabled:opacity-60 disabled:cursor-not-allowed text-black font-black uppercase text-xs p-3 border-3 border-black rounded-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all flex items-center justify-center gap-2 cursor-pointer mt-3"
           >
             {loading ? (
               <span className="flex items-center gap-2"><span className="inline-block w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" />Processing...</span>
@@ -19620,7 +19647,7 @@ function LoginScreen({ onLogin, onNavigate }: {
           </button>
         </form>
 
-        <div className="text-center mt-6 pt-4 border-t-2 border-black/10 space-y-2">
+        <div className="text-center mt-4 pt-3 border-t-2 border-black/10 space-y-1.5">
           <button
             type="button"
             onClick={() => { setIsSignUp(!isSignUp); setErrorMsg(""); setFieldErrors({}); setUnverifiedEmail(null); setConfirmPassword(""); }}
