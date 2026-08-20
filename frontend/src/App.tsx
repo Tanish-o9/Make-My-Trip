@@ -17767,6 +17767,7 @@ function AccountProfileModal({ userProfile, setUserProfile, onClose, onLogout }:
         if (resolvedEmail) localStorage.setItem("user_email", resolvedEmail);
         if (resolvedPhone) localStorage.setItem("user_phone", resolvedPhone);
 
+        const hasPin = Boolean(data.pin_enabled || isPinSet() || (typeof window !== 'undefined' && localStorage.getItem("user_payment_pin")));
         setBackendMetrics({
           wallet_balance: data.wallet_balance ?? 0,
           loyalty_points: data.loyalty_points ?? 0,
@@ -17774,8 +17775,8 @@ function AccountProfileModal({ userProfile, setUserProfile, onClose, onLogout }:
           total_spend: data.total_spend ?? 0,
           monthly_spend: data.monthly_spend ?? 0,
           total_bookings: data.total_bookings ?? 0,
-          pin_enabled: data.pin_enabled ?? isPinSet(),
-          pin_status: data.pin_status || (isPinSet() ? "Payment PIN Protected" : "No Payment PIN Set"),
+          pin_enabled: hasPin,
+          pin_status: hasPin ? "Payment PIN Protected" : "No Payment PIN Set",
           avatar_initials: getInitials(resolvedName)
         });
 
@@ -19399,6 +19400,7 @@ function LoginScreen({ onLogin, onNavigate }: {
             email: cleanEmail,
             password,
             phone: phone || undefined,
+            payment_pin: paymentPin || undefined,
           }),
         });
         const signupData = await signupResp.json();
@@ -19445,6 +19447,20 @@ function LoginScreen({ onLogin, onNavigate }: {
       const accessToken = loginData.access_token;
       const decoded = decodeJwt(accessToken);
       if (!decoded) throw new Error("Could not parse login token.");
+
+      if (paymentPin && paymentPin.length === 4) {
+        try {
+          await fetch(`${API_URL}/wallet/security-pin/set`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${accessToken}`
+            },
+            body: JSON.stringify({ pin: paymentPin })
+          });
+        } catch {}
+      }
+
       onLogin(accessToken, loginData.refresh_token, decoded.role || "user", decoded.sub || email);
     } catch (err: any) {
       setErrorMsg(err.message || "Something went wrong. Please try again.");

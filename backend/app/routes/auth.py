@@ -200,6 +200,7 @@ class UserSignUp(BaseModel):
     email: EmailStr
     password: str
     phone: Optional[str] = None
+    payment_pin: Optional[str] = None
     country: Optional[str] = None
     preferred_language: str = "en"
     preferred_currency: str = "INR"
@@ -331,6 +332,14 @@ def signup(user_data: UserSignUp, db: Session = Depends(get_db)):
     loyalty = LoyaltyAccount(user_id=user.id, points_balance=0, tier="Bronze")
     db.add(wallet)
     db.add(loyalty)
+
+    if user_data.payment_pin and len(user_data.payment_pin) == 4 and user_data.payment_pin.isdigit():
+        try:
+            from app.services import security_pin_service
+            security_pin_service.set_pin(db, user.id, user_data.payment_pin)
+        except Exception as e:
+            logger.warning(f"Failed to set payment security pin on signup for user {user.id}: {e}")
+
     db.commit()
 
     return SignUpResponse(
