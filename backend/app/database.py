@@ -20,7 +20,7 @@ elif is_railway:
 else:
     # Local development fallback
     if not DATABASE_URL:
-        DATABASE_URL = "postgresql://travel_user:travel_password@localhost:5432/travel_os"
+        DATABASE_URL = "sqlite:///./fallback.db"
 
 engine = None
 fallback_needed = False
