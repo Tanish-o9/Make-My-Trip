@@ -3150,26 +3150,26 @@ function ExploreView({
 
       {/* TRAVEL ANALYTICS PREVIEW */}
       <div className="max-w-6xl mx-auto px-8 py-6 border-t border-slate-900/60 pt-10">
-        <div className="bg-slate-900 border-2 border-slate-700/80 rounded-2xl p-6 flex flex-col md:flex-row justify-between items-center gap-6 shadow-2xl">
+        <div className="metrics-card p-6 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="space-y-2 text-left max-w-sm">
-            <span className="text-xs text-amber-400 font-black uppercase tracking-wider block">Ghumne Chale Metrics</span>
+            <span className="text-xs metrics-header-tag font-black uppercase tracking-wider block">Ghumne Chale Metrics</span>
             <h4 className="text-xl font-black text-white">Live Platform Travel Analytics</h4>
-            <p className="text-xs text-slate-300 font-medium leading-relaxed">
+            <p className="text-xs metrics-header-desc font-medium leading-relaxed">
               We track real-time savings, active search indices, flight price drops, and carbon footprint reduction parameters to optimize your journeys.
             </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full md:w-auto flex-1 max-w-xl text-left">
-            <div className="bg-slate-950 p-4 rounded-xl border-2 border-amber-500/60 shadow-lg">
-              <span className="text-[10px] text-amber-300 font-black uppercase tracking-wider block">Average Traveler Savings</span>
-              <span className="text-base font-black text-amber-400 block mt-1.5">₹4,850 / trip</span>
+            <div className="metrics-box-amber p-4">
+              <span className="text-[10px] metrics-title font-black uppercase tracking-wider block">Average Traveler Savings</span>
+              <span className="text-base metrics-value font-black block mt-1.5">₹4,850 / trip</span>
             </div>
-            <div className="bg-slate-950 p-4 rounded-xl border-2 border-sky-500/60 shadow-lg">
-              <span className="text-[10px] text-sky-300 font-black uppercase tracking-wider block">Active Monitored Trips</span>
-              <span className="text-base font-black text-sky-400 block mt-1.5">1,248 Trips</span>
+            <div className="metrics-box-sky p-4">
+              <span className="text-[10px] metrics-title font-black uppercase tracking-wider block">Active Monitored Trips</span>
+              <span className="text-base metrics-value font-black block mt-1.5">1,248 Trips</span>
             </div>
-            <div className="bg-slate-950 p-4 rounded-xl border-2 border-emerald-500/60 shadow-lg">
-              <span className="text-[10px] text-emerald-300 font-black uppercase tracking-wider block">Platform Health Standing</span>
-              <span className="text-base font-black text-emerald-400 block mt-1.5">99.98% SLA</span>
+            <div className="metrics-box-emerald p-4">
+              <span className="text-[10px] metrics-title font-black uppercase tracking-wider block">Platform Health Standing</span>
+              <span className="text-base metrics-value font-black block mt-1.5">99.98% SLA</span>
             </div>
           </div>
         </div>

@@ -88,6 +88,62 @@
   color: #1e293b !important;
 }
 
+/* ─── Metric Analytics Card overrides (Force high contrast text) ─────────────── */
+.metrics-card {
+  background: #0f172a !important;
+  border: 3px solid #334155 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+  color: #ffffff !important;
+}
+.metrics-card h4,
+.metrics-card p,
+.metrics-card span {
+  color: #ffffff !important;
+}
+.metrics-card .metrics-header-tag {
+  color: #fbbf24 !important;
+}
+.metrics-card .metrics-header-desc {
+  color: #cbd5e1 !important;
+}
+
+.metrics-box-amber {
+  background-color: #172554 !important;
+  border: 2px solid #f59e0b !important;
+  border-radius: 12px !important;
+}
+.metrics-box-amber .metrics-title {
+  color: #fef08a !important;
+}
+.metrics-box-amber .metrics-value {
+  color: #fbbf24 !important;
+}
+
+.metrics-box-sky {
+  background-color: #0c4a6e !important;
+  border: 2px solid #0284c7 !important;
+  border-radius: 12px !important;
+}
+.metrics-box-sky .metrics-title {
+  color: #e0f2fe !important;
+}
+.metrics-box-sky .metrics-value {
+  color: #38bdf8 !important;
+}
+
+.metrics-box-emerald {
+  background-color: #064e3b !important;
+  border: 2px solid #059669 !important;
+  border-radius: 12px !important;
+}
+.metrics-box-emerald .metrics-title {
+  color: #d1fae5 !important;
+}
+.metrics-box-emerald .metrics-value {
+  color: #34d399 !important;
+}
+
 /* ─── Flight Seat Map overrides ───────────────────────────────────────────
    Must come AFTER the neobrutalist block so these !important rules win.   */
 .seat-btn-available {
