@@ -34,7 +34,7 @@ try:
             pool_recycle=int(os.getenv("DATABASE_POOL_RECYCLE", "1800")),
             pool_timeout=int(os.getenv("DATABASE_POOL_TIMEOUT", "10")),
             pool_pre_ping=True,
-            connect_args={"connect_timeout": 5}  # fail fast — don't hang for 60s
+            connect_args={"connect_timeout": 1}  # fail fast — don't hang for 60s
         )
     else:
         engine = create_engine(
