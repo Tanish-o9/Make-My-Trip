@@ -18009,7 +18009,7 @@ function AccountProfileModal({ userProfile, setUserProfile, onClose, onLogout }:
                 type="text"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                placeholder="e.g. Rahul Sharma"
+                placeholder="e.g. Tanish Sharma"
                 className="w-full bg-[#1e293b] border-2 border-slate-700 focus:border-yellow-400 rounded-xl px-3 py-2 font-bold text-white outline-none"
               />
             </div>
@@ -19473,7 +19473,7 @@ function LoginScreen({ onLogin, onNavigate }: {
                 type="text"
                 value={fullName}
                 onChange={e => { setFullName(e.target.value); setFieldErrors(p => ({ ...p, fullName: "" })); }}
-                placeholder="e.g. Rahul Sharma"
+                placeholder="e.g. Tanish Sharma"
                 className={`${inputCls} ${fieldErrors.fullName ? "border-red-500" : ""}`}
                 autoComplete="name"
               />
