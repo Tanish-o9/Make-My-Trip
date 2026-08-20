@@ -1231,7 +1231,7 @@ export default function App() {
       joinedDate: savedJoined || "Aug 2026",
       tier: "Gold",
       points: 450,
-      walletBalance: savedBal ? parseFloat(savedBal) : 24500.00
+      walletBalance: savedBal ? parseFloat(savedBal) : 0.00
     };
   });
 
@@ -1721,10 +1721,10 @@ export default function App() {
       setToken(null);
       setUserRole(null);
       setUserProfile({
-        email: "traveler@travelos.com",
-        tier: "Gold",
-        points: 450,
-        walletBalance: 24500.00
+        email: "",
+        tier: "Bronze",
+        points: 0,
+        walletBalance: 0.00
       });
       params.delete('logout');
       const newSearch = params.toString();
@@ -1819,6 +1819,8 @@ export default function App() {
       localStorage.removeItem('user_full_name');
       localStorage.removeItem('user_phone');
       localStorage.removeItem('user_joined_date');
+      localStorage.removeItem('wallet_balance');
+      sessionStorage.removeItem('wallet_balance');
     }
 
     localStorage.setItem('token', accessToken);
@@ -1834,6 +1836,25 @@ export default function App() {
       phone: localStorage.getItem('user_phone') || "",
       joinedDate: localStorage.getItem('user_joined_date') || "Aug 2026"
     }));
+
+    // Fetch authoritative user profile and wallet balance from backend
+    fetch(`${API_URL}/users/me`, {
+      headers: { "Authorization": `Bearer ${accessToken}` }
+    })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data) {
+          const bal = data.wallet_balance ?? 0;
+          localStorage.setItem("wallet_balance", bal.toString());
+          setUserProfile((prev: any) => ({
+            ...prev,
+            walletBalance: bal,
+            points: data.loyalty_points ?? prev.points,
+            tier: data.loyalty_tier || prev.tier
+          }));
+        }
+      })
+      .catch(() => {});
 
     if (role === 'admin' || role === 'super_admin' || role === 'finance_admin' || role === 'booking_approver') {
       redirectToAdmin(accessToken);
