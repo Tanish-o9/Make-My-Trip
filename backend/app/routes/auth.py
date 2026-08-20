@@ -303,8 +303,12 @@ def signup(user_data: UserSignUp, db: Session = Depends(get_db)):
                 detail="An account with this email already exists. Please log in or reset your password.",
             )
         else:
-            # Unverified account — allow re-signup by resending OTP
+            # Unverified account — update password & allow re-signup by resending OTP
+            existing.password_hash = hash_password(user_data.password)
+            if user_data.phone:
+                existing.phone = user_data.phone
             profile = _get_or_create_profile(db, existing, clean_name, user_data)
+            db.commit()
             plain_otp = _create_verification_record(db, existing.id, clean_email, PURPOSE_EMAIL_VERIFICATION)
             result = _send_verification_email(clean_email, clean_name, plain_otp)
             if result and isinstance(result, dict) and not result.get("success"):

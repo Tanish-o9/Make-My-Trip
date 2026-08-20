@@ -19456,7 +19456,7 @@ function LoginScreen({ onLogin, onNavigate }: {
           setErrorMsg("Please verify your email before logging in.");
           return;
         }
-        if (loginResp.status === 401) throw new Error("Incorrect email or password.");
+        if (loginResp.status === 401) throw new Error("Incorrect email or password. If you haven't created an account yet, please click 'Create Account' below.");
         if (loginResp.status === 429) throw new Error("Too many requests. Please wait a moment and try again.");
         throw new Error(loginData.detail || `Login failed (HTTP ${loginResp.status}).`);
       }
