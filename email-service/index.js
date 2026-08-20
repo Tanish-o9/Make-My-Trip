@@ -107,57 +107,22 @@ app.post('/send-verification-email', authenticate, async (req, res) => {
     return res.status(400).json({ success: false, error: "Missing email or otp parameter." });
   }
 
+  // OTP Email sending system commented out as domain/SMTP is disabled
+  /*
   if (!smtpConfigured || !transporter) {
     console.error("[EMAIL SERVICE] SMTP configuration is incomplete");
     return res.status(500).json({ success: false, error: "SMTP configuration is incomplete" });
   }
+  */
 
   const masked = maskEmail(email);
-  const isReset = purpose === 'password_reset';
-  const subject = isReset ? "Reset your Ghumne Chale password" : "Verify your Ghumne Chale account";
-
-  const htmlBody = `
-    <div style="font-family: sans-serif; padding: 20px; color: #111;">
-      <h2>Ghumne Chale</h2>
-      <p>Hello,</p>
-      <p>Your Ghumne Chale ${isReset ? 'password reset' : 'verification'} code is:</p>
-      <div style="font-size: 24px; font-weight: bold; margin: 20px 0; letter-spacing: 2px; color: #d97706;">
-        ${otp}
-      </div>
-      <p>This code expires in <strong>${expires_in_minutes || 10}</strong> minutes.</p>
-      <p>If you did not request this, you can ignore this email.</p>
-      <hr style="border: none; border-top: 1px solid #ccc; margin: 20px 0;" />
-      <p style="font-size: 12px; color: #666;">
-        Ghumne Chale<br />
-        Plan karo. Book karo. Ghoom aao.
-      </p>
-    </div>
-  `;
-
-  const textBody = `
-Hello,
-
-Your Ghumne Chale ${isReset ? 'password reset' : 'verification'} code is: ${otp}
-
-This code expires in ${expires_in_minutes || 10} minutes.
-
-If you did not request this, you can ignore this email.
-
-Ghumne Chale
-Plan karo. Book karo. Ghoom aao.
-  `.trim();
-
-  try {
-    console.log(`[EMAIL SERVICE] Sending OTP to recipient=${masked}`);
-    const info = await transporter.sendMail({
-      from: `Ghumne Chale <${process.env.SMTP_FROM_EMAIL}>`,
-      to: email,
-      subject: subject,
-      text: textBody,
-      html: htmlBody
-    });
-
-    console.log(`[EMAIL SERVICE] OTP email delivered to recipient=${masked} message_id=${info.messageId}`);
+  console.log(`[EMAIL SERVICE] OTP system bypassed/commented out for recipient=${masked}`);
+  return res.json({
+    success: true,
+    message: "OTP system disabled; email send bypassed successfully.",
+    message_id: "simulated_otp_disabled"
+  });
+});
     lastSendStatus = 'success';
     return res.json({ success: true, message_id: info.messageId });
   } catch (error) {

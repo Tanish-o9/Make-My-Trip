@@ -19485,27 +19485,16 @@ function LoginScreen({ onLogin, onNavigate }: {
           </p>
         </div>
 
+        {/* OTP Resend system commented out as domain/OTP service is disabled
         {errorMsg && (
           <div className="bg-red-50 border-2 border-red-500 p-3 rounded-lg mb-4">
             <p className="text-xs text-red-600 font-bold text-center">{errorMsg}</p>
-            {unverifiedEmail && (
-              <div className="mt-2 text-center">
-                <button
-                  type="button"
-                  onClick={handleResendCode}
-                  disabled={resendLoading}
-                  className="text-xs bg-red-500 hover:bg-red-600 text-white font-bold px-3 py-1 rounded cursor-pointer transition-colors"
-                >
-                  {resendLoading ? "Sending..." : "Resend Verification Code"}
-                </button>
-              </div>
-            )}
           </div>
         )}
-
-        {resendMsg && (
-          <div className="bg-blue-50 border-2 border-blue-500 p-3 rounded-lg mb-4">
-            <p className="text-xs text-blue-700 font-bold text-center">{resendMsg}</p>
+        */}
+        {errorMsg && (
+          <div className="bg-red-50 border-2 border-red-500 p-3 rounded-lg mb-4">
+            <p className="text-xs text-red-600 font-bold text-center">{errorMsg}</p>
           </div>
         )}
 

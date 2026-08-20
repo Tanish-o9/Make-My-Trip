@@ -159,10 +159,10 @@ export default function ForgotPasswordPage({ onNavigate }: ForgotPasswordPagePro
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    const code = digits.join('');
+    const code = digits.join('') || '000000';
     const errs: Record<string, string> = {};
 
-    if (code.length !== 6) errs.code = 'Please enter the full 6-digit reset code.';
+    // OTP verification requirement commented out as OTP system is disabled
     if (!newPassword) errs.newPassword = 'Password is required.';
     else if (newPassword.length < 8) errs.newPassword = 'Password must be at least 8 characters.';
     else if (!/[A-Z]/.test(newPassword)) errs.newPassword = 'Must contain an uppercase letter.';

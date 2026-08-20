@@ -373,82 +373,15 @@ def _get_or_create_profile(db: Session, user: User, clean_name: str, user_data) 
 def verify_email(req: VerifyEmailRequest, db: Session = Depends(get_db)):
     """
     Verify a 6-digit email OTP.
-    - Max 5 incorrect attempts before the code is invalidated.
-    - Purpose-locked: only EMAIL_VERIFICATION codes accepted here.
-    - On success: marks user.email_verified = True.
+    OTP System is disabled; auto-verifies user email upon request.
     """
     clean_email = req.email.strip().lower()
-    now = datetime.datetime.utcnow()
-
     user = db.query(User).filter(User.email == clean_email).first()
-    if not user:
-        # Anti-enumeration: same error as wrong code
-        raise HTTPException(status_code=400, detail="Invalid or expired verification code.")
-
-    if user.email_verified:
-        return {"success": True, "message": "Email is already verified. Please log in."}
-
-    record = (
-        db.query(EmailVerification)
-        .filter(
-            EmailVerification.email == clean_email,
-            EmailVerification.purpose == PURPOSE_EMAIL_VERIFICATION,
-            EmailVerification.is_used == False,
-        )
-        .order_by(EmailVerification.created_at.desc())
-        .first()
-    )
-
-    if not record:
-        raise HTTPException(
-            status_code=400,
-            detail="No active verification code found. Please request a new code.",
-        )
-
-    if record.expires_at < now:
-        record.is_used = True
-        record.used_at = now
+    if user:
+        user.email_verified = True
         db.commit()
-        raise HTTPException(
-            status_code=400,
-            detail="Verification code has expired. Please request a new code.",
-        )
 
-    if record.attempts >= OTP_MAX_ATTEMPTS:
-        record.is_used = True
-        record.used_at = now
-        db.commit()
-        raise HTTPException(
-            status_code=400,
-            detail="Too many incorrect attempts. Please request a new verification code.",
-        )
-
-    # Verify the code
-    submitted_hash = _hash_otp(req.code.strip())
-    if submitted_hash != record.code_hash:
-        record.attempts += 1
-        db.commit()
-        remaining = OTP_MAX_ATTEMPTS - record.attempts
-        if remaining <= 0:
-            record.is_used = True
-            record.used_at = now
-            db.commit()
-            raise HTTPException(
-                status_code=400,
-                detail="Too many incorrect attempts. Please request a new verification code.",
-            )
-        raise HTTPException(
-            status_code=400,
-            detail=f"Incorrect verification code. {remaining} attempt(s) remaining.",
-        )
-
-    # ── Success ──
-    record.is_used = True
-    record.used_at = now
-    user.email_verified = True
-    db.commit()
-
-    logger.info(f"Email verified for user ID {user.id}")
+    logger.info(f"Email auto-verified for user {clean_email}")
     return {
         "success": True,
         "message": "Email verified successfully! You can now log in.",
@@ -1084,56 +1017,21 @@ def reset_password(req: ResetPasswordRequest, db: Session = Depends(get_db)):
 
     user = db.query(User).filter(User.email == clean_email).first()
     if not user:
-        raise HTTPException(status_code=400, detail="Invalid or expired reset code.")
+        raise HTTPException(status_code=400, detail="User account not found.")
 
-    record = (
-        db.query(EmailVerification)
-        .filter(
-            EmailVerification.email == clean_email,
-            EmailVerification.purpose == PURPOSE_PASSWORD_RESET,
-            EmailVerification.is_used == False,
-        )
-        .order_by(EmailVerification.created_at.desc())
-        .first()
-    )
+    # OTP verification logic commented out as OTP system is disabled
+    # record = (
+    #     db.query(EmailVerification)
+    #     .filter(
+    #         EmailVerification.email == clean_email,
+    #         EmailVerification.purpose == PURPOSE_PASSWORD_RESET,
+    #         EmailVerification.is_used == False,
+    #     )
+    #     .order_by(EmailVerification.created_at.desc())
+    #     .first()
+    # )
 
-    if not record:
-        raise HTTPException(status_code=400, detail="Invalid or expired reset code.")
-
-    if record.expires_at < now:
-        record.is_used = True
-        record.used_at = now
-        db.commit()
-        raise HTTPException(status_code=400, detail="Reset code has expired. Please request a new code.")
-
-    if record.attempts >= OTP_MAX_ATTEMPTS:
-        record.is_used = True
-        record.used_at = now
-        db.commit()
-        raise HTTPException(status_code=400, detail="Too many incorrect attempts. Please request a new code.")
-
-    # Verify code hash
-    submitted_hash = _hash_otp(req.code.strip())
-    if submitted_hash != record.code_hash:
-        record.attempts += 1
-        db.commit()
-        remaining = OTP_MAX_ATTEMPTS - record.attempts
-        if remaining <= 0:
-            record.is_used = True
-            record.used_at = now
-            db.commit()
-            raise HTTPException(
-                status_code=400,
-                detail="Too many incorrect attempts. Please request a new reset code.",
-            )
-        raise HTTPException(
-            status_code=400,
-            detail=f"Incorrect reset code. {remaining} attempt(s) remaining.",
-        )
-
-    # Success: update password and invalidate OTP
-    record.is_used = True
-    record.used_at = now
+    # Directly update password
     user.password_hash = hash_password(req.new_password)
 
     # Invalidate all active sessions / refresh tokens for this user

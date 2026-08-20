@@ -1179,20 +1179,7 @@ def verify_invitation_otp(
     if inv.phone_verified:
         return {"success": True, "message": "Phone number is already verified."}
         
-    now = datetime.datetime.utcnow()
-    
-    if not inv.otp_expires_at or inv.otp_expires_at < now:
-        raise HTTPException(status_code=400, detail="OTP has expired. Please request a new code.")
-        
-    if inv.otp_attempts >= 5:
-        raise HTTPException(status_code=400, detail="Too many invalid attempts. Please request a new code.")
-        
-    input_hash = hashlib.sha256(payload.code.encode()).hexdigest()
-    if inv.otp_code_hash != input_hash:
-        inv.otp_attempts += 1
-        db.commit()
-        raise HTTPException(status_code=400, detail=f"Invalid verification code. {5 - inv.otp_attempts} attempts remaining.")
-        
+    # OTP check commented out; auto-verify phone number directly
     inv.phone_verified = True
     inv.otp_code_hash = None
     inv.otp_expires_at = None

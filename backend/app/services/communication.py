@@ -206,8 +206,10 @@ class ResendEmailProvider(EmailProvider):
         otp_code: Optional[str] = None,
         purpose: Optional[str] = None,
     ) -> Dict[str, Any]:
-        if otp_code and body and "[REDACTED]" in body:
-            body = body.replace("[REDACTED]", otp_code)
+        # OTP / Email verification delivery system commented out as domain/Resend is disabled
+        if purpose in ("email_verification", "password_reset") or "OTP" in subject or "verification" in subject.lower():
+            logger.info(f"[EMAIL SERVICE] OTP/verification email delivery commented out for {to_email}")
+            return {"success": True, "email_id": "simulated_otp_disabled", "gateway": "simulated"}
 
         if not self._is_resend_configured() and not self._is_sendgrid_configured():
             masked = mask_email(to_email)
