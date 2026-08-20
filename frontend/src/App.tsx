@@ -3154,7 +3154,7 @@ function ExploreView({
               <span className="force-sky-text block mt-1.5 text-base font-black" style={{ color: '#38bdf8', fontSize: '18px', fontWeight: 900 }}>1,248 Trips</span>
             </div>
             <div className="force-dark-box-emerald p-4 rounded-xl shadow-lg" style={{ backgroundColor: '#0f172a', border: '3px solid #059669' }}>
-              <span className="force-emerald-subtext block text-[10px] uppercase tracking-wider" style={{ color: '#d1fae5', fontSize: '11px', fontWeight 900 }}>Platform Health Standing</span>
+              <span className="force-emerald-subtext block text-[10px] uppercase tracking-wider" style={{ color: '#d1fae5', fontSize: '11px', fontWeight: 900 }}>Platform Health Standing</span>
               <span className="force-emerald-text block mt-1.5 text-base font-black" style={{ color: '#34d399', fontSize: '18px', fontWeight: 900 }}>99.98% SLA</span>
             </div>
           </div>
