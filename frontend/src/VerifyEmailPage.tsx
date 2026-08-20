@@ -33,9 +33,8 @@ export default function VerifyEmailPage({ email, onNavigate }: VerifyEmailPagePr
   };
 
   useEffect(() => {
-    // Focus first digit on mount
-    setTimeout(() => inputRefs.current[0]?.focus(), 100);
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    // Auto-redirect to home as OTP is bypassed/auto-verified
+    onNavigate('/');
   }, []);
 
   const handleDigitChange = (index: number, value: string) => {

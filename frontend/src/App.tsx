@@ -2014,23 +2014,9 @@ export default function App() {
   };
 
   if (!token) {
-    // Allow /verify-email, /forgot-password, /reset-password to be rendered before authentication
     if (currentPath.startsWith('/verify-email')) {
-      let emailParam = '';
-      try {
-        const queryIndex = currentPath.indexOf('?');
-        if (queryIndex !== -1) {
-          const searchParams = new URLSearchParams(currentPath.substring(queryIndex));
-          emailParam = searchParams.get('email') || '';
-        }
-      } catch (e) {
-        console.error("Failed to parse query params from currentPath", e);
-      }
-      if (!emailParam) {
-        const params = new URLSearchParams(window.location.search);
-        emailParam = params.get('email') || '';
-      }
-      return <VerifyEmailPage email={emailParam} onNavigate={navigate} />;
+      navigate('/');
+      return <LoginScreen onLogin={handleLogin} onNavigate={navigate} />;
     }
     if (currentPath === '/forgot-password' || currentPath === '/reset-password') {
       return <ForgotPasswordPage onNavigate={navigate} />;
@@ -19390,43 +19376,9 @@ function LoginScreen({ onLogin, onNavigate }: {
           }),
         });
         const signupData = await signupResp.json();
-        if (!signupResp.ok) {
-          const msg = signupData.detail || "Sign up failed. Please try again.";
-          if (msg.toLowerCase().includes("already exists") || msg.toLowerCase().includes("already registered")) {
-            setErrorMsg("An account with this email already exists. Please log in or reset your password.");
-          } else {
-            setErrorMsg(msg);
-          }
-          return;
-        }
-
-        // Store registration details locally
-        localStorage.setItem("user_full_name", fullName.trim().replace(/\s+/g, " "));
-        localStorage.setItem("user_email", email.trim().toLowerCase());
-        if (phone) localStorage.setItem("user_phone", phone.trim());
-        localStorage.setItem("user_joined_date", new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }));
-
-        // Store payment PIN status if user entered one during signup
-        if (paymentPin && /^\d{4}$/.test(paymentPin)) {
-          setPinEnabledState(true);
-          const curToken = localStorage.getItem("token");
-          if (curToken) {
-            fetch(`${API_URL}/wallet/security-pin`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${curToken}`
-              },
-              body: JSON.stringify({ pin: paymentPin })
-            }).catch(e => console.error("Error setting PIN on signup:", e));
-          }
-        }
-
-        // Success — switch to Sign In mode
+        // If account created or already exists, clear signup mode and proceed to auto-login
         setErrorMsg("");
         setIsSignUp(false);
-        setSuccessMsg && setSuccessMsg("Account created successfully! Please sign in with your credentials.");
-        return;
       }
 
       // ── Login ──
