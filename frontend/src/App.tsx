@@ -19313,12 +19313,14 @@ function LoginScreen({ onLogin, onNavigate }: {
       else if (trimmedName.length < 2) errs.fullName = "Name must be at least 2 characters.";
       else if (!/[a-zA-Z]/.test(trimmedName)) errs.fullName = "Name must contain at least one letter.";
 
-      if (paymentPin) {
-        if (!/^\d{4}$/.test(paymentPin)) {
-          errs.paymentPin = "Payment PIN must be exactly 4 digits.";
-        } else if (confirmPaymentPin !== paymentPin) {
-          errs.confirmPaymentPin = "Payment PINs do not match.";
-        }
+      if (!paymentPin) {
+        errs.paymentPin = "Please set a 4-digit payment security PIN.";
+      } else if (!/^\d{4}$/.test(paymentPin)) {
+        errs.paymentPin = "Payment PIN must be exactly 4 digits.";
+      } else if (!confirmPaymentPin) {
+        errs.confirmPaymentPin = "Please confirm your 4-digit PIN.";
+      } else if (confirmPaymentPin !== paymentPin) {
+        errs.confirmPaymentPin = "Payment PINs do not match.";
       }
 
       const trimmedPhone = phone.trim();
@@ -19562,7 +19564,7 @@ function LoginScreen({ onLogin, onNavigate }: {
               <div className="sm:col-span-2 bg-[#FAF6EE] p-2.5 rounded-xl border-2 border-black space-y-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                 <div className="flex justify-between items-center">
                   <label className="text-[10px] uppercase font-black text-black flex items-center gap-1.5">
-                    🔐 Payment Security PIN <span className="text-[9px] font-normal text-slate-500">(4 digits)</span>
+                    🔐 Payment Security PIN * <span className="text-[9px] font-normal text-slate-500">(4 digits)</span>
                   </label>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
