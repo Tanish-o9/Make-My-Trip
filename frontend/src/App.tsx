@@ -3149,27 +3149,27 @@ function ExploreView({
       </div>
 
       {/* TRAVEL ANALYTICS PREVIEW */}
-      <div className="max-w-6xl mx-auto px-8 py-6 border-t border-slate-900/60 pt-10">
-        <div className="metrics-card p-6 flex flex-col md:flex-row justify-between items-center gap-6">
+      <div className="max-w-6xl mx-auto px-8 py-6 border-t border-black/20 pt-10">
+        <div className="force-analytics-container p-6 flex flex-col md:flex-row justify-between items-center gap-6 shadow-2xl" style={{ backgroundColor: '#0b0f19', border: '3px solid #1e293b' }}>
           <div className="space-y-2 text-left max-w-sm">
-            <span className="text-xs metrics-header-tag font-black uppercase tracking-wider block">Ghumne Chale Metrics</span>
-            <h4 className="text-xl font-black text-white">Live Platform Travel Analytics</h4>
-            <p className="text-xs metrics-header-desc font-medium leading-relaxed">
+            <span className="force-gold-text text-xs font-black uppercase tracking-wider block" style={{ color: '#fbbf24', fontWeight: 900 }}>Ghumne Chale Metrics</span>
+            <h4 className="text-xl font-black block" style={{ color: '#ffffff', fontWeight: 900 }}>Live Platform Travel Analytics</h4>
+            <p className="text-xs font-medium leading-relaxed block" style={{ color: '#cbd5e1' }}>
               We track real-time savings, active search indices, flight price drops, and carbon footprint reduction parameters to optimize your journeys.
             </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full md:w-auto flex-1 max-w-xl text-left">
-            <div className="metrics-box-amber p-4">
-              <span className="text-[10px] metrics-title font-black uppercase tracking-wider block">Average Traveler Savings</span>
-              <span className="text-base metrics-value font-black block mt-1.5">₹4,850 / trip</span>
+            <div className="force-dark-box-amber p-4 rounded-xl shadow-lg" style={{ backgroundColor: '#0f172a', border: '3px solid #f59e0b' }}>
+              <span className="force-gold-subtext block text-[10px] uppercase tracking-wider" style={{ color: '#fef08a', fontSize: '11px', fontWeight: 900 }}>Average Traveler Savings</span>
+              <span className="force-gold-text block mt-1.5 text-base font-black" style={{ color: '#fbbf24', fontSize: '18px', fontWeight: 900 }}>₹4,850 / trip</span>
             </div>
-            <div className="metrics-box-sky p-4">
-              <span className="text-[10px] metrics-title font-black uppercase tracking-wider block">Active Monitored Trips</span>
-              <span className="text-base metrics-value font-black block mt-1.5">1,248 Trips</span>
+            <div className="force-dark-box-sky p-4 rounded-xl shadow-lg" style={{ backgroundColor: '#0f172a', border: '3px solid #0284c7' }}>
+              <span className="force-sky-subtext block text-[10px] uppercase tracking-wider" style={{ color: '#e0f2fe', fontSize: '11px', fontWeight: 900 }}>Active Monitored Trips</span>
+              <span className="force-sky-text block mt-1.5 text-base font-black" style={{ color: '#38bdf8', fontSize: '18px', fontWeight: 900 }}>1,248 Trips</span>
             </div>
-            <div className="metrics-box-emerald p-4">
-              <span className="text-[10px] metrics-title font-black uppercase tracking-wider block">Platform Health Standing</span>
-              <span className="text-base metrics-value font-black block mt-1.5">99.98% SLA</span>
+            <div className="force-dark-box-emerald p-4 rounded-xl shadow-lg" style={{ backgroundColor: '#0f172a', border: '3px solid #059669' }}>
+              <span className="force-emerald-subtext block text-[10px] uppercase tracking-wider" style={{ color: '#d1fae5', fontSize: '11px', fontWeight 900 }}>Platform Health Standing</span>
+              <span className="force-emerald-text block mt-1.5 text-base font-black" style={{ color: '#34d399', fontSize: '18px', fontWeight: 900 }}>99.98% SLA</span>
             </div>
           </div>
         </div>

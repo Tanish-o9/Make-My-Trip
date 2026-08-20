@@ -1516,3 +1516,54 @@ body.light-mode .chat-followup-chip:hover,
 .wallet-modal .wallet-modal-inner .tx-empty {
   color: #94a3b8 !important;
 }
+
+/* ───────────────────────────────────────────────────────────────────────────
+   FINAL OVERRIDE FOR TRAVEL ANALYTICS METRICS BOXES (FORCE BRIGHT VISIBILITY)
+   ─────────────────────────────────────────────────────────────────────────── */
+.force-analytics-container {
+  background-color: #0b0f19 !important;
+  border: 3px solid #1e293b !important;
+  border-radius: 16px !important;
+}
+
+.force-dark-box-amber {
+  background-color: #0f172a !important;
+  border: 3px solid #f59e0b !important;
+  border-radius: 12px !important;
+}
+.force-gold-subtext {
+  color: #fef08a !important;
+  font-weight: 900 !important;
+}
+.force-gold-text {
+  color: #fbbf24 !important;
+  font-weight: 900 !important;
+}
+
+.force-dark-box-sky {
+  background-color: #0f172a !important;
+  border: 3px solid #0284c7 !important;
+  border-radius: 12px !important;
+}
+.force-sky-subtext {
+  color: #e0f2fe !important;
+  font-weight: 900 !important;
+}
+.force-sky-text {
+  color: #38bdf8 !important;
+  font-weight: 900 !important;
+}
+
+.force-dark-box-emerald {
+  background-color: #0f172a !important;
+  border: 3px solid #059669 !important;
+  border-radius: 12px !important;
+}
+.force-emerald-subtext {
+  color: #d1fae5 !important;
+  font-weight: 900 !important;
+}
+.force-emerald-text {
+  color: #34d399 !important;
+  font-weight: 900 !important;
+}
