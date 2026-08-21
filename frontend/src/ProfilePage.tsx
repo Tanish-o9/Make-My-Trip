@@ -24,7 +24,13 @@ export function ProfilePage({ onNavigate, token }: ProfilePageProps) {
   const [toast, setToast] = useState<string>("");
 
   // Personal Info Form States
-  const [fullName, setFullName] = useState("");
+  const [fullName, setFullName] = useState(() => {
+    const sName = typeof window !== "undefined" ? localStorage.getItem("user_full_name") : null;
+    const sEmail = typeof window !== "undefined" ? localStorage.getItem("user_email") : null;
+    if (sName && sName !== 'Traveler' && sName !== 'Ghumne Chale Traveler') return sName;
+    if (sEmail) return sEmail.split('@')[0];
+    return "";
+  });
   const [dob, setDob] = useState("");
   const [gender, setGender] = useState("");
   const [nationality, setNationality] = useState("");
@@ -121,12 +127,13 @@ export function ProfilePage({ onNavigate, token }: ProfilePageProps) {
       })
       .then(data => {
         setProfile(data);
-        const resolvedName = (data.full_name && data.full_name !== 'Traveler' && data.full_name !== 'Ghumne Chale Traveler')
-          ? data.full_name
-          : (storedName || (data.email ? data.email.split('@')[0] : 'Traveler'));
+        const emailUser = (data.email || storedEmail || "").split('@')[0];
+        const validBackendName = (data.full_name && data.full_name !== 'Traveler' && data.full_name !== 'Ghumne Chale Traveler') ? data.full_name : null;
+        const validStoredName = (storedName && storedName !== 'Traveler' && storedName !== 'Ghumne Chale Traveler') ? storedName : null;
+        const resolvedName = validBackendName || validStoredName || emailUser || "Traveler";
 
         setFullName(resolvedName);
-        if (resolvedName) localStorage.setItem("user_full_name", resolvedName);
+        if (resolvedName && resolvedName !== 'Traveler') localStorage.setItem("user_full_name", resolvedName);
 
         setDob(data.dob || "");
         setGender(data.gender || "Male");
