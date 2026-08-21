@@ -686,27 +686,8 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
           {/* Left Panel: Payment Methods */}
           <div className="md:col-span-8 space-y-6">
             
-            {/* Profile incomplete banner (Phase 6) */}
-            {profileIncomplete ? (
-              <div className="bg-rose-50 border-4 border-rose-600 rounded-2xl p-5 shadow-[5px_5px_0px_0px_rgba(225,29,72,1)] text-left space-y-3">
-                <div className="flex items-center gap-2 text-rose-600 font-black uppercase text-xs">
-                  <ShieldAlert size={16} /> Complete your profile to continue
-                </div>
-                <p className="text-[11px] text-rose-700 font-semibold leading-relaxed">
-                  Guest checkouts are disabled to prevent invalid bookings. The following mandatory fields are missing from your profile: <strong className="text-rose-800">{missingFields.join(", ")}</strong>.
-                </p>
-                <button 
-                  onClick={() => {
-                    window.history.pushState(null, '', '/profile');
-                    window.dispatchEvent(new PopStateEvent('popstate'));
-                  }}
-                  className="bg-rose-600 hover:bg-rose-700 text-white font-black text-[10px] uppercase px-4 py-2.5 border-2 border-black rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
-                >
-                  Go to Profile Setup ➔
-                </button>
-              </div>
-            ) : (
-              <div className="bg-white border-4 border-black rounded-2xl p-5 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] text-left space-y-4">
+            {/* Traveler Information Panel */}
+            <div className="bg-white border-4 border-black rounded-2xl p-5 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] text-left space-y-4">
                 <div className="flex justify-between items-center border-b-2 border-slate-200 pb-2 flex-wrap gap-2">
                   <h3 className="font-black text-sm uppercase flex items-center gap-1.5 text-black">👤 Traveler Information</h3>
                   {travellers.length > 0 && (
@@ -769,7 +750,6 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                   </div>
                 </div>
               </div>
-            )}
 
             {/* Human Payment Approval Checkpoint */}
             <div className="bg-yellow-50 border-4 border-black rounded-2xl p-4 shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] text-left">
@@ -858,7 +838,7 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                       </p>
                       <button
                         onClick={initUpiQr}
-                        disabled={paymentLoading || !humanApproved || profileIncomplete}
+                        disabled={paymentLoading || !humanApproved}
                         className="bg-emerald-400 hover:bg-emerald-500 disabled:bg-emerald-200 text-black border-3 border-black px-6 py-3 font-black text-sm uppercase rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer flex items-center justify-center gap-2 mx-auto"
                       >
                         {paymentLoading ? "Generating QR Code..." : "Generate UPI QR Code"}
@@ -941,7 +921,7 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                   <div className="flex justify-center items-center max-w-md mx-auto">
                     <button
                       onClick={() => payWithRazorpay()}
-                      disabled={paymentLoading || !humanApproved || profileIncomplete}
+                      disabled={paymentLoading || !humanApproved}
                       className="w-full bg-emerald-400 hover:bg-emerald-500 disabled:bg-emerald-200 text-black border-3 border-black px-6 py-3 font-black text-xs uppercase rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer flex items-center justify-center gap-2"
                     >
                       {paymentLoading ? (
@@ -990,7 +970,7 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                       <div className="pt-2">
                         <button
                           onClick={payWithWallet}
-                          disabled={paymentLoading || !humanApproved || profileIncomplete}
+                          disabled={paymentLoading || !humanApproved}
                           className="w-full bg-emerald-400 hover:bg-emerald-500 disabled:bg-emerald-200 text-black border-3 border-black px-6 py-3 font-black text-xs uppercase rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer flex items-center justify-center gap-2"
                         >
                           {paymentLoading ? (
@@ -1259,7 +1239,7 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                     <div className="flex justify-center items-center max-w-md mx-auto">
                       <button
                         onClick={() => payWithRazorpay()}
-                        disabled={!isFormValid || paymentLoading || !humanApproved || profileIncomplete}
+                        disabled={!isFormValid || paymentLoading || !humanApproved}
                         className="w-full bg-emerald-400 hover:bg-emerald-500 disabled:bg-slate-300 disabled:text-slate-500 disabled:border-slate-400 text-black border-3 border-black px-6 py-3 font-black text-xs uppercase rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 transition-all cursor-pointer flex items-center justify-center gap-2"
                       >
                         {paymentLoading ? (
