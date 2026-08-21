@@ -473,23 +473,7 @@ def login(
             db.commit()
             db.refresh(user)
 
-        # Ensure associated UserProfile, WalletAccount, and LoyaltyAccount exist safely without constraint conflicts
-        from app.models.core import UserProfile
-        prof = db.query(UserProfile).filter(UserProfile.user_id == user.id).first()
-        if not prof:
-            db.add(UserProfile(user_id=user.id, full_name=getattr(user, "full_name", None) or "Traveler", email=user.email))
-
-        wallet = db.query(WalletAccount).filter(WalletAccount.user_id == user.id).first()
-        if not wallet:
-            db.add(WalletAccount(user_id=user.id, balance=0.00, currency="INR"))
-
-        loyalty = db.query(LoyaltyAccount).filter(LoyaltyAccount.user_id == user.id).first()
-        if not loyalty:
-            db.add(LoyaltyAccount(user_id=user.id, points_balance=0, tier="Bronze"))
-        
-        db.commit()
-
-        # Strict password verification
+        # Strict password verification FIRST before extra queries
         pwd_valid = False
         if user.password_hash:
             if verify_password(form_data.password, user.password_hash):
@@ -504,30 +488,36 @@ def login(
                 )
         else:
             user.password_hash = hash_password(form_data.password)
-            db.commit()
             pwd_valid = True
 
-        # Auto-verify email on login
+        # Batch create profile, wallet, loyalty if missing
+        from app.models.core import UserProfile
+        prof = db.query(UserProfile).filter(UserProfile.user_id == user.id).first()
+        if not prof:
+            db.add(UserProfile(user_id=user.id, full_name=getattr(user, "full_name", None) or "Traveler", email=user.email))
+
+        wallet = db.query(WalletAccount).filter(WalletAccount.user_id == user.id).first()
+        if not wallet:
+            db.add(WalletAccount(user_id=user.id, balance=0.00, currency="INR"))
+
+        loyalty = db.query(LoyaltyAccount).filter(LoyaltyAccount.user_id == user.id).first()
+        if not loyalty:
+            db.add(LoyaltyAccount(user_id=user.id, points_balance=0, tier="Bronze"))
+
         if not user.email_verified:
             user.email_verified = True
-            db.commit()
 
         user_role = user.role or "user"
         access_token = create_access_token(data={"sub": user.email, "role": user_role, "id": user.id})
         refresh_token = create_refresh_token(data={"sub": user.email, "role": user_role, "id": user.id})
 
-        # Persist session refresh token safely without blocking authentication on logging errors
+        # Persist refresh token in same transaction
         try:
             user_agent = request.headers.get("User-Agent")
             device_id = request.headers.get("X-Device-Id")
             ip_address = request.client.host if request.client else None
 
-            decoded_refresh = decode_token(refresh_token)
-            exp_ts = decoded_refresh.get("exp")
-            if exp_ts:
-                expires_at = datetime.datetime.fromtimestamp(exp_ts, datetime.timezone.utc).replace(tzinfo=None)
-            else:
-                expires_at = datetime.datetime.utcnow() + datetime.timedelta(days=7)
+            expires_at = datetime.datetime.utcnow() + datetime.timedelta(days=7)
 
             db_refresh = RefreshToken(
                 user_id=user.id,
@@ -538,10 +528,11 @@ def login(
                 expires_at=expires_at,
             )
             db.add(db_refresh)
-            db.commit()
         except Exception as refresh_err:
-            db.rollback()
-            logger.warning(f"Could not persist refresh token: {refresh_err}")
+            logger.warning(f"Could not prepare refresh token: {refresh_err}")
+
+        # Single atomic DB commit for all updates
+        db.commit()
 
         return {"access_token": access_token, "refresh_token": refresh_token, "role": user_role}
     except HTTPException:

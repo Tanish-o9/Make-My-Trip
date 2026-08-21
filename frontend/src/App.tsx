@@ -19086,20 +19086,18 @@ function LoginScreen({ onLogin, onNavigate }: {
       const decoded = decodeJwt(accessToken);
       if (!decoded) throw new Error("Could not parse login token.");
 
-      if (paymentPin && paymentPin.length === 4) {
-        try {
-          await fetch(`${API_URL}/wallet/security-pin/set`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${accessToken}`
-            },
-            body: JSON.stringify({ pin: paymentPin })
-          });
-        } catch {}
-      }
-
       onLogin(accessToken, loginData.refresh_token, decoded.role || "user", decoded.sub || email);
+
+      if (paymentPin && paymentPin.length === 4) {
+        fetch(`${API_URL}/wallet/security-pin/set`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${accessToken}`
+          },
+          body: JSON.stringify({ pin: paymentPin })
+        }).catch(() => {});
+      }
     } catch (err: any) {
       setErrorMsg(err.message || "Something went wrong. Please try again.");
     } finally {
