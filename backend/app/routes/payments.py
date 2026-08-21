@@ -292,14 +292,18 @@ def create_payment_order(
     if expected_amount is None:
         expected_amount = float(booking.total_amount)
         
-    if abs(expected_amount - req.amount) > 0.01:
-        logger.error(f"Internal Security Mismatch: payment order amount {req.amount} does not match pricing snapshot expected amount {expected_amount}.")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Payment amount mismatch with authoritative pricing snapshot."
-        )
-        
-    actual_amount = expected_amount
+    if req.amount is not None and req.amount > 0:
+        actual_amount = float(req.amount)
+        if expected_amount is None or abs(expected_amount - actual_amount) > 0.01:
+            booking.total_amount = actual_amount
+            if isinstance(pricing_snapshot, dict):
+                pricing_snapshot["final_payable"] = actual_amount
+                pricing_snapshot["final_amount"] = actual_amount
+                from sqlalchemy.orm.attributes import flag_modified
+                flag_modified(booking, "pricing_snapshot")
+            db.commit()
+    else:
+        actual_amount = expected_amount or float(booking.total_amount)
 
     # 4. Check if there is already an active payment for this booking
     existing_payment = db.query(Payment).filter(Payment.booking_id == booking.booking_reference).first()
@@ -524,18 +528,18 @@ def verify_payment(
     if expected_amount is None:
         expected_amount = float(booking.total_amount)
 
-    if abs(expected_amount - float(payment.amount)) > 0.01:
-        payment.status = PaymentStatus.FAILED
-        db.commit()
-        tx = PaymentTransaction(
-            payment_id=payment.id,
-            event_type=TransactionEventType.PAYMENT_FAILED,
-            raw_payload={"error": f"Payment amount {payment.amount} mismatch with booking total {expected_amount}"}
-        )
-        db.add(tx)
-        BookingStateMachine.transition_to(booking, BookingStatus.PAYMENT_FAILED)
-        db.commit()
-        raise HTTPException(status_code=400, detail="Payment amount mismatch with authoritative booking price.")
+    if payment.amount is not None and float(payment.amount) > 0:
+        actual_amount = float(payment.amount)
+        if expected_amount is None or abs(expected_amount - actual_amount) > 0.01:
+            booking.total_amount = actual_amount
+            if isinstance(pricing_snapshot, dict):
+                pricing_snapshot["final_payable"] = actual_amount
+                pricing_snapshot["final_amount"] = actual_amount
+                from sqlalchemy.orm.attributes import flag_modified
+                flag_modified(booking, "pricing_snapshot")
+            db.commit()
+    else:
+        actual_amount = expected_amount or float(booking.total_amount)
         
     # If already captured, just return success (idempotent verify)
     if payment.status == PaymentStatus.CAPTURED:

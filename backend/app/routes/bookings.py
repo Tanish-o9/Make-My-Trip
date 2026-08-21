@@ -319,6 +319,11 @@ async def create_booking_hold(
         has_special_fare = any(p.get("specialFareType", "regular") != "regular" for p in passengers)
         has_seat_selection = bool(details.get("seat_numbers"))
         if req.amount is not None and req.amount > 0:
+            if has_seat_selection and abs(amount - float(req.amount)) > 1.0:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Authoritative recalculated amount (INR {amount}) does not match requested amount (INR {req.amount})."
+                )
             amount = float(req.amount)
 
         pricing_snapshot = {
