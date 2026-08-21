@@ -278,7 +278,7 @@ export function ProfilePage({ onNavigate, token }: ProfilePageProps) {
         showToastMsg("✅ Profile saved successfully!");
         fetchProfileData();
       })
-      .catch((err) => alert(err.message))
+      .catch((err) => showToastMsg(err.message === "Failed to fetch" ? "⚠️ Unable to connect to server. Please try again." : err.message))
       .finally(() => setSaving(false));
   };
 

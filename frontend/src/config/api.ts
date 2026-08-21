@@ -4,9 +4,6 @@ export const resolveApiBase = () => {
     let url = (envUrl && envUrl.trim()) ? envUrl.trim() : "";
 
     if (url) {
-      if (url.includes("make-my-trip-production.up.railway.app")) {
-        url = "http://localhost:8000/api";
-      }
       if (url.endsWith("/")) {
         url = url.slice(0, -1);
       }
