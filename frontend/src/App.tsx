@@ -1202,7 +1202,7 @@ export default function App() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [userRole, setUserRole] = useState<string | null>(localStorage.getItem('user_role'));
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'explore' | 'chat' | 'wallet' | 'trips' | 'documents' | 'wishlist' | 'group-trips' | 'ai-planner'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'explore' | 'chat' | 'wallet' | 'trips' | 'documents' | 'wishlist' | 'group-trips' | 'ai-planner' | 'profile'>('dashboard');
   const [selectedGroupTripId, setSelectedGroupTripId] = useState<number | null>(null);
   const [loadingVerticals, setLoadingVerticals] = useState<Record<string, boolean>>({});
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
