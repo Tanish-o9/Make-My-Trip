@@ -172,10 +172,47 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
   const [razorpayOrderData, setRazorpayOrderData] = useState<any>(null);
   const [rzpMethod, setRzpMethod] = useState<"card" | "upi" | "netbanking" | "wallet">("card");
   const [rzpProcessing, setRzpProcessing] = useState(false);
-  const [rzpCardNumber, setRzpCardNumber] = useState("4012 0000 3333 0026");
-  const [rzpCardExpiry, setRzpCardExpiry] = useState("12/30");
-  const [rzpCardCvv, setRzpCardCvv] = useState("123");
+  const [rzpCardNumber, setRzpCardNumber] = useState(() => {
+    try {
+      const saved = localStorage.getItem("ghumne_chale_last_used_card");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.number) return parsed.number;
+      }
+    } catch (e) {}
+    return "4012 0000 3333 0026";
+  });
+
+  const [rzpCardExpiry, setRzpCardExpiry] = useState(() => {
+    try {
+      const saved = localStorage.getItem("ghumne_chale_last_used_card");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.expiry) return parsed.expiry;
+      }
+    } catch (e) {}
+    return "12/30";
+  });
+
+  const [rzpCardCvv, setRzpCardCvv] = useState(() => {
+    try {
+      const saved = localStorage.getItem("ghumne_chale_last_used_card");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.cvv) return parsed.cvv;
+      }
+    } catch (e) {}
+    return "123";
+  });
+
   const [rzpCardName, setRzpCardName] = useState(() => {
+    try {
+      const saved = localStorage.getItem("ghumne_chale_last_used_card");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.name) return parsed.name;
+      }
+    } catch (e) {}
     const sName = typeof window !== "undefined" ? localStorage.getItem("user_full_name") : null;
     const sEmail = typeof window !== "undefined" ? localStorage.getItem("user_email") : null;
     if (sName && sName !== 'Traveler' && sName !== 'Ghumne Chale Traveler') return sName;
@@ -190,13 +227,24 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
 
   useEffect(() => {
     try {
+      localStorage.setItem("ghumne_chale_last_used_card", JSON.stringify({
+        number: rzpCardNumber,
+        expiry: rzpCardExpiry,
+        cvv: rzpCardCvv,
+        name: rzpCardName
+      }));
+    } catch (e) {}
+  }, [rzpCardNumber, rzpCardExpiry, rzpCardCvv, rzpCardName]);
+
+  useEffect(() => {
+    try {
       const stored = localStorage.getItem("ghumne_chale_saved_tokens");
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed) && parsed.length > 0) {
           setSavedTokens(parsed);
           const firstCard = parsed[0];
-          if (firstCard && firstCard.name) {
+          if (firstCard && firstCard.name && !localStorage.getItem("ghumne_chale_last_used_card")) {
             setRzpCardName(firstCard.name);
           }
         }
