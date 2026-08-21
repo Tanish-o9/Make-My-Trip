@@ -33,7 +33,7 @@ export function ProfilePage({ onNavigate, token }: ProfilePageProps) {
   });
   const [dob, setDob] = useState("");
   const [gender, setGender] = useState("");
-  const [nationality, setNationality] = useState("");
+  const [nationality, setNationality] = useState("Indian");
   const [mobileNumber, setMobileNumber] = useState("");
   const [alternatePhone, setAlternatePhone] = useState("");
   const [email, setEmail] = useState("");
@@ -48,7 +48,7 @@ export function ProfilePage({ onNavigate, token }: ProfilePageProps) {
   const [aadhaar, setAadhaar] = useState("");
   
   // Address
-  const [country, setCountry] = useState("");
+  const [country, setCountry] = useState("India");
   const [state, setState] = useState("");
   const [city, setCity] = useState("");
   const [postalCode, setPostalCode] = useState("");

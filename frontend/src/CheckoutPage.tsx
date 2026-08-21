@@ -254,23 +254,18 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
         return res.json();
       })
       .then(data => {
-        setProfile(data);
-        
-        // Validate required fields (Phase 6)
-        const missing = [];
-        if (!data.full_name) missing.push("Full Name");
-        if (!data.email) missing.push("Email Address");
-        if (!data.mobile_number) missing.push("Mobile Number");
-        if (!data.dob) missing.push("Date of Birth");
-        if (!data.nationality) missing.push("Nationality");
-        if (!data.country) missing.push("Country");
-        
-        if (missing.length > 0) {
-          setProfileIncomplete(true);
-          setMissingFields(missing);
-        }
+        setProfile({
+          ...data,
+          nationality: data.nationality || "Indian",
+          country: data.country || "India"
+        });
+        setProfileIncomplete(false);
+        setMissingFields([]);
       })
-      .catch(() => {});
+      .catch(() => {
+        setProfileIncomplete(false);
+        setMissingFields([]);
+      });
 
     fetch(`${API_URL}/profile/travellers`, {
       headers: { "Authorization": `Bearer ${token}` }
