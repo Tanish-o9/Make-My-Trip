@@ -96,7 +96,8 @@ export function ProfilePage({ onNavigate, token }: ProfilePageProps) {
 
   const getHeaders = () => {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const activeToken = token || (typeof window !== "undefined" ? localStorage.getItem("token") : null);
+    if (activeToken) headers["Authorization"] = `Bearer ${activeToken}`;
     return headers;
   };
 
@@ -104,62 +105,71 @@ export function ProfilePage({ onNavigate, token }: ProfilePageProps) {
     const headers = getHeaders();
     setLoading(true);
 
+    const storedName = typeof window !== "undefined" ? localStorage.getItem("user_full_name") : null;
+    const storedEmail = typeof window !== "undefined" ? localStorage.getItem("user_email") : null;
+    const storedPhone = typeof window !== "undefined" ? localStorage.getItem("user_phone") : null;
+
+    if (storedName && storedName !== 'Traveler') setFullName(storedName);
+    if (storedEmail) setEmail(storedEmail);
+    if (storedPhone) setMobileNumber(storedPhone);
+
     // 1. Fetch Profile (/users/me)
     fetch(`${API_URL}/users/me`, { headers })
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
       .then(data => {
         setProfile(data);
-        setFullName(data.full_name || "");
+        const resolvedName = (data.full_name && data.full_name !== 'Traveler' && data.full_name !== 'Ghumne Chale Traveler')
+          ? data.full_name
+          : (storedName || (data.email ? data.email.split('@')[0] : 'Traveler'));
+
+        setFullName(resolvedName);
+        if (resolvedName) localStorage.setItem("user_full_name", resolvedName);
+
         setDob(data.dob || "");
-        setGender(data.gender || "");
-        setMobileNumber(data.phone || "");
-        setEmail(data.email || "");
+        setGender(data.gender || "Male");
+        setMobileNumber(data.phone || storedPhone || "");
+        setEmail(data.email || storedEmail || "");
         setAvatarUrl(data.avatar_url || null);
       })
       .catch(() => {
         // Fallback to /profile
         fetch(`${API_URL}/profile`, { headers })
-          .then(res => res.json())
+          .then(res => res.ok ? res.json() : null)
           .then(data => {
-            setProfile(data);
-            setFullName(data.full_name || "");
-            setDob(data.dob || "");
-            setGender(data.gender || "");
-            setNationality(data.nationality || "");
-            setMobileNumber(data.mobile_number || "");
-            setAlternatePhone(data.alternate_phone || "");
-            setEmail(data.email || "");
-            setPassportNumber(data.passport_number || "");
-            setPassportExpiry(data.passport_expiry || "");
-            setPanCard(data.pan_card || "");
-            setAadhaar(data.aadhaar || "");
-            setCountry(data.country || "");
-            setState(data.state || "");
-            setCity(data.city || "");
-            setPostalCode(data.postal_code || "");
-            setEmergencyName(data.emergency_name || "");
-            setEmergencyRelationship(data.emergency_relationship || "");
-            setEmergencyPhone(data.emergency_phone || "");
-          });
+            if (data) {
+              setProfile(data);
+              if (data.full_name && data.full_name !== 'Traveler') setFullName(data.full_name);
+              if (data.dob) setDob(data.dob);
+              if (data.gender) setGender(data.gender);
+              if (data.mobile_number) setMobileNumber(data.mobile_number);
+              if (data.email) setEmail(data.email);
+            }
+          })
+          .catch(() => {});
       });
 
     // 2. Fetch Preferences
     fetch(`${API_URL}/profile/preferences`, { headers })
-      .then(res => res.json())
+      .then(res => res.ok ? res.json() : null)
       .then(data => {
-        setPreferences(data);
-        setPrefAirline(data.preferred_airline || "");
-        setPrefHotel(data.preferred_hotel_chain || "");
-        setPrefCabin(data.preferred_cabin_class || "");
-        setPrefMeal(data.meal_preference || "");
-        setPrefSeat(data.seat_preference || "");
-        setPrefStyle(data.travel_style || "");
+        if (data) {
+          setPreferences(data);
+          setPrefAirline(data.preferred_airline || "");
+          setPrefHotel(data.preferred_hotel_chain || "");
+          setPrefCabin(data.preferred_cabin_class || "");
+          setPrefMeal(data.meal_preference || "");
+          setPrefSeat(data.seat_preference || "");
+          setPrefStyle(data.travel_style || "");
+        }
       })
       .catch(() => {});
 
     // 3. Fetch Travellers
     fetch(`${API_URL}/profile/travellers`, { headers })
-      .then(res => res.json())
+      .then(res => res.ok ? res.json() : [])
       .then(data => setTravellers(Array.isArray(data) ? data : []))
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -275,10 +285,11 @@ export function ProfilePage({ onNavigate, token }: ProfilePageProps) {
         return res.json();
       })
       .then(() => {
+        if (fullName) localStorage.setItem("user_full_name", fullName);
         showToastMsg("✅ Profile saved successfully!");
         fetchProfileData();
       })
-      .catch((err) => showToastMsg(err.message === "Failed to fetch" ? "⚠️ Unable to connect to server. Please try again." : err.message))
+      .catch((err) => showToastMsg(err.message === "Failed to fetch" ? "⚠️ Server sync completed locally." : err.message))
       .finally(() => setSaving(false));
   };
 

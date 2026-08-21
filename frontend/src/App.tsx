@@ -2555,11 +2555,11 @@ export default function App() {
             </div>
 
             <button 
-              onClick={() => setShowProfile(true)}
+              onClick={() => setActiveTab('profile')}
               className="h-8 w-8 rounded-full border border-slate-700/60 bg-[var(--color-surface)] flex items-center justify-center font-bold text-xs text-[var(--color-ivory)] hover:border-[var(--color-gold)] hover:scale-105 transition-all cursor-pointer"
               title="View User Profile"
             >
-              TR
+              <User size={15} />
             </button>
           </div>
         </header>
@@ -2760,14 +2760,17 @@ export default function App() {
         />
       )}
 
-      {/* Account Profile Modal */}
+      {/* Full Account Profile View */}
       {showProfile && (
-        <AccountProfileModal
-          userProfile={userProfile}
-          setUserProfile={setUserProfile}
-          onClose={() => setShowProfile(false)}
-          onLogout={handleLogout}
-        />
+        <div className="fixed inset-0 z-50 bg-[#060814] overflow-y-auto">
+          <ProfilePage
+            onNavigate={(path) => {
+              setShowProfile(false);
+              navigate(path);
+            }}
+            token={token}
+          />
+        </div>
       )}
 
       {/* myBiz Dashboard Modal */}
