@@ -37,7 +37,7 @@ def create_access_token(data: Dict[str, Any], expires_delta: Optional[datetime.t
     if expires_delta:
         expire = now + expires_delta
     else:
-        expire = now + datetime.timedelta(minutes=15)  # 15 minutes standard
+        expire = now + datetime.timedelta(days=7)  # 7 days persistent session
     to_encode.update({
         "exp": expire,
         "iat": now,

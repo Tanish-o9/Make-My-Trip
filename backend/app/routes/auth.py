@@ -587,6 +587,27 @@ def refresh_token(request: Request, payload: TokenRefreshRequest, db: Session = 
             raise HTTPException(status_code=401, detail="Token compromised. All sessions revoked.")
 
     if not db_token:
+        email = decoded.get("sub")
+        user = db.query(User).filter(User.email == email).first() if email else None
+        if user:
+            access_token = create_access_token(data={"sub": user.email, "role": user.role, "id": user.id})
+            new_refresh = create_refresh_token(data={"sub": user.email, "role": user.role, "id": user.id})
+            try:
+                new_decoded = decode_token(new_refresh)
+                exp_ts = new_decoded.get("exp") if new_decoded else None
+                new_expires_at = datetime.datetime.fromtimestamp(exp_ts, datetime.timezone.utc).replace(tzinfo=None) if exp_ts else datetime.datetime.utcnow() + datetime.timedelta(days=7)
+                db.add(RefreshToken(
+                    user_id=user.id,
+                    token_hash=hash_token(new_refresh),
+                    device_id=payload.device_id or request.headers.get("X-Device-Id"),
+                    user_agent=request.headers.get("User-Agent"),
+                    ip_address=request.client.host if request.client else None,
+                    expires_at=new_expires_at,
+                ))
+                db.commit()
+            except Exception:
+                db.rollback()
+            return {"access_token": access_token, "refresh_token": new_refresh}
         raise HTTPException(status_code=401, detail="Invalid or untracked refresh token")
 
     if db_token.expires_at < datetime.datetime.utcnow():
