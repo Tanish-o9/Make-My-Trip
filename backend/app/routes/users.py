@@ -342,7 +342,7 @@ def get_current_user_profile(
         db.commit()
         db.refresh(profile)
     else:
-        if not profile.full_name or profile.full_name == "User":
+        if not profile.full_name or profile.full_name in ["User", "Traveler", "Ghumne Chale Traveler"]:
             profile.full_name = user_name
             db.commit()
         if not profile.mobile_number and current_user.phone:
@@ -355,7 +355,7 @@ def get_current_user_profile(
     joined_str = current_user.created_at.strftime("%b %Y") if current_user.created_at else None
 
     metrics = calculate_user_metrics(db, current_user.id)
-    fn = profile.full_name or user_name
+    fn = (profile.full_name if (profile.full_name and profile.full_name not in ["Traveler", "Ghumne Chale Traveler"]) else None) or user_name
     phone_num = profile.mobile_number or current_user.phone or ""
 
     return UserProfileResponse(

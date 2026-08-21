@@ -440,8 +440,9 @@ def get_dashboard_data(
 
     # ── 3. User profile ───────────────────────────────────────────────────────
     profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
-    full_name = (profile.full_name if (profile and profile.full_name) else None) or getattr(current_user, "full_name", None) or "Traveler"
-    first_name = full_name.split()[0] if full_name else "Traveler"
+    email_name = current_user.email.split('@')[0] if current_user.email else "Traveler"
+    full_name = (profile.full_name if (profile and profile.full_name and profile.full_name not in ["Traveler", "Ghumne Chale Traveler"]) else None) or getattr(current_user, "full_name", None) or email_name
+    first_name = full_name.split()[0] if full_name else email_name
 
     user_summary = {
         "first_name": first_name,

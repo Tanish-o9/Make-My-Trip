@@ -107,7 +107,7 @@ const PIN_ENABLED_KEY = "payment_pin_enabled";
 
 const isPinSet = (): boolean => {
   try {
-    return localStorage.getItem(PIN_ENABLED_KEY) === "true";
+    return localStorage.getItem(PIN_ENABLED_KEY) === "true" || !!localStorage.getItem("user_payment_pin") || !!localStorage.getItem("user_payment_pin_set");
   } catch {
     return false;
   }
@@ -17791,7 +17791,25 @@ function AccountProfileModal({ userProfile, setUserProfile, onClose, onLogout }:
         if (resolvedEmail) localStorage.setItem("user_email", resolvedEmail);
         if (resolvedPhone) localStorage.setItem("user_phone", resolvedPhone);
 
-        const hasPin = Boolean(data.pin_enabled || isPinSet() || (typeof window !== 'undefined' && localStorage.getItem("user_payment_pin")));
+        const localPinStored = typeof window !== 'undefined' && Boolean(localStorage.getItem("user_payment_pin") || localStorage.getItem(PIN_ENABLED_KEY) === "true");
+        const hasPin = Boolean(data.pin_enabled || isPinSet() || localPinStored);
+
+        if (hasPin) setPinEnabledState(true);
+
+        if (!data.pin_enabled && localPinStored) {
+          const storedPin = localStorage.getItem("user_payment_pin");
+          if (storedPin && storedPin.length === 4) {
+            fetch(`${API_URL}/wallet/security-pin/set`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+              },
+              body: JSON.stringify({ pin: storedPin })
+            }).catch(() => {});
+          }
+        }
+
         setBackendMetrics({
           wallet_balance: data.wallet_balance ?? 0,
           loyalty_points: data.loyalty_points ?? 0,
