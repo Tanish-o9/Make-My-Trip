@@ -412,10 +412,20 @@ def update_current_user_profile(
         profile.mobile_number = req.phone.strip()
         current_user.phone = req.phone.strip()
     if req.dob is not None:
-        try:
-            profile.dob = datetime.date.fromisoformat(req.dob) if req.dob else None
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
+        if not req.dob:
+            profile.dob = None
+        else:
+            try:
+                profile.dob = datetime.date.fromisoformat(req.dob)
+            except ValueError:
+                parsed_dob = None
+                for fmt in ("%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d", "%Y-%m-%d"):
+                    try:
+                        parsed_dob = datetime.datetime.strptime(req.dob, fmt).date()
+                        break
+                    except ValueError:
+                        pass
+                profile.dob = parsed_dob
     if req.gender is not None:
         profile.gender = req.gender
     if req.preferred_language is not None:

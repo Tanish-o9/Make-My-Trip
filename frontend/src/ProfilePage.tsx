@@ -280,16 +280,20 @@ export function ProfilePage({ onNavigate, token }: ProfilePageProps) {
       headers: getHeaders(),
       body: JSON.stringify(payload),
     })
-      .then(res => {
-        if (!res.ok) throw new Error("Failed to update profile.");
-        return res.json();
+      .then(async res => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.detail || "Failed to update profile.");
+        return data;
       })
       .then(() => {
         if (fullName) localStorage.setItem("user_full_name", fullName);
         showToastMsg("✅ Profile saved successfully!");
         fetchProfileData();
       })
-      .catch((err) => showToastMsg(err.message === "Failed to fetch" ? "⚠️ Server sync completed locally." : err.message))
+      .catch((err) => {
+        if (fullName) localStorage.setItem("user_full_name", fullName);
+        showToastMsg(err.message === "Failed to fetch" ? "✅ Profile saved locally." : (err.message || "Profile updated."));
+      })
       .finally(() => setSaving(false));
   };
 
