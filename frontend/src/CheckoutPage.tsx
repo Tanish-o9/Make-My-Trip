@@ -175,7 +175,13 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
   const [rzpCardNumber, setRzpCardNumber] = useState("4012 0000 3333 0026");
   const [rzpCardExpiry, setRzpCardExpiry] = useState("12/30");
   const [rzpCardCvv, setRzpCardCvv] = useState("123");
-  const [rzpCardName, setRzpCardName] = useState("Tanish Verified Traveler");
+  const [rzpCardName, setRzpCardName] = useState(() => {
+    const sName = typeof window !== "undefined" ? localStorage.getItem("user_full_name") : null;
+    const sEmail = typeof window !== "undefined" ? localStorage.getItem("user_email") : null;
+    if (sName && sName !== 'Traveler' && sName !== 'Ghumne Chale Traveler') return sName;
+    if (sEmail) return sEmail.split('@')[0];
+    return "";
+  });
   const [selectedBank, setSelectedBank] = useState("HDFC Bank");
   const [paymentAuthToken, setPaymentAuthToken] = useState<string | null>(null);
   const [showPinModal, setShowPinModal] = useState(false);
@@ -189,6 +195,10 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed) && parsed.length > 0) {
           setSavedTokens(parsed);
+          const firstCard = parsed[0];
+          if (firstCard && firstCard.name) {
+            setRzpCardName(firstCard.name);
+          }
         }
       }
     } catch (e) {
@@ -222,7 +232,9 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
     setRzpCardNumber("4012 0000 3333 0026");
     setRzpCardExpiry("12/30");
     setRzpCardCvv("123");
-    setRzpCardName(profile?.full_name || "Tanish Verified Traveler");
+    const sName = typeof window !== "undefined" ? localStorage.getItem("user_full_name") : null;
+    const sEmail = typeof window !== "undefined" ? localStorage.getItem("user_email") : null;
+    setRzpCardName(profile?.full_name || (sName && sName !== 'Traveler' ? sName : (sEmail ? sEmail.split('@')[0] : "")));
   };
 
   const removeSavedToken = (id: string, e: React.MouseEvent) => {
@@ -259,6 +271,12 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
           nationality: data.nationality || "Indian",
           country: data.country || "India"
         });
+        const resolvedName = (data.full_name && data.full_name !== 'Traveler' && data.full_name !== 'Ghumne Chale Traveler')
+          ? data.full_name
+          : (localStorage.getItem("user_full_name") || (data.email ? data.email.split('@')[0] : ""));
+        if (resolvedName) {
+          setRzpCardName(resolvedName);
+        }
         setProfileIncomplete(false);
         setMissingFields([]);
       })
@@ -1118,10 +1136,10 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                         <label className="text-[10px] uppercase font-black text-black block">Select Official Provider Sandbox Test Card:</label>
                         <div className="grid grid-cols-4 gap-1 text-[10px] font-black">
                           {[
-                            { label: "Visa", num: "4012 0000 3333 0026", exp: "12/30", cvv: "123", name: "Tanish Verified Traveler" },
-                            { label: "Mastercard", num: "5123 4567 8901 2345", exp: "11/28", cvv: "456", name: "Primary Travel Card" },
-                            { label: "RuPay", num: "6071 2345 6789 0123", exp: "09/29", cvv: "789", name: "Corporate RuPay Card" },
-                            { label: "Amex", num: "3782 822463 10005", exp: "10/29", cvv: "1234", name: "Amex Corporate Card" },
+                            { label: "Visa", num: "4012 0000 3333 0026", exp: "12/30", cvv: "123", name: profile?.full_name || rzpCardName || "Cardholder Name" },
+                            { label: "Mastercard", num: "5123 4567 8901 2345", exp: "11/28", cvv: "456", name: profile?.full_name || rzpCardName || "Cardholder Name" },
+                            { label: "RuPay", num: "6071 2345 6789 0123", exp: "09/29", cvv: "789", name: profile?.full_name || rzpCardName || "Cardholder Name" },
+                            { label: "Amex", num: "3782 822463 10005", exp: "10/29", cvv: "1234", name: profile?.full_name || rzpCardName || "Cardholder Name" },
                           ].map((preset) => (
                             <button
                               type="button"
