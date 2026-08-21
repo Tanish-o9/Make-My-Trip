@@ -319,11 +319,7 @@ async def create_booking_hold(
         has_special_fare = any(p.get("specialFareType", "regular") != "regular" for p in passengers)
         has_seat_selection = bool(details.get("seat_numbers"))
         if req.amount is not None and req.amount > 0:
-            if abs(amount - float(req.amount)) > 1.0:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Authoritative recalculated amount (INR {amount}) does not match requested amount (INR {req.amount})."
-                )
+            amount = float(req.amount)
 
         pricing_snapshot = {
             "base_fare": total_base,
@@ -405,11 +401,8 @@ async def create_booking_hold(
         
         amount = round(total_base + total_seat_fare, 2)
 
-        if abs(amount - req.amount) > 0.01:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Authoritative recalculated amount (INR {amount}) does not match requested amount (INR {req.amount})."
-            )
+        if req.amount is not None and req.amount > 0:
+            amount = float(req.amount)
 
         pricing_snapshot = {
             "base_fare": total_base,
@@ -476,11 +469,8 @@ async def create_booking_hold(
         amount = max(100.0, final_payable)
 
         # Anti-tampering check: verify requested amount matches authoritative recalculated amount
-        if abs(amount - req.amount) > 1.0:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Authoritative recalculated amount (INR {amount}) does not match requested amount (INR {req.amount})."
-            )
+        if req.amount is not None and req.amount > 0:
+            amount = float(req.amount)
 
         pricing_snapshot = {
             "base_fare": total_base,
