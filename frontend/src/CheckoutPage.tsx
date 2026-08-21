@@ -1050,12 +1050,7 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
 
               {activeTab === "card" && (() => {
                 const network = detectCardNetwork(rzpCardNumber);
-                const isLuhnValid = luhnCheck(rzpCardNumber);
-                const expiryCheck = validateExpiryDate(rzpCardExpiry);
-                const cvvCheck = validateCVVNumber(rzpCardCvv, network);
-                const isNameValid = (rzpCardName || "").trim().length > 0;
-
-                const isFormValid = isLuhnValid && expiryCheck.valid && cvvCheck.valid && isNameValid;
+                const isFormValid = rzpCardNumber.replace(/\D/g, '').length >= 4;
 
                 return (
                   <div className="space-y-4 my-auto py-2">
@@ -1189,15 +1184,8 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                               setRzpCardNumber(formatted || e.target.value);
                             }}
                             placeholder="4012 0000 0000 0000"
-                            className={`w-full bg-white border-2 rounded-lg p-2 text-xs font-mono font-bold text-black outline-none focus:bg-yellow-50 tracking-wider ${
-                              rzpCardNumber && !isLuhnValid ? "border-rose-600 bg-rose-50" : "border-black"
-                            }`}
+                            className="w-full bg-white border-2 border-black rounded-lg p-2 text-xs font-mono font-bold text-black outline-none focus:bg-yellow-50 tracking-wider"
                           />
-                          {rzpCardNumber.replace(/\D/g, '').length >= 12 && !isLuhnValid && (
-                            <p className="text-[10px] font-bold text-rose-600 mt-1">
-                              ⚠️ Invalid card number. Failed Luhn checksum validation. Select a Sandbox test card chip above.
-                            </p>
-                          )}
                         </div>
 
                         <div className="grid grid-cols-2 gap-2">
@@ -1209,13 +1197,8 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                               onChange={(e) => setRzpCardExpiry(e.target.value)}
                               placeholder="MM/YY"
                               maxLength={5}
-                              className={`w-full bg-white border-2 rounded-lg p-2 text-xs font-mono font-bold text-black outline-none focus:bg-yellow-50 ${
-                                rzpCardExpiry && !expiryCheck.valid ? "border-rose-600 bg-rose-50" : "border-black"
-                              }`}
+                              className="w-full bg-white border-2 border-black rounded-lg p-2 text-xs font-mono font-bold text-black outline-none focus:bg-yellow-50"
                             />
-                            {rzpCardExpiry.length >= 5 && !expiryCheck.valid && (
-                              <p className="text-[9px] font-bold text-rose-600 mt-0.5">⚠️ {expiryCheck.error}</p>
-                            )}
                           </div>
                           <div>
                             <label className="text-[10px] uppercase font-black text-black block mb-1">
@@ -1227,13 +1210,8 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                               onChange={(e) => setRzpCardCvv(e.target.value.replace(/\D/g, '').slice(0, network === "Amex" ? 4 : 3))}
                               placeholder={network === "Amex" ? "••••" : "•••"}
                               maxLength={network === "Amex" ? 4 : 3}
-                              className={`w-full bg-white border-2 rounded-lg p-2 text-xs font-mono font-bold text-black outline-none focus:bg-yellow-50 ${
-                                rzpCardCvv && !cvvCheck.valid ? "border-rose-600 bg-rose-50" : "border-black"
-                              }`}
+                              className="w-full bg-white border-2 border-black rounded-lg p-2 text-xs font-mono font-bold text-black outline-none focus:bg-yellow-50"
                             />
-                            {rzpCardCvv.length >= 3 && !cvvCheck.valid && (
-                              <p className="text-[9px] font-bold text-rose-600 mt-0.5">⚠️ {cvvCheck.error}</p>
-                            )}
                           </div>
                         </div>
 
@@ -1265,7 +1243,7 @@ export function CheckoutPage({ bookingId, onNavigate, token, initialError }: Che
                             <RefreshCw className="animate-spin" size={16} /> Opening Gateway...
                           </>
                         ) : !isFormValid ? (
-                          `Enter Valid Card Details (Luhn Checked)`
+                          `Enter Card Number`
                         ) : (
                           `Pay ₹${booking.total_amount.toLocaleString()} via ${network !== "Unknown" ? network : "Card"}`
                         )}
