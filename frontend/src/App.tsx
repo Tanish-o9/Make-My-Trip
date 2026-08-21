@@ -2599,6 +2599,13 @@ export default function App() {
                 setActiveTab={(tab: any) => setActiveTab(tab)} 
               />
             )}
+            {activeTab === 'profile' && (
+              <ProfilePage 
+                key="profile" 
+                onNavigate={navigate} 
+                token={token} 
+              />
+            )}
             {activeTab === 'chat' && (
               <ChatView 
                 key="chat" 
