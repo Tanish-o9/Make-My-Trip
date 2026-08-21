@@ -164,11 +164,25 @@ def update_user_profile(
         profile = UserProfile(user_id=current_user.id, full_name="User")
         db.add(profile)
 
+    def parse_flexible_date(val: Optional[str]) -> Optional[datetime.date]:
+        if not val:
+            return None
+        val_str = str(val).strip()
+        try:
+            return datetime.date.fromisoformat(val_str)
+        except ValueError:
+            for fmt in ("%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d", "%Y-%m-%d"):
+                try:
+                    return datetime.datetime.strptime(val_str, fmt).date()
+                except ValueError:
+                    pass
+            return None
+
     # Apply updates
     if req.full_name is not None:
         profile.full_name = req.full_name
     if req.dob is not None:
-        profile.dob = datetime.date.fromisoformat(req.dob) if req.dob else None
+        profile.dob = parse_flexible_date(req.dob)
     if req.gender is not None:
         profile.gender = req.gender
     if req.nationality is not None:
@@ -184,7 +198,7 @@ def update_user_profile(
     if req.passport_number is not None and not req.passport_number.startswith("*"):
         profile.passport_number = req.passport_number
     if req.passport_expiry is not None:
-        profile.passport_expiry = datetime.date.fromisoformat(req.passport_expiry) if req.passport_expiry else None
+        profile.passport_expiry = parse_flexible_date(req.passport_expiry)
     if req.pan_card is not None and not req.pan_card.startswith("*"):
         profile.pan_card = req.pan_card
     if req.aadhaar is not None and not req.aadhaar.startswith("*"):

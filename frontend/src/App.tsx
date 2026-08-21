@@ -2579,7 +2579,7 @@ export default function App() {
                 onTrackFlight={(fnum) => setFlightTrackerStatus(fnum)}
                 onShowMyBiz={() => setShowMyBizAdmin(true)}
                 onShowWishlist={() => setShowWishlist(true)}
-                onShowProfile={() => setShowProfile(true)}
+                onShowProfile={() => setActiveTab('profile')}
                 onNavigate={navigate}
                 setPrefilledMessage={setPrefilledMessage}
                 profileName={profileName}

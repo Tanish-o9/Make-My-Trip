@@ -216,8 +216,14 @@ export default function DashboardPage({ onNavigate, token, setActiveTab }: Dashb
         {/* Welcome Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-100">
-              {getGreeting()}, {displayName} 👋
+            <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-100 flex items-center gap-2">
+              {getGreeting()}, <span onClick={() => setActiveTab('profile')} className="cursor-pointer hover:text-yellow-400 underline decoration-yellow-400/50 decoration-2 underline-offset-4 transition-colors" title="View Full Profile">{displayName}</span> 👋
+              <button 
+                onClick={() => setActiveTab('profile')}
+                className="text-xs bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white border border-blue-500/30 font-extrabold px-3 py-1 rounded-xl transition-all cursor-pointer flex items-center gap-1 ml-2"
+              >
+                <User size={12} /> View Profile
+              </button>
             </h1>
             <p className="text-xs text-slate-400 font-semibold mt-1">
               Welcome back to your AI-First Travel Terminal. Here's your journey summary.
