@@ -1,8 +1,9 @@
 export const resolveApiBase = () => {
   if (typeof window !== "undefined") {
-    const hostname = window.location.hostname;
-    if (hostname === "localhost" || hostname === "127.0.0.1") {
-      let url = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+    const envUrl = import.meta.env.VITE_API_URL;
+    let url = (envUrl && envUrl.trim()) ? envUrl.trim() : "";
+
+    if (url) {
       if (url.includes("make-my-trip-production.up.railway.app")) {
         url = "http://localhost:8000/api";
       }
@@ -19,6 +20,11 @@ export const resolveApiBase = () => {
         url = `${url}/api`;
       }
       return url;
+    }
+
+    const hostname = window.location.hostname;
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return "http://localhost:8000/api";
     } else {
       return `${window.location.origin}/api`;
     }
@@ -27,7 +33,7 @@ export const resolveApiBase = () => {
 };
 
 export const API_BASE = resolveApiBase();
-export const API_URL = `${API_BASE}/v1`;
+export const API_URL = API_BASE.endsWith("/v1") ? API_BASE : `${API_BASE}/v1`;
 
 export const resolveWsBase = () => {
   if (typeof window !== "undefined") {

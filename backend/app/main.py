@@ -230,6 +230,8 @@ async def unhandled_exception_handler(request, exc):
 
 # Include Route subtrees
 app.include_router(auth.router, prefix="/api/v1")
+app.include_router(auth.router, prefix="/api")
+app.include_router(auth.router)
 app.include_router(dashboard.router, prefix="/api/v1")
 app.include_router(profile.router, prefix="/api/v1")
 app.include_router(passengers.router, prefix="/api/v1")
